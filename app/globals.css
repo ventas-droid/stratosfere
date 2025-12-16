@@ -55,3 +55,52 @@ html, body {
 .animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
 .animate-slide-left { animation: slideLeft 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
 
+/* --- ZONA DE CAMUFLAJE --- */
+/* Ocultar el logo blanco de Mapbox */
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
+
+/* Opcional: Ocultar también el texto pequeño de abajo a la derecha */
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+/* ------------------------- */
+
+/* --- PLATINUM PULSE EFFECT --- */
+@keyframes shockwave {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); /* Oro Sólido */
+  }
+  70% {
+    transform: scale(2.5);
+    box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); /* Desvanecimiento */
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+  }
+}
+
+.platinum-pulse {
+  position: relative;
+}
+
+.platinum-pulse::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: -1;
+  animation: shockwave 2s infinite; /* Latido constante */
+  background: rgba(255, 215, 0, 0.2);
+  border: 1px solid rgba(255, 215, 0, 0.5);
+}
+
+
+

@@ -117,10 +117,19 @@ export const FilterPanel = ({ filters, setFilters, onClose, t, sound }) => {
     );
 };
 
+import React, { useState } from 'react';
+import { Search, Mic, MicOff, SlidersHorizontal, MapPin, Heart, MessageSquare, User, ArrowUpFromLine } from 'lucide-react'; 
+// Asegúrese de importar ArrowUpFromLine o el icono que prefiera para el Eject
+
 export const OmniSearchDock = ({ onSearch, setActiveTab, activeTab, toggleFilters, t, sound, addNotification }) => {
   const [query, setQuery] = useState("");
   const [isListening, setIsListening] = useState(false);
+  
+  // ESTADO PARA EL MECANISMO DE EJECCIÓN
+  const [isEjected, setIsEjected] = useState(false);
+
   const handleSearchSubmit = () => { sound.playProcess(); onSearch(query); };
+
   const handleMic = () => {
       if (typeof window !== 'undefined' && !('webkitSpeechRecognition' in window)) { addNotification("INFO", "Voice module not supported"); return; }
       if (isListening) { setIsListening(false); return; }
@@ -133,25 +142,99 @@ export const OmniSearchDock = ({ onSearch, setActiveTab, activeTab, toggleFilter
           recognition.start();
       }
   };
+
+  const handleEjectToggle = () => {
+      sound.playClick(); // O un sonido más mecánico si tiene sound.playMechanical()
+      setIsEjected(!isEjected);
+  };
+
   return (
-    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none w-full max-w-2xl px-4">
-      <div className="pointer-events-auto bg-black/80 backdrop-blur-2xl border border-white/10 rounded-full p-2 pl-4 pr-2 flex items-center justify-between shadow-2xl gap-3">
-        <div className="flex-grow flex items-center gap-3 bg-white/5 hover:bg-white/10 text-white px-4 py-3 rounded-full transition-all duration-300 group border border-white/5 hover:border-white/10">
-            <Search size={18} className="text-white/60 group-hover:text-white" />
-            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()} placeholder={t.searchPlaceholder} className="bg-transparent border-none outline-none text-xs text-white placeholder-white/40 w-full font-light tracking-wide"/>
-            <button onClick={handleMic} className={`p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse' : 'bg-white/10 text-white/70 hover:text-white'}`}>{isListening ? <MicOff size={14}/> : <Mic size={14}/>}</button>
+    <>
+      {/* --- CAPA SUPERIOR: DASHBOARD DE PERFIL (Su lógica original) --- */}
+      {activeTab === 'profile' && (
+        <ProfileDashboard 
+          t={t} 
+          onClose={() => setActiveTab('map')} 
+        />
+      )}
+
+      {/* --- CONTENEDOR PRINCIPAL FLOTANTE --- */}
+      {/* He cambiado max-w-2xl a max-w-3xl para hacerlo MÁS ANCHO */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[10000] w-full max-w-3xl px-4 flex flex-col items-center">
+        
+        {/* --- NIVEL 2: EL CAJÓN OCULTO (RECTIFICADOR) --- */}
+        {/* Este panel vive físicamente aquí, pero se esconde detrás del Dock principal */}
+        <div 
+            className={`
+                absolute w-[95%] h-48 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl
+                transition-all duration-500 ease-out origin-bottom -z-10
+                flex items-center justify-center
+                ${isEjected 
+                    ? 'bottom-full mb-2 opacity-100 scale-100 pointer-events-auto'  // EJECTADO: Sube y se muestra
+                    : 'bottom-0 opacity-0 scale-95 pointer-events-none'             // OCULTO: Baja y se esconde
+                }
+            `}
+        >
+            {/* AQUÍ VA EL CONTENIDO DEL PANEL RECTIFICADOR */}
+            <span className="text-white/40 font-mono text-xs tracking-widest">SYSTEM RECTIFICATION // READY</span>
         </div>
-        <button onClick={() => { sound.playClick(); toggleFilters(); }} className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/60 hover:text-[#38bdf8] transition-colors border border-white/5"><SlidersHorizontal size={20} /></button>
-        <div className="h-8 w-px bg-white/10 mx-1"></div>
-        <div className="flex items-center gap-1">
-            {[{ id: 'map', icon: MapPin, label: t.dock.map }, { id: 'vault', icon: Heart, label: t.dock.vault }, { id: 'chat', icon: MessageSquare, label: t.dock.chat }, { id: 'profile', icon: User, label: t.dock.profile }].map((item) => (
-                <button key={item.id} onClick={() => { sound.playClick(); setActiveTab(item.id); }} className={`p-3 rounded-full transition-all duration-300 relative group ${activeTab === item.id ? 'text-white' : 'text-white/60 hover:text-white hover:bg-white/10'}`} style={activeTab === item.id ? {backgroundColor: CORPORATE_BLUE, boxShadow: NEON_GLOW} : {}}>
-                    <item.icon size={20} strokeWidth={activeTab === item.id ? 2 : 1.5} />
-                </button>
-            ))}
+
+        {/* --- NIVEL 1: EL DOCK (CHASIS PRINCIPAL) --- */}
+        {/* Aumenté el padding (p-3 px-6) y el gap para que respire y sea mas grande */}
+        <div className="relative z-20 pointer-events-auto bg-black/90 backdrop-blur-2xl border border-white/10 rounded-full p-3 px-6 flex items-center justify-between shadow-2xl gap-4 w-full">
+          
+          {/* 1. BARRA DE BÚSQUEDA */}
+          <div className="flex-grow flex items-center gap-3 bg-white/5 hover:bg-white/10 text-white px-4 py-3 rounded-full transition-all duration-300 group border border-white/5 hover:border-white/10">
+              <Search size={18} className="text-white/60 group-hover:text-white" />
+              <input 
+                  type="text" 
+                  value={query} 
+                  onChange={(e) => setQuery(e.target.value)} 
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()} 
+                  placeholder={t.searchPlaceholder} 
+                  className="bg-transparent border-none outline-none text-sm text-white placeholder-white/40 w-full font-light tracking-wide" // text-xs a text-sm para leer mejor
+              />
+              <button onClick={handleMic} className={`p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500/20 text-red-500 animate-pulse' : 'bg-white/10 text-white/70 hover:text-white'}`}>
+                  {isListening ? <MicOff size={14}/> : <Mic size={14}/>}
+              </button>
+          </div>
+
+          {/* 2. BOTÓN FILTROS */}
+          <button onClick={() => { sound.playClick(); toggleFilters(); }} className="p-3 bg-white/5 hover:bg-white/10 rounded-full text-white/60 hover:text-[#38bdf8] transition-colors border border-white/5">
+              <SlidersHorizontal size={20} />
+          </button>
+          
+          {/* SEPARADOR */}
+          <div className="h-8 w-px bg-white/10 mx-1"></div>
+
+          {/* 3. BOTONES DE NAVEGACIÓN (MAP, VAULT, CHAT, PROFILE) */}
+          <div className="flex items-center gap-2">
+              {[{ id: 'map', icon: MapPin, label: t.dock.map }, { id: 'vault', icon: Heart, label: t.dock.vault }, { id: 'chat', icon: MessageSquare, label: t.dock.chat }, { id: 'profile', icon: User, label: t.dock.profile }].map((item) => (
+                  <button key={item.id} onClick={() => { sound.playClick(); setActiveTab(item.id); }} className={`p-3 rounded-full transition-all duration-300 relative group ${activeTab === item.id ? 'text-white' : 'text-white/60 hover:text-white hover:bg-white/10'}`} style={activeTab === item.id ? {backgroundColor: 'rgba(56, 189, 248, 1)', boxShadow: '0 0 15px rgba(56, 189, 248, 0.5)'} : {}}>
+                      <item.icon size={20} strokeWidth={activeTab === item.id ? 2 : 1.5} />
+                  </button>
+              ))}
+          </div>
+
+          {/* 4. SEPARADOR TÁCTICO PARA EL EJECT */}
+          <div className="h-8 w-px bg-red-500/30 mx-1"></div>
+
+          {/* 5. BOTÓN EJECT / RECTIFY */}
+          <button 
+            onClick={handleEjectToggle}
+            className={`
+                p-3 rounded-full transition-all duration-300 group relative
+                ${isEjected ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-white/40 hover:text-red-400 hover:bg-red-950/30'}
+            `}
+          >
+            <ArrowUpFromLine size={20} />
+            {/* Indicador de estado activo */}
+            {isEjected && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}
+          </button>
+
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

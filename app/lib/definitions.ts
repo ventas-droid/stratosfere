@@ -59,3 +59,5 @@ export type CustomersTableType = {
   total_paid: number;
 };
 
+
+

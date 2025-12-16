@@ -236,3 +236,138 @@ export const ProfileDashboard = ({ t, onClose }) => (
     </div>
 );
 
+// EN app/components/alive-map/ui-panels.tsx
+
+import React, { useState, useMemo } from 'react';
+import { X, DollarSign, Camera, FileText, Zap, TrendingUp, Sun } from 'lucide-react';
+// IMPORTAR LA LÓGICA DE CLASIFICACIÓN
+import { getPropertyTier, TIER_CONFIG } from './property-tiers'; // <--- NUEVA IMPORTACIÓN
+
+// --- COMPONENTE: FORMULARIO DE CAPTURA DE PROPIEDAD ---
+export const PropertyCaptureForm = ({ onClose, t, sound }) => {
+    const [price, setPrice] = useState(0);
+    const [photos, setPhotos] = useState([]);
+    const [description, setDescription] = useState('');
+    const [energyCert, setEnergyCert] = useState('NOT_APPLY'); // Valores: A+, B, C, D... o NOT_APPLY
+
+    // CLASIFICACIÓN AUTOMÁTICA DE LA PROPIEDAD BASADA EN EL PRECIO
+    const currentTierKey = useMemo(() => getPropertyTier(price), [price]);
+    const tier = TIER_CONFIG[currentTierKey];
+    
+    // El color de la "Ficha de la Feria" se actualiza aquí
+    const tierColor = tier.color; 
+    const tierName = tier.name;
+
+    const handlePriceChange = (e) => {
+        const value = parseInt(e.target.value) || 0;
+        setPrice(value);
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        sound.playClick();
+        console.log('Propiedad lista para el envío:', { price, description, energyCert, tierName });
+        // Aquí iría la lógica de API para subir la propiedad...
+        onClose();
+    };
+
+    const inputClass = "w-full bg-white/5 border border-white/10 p-2 text-sm text-white/90 rounded-md focus:ring-1 transition-all";
+    const sectionClass = "mb-6 p-4 border border-white/10 rounded-xl bg-black/50";
+
+    return (
+        <div className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center backdrop-blur-sm animate-fade-in-up" onClick={onClose}>
+            <div 
+                className="w-[600px] h-[80vh] bg-black/90 border border-white/20 rounded-2xl shadow-3xl overflow-y-auto custom-scrollbar p-6" 
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex justify-between items-start mb-6 pb-4 border-b border-white/10 sticky top-0 bg-black/90 z-10">
+                    <h2 className="text-xl font-bold tracking-widest uppercase" style={{color: tierColor}}>
+                        {t.form.title} | {tierName}
+                    </h2>
+                    <button onClick={onClose} className="p-2 text-white/50 hover:text-red-500 transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+                
+                <form onSubmit={handleSubmit}>
+                    
+                    {/* SECCIÓN 1: PRECIO y CLASIFICACIÓN (Ficha de la Feria) */}
+                    <div className={sectionClass}>
+                        <div className="flex items-center gap-2 mb-3 text-white font-mono uppercase" style={{color: tierColor}}>
+                            <DollarSign size={16} /> {t.form.section_price}
+                        </div>
+                        <label className="block mb-4">
+                            <span className="text-xs text-white/60 mb-1 block">{t.form.label_price} (€)</span>
+                            <input
+                                type="number"
+                                value={price}
+                                onChange={handlePriceChange}
+                                className={inputClass}
+                                placeholder="Ej: 450000"
+                            />
+                        </label>
+                        <div className="p-3 rounded-lg flex items-center justify-center text-sm font-bold mt-4" style={{ backgroundColor: tierColor + '20', border: `1px solid ${tierColor}` }}>
+                            {t.form.assigned_tier}: <span className="ml-2 font-mono" style={{color: tierColor}}>{tierName}</span>
+                        </div>
+                    </div>
+                    
+                    {/* SECCIÓN 2: CERTIFICADO ENERGÉTICO */}
+                    <div className={sectionClass}>
+                        <div className="flex items-center gap-2 mb-3 text-white font-mono uppercase">
+                            <Zap size={16} style={{color: tierColor}}/> {t.form.section_energy}
+                        </div>
+                        <label className="block mb-4">
+                            <span className="text-xs text-white/60 mb-1 block">{t.form.label_certificate}</span>
+                            <select
+                                value={energyCert}
+                                onChange={(e) => setEnergyCert(e.target.value)}
+                                className={inputClass}
+                            >
+                                <option value="NOT_APPLY">En Trámite / No Aplica</option>
+                                {['A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G'].map(cert => (
+                                    <option key={cert} value={cert}>{cert}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+
+                    {/* SECCIÓN 3: DESCRIPCIÓN Y FOTOS (Para simplificar la estructura) */}
+                    <div className={sectionClass}>
+                        <div className="flex items-center gap-2 mb-3 text-white font-mono uppercase">
+                            <FileText size={16} style={{color: tierColor}}/> {t.form.section_details}
+                        </div>
+                        <label className="block mb-4">
+                            <span className="text-xs text-white/60 mb-1 block">{t.form.label_description}</span>
+                            <textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                className={inputClass + " h-24"}
+                                placeholder={t.form.placeholder_description}
+                            />
+                        </label>
+                        <div className="mt-4 p-4 border border-dashed border-white/20 rounded-lg text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => alert(t.form.alert_upload_photos)}>
+                            <Camera size={20} className="mx-auto text-white/50 mb-1" />
+                            <span className="text-xs text-white/60">{t.form.label_upload_photos}</span>
+                        </div>
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        className="w-full py-3 mt-4 text-sm font-bold uppercase tracking-widest rounded-lg transition-all"
+                        style={{ backgroundColor: tierColor, color: 'black', boxShadow: `0 4px 15px -5px ${tierColor}`}}
+                    >
+                        {t.form.submit_button}
+                    </button>
+                    
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// EN app/components/alive-map/ui-panels.tsx (en la sección final de exportación)
+// ...
+export { ChatPanel } from './ui-panels'; // (Solo ejemplo si lo tiene)
+// ...
+export { PropertyCaptureForm } // Asegúrese de que PropertyCaptureForm está visible
+
