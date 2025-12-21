@@ -1,390 +1,330 @@
 // @ts-nocheck
-import { useEffect, useRef, useState, useCallback } from 'react';
+"use client";
+
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-// IMPORTACIÓN CORRECTA DESDE LOCAL
-import { CORPORATE_BLUE } from './data';
-import { MapNanoCard, TIER_COLORS, LUXURY_IMAGES } from './ui-panels';
+
+// 1. IMÁGENES
+import { LUXURY_IMAGES } from './ui-panels'; 
+
+// 2. COMPONENTE NANO CARD
+import MapNanoCard from './MapNanoCard'; 
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
-const NUM_ACTIVOS = 5000;
 
-// --- DICCIONARIOS ---
-export const TRANSLATIONS = {
-  ES: {
-    gatekeeper: { btn: "ACCESO CLIENTE", status: "ENLACE SEGURO", access: "BIENVENIDO" },
-    searchPlaceholder: "Ej: 'Ático en Madrid menos de 2M'...",
-    vault: { title: "FAVORITOS", totalValue: "VALOR CARTERA", items: "PROPIEDADES", empty: "SIN FAVORITOS", view: "VER", delete: "ELIMINAR" },
-    panel: { details: "DETALLES", contact: "+ INFO", expand: "EXPANDIR" }, 
-    specs: { bed: "hab", bath: "baños", sqm: "m²" },
-    status: { online: "SISTEMA ONLINE", lang: "IDIOMA", audio: "SONIDO", clear: "BORRAR TODO" },
-    dock: { map: "Mapa", chat: "Concierge", profile: "Perfil", vault: "Favs" },
-    profile: { title: "PERFIL CLIENTE", rank: "PREMIUM", missions: "VISITAS", conquests: "ADQUISICIONES", tacticalProfile: "Actividad", logout: "CERRAR SESIÓN" },
-    chat: { placeholder: "Escriba mensaje a su agente...", agent: "Agente Sarah", status: "En línea", system: "Concierge Activo", received: "Recibido" },
-    commandPanel: { gallery: "MULTIMEDIA", description: "DATOS CLAVE", finance: "VALORACIÓN", roi: "RENTABILIDAD", monthly: "CUOTA HIPOTECA", down: "ENTRADA", score: "PUNTUACIÓN ACTIVO", contact: "CONTACTAR AGENTE", expand: "AMPLIAR VISTA" },
-    filters: { title: "FILTROS TÁCTICOS", price: "PRECIO MAX", area: "AREA MIN", type: "TIPO", clear: "LIMPIAR" },
-    notifications: { added: "Propiedad añadida a Favoritos", removed: "Propiedad eliminada", filter: "Filtros aplicados" }
-  },
-  EN: {
-    gatekeeper: { btn: "CLIENT ACCESS", status: "SECURE LINK", access: "WELCOME" },
-    searchPlaceholder: "Ex: 'Penthouse in Madrid under 2M'...",
-    vault: { title: "FAVORITES", totalValue: "PORTFOLIO VALUE", items: "PROPERTIES", empty: "NO FAVORITES", view: "VIEW", delete: "REMOVE" },
-    panel: { details: "DETAILS", contact: "+ INFO", expand: "EXPAND" },
-    specs: { bed: "bed", bath: "bath", sqm: "sqm" },
-    status: { online: "SYSTEM ONLINE", lang: "LANGUAGE", audio: "AUDIO", clear: "CLEAR NOTIFICATIONS" },
-    dock: { map: "Map", chat: "Concierge", profile: "Profile", vault: "Favs" },
-    profile: { title: "CLIENT PROFILE", rank: "PREMIUM", missions: "VISITS", conquests: "ACQUISITIONS", tacticalProfile: "Activity", logout: "LOGOUT" },
-    chat: { placeholder: "Message your agent...", agent: "Agent Sarah", status: "Online", system: "Concierge Active", received: "Received" },
-    commandPanel: { gallery: "MEDIA", description: "INTEL", finance: "VALUATION", roi: "YIELD EST.", monthly: "MONTHLY", down: "DOWN PMT", score: "ASSET SCORE", contact: "CONTACT AGENT", expand: "EXPAND VIEW" },
-    filters: { title: "FILTERS", price: "MAX PRICE", area: "MIN AREA", type: "TYPE", clear: "RESET" },
-    notifications: { added: "Property added to Favorites", removed: "Property removed from Favorites", filter: "Search filters updated" }
-  }
-};
-
-// --- HOOK DE SONIDO ---
-export const useTacticalSound = (enabled) => {
-  const audioCtxRef = useRef(null);
-  const enabledRef = useRef(enabled);
-  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
-
-  const initAudio = useCallback(() => {
-    if (!audioCtxRef.current) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioCtxRef.current = new AudioContext();
-    }
-    if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume();
-  }, []);
-  
-  const playTone = useCallback((freq, type, duration, vol = 0.05) => {
-    if (!enabledRef.current) return;
-    if (!audioCtxRef.current) initAudio();
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, ctx.currentTime);
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration);
-  }, [initAudio]);
-
-  const playHover = useCallback(() => playTone(600, 'sine', 0.05, 0.005), [playTone]);
-  const playClick = useCallback(() => playTone(1200, 'sine', 0.05, 0.02), [playTone]); 
-  const playPing = useCallback(() => playTone(800, 'sine', 0.3, 0.05), [playTone]);
-  const playDeploy = useCallback(() => { playTone(150, 'sine', 0.2, 0.02); setTimeout(() => playTone(300, 'sine', 0.3, 0.02), 80); }, [playTone]);
-  const playBoot = useCallback(() => { playTone(100, 'sine', 0.4, 0.05); setTimeout(() => playTone(1500, 'sine', 0.8, 0.01), 300); }, [playTone]);
-  
-  return { playHover, playClick, playPing, playDeploy, playBoot };
-};
-
-// --- GENERADOR DE DATOS ---
-const generarGeoJSON = (cantidad) => {
-  const features = [];
-  const CIUDADES = [{lat: 40.4168, lng: -3.7038}, {lat: 41.40, lng: 2.15}, {lat: 39.47, lng: -0.37}];
-  for (let i = 0; i < cantidad; i++) {
-    const ciudad = CIUDADES[Math.floor(Math.random() * CIUDADES.length)];
-    const r = 0.04 * Math.sqrt(Math.random());
-    const theta = Math.random() * 2 * Math.PI;
-    const lat = ciudad.lat + r * Math.sin(theta);
-    const lng = ciudad.lng + r * Math.cos(theta);
-    const priceValue = Math.floor(Math.random() * 1500000 + 150000); 
-    let tier = "PREMIUM";
-    if (priceValue < 300000) tier = "SMART";
-    else if (priceValue > 600000) tier = "HIGH_CLASS";
-    const colorCore = TIER_COLORS[tier].hex;
-    const mainImgIdx = i % LUXURY_IMAGES.length;
-    const mainImg = LUXURY_IMAGES[mainImgIdx];
+// ----------------------------------------------------------------------
+// 1. BASE DE DATOS TÁCTICA (AHORA CON ROLES Y DESCIPCIONES REALES)
+// ----------------------------------------------------------------------
+const FULL_DATABASE = [
+    // --- GAMA ALTA (ELITE > 5M) ---
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6883, 40.4280] }, 
+        properties: { 
+            price: "5.2M€", priceValue: 5200000, type: "PENTHOUSE", id: 1,
+            role: "PREMIUM", // <--- ROL AÑADIDO
+            description: "Ático triplex con piscina privada en azotea. Seguridad 24h y acceso directo desde ascensor.",
+            img: "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6850, 40.4200] }, 
+        properties: { 
+            price: "12.5M€", priceValue: 12500000, type: "ROYAL VILLA", id: 2,
+            role: "VIP CLASS",
+            description: "Palacete histórico reformado. 8 habitaciones, jardín interior de 500m² y búnker de seguridad.",
+            img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6910, 40.4350] }, 
+        properties: { 
+            price: "8.9M€", priceValue: 8900000, type: "SKY PENTHOUSE", id: 3,
+            role: "HIGH CLASS",
+            description: "Vistas panorámicas 360º a todo Madrid. Domótica integral y acabados en mármol italiano.",
+            img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6900, 40.4260] }, 
+        properties: { 
+            price: "9.2M€", priceValue: 9200000, type: "MANSION", id: 8,
+            role: "EXCLUSIVO",
+            description: "Residencia diplomática en el corazón de Salamanca. Privacidad absoluta y garaje para 6 vehículos.",
+            img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
     
-    const gallery = JSON.stringify([mainImg, LUXURY_IMAGES[(mainImgIdx + 1) % LUXURY_IMAGES.length]]);
+    // --- GAMA MEDIA / ALTA (1M - 5M) ---
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6800, 40.4250] }, 
+        properties: { 
+            price: "3.4M€", priceValue: 3400000, type: "SMART HOME", id: 4,
+            role: "MODERNO",
+            description: "Vivienda inteligente controlada por voz. Eficiencia energética A+ y diseño minimalista.",
+            img: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6950, 40.4220] }, 
+        properties: { 
+            price: "2.1M€", priceValue: 2100000, type: "LOFT", id: 5,
+            role: "DISEÑO",
+            description: "Antigua fábrica convertida en loft de diseño neoyorquino. Techos de 5 metros.",
+            img: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    
+    // --- GAMA ACCESIBLE (VIVIENDAS < 1M) ---
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.7000, 40.4150] }, 
+        properties: { 
+            price: "450k€", priceValue: 450000, type: "STUDIO", id: 101,
+            role: "ALQUILER",
+            description: "Estudio coqueto ideal para singles o inversores. Alta rentabilidad por alquiler.",
+            img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.7050, 40.4180] }, 
+        properties: { 
+            price: "680k€", priceValue: 680000, type: "DUPLEX", id: 102,
+            role: "FAMILIAR",
+            description: "Dúplex luminoso con terraza. Zona tranquila y bien comunicada.",
+            img: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6980, 40.4120] }, 
+        properties: { 
+            price: "320k€", priceValue: 320000, type: "FLAT", id: 103,
+            role: "A REFORMAR",
+            description: "Piso para reformar a tu gusto. Gran potencial de revalorización tras obra.",
+            img: "https://images.unsplash.com/photo-1484154218962-a1c002085d2f?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.7100, 40.4200] }, 
+        properties: { 
+            price: "550k€", priceValue: 550000, type: "LOFT", id: 104,
+            role: "OPORTUNIDAD",
+            description: "Loft céntrico a precio reducido por urgencia de venta. Oportunidad única.",
+            img: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
 
-    features.push({
-      type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] },
-      properties: { 
-          id: `SEC-${i}`, title: tier, tier, priceValue, precio: (priceValue/1000).toFixed(0)+"k €", 
-          area: Math.floor(Math.random()*350+50), category: Math.random()>0.4?'PISO':'CASA', 
-          rooms: Math.floor(Math.random()*5)+1, baths: Math.floor(Math.random()*3)+1,
-          photoUrl: mainImg, gallery: gallery, colorCore, lat, lng, 
-          assetScore: Math.floor(Math.random()*30+70) 
-      }
-    });
-  }
-  return { type: 'FeatureCollection', features };
-};
-const DATA_PUNTOS = generarGeoJSON(NUM_ACTIVOS);
+    // --- OPORTUNIDADES (GARAJES / TRASTEROS / LOCALES < 100k) ---
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.6920, 40.4100] }, 
+        properties: { 
+            price: "20k€", priceValue: 20000, type: "GARAGE", id: 201,
+            role: "INVERSIÓN",
+            description: "Plaza de garaje amplia en zona de difícil aparcamiento. Rentabilidad 6%.",
+            img: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    { 
+        type: 'Feature', 
+        geometry: { type: 'Point', coordinates: [-3.7120, 40.4250] }, 
+        properties: { 
+            price: "45k€", priceValue: 45000, type: "LOCAL", id: 202,
+            role: "COMERCIAL",
+            description: "Pequeño local a pie de calle. Ideal para oficina o pequeño comercio.",
+            img: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80"
+        } 
+    },
+    
+    // Puntos extra (Clusters)
+    { type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6885, 40.4282] }, properties: { price: "4.1M€", priceValue: 4100000, type: "APT", id: 6, role: "LUJO", description: "Apartamento de lujo.", img: "" } },
+    { type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6881, 40.4278] }, properties: { price: "6.5M€", priceValue: 6500000, type: "DUPLEX", id: 7, role: "PREMIUM", description: "Duplex premium.", img: "" } },
+];
 
-// --- MAIN LOGIC HOOK ---
+// ----------------------------------------------------------------------
+// 2. LÓGICA DEL MAPA
+// ----------------------------------------------------------------------
 export const useMapLogic = () => {
   const mapContainer = useRef(null);
   const map = useRef(null);
-  const popupRef = useRef(null);
-  const selectedMarkerRef = useRef(null); 
-  const popupRootRef = useRef(null); 
-  const activePopupIdRef = useRef(null);
-
-  const [selectedProperty, setSelectedProperty] = useState(null); 
-  const [chatContext, setChatContext] = useState(null); 
-  const [viewState, setViewState] = useState('LOCKED'); 
-  const [activeTab, setActiveTab] = useState('map'); 
-  const [showCommandCenter, setShowCommandCenter] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  
-  const [systemNotifs, setSystemNotifs] = useState([]);
-  
-  const [filters, setFilters] = useState({ maxPrice: 2000000, minArea: 0, type: 'ALL' });
-  const [currentView, setCurrentView] = useState({ is3D: true, mode: 'dusk' });
-  const [lang, setLang] = useState('ES');
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  
-  const sound = useTacticalSound(true);
-  const t = TRANSLATIONS[lang] || TRANSLATIONS['ES']; 
-
-  const [favorites, setFavorites] = useState([]);
-  useEffect(() => { try { const savedFavs = localStorage.getItem('alive_favorites'); if (savedFavs) setFavorites(JSON.parse(savedFavs)); } catch(e) {} }, []);
-  useEffect(() => { try { localStorage.setItem('alive_favorites', JSON.stringify(favorites)); } catch(e) {} }, [favorites]);
-
-  const toggleFavorite = (prop) => { 
-      setFavorites(prev => {
-          const exists = prev.some(f => f.id === prop.id);
-          const newFavs = exists ? prev.filter(f => f.id !== prop.id) : [...prev, prop];
-          const newDesc = exists ? t.notifications?.removed : t.notifications?.added;
-          setSystemNotifs(prevNotifs => {
-              if (prevNotifs.length > 0 && prevNotifs[0].desc === newDesc) return prevNotifs;
-              return [{title: "INFO", desc: newDesc, action: null}, ...prevNotifs];
-          });
-          return newFavs;
-      }); 
-      sound.playPing();
-  };
-  const removeFromFavs = (prop) => toggleFavorite(prop);
-  const toggleSound = () => setSoundEnabled(!soundEnabled); 
-
-  const handleContactAgent = () => {
-      setChatContext(selectedProperty); 
-      setShowCommandCenter(false); 
-      setActiveTab('chat'); 
-      sound.playDeploy();
-  };
-
-  const handleViewChange = (type) => {
-      if (!map.current) return;
-      if (type === '3D') { map.current.easeTo({ pitch: 60, bearing: -20, duration: 1000 }); setCurrentView(p => ({...p, is3D: true})); }
-      if (type === '2D') { map.current.easeTo({ pitch: 0, bearing: 0, duration: 1000 }); setCurrentView(p => ({...p, is3D: false})); }
-      if (type.startsWith('MODE_')) {
-          const mode = type.replace('MODE_', '').toLowerCase();
-          if (map.current.getStyle().name !== 'Mapbox Standard') {
-              map.current.setStyle('mapbox://styles/mapbox/standard');
-          }
-          setTimeout(() => {
-              try {
-                  map.current.setConfig('basemap', { lightPreset: mode, showPointOfInterestLabels: false, showTransitLabels: false });
-              } catch(e) { console.log("Standard config not ready"); }
-          }, 500);
-          setCurrentView(p => ({...p, mode}));
-      }
-  };
-
-  const handleUnlock = () => { 
-      map.current?.flyTo({ center: [-3.7038, 40.4168], zoom: 15.5, pitch: 60, bearing: -20, duration: 4000, essential: true }); 
-      setViewState('ACTIVE'); 
-  };
-  
-  const handleGPS = () => { 
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition((p) => { 
-              if (p && p.coords && !isNaN(p.coords.longitude) && !isNaN(p.coords.latitude)) {
-                  map.current?.flyTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 16, pitch: 45 }); 
-                  sound.playDeploy(); 
-              }
-          }, null, { enableHighAccuracy: true });
-      }
-  };
-
-  const handleOmniSearch = (query) => {
-      const q = query.toLowerCase();
-      const newFilters = {...filters};
-      let changed = false;
-      if (q.includes('millon') || q.includes('m') || q.includes('k')) {
-          if (q.match(/(\d+)m/)) { newFilters.maxPrice = parseInt(q.match(/(\d+)m/)[1]) * 1000000; changed = true; }
-          if (q.match(/(\d+)k/)) { newFilters.maxPrice = parseInt(q.match(/(\d+)k/)[1]) * 1000; changed = true; }
-      }
-      if (q.includes('casa') || q.includes('chalet')) { newFilters.type = 'CASA'; changed = true; }
-      if (q.includes('piso') || q.includes('apartamento')) { newFilters.type = 'PISO'; changed = true; }
-      
-      if(changed) { 
-          setFilters(newFilters); 
-          setSystemNotifs(prev => [{title: "OMNI AI", desc: t.notifications?.filter, action: null}, ...prev]); 
-      }
-      
-      fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&country=es`)
-      .then(res => res.json())
-      .then(data => {
-          if(data.features && data.features.length > 0) {
-              const [lng, lat] = data.features[0].center;
-              if (!isNaN(lng) && !isNaN(lat)) {
-                  map.current?.flyTo({center: [lng, lat], zoom: 14});
-              }
-          }
-      });
-  };
-  
-  // --- AQUÍ ESTÁ LA MAGIA DE LA ONDA (ACTIVACIÓN VISUAL) ---
-  useEffect(() => {
-    if (!map.current) return;
-    if (selectedMarkerRef.current) { selectedMarkerRef.current.remove(); selectedMarkerRef.current = null; }
-    
-    if (selectedProperty && !isNaN(selectedProperty.lng) && !isNaN(selectedProperty.lat)) { 
-        const tierHex = TIER_COLORS[selectedProperty.tier]?.hex || CORPORATE_BLUE;
-        
-        // Creamos el contenedor del marcador
-        const el = document.createElement('div');
-        el.className = 'marker-container';
-        el.style.width = '24px';
-        el.style.height = '24px';
-        el.style.position = 'relative';
-        el.style.display = 'flex';
-        el.style.justifyContent = 'center';
-        el.style.alignItems = 'center';
-
-        // 1. LA ONDA (Usando la clase CSS que definimos en AliveMap.tsx)
-        const wave = document.createElement('div');
-        wave.className = 'pin-wave-active'; // <--- ESTA ES LA CLAVE
-        // Forzamos el color dinámico del Tier
-        wave.style.backgroundColor = tierHex;
-        wave.style.boxShadow = `0 0 15px ${tierHex}`;
-        
-        // 2. EL PUNTO CENTRAL
-        const center = document.createElement('div');
-        center.style.width = '10px';
-        center.style.height = '10px';
-        center.style.borderRadius = '50%';
-        center.style.backgroundColor = tierHex;
-        center.style.boxShadow = `0 0 10px ${tierHex}, 0 0 5px white`;
-        center.style.zIndex = '10';
-
-        el.appendChild(wave);
-        el.appendChild(center);
-        
-        selectedMarkerRef.current = new mapboxgl.Marker(el)
-            .setLngLat([selectedProperty.lng, selectedProperty.lat])
-            .addTo(map.current);
-    }
-  }, [selectedProperty]);
+  const [isLoaded, setIsLoaded] = useState(false); 
+  const markersRef = useRef({});
 
   useEffect(() => {
-      if (!map.current) return;
-      const layerID = 'unclustered-point';
-      if (!map.current.getLayer(layerID)) return;
-      
-      const activeFilters = ['all'];
-      activeFilters.push(['<=', ['get', 'priceValue'], filters.maxPrice]);
-      activeFilters.push(['>=', ['get', 'area'], filters.minArea]);
-      if (filters.type !== 'ALL') activeFilters.push(['==', ['get', 'category'], filters.type]);
-      
-      map.current.setFilter(layerID, activeFilters);
-      map.current.setFilter('clusters', activeFilters); 
-  }, [filters]);
-
-  const loadLayers = (m) => {
-    if (m.getSource('puntos')) return; 
-    m.addSource('puntos', { type: 'geojson', data: DATA_PUNTOS, cluster: true, clusterMaxZoom: 14, clusterRadius: 50 });
-
-    if (!m.getLayer('clusters')) {
-        m.addLayer({ id: 'clusters', type: 'circle', source: 'puntos', filter: ['has', 'point_count'], paint: { 'circle-color': ['step', ['get', 'point_count'], CORPORATE_BLUE, 100, '#2563eb', 750, '#1d4ed8'], 'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40], 'circle-stroke-width': 2, 'circle-stroke-color': '#000', 'circle-opacity': 0.9 } });
-        m.addLayer({ id: 'cluster-count', type: 'symbol', source: 'puntos', filter: ['has', 'point_count'], layout: { 'text-field': '{point_count_abbreviated}', 'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'], 'text-size': 12 }, paint: { 'text-color': '#fff' } });
-        m.addLayer({ id: 'unclustered-point', type: 'circle', source: 'puntos', filter: ['!', ['has', 'point_count']], paint: { 'circle-radius': 6, 'circle-color': ['get', 'colorCore'], 'circle-stroke-width': 2, 'circle-stroke-color': '#000' } });
-    }
-
-    m.on('click', 'clusters', (e) => { sound.playClick(); const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] }); const clusterId = features[0].properties.cluster_id; m.getSource('puntos').getClusterExpansionZoom(clusterId, (err, zoom) => { if(!err) m.easeTo({ center: features[0].geometry.coordinates, zoom: zoom }); }); });
-    m.on('mouseenter', 'clusters', () => { m.getCanvas().style.cursor = 'pointer'; sound.playHover(); }); m.on('mouseleave', 'clusters', () => { m.getCanvas().style.cursor = ''; });
+    if (map.current) return;
     
-    m.on('click', 'unclustered-point', (e) => { 
-        sound.playClick(); 
-        const coords = e.features[0].geometry.coordinates.slice();
-        if (isNaN(coords[0]) || isNaN(coords[1])) return;
+    mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        m.flyTo({ center: coords, zoom: 17, pitch: 60 }); 
-        
-        const props = e.features[0].properties;
-        const galleryRaw = props.gallery;
-        const gallery = galleryRaw ? JSON.parse(galleryRaw) : [props.photoUrl];
-        
-        const clickedProps = { ...props, gallery, lng: coords[0], lat: coords[1], priceValue: Number(props.priceValue), area: Number(props.area) }; 
-        
-        activePopupIdRef.current = clickedProps.id;
-        const isFav = favorites.some(f => f.id === clickedProps.id);
-        
-        const popupNode = document.createElement('div'); 
-        popupNode.onclick = (e) => e.stopPropagation();
-        
-        const root = createRoot(popupNode);
-        popupRootRef.current = root;
-        
-        root.render(<MapNanoCard props={clickedProps} onToggleFavorite={toggleFavorite} isFavorite={isFav} onClose={() => { popupRef.current?.remove(); activePopupIdRef.current = null; }} onOpenDetail={(p) => { setSelectedProperty(p); setShowCommandCenter(true); popupRef.current?.remove(); sound.playDeploy(); }} t={t} sound={sound} />); 
-        
-        popupRef.current.setLngLat(coords).setDOMContent(popupNode).addTo(m); 
-        popupRef.current.once('close', () => { activePopupIdRef.current = null; });
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/standard',
+      center: [-3.6883, 40.4280],
+      zoom: 13, 
+      pitch: 65,
+      bearing: -20,
+      attributionControl: false,
+      antialias: true,
+      projection: 'globe' 
     });
-    
-    m.on('mouseenter', 'unclustered-point', () => { m.getCanvas().style.cursor = 'pointer'; sound.playHover(); }); m.on('mouseleave', 'unclustered-point', () => { m.getCanvas().style.cursor = ''; });
-  };
 
- useEffect(() => { 
-      if (map.current) return; 
-      mapboxgl.accessToken = MAPBOX_TOKEN; 
-      map.current = new mapboxgl.Map({ 
-          container: mapContainer.current, 
-          style: 'mapbox://styles/mapbox/standard', 
-          center: [0, 40], 
-          zoom: 2, 
-          pitch: 0, 
-          attributionControl: false, 
-          antialias: true, 
-          projection: 'globe' 
-      }); 
-      
-      map.current.on('style.load', () => {
-          map.current.setConfig('basemap', { lightPreset: 'dusk', showPointOfInterestLabels: false, showTransitLabels: false });
-          loadLayers(map.current);
+    map.current.on('style.load', () => {
+       const m = map.current;
+       try {
+        m.setConfigProperty('basemap', 'lightPreset', 'dusk');
+        m.setConfigProperty('basemap', 'showPointOfInterestLabels', false); 
+        m.setFog({
+            'range': [0.5, 10],
+            'color': '#242B4B',      
+            'high-color': '#ADD8E6', 
+            'horizon-blend': 0.2,    
+            'space-color': '#0B0E17',
+            'star-intensity': 0.6    
+        });
+       } catch(e) { console.log("Configurando luces..."); }
+    });
+
+    map.current.on('load', () => {
+      console.log("🟢 MAPA 3D: SISTEMAS LISTOS");
+      setIsLoaded(true); 
+
+      map.current.addSource('properties', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: FULL_DATABASE },
+        cluster: true,
+        clusterMaxZoom: 14, 
+        clusterRadius: 50
       });
 
-      popupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 14, maxWidth: 'none', className: 'tactical-popup' }); 
+      // CAPAS DE CLUSTERS (CIRCULOS DE AGRUPACIÓN)
+      map.current.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'properties',
+        filter: ['has', 'point_count'],
+        paint: {
+            'circle-color': ['step', ['get', 'point_count'], '#3B82F6', 10, '#F59E0B', 50, '#EF4444'],
+            'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+            'circle-opacity': 0.9
+        }
+      });
+
+      map.current.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'properties',
+        filter: ['has', 'point_count'],
+        layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+            'text-size': 12
+        },
+        paint: { 'text-color': '#ffffff' }
+      });
+
+      // EVENTOS DE CLICK EN CLUSTER
+      map.current.on('click', 'clusters', (e) => {
+        const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+        const clusterId = features[0].properties.cluster_id;
+        map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err, zoom) => {
+            if (err) return;
+            map.current.flyTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, speed: 0.5 });
+        });
+      });
+      
+      map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
+      map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
+      map.current.on('move', () => updateMarkers());
+      map.current.on('moveend', () => updateMarkers());
+      
+      updateMarkers();
+    });
   }, []);
 
-  return {
-    mapContainer,
-    viewState,
-    t,
-    sound,
-    handleUnlock,
-    handleGPS,
-    handleViewChange,
-    currentView,
-    systemNotifs,
-    setSystemNotifs,
-    lang,
-    setLang,
-    soundEnabled,
-    toggleSound,
-    setActiveTab,
-    handleOmniSearch,
-    activeTab,
-    showFilters,
-    setShowFilters,
-    filters,
-    setFilters,
-    showCommandCenter,
-    setShowCommandCenter,
-    selectedProperty,
-    handleContactAgent,
-    favorites,
-    removeFromFavs,
-    setSelectedProperty,
-    chatContext
+  // FILTRADO
+  useEffect(() => {
+      const handleFilterSignal = (e) => {
+          if (!map.current || !map.current.getSource('properties')) return;
+          
+          const { maxPrice } = e.detail;
+          console.log(`🛰️ MAPA: FILTRANDO POR DEBAJO DE ${maxPrice} €`);
+
+          const filteredFeatures = FULL_DATABASE.filter(f => f.properties.priceValue <= maxPrice);
+
+          map.current.getSource('properties').setData({
+              type: 'FeatureCollection',
+              features: filteredFeatures
+          });
+          
+          setTimeout(updateMarkers, 100);
+      };
+
+      window.addEventListener('apply-filter-signal', handleFilterSignal);
+      return () => window.removeEventListener('apply-filter-signal', handleFilterSignal);
+  }, []);
+
+  // 4. ACTUALIZACIÓN DE MARCADORES (CON INYECCIÓN DE DATOS DE INTELIGENCIA)
+  const updateMarkers = () => {
+      const mapInstance = map.current;
+      if (!mapInstance || !mapInstance.getSource('properties')) return;
+
+      const features = mapInstance.querySourceFeatures('properties', {
+          filter: ['!', ['has', 'point_count']] 
+      });
+
+      const visibleIds = new Set(features.map(f => f.properties.id));
+
+      Object.keys(markersRef.current).forEach((id) => {
+          if (!visibleIds.has(Number(id))) {
+              markersRef.current[id].remove(); 
+              delete markersRef.current[id];   
+          }
+      });
+
+      features.forEach((feature) => {
+          const id = feature.properties.id;
+          if (markersRef.current[id]) return; 
+
+          const el = document.createElement('div');
+          el.className = 'nanocard-marker';
+          
+          const root = createRoot(el);
+          
+          // 🟢 AQUI ES DONDE PASAMOS LOS NUEVOS DATOS A LA NANO CARD
+          root.render(
+            <MapNanoCard 
+               price={feature.properties.price} 
+               priceValue={feature.properties.priceValue} // Aseguramos el valor numérico
+               type={feature.properties.type} 
+               image={feature.properties.img || LUXURY_IMAGES[id % LUXURY_IMAGES.length]}
+               id={id} 
+               lat={feature.geometry.coordinates[1]}
+               lng={feature.geometry.coordinates[0]}
+               // 🔥 NUEVOS DATOS INYECTADOS
+               role={feature.properties.role} 
+               description={feature.properties.description}
+            />
+          );
+
+          const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+            .setLngLat(feature.geometry.coordinates)
+            .addTo(mapInstance);
+
+          markersRef.current[id] = marker;
+      });
   };
+
+  return { mapContainer, map, isMapLoaded: isLoaded };
 };
 
