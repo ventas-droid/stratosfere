@@ -6,151 +6,110 @@ import { createRoot } from 'react-dom/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-// 1. IMÁGENES
+// 👇 AQUÍ ESTABA EL ERROR: AHORA APUNTA BIEN A LA CARPETA
 import { LUXURY_IMAGES } from './ui-panels'; 
-
-// 2. COMPONENTE NANO CARD
-import MapNanoCard from './MapNanoCard'; 
+import MapNanoCard from './ui-panels/MapNanoCard'; 
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 
 // ----------------------------------------------------------------------
-// 1. BASE DE DATOS TÁCTICA (AHORA CON ROLES Y DESCIPCIONES REALES)
+// BASE DE DATOS TÁCTICA: IMÁGENES CONFIRMADAS
 // ----------------------------------------------------------------------
 const FULL_DATABASE = [
-    // --- GAMA ALTA (ELITE > 5M) ---
+    // --- GAMA ALTA (AZUL / VIOLETA) ---
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6883, 40.4280] }, 
-        properties: { 
-            price: "5.2M€", priceValue: 5200000, type: "PENTHOUSE", id: 1,
-            role: "PREMIUM", // <--- ROL AÑADIDO
-            description: "Ático triplex con piscina privada en azotea. Seguridad 24h y acceso directo desde ascensor.",
-            img: "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6883, 40.4280] }, 
+        properties: { price: "5.2M€", priceValue: 5200000, type: "PENTHOUSE", id: 1, role: "PREMIUM", description: "Ático triplex con piscina.", img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6850, 40.4200] }, 
-        properties: { 
-            price: "12.5M€", priceValue: 12500000, type: "ROYAL VILLA", id: 2,
-            role: "VIP CLASS",
-            description: "Palacete histórico reformado. 8 habitaciones, jardín interior de 500m² y búnker de seguridad.",
-            img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6850, 40.4200] }, 
+        properties: { price: "12.5M€", priceValue: 12500000, type: "ROYAL VILLA", id: 2, role: "VIP CLASS", description: "Palacete histórico.", img: "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6910, 40.4350] }, 
-        properties: { 
-            price: "8.9M€", priceValue: 8900000, type: "SKY PENTHOUSE", id: 3,
-            role: "HIGH CLASS",
-            description: "Vistas panorámicas 360º a todo Madrid. Domótica integral y acabados en mármol italiano.",
-            img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6910, 40.4350] }, 
+        properties: { price: "8.9M€", priceValue: 8900000, type: "SKY VIEW", id: 3, role: "HIGH CLASS", description: "Vistas 360º.", img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6900, 40.4260] }, 
-        properties: { 
-            price: "9.2M€", priceValue: 9200000, type: "MANSION", id: 8,
-            role: "EXCLUSIVO",
-            description: "Residencia diplomática en el corazón de Salamanca. Privacidad absoluta y garaje para 6 vehículos.",
-            img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"
-        } 
-    },
-    
-    // --- GAMA MEDIA / ALTA (1M - 5M) ---
-    { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6800, 40.4250] }, 
-        properties: { 
-            price: "3.4M€", priceValue: 3400000, type: "SMART HOME", id: 4,
-            role: "MODERNO",
-            description: "Vivienda inteligente controlada por voz. Eficiencia energética A+ y diseño minimalista.",
-            img: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6780, 40.4450] }, 
+        properties: { price: "3.5M€", priceValue: 3500000, type: "MANSION", id: 10, role: "PRIVADO", description: "Seguridad privada.", img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6950, 40.4220] }, 
-        properties: { 
-            price: "2.1M€", priceValue: 2100000, type: "LOFT", id: 5,
-            role: "DISEÑO",
-            description: "Antigua fábrica convertida en loft de diseño neoyorquino. Techos de 5 metros.",
-            img: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80"
-        } 
-    },
-    
-    // --- GAMA ACCESIBLE (VIVIENDAS < 1M) ---
-    { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.7000, 40.4150] }, 
-        properties: { 
-            price: "450k€", priceValue: 450000, type: "STUDIO", id: 101,
-            role: "ALQUILER",
-            description: "Estudio coqueto ideal para singles o inversores. Alta rentabilidad por alquiler.",
-            img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6900, 40.4260] }, 
+        properties: { price: "1.2M€", priceValue: 1200000, type: "PISO LUJO", id: 8, role: "EXCLUSIVO", description: "Salamanca Prime.", img: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.7050, 40.4180] }, 
-        properties: { 
-            price: "680k€", priceValue: 680000, type: "DUPLEX", id: 102,
-            role: "FAMILIAR",
-            description: "Dúplex luminoso con terraza. Zona tranquila y bien comunicada.",
-            img: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6750, 40.4180] }, 
+        properties: { price: "950k€", priceValue: 950000, type: "RETIRO VIEWS", id: 11, role: "JOYAS", description: "Frente al parque.", img: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6980, 40.4120] }, 
-        properties: { 
-            price: "320k€", priceValue: 320000, type: "FLAT", id: 103,
-            role: "A REFORMAR",
-            description: "Piso para reformar a tu gusto. Gran potencial de revalorización tras obra.",
-            img: "https://images.unsplash.com/photo-1484154218962-a1c002085d2f?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7020, 40.4300] }, 
+        properties: { price: "1.8M€", priceValue: 1800000, type: "PALACIO", id: 12, role: "HISTÓRICO", description: "Siglo XIX.", img: "https://images.unsplash.com/photo-1512915922686-57c11dde9b6b?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.7100, 40.4200] }, 
-        properties: { 
-            price: "550k€", priceValue: 550000, type: "LOFT", id: 104,
-            role: "OPORTUNIDAD",
-            description: "Loft céntrico a precio reducido por urgencia de venta. Oportunidad única.",
-            img: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6885, 40.4282] }, 
+        properties: { price: "4.1M€", priceValue: 4100000, type: "APT LUJO", id: 6, role: "PREMIUM", description: "Diseño italiano.", img: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6881, 40.4278] }, 
+        properties: { price: "6.5M€", priceValue: 6500000, type: "DUPLEX", id: 7, role: "ELITE", description: "Terraza 360.", img: "https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=800&q=80" } 
     },
 
-    // --- OPORTUNIDADES (GARAJES / TRASTEROS / LOCALES < 100k) ---
+    // --- GAMA MEDIA (ROSA / NARANJA) ---
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.6920, 40.4100] }, 
-        properties: { 
-            price: "20k€", priceValue: 20000, type: "GARAGE", id: 201,
-            role: "INVERSIÓN",
-            description: "Plaza de garaje amplia en zona de difícil aparcamiento. Rentabilidad 6%.",
-            img: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7050, 40.4180] }, 
+        properties: { price: "680k€", priceValue: 680000, type: "DUPLEX", id: 102, role: "FAMILIAR", description: "Luminoso.", img: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80" } 
     },
     { 
-        type: 'Feature', 
-        geometry: { type: 'Point', coordinates: [-3.7120, 40.4250] }, 
-        properties: { 
-            price: "45k€", priceValue: 45000, type: "LOCAL", id: 202,
-            role: "COMERCIAL",
-            description: "Pequeño local a pie de calle. Ideal para oficina o pequeño comercio.",
-            img: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80"
-        } 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7100, 40.4200] }, 
+        properties: { price: "550k€", priceValue: 550000, type: "LOFT", id: 104, role: "OPORTUNIDAD", description: "Céntrico.", img: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80" } 
     },
-    
-    // Puntos extra (Clusters)
-    { type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6885, 40.4282] }, properties: { price: "4.1M€", priceValue: 4100000, type: "APT", id: 6, role: "LUJO", description: "Apartamento de lujo.", img: "" } },
-    { type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6881, 40.4278] }, properties: { price: "6.5M€", priceValue: 6500000, type: "DUPLEX", id: 7, role: "PREMIUM", description: "Duplex premium.", img: "" } },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6980, 40.4080] }, 
+        properties: { price: "720k€", priceValue: 720000, type: "ÁTICO", id: 13, role: "VISTAS", description: "Terraza 40m2.", img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6800, 40.4250] }, 
+        properties: { price: "340k€", priceValue: 340000, type: "SMART HOME", id: 4, role: "MODERNO", description: "Tecnología.", img: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7000, 40.4150] }, 
+        properties: { price: "450k€", priceValue: 450000, type: "STUDIO", id: 101, role: "ALQUILER", description: "Ideal inversores.", img: "https://images.unsplash.com/photo-1484154218962-a1c002085d2f?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6980, 40.4120] }, 
+        properties: { price: "320k€", priceValue: 320000, type: "FLAT", id: 103, role: "A REFORMAR", description: "Potencial.", img: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80" } 
+    },
+
+    // --- GAMA ACCESIBLE (AMARILLO / VERDE) ---
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6950, 40.4220] }, 
+        properties: { price: "210k€", priceValue: 210000, type: "MINI LOFT", id: 5, role: "DISEÑO", description: "Pequeño pero matón.", img: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7060, 40.4100] }, 
+        properties: { price: "180k€", priceValue: 180000, type: "BUHARDILLA", id: 14, role: "BOHEMIO", description: "Con encanto.", img: "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7150, 40.4250] }, 
+        properties: { price: "290k€", priceValue: 290000, type: "APARTAMENTO", id: 15, role: "UNIVERSIDAD", description: "Cerca ICADE.", img: "https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6920, 40.4100] }, 
+        properties: { price: "20k€", priceValue: 20000, type: "GARAGE", id: 201, role: "INVERSIÓN", description: "Plaza amplia.", img: "https://images.unsplash.com/photo-1590674899505-1c5c4195c369?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7120, 40.4250] }, 
+        properties: { price: "45k€", priceValue: 45000, type: "LOCAL", id: 202, role: "COMERCIAL", description: "A pie de calle.", img: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6850, 40.4400] }, 
+        properties: { price: "90k€", priceValue: 90000, type: "TRASTERO", id: 203, role: "ALMACÉN", description: "15m2.", img: "https://images.unsplash.com/photo-1595429035839-c99c298ffdde?auto=format&fit=crop&w=800&q=80" } 
+    },
+    { 
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7200, 40.4150] }, 
+        properties: { price: "135k€", priceValue: 135000, type: "SÓTANO", id: 204, role: "REFORMA", description: "Diáfano.", img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80" } 
+    },
 ];
-
 // ----------------------------------------------------------------------
 // 2. LÓGICA DEL MAPA
 // ----------------------------------------------------------------------
@@ -205,21 +164,24 @@ export const useMapLogic = () => {
         clusterRadius: 50
       });
 
-      // CAPAS DE CLUSTERS (CIRCULOS DE AGRUPACIÓN)
+      // 🔵 CAPA DE BOLAS (CLUSTER) - AZUL NEÓN (Luz Propia)
       map.current.addLayer({
         id: 'clusters',
         type: 'circle',
         source: 'properties',
         filter: ['has', 'point_count'],
         paint: {
-            'circle-color': ['step', ['get', 'point_count'], '#3B82F6', 10, '#F59E0B', 50, '#EF4444'],
-            'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40],
+            'circle-color': '#0071e3', // Azul Corporativo
+            'circle-radius': ['step', ['get', 'point_count'], 25, 100, 35, 750, 45],
             'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
-            'circle-opacity': 0.9
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 1,
+            // ✨ ESTA ES LA CLAVE: Hace que el color brille en la oscuridad
+            'circle-emissive-strength': 1 
         }
       });
 
+      // ⚪️ CAPA DE NÚMEROS - BLANCO LUMINOSO
       map.current.addLayer({
         id: 'cluster-count',
         type: 'symbol',
@@ -227,10 +189,15 @@ export const useMapLogic = () => {
         filter: ['has', 'point_count'],
         layout: {
             'text-field': '{point_count_abbreviated}',
-            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-            'text-size': 12
+            'text-font': ['Arial Unicode MS Bold'], // Fuente gruesa estándar
+            'text-size': 16,
+            'text-offset': [0, 0]
         },
-        paint: { 'text-color': '#ffffff' }
+        paint: { 
+            'text-color': '#ffffff',
+            // ✨ TAMBIÉN ILUMINAMOS EL TEXTO
+            'text-emissive-strength': 1 
+        }
       });
 
       // EVENTOS DE CLICK EN CLUSTER
@@ -301,17 +268,21 @@ export const useMapLogic = () => {
           
           const root = createRoot(el);
           
-          // 🟢 AQUI ES DONDE PASAMOS LOS NUEVOS DATOS A LA NANO CARD
+         // 🟢 RENDERIZADO DEL SOLDADO (MapNanoCard)
           root.render(
             <MapNanoCard 
-               price={feature.properties.price} 
-               priceValue={feature.properties.priceValue} // Aseguramos el valor numérico
-               type={feature.properties.type} 
-               image={feature.properties.img || LUXURY_IMAGES[id % LUXURY_IMAGES.length]}
                id={id} 
+               price={feature.properties.price} 
+               priceValue={feature.properties.priceValue}
+               type={feature.properties.type} 
+               
+               // 📸 LÓGICA BLINDADA DE IMAGEN (Busca img, image o usa la de reserva)
+               img={feature.properties.img || feature.properties.image || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"}
+               
                lat={feature.geometry.coordinates[1]}
                lng={feature.geometry.coordinates[0]}
-               // 🔥 NUEVOS DATOS INYECTADOS
+               
+               // 🔥 DATOS DE INTELIGENCIA
                role={feature.properties.role} 
                description={feature.properties.description}
             />

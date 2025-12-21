@@ -1,143 +1,162 @@
 "use client";
+import React from 'react';
+import { X, Heart, MapPin, Trash2, Navigation } from 'lucide-react';
 
-import React from "react";
-import { X, User, Heart, Store } from "lucide-react";
-
-export default function ProfilePanel({
-  rightPanel,
-  toggleRightPanel,
-  toggleMainPanel,
-  selectedReqs = [],
-  soundEnabled,
-  playSynthSound,
+export default function VaultPanel({ 
+  rightPanel, 
+  toggleRightPanel, 
+  favorites = [], 
+  onToggleFavorite, 
+  map, 
+  soundEnabled, 
+  playSynthSound 
 }: any) {
-  const isOpen = rightPanel === "PROFILE";
+  
+  if (rightPanel !== 'VAULT') return null;
 
-  const close = () => {
-    if (soundEnabled) playSynthSound("click");
-    toggleRightPanel("PROFILE");
-  };
+  const handleFlyTo = (prop: any) => {
+    if (soundEnabled) playSynthSound('click');
+    
+    // 1. ABRIR FICHA DE DETALLES
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('open-details-signal', { detail: prop }));
+    }
 
-  const openVault = () => {
-    if (soundEnabled) playSynthSound("click");
-    toggleRightPanel("PROFILE"); // cierra perfil
-    toggleRightPanel("VAULT");   // abre favoritos
-  };
+    // 2. RECUPERAR EL MOTOR DEL MAPA
+    const mapInstance = map?.current || map;
+    if (!mapInstance || !mapInstance.flyTo) {
+        console.error("🚨 MOTOR DE MAPA NO RESPONDE");
+        return;
+    }
 
-  const openServices = () => {
-    if (soundEnabled) playSynthSound("click");
-    toggleRightPanel("PROFILE");     // cierra perfil
-    toggleMainPanel("MARKETPLACE");  // abre servicios
+    // 3. RASTREO DE COORDENADAS (PRIORIDAD TÁCTICA)
+    let finalCoords = null;
+
+    // A) Opción 1: Array directo [lng, lat] o [lat, lng]
+    if (prop.coordinates && Array.isArray(prop.coordinates)) {
+        finalCoords = prop.coordinates;
+    } 
+    // B) Opción 2: GeoJSON standard
+    else if (prop.geometry?.coordinates) {
+        finalCoords = prop.geometry.coordinates;
+    }
+    // C) Opción 3: Propiedades sueltas
+    else if (prop.lat && prop.lng) {
+        finalCoords = [prop.lng, prop.lat]; // Mapbox requiere [LNG, LAT]
+    }
+    // D) Opción 4: Location object
+    else if (prop.location) {
+        finalCoords = prop.location;
+    }
+
+    // 4. VALIDACIÓN Y CORRECCIÓN
+    if (finalCoords) {
+        // Aseguramos que son números
+        const c1 = parseFloat(finalCoords[0]);
+        const c2 = parseFloat(finalCoords[1]);
+
+        // DETECCIÓN DE LATITUD/LONGITUD INVERTIDA (Corrección automática)
+        // En España (Madrid), la Longitud es negativa (-3.x) y Latitud positiva (40.x)
+        // Si el primer número es > 30, probablemente es la Latitud y están al revés.
+        let target = [c1, c2];
+        if (c1 > 30 && c2 < 0) {
+            console.warn("⚠️ Coordenadas invertidas detectadas. Corrigiendo rumbo...");
+            target = [c2, c1]; // Invertimos a [Lng, Lat]
+        }
+
+        console.log(`✈️ VUELO TÁCTICO A: ${prop.title}`, target);
+
+        mapInstance.flyTo({
+            center: target,
+            zoom: 19.5,      // Zoom extremo (Casi a ras de suelo)
+            pitch: 65,       // Inclinación cinematográfica
+            bearing: -45,    // Ángulo de entrada
+            duration: 3000,  // Vuelo suave
+            essential: true
+        });
+    } else {
+        console.error("❌ ERROR: Sin coordenadas válidas para este objetivo.", prop);
+        // NO volamos a sitios aleatorios. Nos quedamos quietos para no confundir.
+    }
   };
 
   return (
-    <div
-      className={[
-        "fixed top-0 right-0 h-full w-full md:w-[420px]",
-        "bg-white text-black border-l border-black/10",
-        "transform transition-transform duration-300 ease-out",
-        "z-[60000] pointer-events-auto overflow-y-auto",
-        isOpen ? "translate-x-0" : "translate-x-full",
-      ].join(" ")}
-    >
-      {/* HEADER */}
-      <div className="p-6 border-b border-black/10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <User size={18} className="text-black/70" />
-            <h2 className="text-sm font-semibold tracking-wide">Perfil</h2>
-          </div>
+    <div className="fixed inset-y-0 right-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-right">
+      
+      {/* FONDO APPLE GLASS */}
+      <div className="absolute inset-0 bg-[#E5E5EA]/90 backdrop-blur-3xl shadow-[-20px_0_40px_rgba(0,0,0,0.2)] border-l border-white/20"></div>
 
-          <button
-            type="button"
-            onClick={close}
-            className="p-2 rounded-lg hover:bg-black/5 transition"
-            aria-label="Cerrar"
-          >
-            <X size={18} className="text-black/70" />
-          </button>
-        </div>
-
-        {/* USER CARD */}
-        <div className="mt-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-black/5 overflow-hidden flex items-center justify-center">
-            <img
-              src="https://i.pravatar.cc/150?u=isidro"
-              alt="Usuario"
-              className="w-full h-full object-cover"
-              onError={(e: any) => (e.currentTarget.style.display = "none")}
-            />
-          </div>
-
-          <div className="min-w-0">
-            <div className="text-base font-semibold truncate">Isidro</div>
-            <div className="text-xs text-black/50 truncate">
-              Propietario · Stratosfere
+      <div className="relative z-10 flex flex-col h-full text-slate-900">
+        
+        {/* HEADER */}
+        <div className="p-8 pb-6 flex justify-between items-start shrink-0">
+            <div>
+                <h2 className="text-4xl font-black tracking-tight text-[#1c1c1e] mb-1">Favoritos.</h2>
+                <div className="flex items-center gap-2">
+                    <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm">COLECCIÓN PRIVADA</span>
+                    <span className="text-xs font-bold text-slate-400">{favorites.length} Activos</span>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* CONTENT */}
-      <div className="p-6 space-y-6">
-        {/* QUICK STATUS */}
-        <div className="rounded-2xl border border-black/10 p-4 bg-white">
-          <div className="text-[11px] text-black/50 tracking-wider uppercase">
-            Resumen
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-black/10 p-3">
-              <div className="text-[11px] text-black/50">Servicios activos</div>
-              <div className="text-xl font-semibold">{selectedReqs.length}</div>
-            </div>
-
-            <div className="rounded-xl border border-black/10 p-3">
-              <div className="text-[11px] text-black/50">Estado</div>
-              <div className="text-sm font-semibold">Listo</div>
-            </div>
-          </div>
+            <button onClick={() => toggleRightPanel('NONE')} className="w-10 h-10 rounded-full bg-white hover:bg-slate-200 text-slate-500 transition-all shadow-sm flex items-center justify-center cursor-pointer"><X size={20} /></button>
         </div>
 
-        {/* ACTIONS */}
-        <div className="rounded-2xl border border-black/10 p-4 bg-white">
-          <div className="text-[11px] text-black/50 tracking-wider uppercase">
-            Accesos rápidos
-          </div>
+        {/* LISTA */}
+        <div className="flex-1 overflow-y-auto px-6 pb-10 space-y-4 scrollbar-hide">
+            {favorites.length === 0 ? (
+                <div className="h-[60vh] flex flex-col items-center justify-center text-slate-400 opacity-60">
+                    <Heart size={32} className="mb-4 text-slate-300" />
+                    <p className="text-sm font-bold uppercase tracking-widest">Sin propiedades</p>
+                </div>
+            ) : (
+                favorites.map((prop: any, index: number) => (
+                    <div 
+                        key={prop.id || index} 
+                        className="bg-white p-3 rounded-[24px] shadow-sm hover:shadow-lg transition-all group relative overflow-hidden border border-white/50"
+                    >
+                        <div className="flex gap-4 items-center">
+                            
+                            {/* FOTO (Clic = Volar) */}
+                            <div 
+                                className="w-24 h-24 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 cursor-pointer shadow-inner relative" 
+                                onClick={() => handleFlyTo(prop)}
+                            >
+                                <img src={prop.img || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Navigation size={20} className="text-white drop-shadow-md"/></div>
+                            </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-2">
-            <button
-              type="button"
-              onClick={openVault}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-black/10 hover:bg-black/5 transition"
-            >
-              <div className="flex items-center gap-2">
-                <Heart size={16} className="text-black/70" />
-                <span className="text-sm font-medium">Favoritos</span>
-              </div>
-              <span className="text-xs text-black/40">Abrir</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={openServices}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-black/10 hover:bg-black/5 transition"
-            >
-              <div className="flex items-center gap-2">
-                <Store size={16} className="text-black/70" />
-                <span className="text-sm font-medium">Servicios</span>
-              </div>
-              <span className="text-xs text-black/40">Abrir</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="text-[12px] text-black/40">
-          Diseño limpio (Apple-like), sin “War Room”, sin gamificación.
+                            {/* DATOS */}
+                            <div className="flex-1 min-w-0 py-1">
+                                <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">{prop.type || "Inmueble"}</span>
+                                
+                                <h4 className="font-black text-[#1c1c1e] text-lg leading-tight mb-1 truncate mt-1">
+                                    {prop.title || "Propiedad Sin Nombre"}
+                                </h4>
+                                <p className="text-xs font-bold text-slate-400 mb-3 font-mono">
+                                    {prop.formattedPrice || "Precio a consultar"}
+                                </p>
+                                
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={() => handleFlyTo(prop)} 
+                                        className="flex-1 bg-[#1c1c1e] text-white h-8 rounded-[14px] text-[10px] font-bold uppercase tracking-wide flex items-center justify-center gap-1.5 hover:bg-black hover:scale-105 transition-all shadow-md active:scale-95 cursor-pointer"
+                                    >
+                                        <MapPin size={10} /> LOCALIZAR
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(prop); }} 
+                                        className="w-8 h-8 rounded-[14px] bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition-all active:scale-90 cursor-pointer"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))
+            )}
         </div>
       </div>
     </div>
   );
 }
-
 

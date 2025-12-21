@@ -1,191 +1,162 @@
 "use client";
+import React from 'react';
+import { X, Heart, Store, CreditCard, Settings, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
 
-import React from "react";
-import { 
-  X, User, Heart, Store, Settings, LogOut, 
-  HelpCircle, ChevronRight, CreditCard, ShieldCheck, Activity 
-} from "lucide-react";
-
-export default function ProfilePanel({
-  rightPanel,
-  toggleRightPanel,
-  toggleMainPanel,
-  selectedReqs = [],
-  soundEnabled,
-  playSynthSound,
+export default function ProfilePanel({ 
+  rightPanel, 
+  toggleRightPanel, 
+  toggleMainPanel, 
+  selectedReqs = [], // Recibe los datos sincronizados del cerebro
+  soundEnabled, 
+  playSynthSound 
 }: any) {
-  const isOpen = rightPanel === "PROFILE";
+  
+  if (rightPanel !== 'PROFILE') return null;
 
-  // --- HANDLERS ---
-  const close = () => {
-    if (soundEnabled) playSynthSound("click");
-    toggleRightPanel("PROFILE");
+  const playClick = () => {
+    if (soundEnabled && playSynthSound) playSynthSound('click');
   };
 
-  const handleNavigation = (action: () => void) => {
-    if (soundEnabled) playSynthSound("click");
-    toggleRightPanel("PROFILE"); 
-    action();
-  };
-
-  if (!isOpen) return null;
+  const hasServices = selectedReqs.length > 0;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[420px] z-[50000] flex flex-col pointer-events-auto animate-slide-in-right">
+    <div className="fixed inset-y-0 right-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-right">
+      
+      {/* FONDO APPLE GLASS */}
+      <div className="absolute inset-0 bg-[#E5E5EA]/90 backdrop-blur-3xl shadow-[-20px_0_40px_rgba(0,0,0,0.2)] border-l border-white/20"></div>
+
+      {/* CONTENIDO */}
+      <div className="relative z-10 flex flex-col h-full p-8 text-slate-900 overflow-y-auto scrollbar-hide">
         
-        {/* FONDO: BLANCO TRANSLÚCIDO (Estilo "Efecto Perticno Virpino") */}
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-3xl shadow-[-20px_0_40px_rgba(0,0,0,0.1)]"></div>
+        {/* HEADER */}
+        <div className="flex justify-between items-start mb-10">
+            <div>
+                <h2 className="text-4xl font-black tracking-tight text-[#1c1c1e] mb-1">Perfil.</h2>
+                <p className="text-sm font-bold text-slate-500">Gestiona tu identidad.</p>
+            </div>
+            <button 
+                onClick={() => { playClick(); toggleRightPanel('NONE'); }} 
+                className="w-10 h-10 rounded-full bg-white hover:bg-slate-200 text-slate-500 transition-all shadow-sm flex items-center justify-center cursor-pointer"
+            >
+                <X size={20} />
+            </button>
+        </div>
 
-        {/* CONTENIDO */}
-        <div className="relative z-10 flex flex-col h-full p-8 text-slate-900">
+        {/* TARJETA USUARIO */}
+        <div className="flex items-center gap-5 mb-10">
+            <div className="relative">
+                <div className="w-20 h-20 rounded-full overflow-hidden border-[3px] border-white shadow-lg">
+                    <img 
+                        src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                    />
+                </div>
+                <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-[3px] border-[#E5E5EA] rounded-full"></div>
+            </div>
+            <div>
+                <h3 className="text-2xl font-black text-[#1c1c1e] leading-none mb-1">Isidro</h3>
+                <p className="text-xs text-slate-500 font-mono mb-2">isidro@stratosfere.com</p>
+                <span className="bg-black text-white text-[9px] px-2 py-0.5 rounded-md font-bold tracking-widest uppercase shadow-md shadow-black/20">PROPIETARIO</span>
+            </div>
+        </div>
+
+        {/* ESTADÍSTICAS SINCRONIZADAS */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
+            {/* CAJA DE SERVICIOS (Reactiva) */}
+            <div className={`p-5 rounded-[24px] shadow-sm text-center flex flex-col justify-center items-center transition-all duration-500 ${hasServices ? 'bg-white ring-2 ring-blue-500/20' : 'bg-white'}`}>
+                <div className={`text-3xl font-black transition-colors duration-300 ${hasServices ? 'text-blue-600 scale-110' : 'text-[#1c1c1e]'}`}>
+                    {selectedReqs.length}
+                </div>
+                <div className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${hasServices ? 'text-blue-400' : 'text-slate-400'}`}>
+                    Servicios Activos
+                </div>
+            </div>
+
+            {/* CAJA DE ESTADO */}
+            <div className="bg-white p-5 rounded-[24px] shadow-sm text-center flex flex-col justify-center items-center">
+                <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black mb-1 flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse"></div> ONLINE
+                </div>
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Estado</div>
+            </div>
+        </div>
+
+        {/* MENÚ SISTEMA */}
+        <div className="mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-4">SISTEMA</div>
+        <div className="bg-white rounded-[24px] p-2 shadow-sm mb-6 border border-white/50">
             
-            {/* 1. CABECERA ESTILO VAULT */}
-            <div className="flex justify-between items-start mb-8">
-                <div>
-                    <h2 className="text-4xl font-extrabold tracking-tight text-black mb-1">
-                        Perfil.
-                    </h2>
-                    <p className="text-lg font-medium text-slate-500">
-                        Gestiona tu identidad.
-                    </p>
-                </div>
-                <button 
-                    onClick={close}
-                    className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all cursor-pointer"
-                >
-                    <X size={20} />
-                </button>
-            </div>
-
-            {/* 2. TARJETA DE USUARIO HERO */}
-            <div className="flex items-center gap-5 mb-8">
-                <div className="w-20 h-20 rounded-full p-[2px] bg-gradient-to-tr from-slate-200 to-slate-100 shadow-lg">
-                    <div className="w-full h-full rounded-full bg-white overflow-hidden border border-white">
-                         <img
-                            src="https://i.pravatar.cc/150?u=isidro"
-                            alt="Avatar"
-                            className="w-full h-full object-cover"
-                            onError={(e: any) => (e.currentTarget.style.display = "none")}
-                        />
+            {/* FAVORITOS */}
+            <button 
+                onClick={() => { playClick(); toggleRightPanel('VAULT'); }}
+                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-[18px] transition-all group cursor-pointer"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-red-50 group-hover:text-red-500 transition-colors">
+                        <Heart size={18}/>
                     </div>
+                    <span className="font-bold text-sm text-[#1c1c1e]">Favoritos</span>
                 </div>
-                <div>
-                    <h3 className="text-2xl font-bold text-slate-900 leading-none mb-1">Isidro</h3>
-                    <div className="flex items-center gap-2 text-slate-500 text-sm font-medium mb-1">
-                        <span>isidro@stratosfere.com</span>
-                    </div>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-black text-white uppercase tracking-wider shadow-md shadow-black/20">
-                        Propietario
-                    </span>
-                </div>
-            </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500"/>
+            </button>
 
-            {/* CONTENIDO SCROLLABLE */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-6 pr-2">
-                
-                {/* 3. WIDGETS DE ESTADÍSTICAS */}
-                <div className="grid grid-cols-2 gap-4">
-                     {/* Widget 1 */}
-                     <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-1">
-                        <span className="text-3xl font-extrabold text-slate-900 tracking-tighter">
-                            {selectedReqs.length}
-                        </span>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">
-                            Servicios
-                        </span>
-                     </div>
-                     {/* Widget 2 */}
-                     <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center justify-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
-                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                             <span className="text-[9px] font-bold uppercase">Online</span>
+            <div className="h-[1px] bg-slate-100 mx-4"></div>
+
+            {/* 🚨 MARKETPLACE (SIN CERRAR EL PERFIL) */}
+            <button 
+                onClick={() => { 
+                    playClick(); 
+                    // YA NO CERRAMOS EL PERFIL AQUÍ
+                    toggleMainPanel('MARKETPLACE'); 
+                }}
+                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-[18px] transition-all group cursor-pointer"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                        <Store size={18}/>
+                    </div>
+                    <span className="font-bold text-sm text-[#1c1c1e]">Marketplace</span>
+                </div>
+                {/* Indicador visual si está abierto */}
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500"/>
+            </button>
+        </div>
+
+        {/* MENÚ CONFIGURACIÓN */}
+        <div className="mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-4">CONFIGURACIÓN</div>
+        <div className="bg-white rounded-[24px] p-2 shadow-sm mb-auto border border-white/50">
+            {[
+                {icon: CreditCard, label: "Facturación"},
+                {icon: Settings, label: "Preferencias"},
+                {icon: HelpCircle, label: "Ayuda y Soporte"}
+            ].map((item, i) => (
+                <div key={i}>
+                    {i > 0 && <div className="h-[1px] bg-slate-100 mx-4"></div>}
+                    <button className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-[18px] transition-all group cursor-pointer">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                                <item.icon size={18}/>
+                            </div>
+                            <span className="font-bold text-sm text-[#1c1c1e]">{item.label}</span>
                         </div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">
-                            Estado
-                        </span>
-                     </div>
+                        <ChevronRight size={16} className="text-slate-300"/>
+                    </button>
                 </div>
-
-                {/* 4. MENÚ DE NAVEGACIÓN (Estilo iOS Grouped) */}
-                <div>
-                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">
-                        Sistema
-                    </div>
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                        <MenuItem 
-                            icon={Heart} 
-                            label="Favoritos" 
-                            onClick={() => handleNavigation(() => toggleRightPanel("VAULT"))} 
-                        />
-                        <div className="h-[1px] bg-slate-100 ml-14" />
-                        <MenuItem 
-                            icon={Store} 
-                            label="Marketplace" 
-                            onClick={() => handleNavigation(() => toggleMainPanel("MARKETPLACE"))} 
-                        />
-                    </div>
-                </div>
-
-                <div>
-                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 px-2">
-                        Configuración
-                    </div>
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                        <MenuItem 
-                            icon={CreditCard} 
-                            label="Facturación" 
-                            onClick={() => handleNavigation(() => console.log("Billing"))} 
-                        />
-                        <div className="h-[1px] bg-slate-100 ml-14" />
-                        <MenuItem 
-                            icon={Settings} 
-                            label="Preferencias" 
-                            onClick={() => handleNavigation(() => console.log("Settings"))} 
-                        />
-                        <div className="h-[1px] bg-slate-100 ml-14" />
-                        <MenuItem 
-                            icon={HelpCircle} 
-                            label="Ayuda y Soporte" 
-                            onClick={() => handleNavigation(() => console.log("Help"))} 
-                        />
-                    </div>
-                </div>
-
-            </div>
-
-            {/* 5. FOOTER */}
-            <div className="mt-6 pt-6 border-t border-slate-200">
-                <button
-                    onClick={() => console.log("Logout")}
-                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-red-600 bg-red-50 hover:bg-red-100 transition-all duration-200 active:scale-95"
-                >
-                    <LogOut size={18} />
-                    <span className="text-sm font-bold">Cerrar Sesión</span>
-                </button>
-                <div className="mt-4 text-center">
-                    <p className="text-[10px] text-slate-300 font-mono tracking-widest">STRATOSFERE OS v2.0</p>
-                </div>
-            </div>
+            ))}
         </div>
-    </div>
-  );
-}
 
-// --- SUB-COMPONENTE HELPER ---
-function MenuItem({ icon: Icon, label, onClick }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group text-left"
-    >
-      <div className="flex items-center gap-4">
-        <div className="p-2 rounded-xl bg-slate-100 text-slate-600 group-hover:bg-white group-hover:shadow-sm transition-all duration-200">
-          <Icon size={18} />
+        {/* FOOTER */}
+        <div className="mt-8">
+            <button className="w-full py-4 bg-[#FF3B30]/10 text-[#FF3B30] font-bold text-sm rounded-[20px] flex items-center justify-center gap-2 hover:bg-[#FF3B30]/20 transition-colors cursor-pointer">
+                <LogOut size={16}/> Cerrar Sesión
+            </button>
+            <p className="text-center text-[9px] text-slate-300 font-bold tracking-[0.3em] mt-6 uppercase">
+                Stratosfere OS v2.4
+            </p>
         </div>
-        <span className="text-sm font-semibold text-slate-700">{label}</span>
+
       </div>
-      <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-400 transition-colors" />
-    </button>
+    </div>
   );
 }
 

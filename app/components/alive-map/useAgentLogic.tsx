@@ -10,7 +10,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 // He borrado "MapNanoCard" de esta línea.
 // Solo importamos las imágenes para los popups o marcadores.
 // ---------------------------------------------------------
-import { LUXURY_IMAGES } from './ui-panels'; 
+import { LUXURY_IMAGES } from './ui-panels/ui-panels'; 
 
 // TOKEN (Si tiene uno propio, póngalo aquí. Si no, usaremos este público de pruebas)
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
