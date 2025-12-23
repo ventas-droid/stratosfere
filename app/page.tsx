@@ -10,7 +10,11 @@ export default function Page() {
   // 1. ESTADOS PRINCIPALES DEL SISTEMA
   const [systemMode, setSystemMode] = useState("GATEWAY");
   const [mapInstance, setMapInstance] = useState(null);
+  
+  // ✅ NUEVO: ESTADO PARA GUARDAR EL DISPARADOR DE BÚSQUEDA
+  const [searchTrigger, setSearchTrigger] = useState(null); 
 
+  // ... (resto de su código: mapBridge, favorites, etc.)
   // 2. PUENTE DE MANDO (Bridge)
   // Unifica las órdenes entre el Mapa y los Paneles UI para evitar errores
   const mapBridge = useMemo(() => {
@@ -40,18 +44,23 @@ export default function Page() {
   const [lang, setLang] = useState("ES");
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // 5. DESPLIEGUE VISUAL
+ // 5. DESPLIEGUE VISUAL
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black">
-      {/* CAPA 1: EL MAPA (Fondo) */}
+      
+      {/* CAPA 1: EL MAPA (El Motor nos da la función) */}
       <AliveMap 
         systemMode={systemMode} 
-        onMapLoad={setMapInstance} 
+        onMapLoad={setMapInstance}
+        onRegisterSearch={setSearchTrigger} // 🔌 CONEXIÓN A: Recibimos el arma del mapa
       />
       
-      {/* CAPA 2: LA INTERFAZ (Paneles, IA, Botones) */}
+      {/* CAPA 2: LA INTERFAZ (El Panel recibe la función para disparar) */}
       <UIPanels
         map={mapBridge}
+        searchCity={searchTrigger} // 🔌 CONEXIÓN B: Le damos el arma al panel
+        
+        // ... (resto de sus props que ya tenía: onToggleFavorite, favorites, etc.)
         onToggleFavorite={onToggleFavorite}
         favorites={favorites}
         lang={lang}

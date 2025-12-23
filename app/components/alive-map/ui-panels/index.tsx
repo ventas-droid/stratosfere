@@ -2,13 +2,20 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+
+// 1. IMPORTACIÓN UNIFICADA DE ICONOS (Sin duplicados)
 import { 
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
-  Camera, Zap, Globe, Newspaper, Share2, Shield, Store
+  Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
+  // --- Nuevos Iconos Tácticos Integrados ---
+  Briefcase, Home, Map as MapIcon 
 } from 'lucide-react';
 
-// --- 1. IMPORTACIONES DE SUS PANELES ---
+// --- 2. EL CEREBRO DE BÚSQUEDA (Ruta corregida: subimos un nivel ../) ---
+import { CONTEXT_CONFIG } from '../smart-search'; 
+
+// --- 3. IMPORTACIONES DE SUS PANELES ---
 import ProfilePanel from "./ProfilePanel";
 import MarketPanel from "./MarketPanel";
 import VaultPanel from "./VaultPanel";         
@@ -16,9 +23,10 @@ import HoloInspector from "./HoloInspector";
 import ExplorerHud from "./ExplorerHud";       
 import ArchitectHud from "./ArchitectHud";     
 import DualGateway from "./DualGateway";       
-
-// EL COMPONENTE REAL (Con Agentes y Gráficos)
+import DualSlider from './DualSlider';
+// --- 4. COMPONENTES LÓGICOS ---
 import DetailsPanel from "./DetailsPanel"; 
+import { playSynthSound } from './audio';
 
 // --- 2. UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -28,36 +36,10 @@ export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
 ];
 
-const playSynthSound = (type: string) => {
-    if (typeof window === 'undefined') return;
-    try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const now = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        if (type === 'click') {
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-            osc.start(now); osc.stop(now + 0.1);
-        } else if (type === 'boot') {
-             osc.frequency.setValueAtTime(100, now);
-             osc.frequency.linearRampToValueAtTime(300, now + 0.5);
-             gain.gain.setValueAtTime(0.2, now);
-             gain.gain.linearRampToValueAtTime(0, now + 0.5);
-             osc.start(now); osc.stop(now + 0.5);
-        }
-    } catch (e) { console.error(e); }
-};
-
+// ⚠️ BUSQUE ESTA LÍNEA Y AÑADA 'searchCity'
 export default function UIPanels({ 
   map, 
+  searchCity, // <--- ¡AÑADIR ESTO! (Es el cable que viene del motor)
   lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
   
@@ -69,10 +51,17 @@ export default function UIPanels({
   const [explorerIntroDone, setExplorerIntroDone] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   
-  // --- B. MEMORIA BLINDADA (FAVORITOS) ---
+// --- C. VARIABLES DE FILTROS TÁCTICOS (NUEVOS RANGOS) ---
+const [priceRange, setPriceRange] = useState({ min: 100000, max: 2000000 });
+const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
+
+// --- B. MEMORIA BLINDADA (FAVORITOS) ---
   const [localFavs, setLocalFavs] = useState<any[]>([]);
 
-  // 1. Cargar memoria
+ // Añada el estado para saber qué estamos buscando
+const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
+ 
+ // 1. Cargar memoria (Al inicio)
   useEffect(() => {
       const saved = localStorage.getItem('stratos_favorites_v1');
       if (saved) {
@@ -81,17 +70,17 @@ export default function UIPanels({
       }
   }, []);
 
-  // 2. Guardar memoria
+  // 2. Guardar memoria (Sincronización General del Array)
   useEffect(() => {
       localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
   }, [localFavs]);
 
-  // 3. FUNCIÓN DE GUARDADO + APERTURA AUTOMÁTICA
+  // 3. FUNCIÓN DE GUARDADO + APERTURA AUTOMÁTICA (VERSIÓN FINAL BLINDADA)
   const handleToggleFavorite = (prop: any) => {
       if (!prop) return;
       if (soundEnabled) playSynthSound('click');
 
-      // Saneamiento de datos (evita errores)
+      // Saneamiento de datos
       const safeProp = {
           ...prop,
           id: prop.id || Date.now(),
@@ -103,20 +92,40 @@ export default function UIPanels({
       let newFavs;
 
       if (exists) {
+          // A. SI YA EXISTE: BORRAMOS
           newFavs = localFavs.filter(f => f.id !== safeProp.id);
           addNotification("Eliminado de colección");
+          
+          // 🔥 CLAVE: Borrado físico INMEDIATO (Antes de actualizar React)
+          // Esto asegura que cuando la NanoCard pregunte, la respuesta sea "FALSE"
+          localStorage.removeItem(`fav-${safeProp.id}`); 
       } else {
+          // B. SI NO EXISTE: AÑADIMOS
           newFavs = [...localFavs, { ...safeProp, savedAt: Date.now() }];
           addNotification("Guardado en Favoritos");
+          
+          // 🔥 CLAVE: Guardado físico INMEDIATO
+          // Esto asegura que cuando la NanoCard pregunte, la respuesta sea "TRUE"
+          localStorage.setItem(`fav-${safeProp.id}`, 'true');
+          
           // 🚀 ORDEN TÁCTICA: Abrir columna al guardar
           setRightPanel('VAULT'); 
       }
+      
+      // Actualizamos React (Visual del panel)
       setLocalFavs(newFavs);
+
+      // 🔥 EL GRITO DE SINCRONIZACIÓN
+      // Ahora es seguro gritar porque ya hemos escrito en el disco duro en las líneas de arriba
+      if (typeof window !== 'undefined') {
+          // Enviamos señal genérica de "revisad todos vuestros estados"
+          window.dispatchEvent(new CustomEvent('force-sync-favs'));
+          // Enviamos señal específica también por seguridad
+          window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: safeProp }));
+      }
   };
 
-  
-
-  // Estados Mercado e IA
+    // Estados Mercado e IA
   const [marketTab, setMarketTab] = useState('ONLINE');
   const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
   const [aiInput, setAiInput] = useState("");
@@ -146,14 +155,27 @@ export default function UIPanels({
   const handleAICommand = (e: any) => {
     if (e) e.preventDefault(); 
     if (!aiInput.trim()) return;
-    setIsAiTyping(true); 
+
+    // 1. Sonido y Feedback
     if (soundEnabled) playSynthSound('click');
+    setIsAiTyping(true); 
+
+    // 2. 🔥 EL DISPARO REAL (Conectamos con el Mapa)
+    if (searchCity) {
+        searchCity(aiInput); 
+        addNotification(`Rastreando: ${aiInput.toUpperCase()}`);
+    } else {
+        console.warn("⚠️ ALERTA: El cable 'searchCity' no está conectado arriba.");
+    }
+
+    // 3. Respuesta Visual de la IA
     setTimeout(() => { 
-        setAiResponse(`Comando recibido: "${aiInput}". Iniciando escaneo...`); 
+        setAiResponse(`Objetivo confirmado: "${aiInput}". Iniciando aproximación...`); 
         setIsAiTyping(false); 
         setAiInput(""); 
     }, 1500);
   };
+
 
   // --- C. ESCUCHA DE EVENTOS (SISTEMA NERVIOSO) ---
   useEffect(() => {
@@ -185,27 +207,71 @@ export default function UIPanels({
 
   useEffect(() => { if (systemMode !== 'EXPLORER') setExplorerIntroDone(false); }, [systemMode]);
 
-  // =========================================================================
-  // RENDERIZADO
-  // =========================================================================
   
   if (!gateUnlocked) {
     return (
-        <div className="fixed inset-0 z-[99999] bg-[#e4e4e7] flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none">
-            <div className="relative z-10 text-center mb-24 cursor-default">
-                <h1 className="relative text-7xl md:text-9xl font-bold tracking-tighter leading-none drop-shadow-sm">
-                    <span className="text-black">Strato</span><span className="text-[#0071e3]">sfere</span><span className="text-slate-400 text-2xl md:text-4xl ml-3 font-light tracking-[0.2em] align-top mt-4 inline-block">OS.</span>
-                </h1>
-            </div>
-            <button onClick={() => { playSynthSound('boot'); setGateUnlocked(true); }} className="group relative px-24 py-6 bg-[#0071e3] text-white rounded-full font-bold text-xs tracking-[0.5em] transition-all duration-500 shadow-[0_20px_40px_rgba(0,113,227,0.25)] hover:shadow-[0_0_80px_rgba(0,113,227,0.6)] hover:scale-105 overflow-hidden">
-                <span className="relative z-10 drop-shadow-md">INITIALIZE SYSTEM</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:translate-x-[200%] transition-transform duration-[1.5s] ease-in-out"></div>
-            </button>
-            <div className="absolute bottom-10 text-xs text-slate-400 font-mono tracking-widest flex flex-col items-center gap-3 animate-fade-in delay-500"><Activity size={16} className="animate-pulse text-[#0071e3]"/> ESPERANDO AUTORIZACIÓN NEURAL...</div>
+      <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none overflow-hidden">
+        
+        {/* =========================================================================
+            ILUSTRACIÓN DE FONDO (COHETE + ESTELA) - ESTILO BOLI NEGRO
+            z-0 para que quede DETRÁS del texto y botón
+           ========================================================================= */}
+        <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none opacity-80" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+            {/* ESTELA: Líneas finas desde abajo izquierda */}
+            <path 
+                d="M-100,1200 C 400,900 600,1100 1100,700 C 1400,500 1500,450 1650,250" 
+                fill="none" 
+                stroke="black" 
+                strokeWidth="1.5" 
+                strokeDasharray="10 10" // Opcional: si quieres línea discontinua quita esto, si sólida borra esta prop
+                className="opacity-40"
+            />
+            <path 
+                d="M-200,1300 C 350,850 550,1000 1050,650 C 1450,450 1550,400 1680,280" 
+                fill="none" 
+                stroke="black" 
+                strokeWidth="2" 
+                strokeLinecap="round"
+            />
+
+            {/* COHETE: Dibujo lineal estilo Pilot */}
+            <g transform="translate(1680, 250) rotate(40) scale(0.9)">
+                {/* Cuerpo */}
+                <path d="M0,-80 C 25,-50 25,50 20,80 L -20,80 C -25,50 -25,-50 0,-80 Z" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
+                {/* Aletas */}
+                <path d="M-20,60 L -40,90 L -20,80" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
+                <path d="M20,60 L 40,90 L 20,80" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
+                <path d="M0,60 L 0,90" stroke="black" strokeWidth="2" />
+                {/* Ventana */}
+                <circle cx="0" cy="-20" r="10" fill="white" stroke="black" strokeWidth="2" />
+                {/* Punta */}
+                <path d="M0,-80 L 0,-100" stroke="black" strokeWidth="2" />
+            </g>
+        </svg>
+
+        {/* =========================================================================
+            CONTENIDO PRINCIPAL (Logo y Botón)
+            z-10 para que quede ENCIMA del dibujo
+           ========================================================================= */}
+        
+        {/* LOGO GIGANTE */}
+        <div className="relative z-10 text-center mb-24 cursor-default">
+            <h1 className="text-7xl md:text-9xl font-extrabold tracking-tighter leading-none text-black">
+                Stratosfere OS.
+            </h1>
         </div>
+
+        {/* BOTÓN DE INICIO (Azul Brutalista) */}
+        <button 
+            onClick={() => { playSynthSound('boot'); setGateUnlocked(true); }} 
+            className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white"
+        >
+            INITIALIZE SYSTEM
+        </button>
+        
+      </div>
     );
   }
-
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end pb-8 animate-fade-in text-sans select-none">
        
@@ -215,72 +281,354 @@ export default function UIPanels({
            </div>
        )}
 
+      {/* BLOQUE 1: MODO ARQUITECTO (VENDER) - CONVOY DE DATOS ACTIVADO 🚚 */}
        {systemMode === 'ARCHITECT' && (
-           <ArchitectHud soundFunc={playSynthSound} onCloseMode={(success:any) => { if(success) addNotification("Campaña iniciada"); setSystemMode(success ? 'EXPLORER' : 'GATEWAY'); }} />
+           <ArchitectHud 
+               // Pasamos la función de sonido si la tiene (si no, borre esta línea)
+               soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
+               
+               // 🔥 AQUÍ ESTÁ EL CAMBIO CLAVE: Recibimos (success, payload)
+               onCloseMode={(success: boolean, payload: any) => { 
+                   if (success) {
+                       // 1. Notificación Visual
+                       // (Si tiene una función addNotification úsela, si no, console.log)
+                       console.log("✅ Propiedad publicada con éxito");
+                       
+                       // 2. CAMBIO DE MODO
+                       setSystemMode('EXPLORER');
+                       
+                       // Evitamos que salga el tutorial de bienvenida
+                       if (typeof setExplorerIntroDone === 'function') {
+                           setExplorerIntroDone(true); 
+                       }
+
+                       // 3. 📡 LANZAMIENTO DE LA SEÑAL AL MAPA (El Convoy)
+                       if (payload) {
+                           console.log("📡 Enviando datos al mapa...", payload);
+                           setTimeout(() => {
+                               if (typeof window !== 'undefined') {
+                                   window.dispatchEvent(new CustomEvent('add-property-signal', { 
+                                       detail: payload 
+                                   }));
+                               }
+                           }, 100); // Pequeño delay para asegurar que el mapa está atento
+                       }
+
+                       // 4. Vuelo seguro de confirmación (Opcional, ya que el mapa volará a la casa)
+                       // Pero lo dejamos por seguridad si la geolocalización falla
+                       /* map?.current?.flyTo({
+                           center: [-3.6883, 40.4280],
+                           zoom: 16.5,
+                           pitch: 65,
+                           bearing: -20,
+                           duration: 4000,
+                           essential: true
+                       });
+                       */
+                   } else {
+                       // SI CANCELA: Volvemos al menú principal
+                       setSystemMode('GATEWAY');
+                   }
+               }} 
+           />
        )}
 
+       {/* BLOQUE 2: MODO EXPLORADOR (COMPRAR) */}
        {systemMode === 'EXPLORER' && (
            <>
-               {!explorerIntroDone && (<ExplorerHud soundFunc={playSynthSound} onCloseMode={() => setSystemMode('GATEWAY')} onGoToMap={() => setExplorerIntroDone(true)}/>)}
+              {/* PANTALLA DE BIENVENIDA (Solo si no se ha hecho la intro) */}
+              {!explorerIntroDone && (
+                 <ExplorerHud 
+                     soundFunc={playSynthSound} 
+                     onCloseMode={() => { 
+                         // 1. Sonido
+                         playSynthSound('success'); 
+                         
+                         // 2. Quitar pantalla blanca
+                         setExplorerIntroDone(true); 
+                         
+                         // 3. CINEMÁTICA DE ATERRIZAJE 🛬
+                         map?.current?.flyTo({
+                             center: [-3.6883, 40.4280], // Madrid Stratos
+                             zoom: 16.5,
+                             pitch: 65,
+                             bearing: -20,
+                             duration: 4000,
+                             essential: true
+                         });
+                     }} 
+                 />
+              )}
 
+             
                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                  <div className="absolute top-8 left-8 pointer-events-auto flex items-center gap-4 group cursor-default animate-fade-in-up">
-                     <div onClick={() => setSystemMode('GATEWAY')} className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center border border-blue-500/50 cursor-pointer hover:bg-blue-600 hover:text-white transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)]"><LayoutGrid size={18} className="text-blue-400 group-hover:text-white"/></div>
-                     <h1 className="text-xl font-light tracking-[0.3em] text-white drop-shadow-md">STRATOS<span className="font-bold text-blue-600">FERE</span></h1>
-                  </div>
+  
+  {/* --- 1. IZQUIERDA: SOLO EL LOGO (Sin botón, texto negro y grueso) --- */}
+  <div className="absolute top-8 left-8 pointer-events-auto animate-fade-in-up">
+    <h1 className="text-6xl font-extrabold tracking-tighter text-black leading-none cursor-default">
+      Stratosfere OS.
+    </h1>
+  </div>
                   
-                  <div className="absolute top-8 right-8 pointer-events-auto flex flex-col gap-3 items-end w-[280px] animate-fade-in-up delay-100">
-                      <div className="glass-panel p-5 rounded-[1.5rem] w-full shadow-2xl bg-[#050505]/90 border border-white/10 hover:border-blue-500/30 transition-all">
-                          <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5 text-white">
-                              <span className="text-[10px] font-bold tracking-[0.2em] flex items-center gap-2"><Activity size={12} className="text-blue-500 animate-pulse"/> SYSTEM</span>
-                              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_10px_blue]"></div><span className="text-[9px] font-mono text-blue-400">CONECTADO</span></div>
-                          </div>
-                          <div className="space-y-3">
-                              <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{playSynthSound('click'); setLang(lang==='ES'?'EN':'ES')}}><span className="tracking-widest">IDIOMA</span> <span className="text-white font-mono">{lang}</span></div>
-                              <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{playSynthSound('click'); toggleSound();}}><span className="tracking-widest">SONIDO</span> <span className={soundEnabled ? "text-emerald-400" : "text-zinc-500"}>{soundEnabled ? 'ON' : 'MUTED'}</span></div>
-                              <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={handleDayNight}><span className="tracking-widest">VISIÓN</span> <div className="flex items-center gap-1"><Sun size={10}/> DÍA/NOCHE</div></div>
-                          </div>
-                          <div className="mt-4 pt-2 border-t border-white/5 space-y-1">
-                              {notifications.map((n,i)=>(<div key={i} className="bg-blue-900/20 border-l-2 border-blue-500 p-2 rounded flex items-center gap-2 animate-slide-in-right"><Bell size={10} className="text-blue-400"/><span className="text-[9px] text-blue-100">{n.title}</span></div>))}
-                          </div>
-                      </div>
-                  </div>
+                 <div className="absolute top-8 right-8 pointer-events-auto flex flex-col gap-3 items-end w-[280px] animate-fade-in-up delay-100">
+    <div className="glass-panel p-5 rounded-[1.5rem] w-full shadow-2xl bg-[#050505]/90 border border-white/10 hover:border-blue-500/30 transition-all">
+        <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5 text-white">
+            {/* CAMBIO AQUÍ: Sin icono, tipografía logo (extrabold, tracking-tighter), mismo tamaño [10px] */}
+            <span className="text-[10px] font-extrabold tracking-tighter flex items-center gap-2">SYSTEM</span>
+            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_10px_blue]"></div><span className="text-[9px] font-mono text-blue-400">CONECTADO</span></div>
+        </div>
+        <div className="space-y-3">
+            <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{playSynthSound('click'); setLang(lang==='ES'?'EN':'ES')}}><span className="tracking-widest">IDIOMA</span> <span className="text-white font-mono">{lang}</span></div>
+            <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{playSynthSound('click'); toggleSound();}}><span className="tracking-widest">SONIDO</span> <span className={soundEnabled ? "text-emerald-400" : "text-zinc-500"}>{soundEnabled ? 'ON' : 'MUTED'}</span></div>
+            <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={handleDayNight}><span className="tracking-widest">VISIÓN</span> <div className="flex items-center gap-1"><Sun size={10}/> DÍA/NOCHE</div></div>
+        </div>
+        <div className="mt-4 pt-2 border-t border-white/5 space-y-1">
+            {notifications.map((n,i)=>(<div key={i} className="bg-blue-900/20 border-l-2 border-blue-500 p-2 rounded flex items-center gap-2 animate-slide-in-right"><Bell size={10} className="text-blue-400"/><span className="text-[9px] text-blue-100">{n.title}</span></div>))}
+        </div>
+    </div>
+</div>
 
-                  <div className="absolute top-1/2 -translate-y-1/2 right-8 pointer-events-auto flex flex-col gap-2 animate-fade-in-right">
-                      <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 0});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Square size={16}/></button>
-                      <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 60});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Box size={16}/></button>
-                  </div>
-                  
+<div className="absolute top-1/2 -translate-y-1/2 right-8 pointer-events-auto flex flex-col gap-2 animate-fade-in-right">
+    <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 0});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Square size={16}/></button>
+    <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 60});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Box size={16}/></button>
+</div>
+        {/* BOTÓN GPS (CENTRO ARRIBA) */}
                   <button className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto p-4 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all shadow-2xl group animate-fade-in-down" onClick={() => { addNotification("GPS RECALIBRADO"); map?.current?.flyTo({center: [-3.6905, 40.4250], zoom: 16.5, pitch: 65, bearing: -15, duration: 3000}); }}>
                       <Crosshair className="w-5 h-5 text-white/80 group-hover:rotate-90 transition-transform duration-700" />
                   </button>
-               </div>
-
-               {/* DOCK BARRA INFERIOR */}
+               </div> 
+               
+              {/* DOCK BARRA INFERIOR (SONIDO ACTIVADO) */}
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
                       <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
-                        <button onClick={() => setSystemMode('GATEWAY')} className="p-3 rounded-full text-white/50 hover:text-white"><LayoutGrid size={18}/></button>
-                        <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
-                        <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50">
-                            <Search size={16} className="text-white/40"/>
-                            <input value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==='Enter' && handleAICommand(e)} className="bg-transparent text-white w-full outline-none text-xs font-light tracking-widest uppercase" placeholder="LOCALIZACIÓN, COMANDO O AGENTE..." />
-                            <Mic size={16} onClick={() => { setIsListening(true); setTimeout(() => setIsListening(false), 2000); }} className={`cursor-pointer ${isListening ? 'text-red-500 animate-pulse' : 'text-white/30'}`}/>
+                        
+                        {/* ZONA 1: IZQUIERDA */}
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all" title="Menú Principal"><LayoutGrid size={18}/></button>
+                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'FILTERS' ? 'NONE' : 'FILTERS'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='FILTERS' ? 'text-white bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`} title="Filtros"><SlidersHorizontal size={18}/></button>
                         </div>
+
+                        <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+
+                        {/* ZONA 2: SEARCH INPUT (Con sonido en el micro) */}
+                        <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50 focus-within:bg-blue-500/5 transition-all group">
+                            <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
+                            <input 
+                                value={aiInput} 
+                                onChange={e=>setAiInput(e.target.value)} 
+                                onKeyDown={e=>e.key==='Enter' && handleAICommand(e)} 
+                                className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20" 
+                                placeholder="LOCALIZACIÓN..." 
+                            />
+                            <Mic size={16} onClick={() => { playSynthSound('click'); setIsListening(true); setTimeout(() => setIsListening(false), 2000); }} className={`cursor-pointer transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-white/30 hover:text-white'}`}/>
+                        </div>
+
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
                         
-                        <button onClick={()=>toggleMainPanel('MARKETPLACE')} className={`p-3 rounded-full hover:text-emerald-400 ${activePanel==='MARKETPLACE'?'text-emerald-500':'text-white/50'}`}><Store size={18}/></button>
-
-                        <button onClick={()=>toggleMainPanel('AI')} className={`p-3 rounded-full hover:text-blue-400 ${activePanel==='AI'?'text-blue-500':'text-white/50'}`}><MessageCircle size={18}/></button>
-                        <button onClick={()=>toggleRightPanel('VAULT')} className={`p-3 rounded-full hover:text-red-500 ${rightPanel==='VAULT'?'text-red-500':'text-white/50'}`}><Heart size={18}/></button>
-                        <button onClick={()=>toggleRightPanel('PROFILE')} className={`p-3 rounded-full hover:text-white ${rightPanel==='PROFILE'?'text-white':'text-white/50'}`}><User size={18}/></button>
+                      {/* ZONA 3: APLICACIONES (SONIDO ACTIVADO) */}
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='MARKETPLACE'?'text-emerald-400':'text-white/50 hover:text-white'}`}><Store size={18}/></button>
+                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'CHAT' ? 'NONE' : 'CHAT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'}`}><MessageCircle size={18}/></button>
+                            
+                            {/* IA OMNI */}
+                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'}`}>
+                                <Sparkles size={18} className="relative z-10"/>
+                            </button>
+                            
+                            <button onClick={() => { playSynthSound('click'); toggleRightPanel('VAULT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='VAULT'?'text-red-500':'text-white/50 hover:text-white'}`}><Heart size={18}/></button>
+                            <button onClick={() => { playSynthSound('click'); toggleRightPanel('PROFILE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='PROFILE'?'text-white':'text-white/50 hover:text-white'}`}><User size={18}/></button>
+                        </div>
                       </div>
                   </div>
                </div>
+
+               {/* --- SISTEMA DE CONSOLAS (CORREGIDO: pointer-events-auto) --- */}
+               
+             {/* 1. FILTROS INTELIGENTES (SMART CONSOLE) */}
+               {activePanel === 'FILTERS' && (
+                   <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
+                       <div className="animate-fade-in glass-panel p-6 rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl">
+                           
+                           {/* CABECERA */}
+                           <div className="flex justify-between items-center mb-4">
+                               <span className="text-xs font-bold tracking-widest text-white flex items-center gap-2">
+                                   <SlidersHorizontal size={14}/> PARÁMETROS
+                               </span>
+                               <button onClick={() => { playSynthSound('click'); setActivePanel('NONE'); }} className="text-white/30 hover:text-white transition-colors p-2"><X size={16}/></button>
+                           </div>
+
+                           {/* SELECTOR DE CONTEXTO */}
+                           <div className="flex bg-white/5 rounded-lg p-1 mb-6 border border-white/5">
+                               {[
+                                   { id: 'VIVIENDA', icon: Home, label: 'Vivir' },
+                                   { id: 'NEGOCIO',  icon: Briefcase, label: 'Pro' },
+                                   { id: 'TERRENO',  icon: MapIcon, label: 'Suelo' }
+                               ].map((ctx) => (
+                                   <button
+                                       key={ctx.id}
+                                       onClick={() => { 
+                                           playSynthSound('click'); 
+                                           setSearchContext(ctx.id as any); 
+                                           // Reseteamos superficie al cambiar de contexto
+                                           setSurfaceRange({ min: 0, max: CONTEXT_CONFIG[ctx.id as keyof typeof CONTEXT_CONFIG].maxM2 });
+                                       }}
+                                       className={`flex-1 flex flex-col items-center justify-center py-2 rounded-md transition-all ${searchContext === ctx.id ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                                   >
+                                       <ctx.icon size={14} className="mb-1"/>
+                                       <span className="text-[9px] font-bold tracking-wider">{ctx.label}</span>
+                                   </button>
+                               ))}
+                           </div>
+
+                           <div className="space-y-6">
+                               
+                               {/* --- SLIDER DE PRECIO (DOBLE) --- */}
+{/* 1. CAMBIO: space-y-10 para separar los bloques */}
+<div className="space-y-10">
+   {/* 2. CAMBIO: mb-8 para que el título no toque los números */}
+   <div className="flex justify-between text-[10px] uppercase font-bold text-white/50 mb-8">
+       <span>Rango Presupuesto</span>
+   </div>
+   <DualSlider 
+        min={0} 
+        max={5000000} 
+        step={50000}
+        value={priceRange} 
+        onChange={setPriceRange}
+        formatLabel={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : `${(v/1000).toFixed(0)}k`}
+   />
+</div>
+
+{/* --- SLIDER DE SUPERFICIE (DOBLE) --- */}
+{/* 1. CAMBIO: space-y-10 para separar los bloques */}
+<div className="space-y-10 mt-8">
+   {/* 2. CAMBIO: mb-8 para que el título no toque los números */}
+   <div className="flex justify-between text-[10px] uppercase font-bold text-white/50 mb-8">
+       <span>Rango Superficie</span>
+   </div>
+   <DualSlider 
+       min={0} 
+       max={CONTEXT_CONFIG[searchContext].maxM2} 
+       step={CONTEXT_CONFIG[searchContext].step}
+       value={surfaceRange} 
+       onChange={setSurfaceRange}
+       formatLabel={(v) => `${v} m²`}
+   />
+</div>
+
+<div className="grid grid-cols-2 gap-2 mt-12 pt-4 border-t border-white/5">
+   <button 
+        onClick={() => { 
+            playSynthSound('click'); 
+            // Resetear valores
+            setPriceRange({ min: 100000, max: 2000000 });
+            // 3. CAMBIO: Usar el máximo real del contexto (ej: 1000m2) en vez de 500
+            setSurfaceRange({ min: 0, max: CONTEXT_CONFIG[searchContext].maxM2 });
+        }} 
+        className="py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-white border border-white/5 transition-all active:scale-95 cursor-pointer"
+   >
+        LIMPIAR
+   </button>
+   
+   <button 
+        onClick={() => { 
+            playSynthSound('success'); 
+            if (typeof window !== 'undefined') {
+                // 🔥 ENVIAR RANGOS COMPLETOS
+                window.dispatchEvent(new CustomEvent('apply-filter-signal', {
+                    detail: { 
+                        priceRange: priceRange,
+                        surfaceRange: surfaceRange,
+                        context: searchContext 
+                    } 
+                }));
+            }
+            addNotification(`Filtro aplicado`);
+            setActivePanel('NONE'); 
+        }} 
+        className="py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg text-[10px] font-bold shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:bg-blue-500/30 transition-all active:scale-95 cursor-pointer"
+   >
+        APLICAR
+   </button>
+</div>
+                           </div>
+                       </div>
+                   </div>
+               )}
+
+               {/* 2. CHAT */}
+               {activePanel === 'CHAT' && (
+                   <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
+                       <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
+                           <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+                               <div className="flex items-center gap-3">
+                                   <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                   <span className="text-xs font-bold tracking-widest text-white">ASISTENTE</span>
+                               </div>
+                               <button onClick={() => setActivePanel('NONE')} className="text-white/30 hover:text-white transition-colors p-2"><X size={16}/></button>
+                           </div>
+                           <div className="flex-grow p-4 space-y-4 overflow-y-auto">
+                               <div className="flex flex-col gap-1 items-start animate-fade-in">
+                                   <span className="text-[9px] text-white/30 ml-2">SOPORTE • AHORA</span>
+                                   <div className="bg-white/10 p-3 rounded-2xl rounded-tl-none text-xs text-white/80 max-w-[90%] border border-white/5">
+                                       Hola. ¿En qué puedo ayudarte con tu búsqueda inmobiliaria hoy?
+                                   </div>
+                               </div>
+                           </div>
+                           <div className="p-3 border-t border-white/5 bg-black/20">
+                               <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/5">
+                                   <input placeholder="Escribir mensaje..." className="bg-transparent w-full text-xs text-white outline-none placeholder-white/20"/>
+                                   <button className="text-blue-400 hover:text-blue-300"><Send size={14}/></button>
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+               )}
+
+               {/* 3. IA OMNI */}
+               {activePanel === 'AI' && (
+                   <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-[20000] pointer-events-auto">
+                      <div className="animate-fade-in rounded-[2.5rem] p-8 bg-[#050505]/95 backdrop-blur-2xl border border-blue-500/30 shadow-[0_0_100px_rgba(59,130,246,0.2)]">
+                          <div className="flex justify-between items-center mb-8 text-white">
+                              <span className="text-xs font-bold tracking-[0.3em] flex items-center gap-2">
+                                  <Sparkles size={14} className="text-blue-500 animate-pulse"/> OMNI INTELLIGENCE
+                              </span>
+                              <button onClick={() => setActivePanel('NONE')} className="hover:text-red-500 transition-colors p-2"><X size={18}/></button>
+                          </div>
+                          <div className="h-48 flex flex-col items-center justify-center text-center gap-4 relative">
+                              {isAiTyping ? (
+                                  <div className="flex gap-2">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"/>
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-75"/>
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"/>
+                                  </div>
+                              ) : (
+                                  <div className="w-full">
+                                      {aiResponse ? (
+                                          <p className="text-blue-200 text-sm font-mono leading-relaxed animate-fade-in text-left"><span className="text-blue-500 mr-2">{">"}</span>{aiResponse}<span className="animate-pulse ml-1">_</span></p>
+                                      ) : (
+                                          <div className="text-2xl font-light text-white tracking-wide break-words">
+                                              {aiInput ? (
+                                                  <>
+                                                    <span className="opacity-50 text-[10px] block mb-4 font-mono tracking-widest text-blue-400 uppercase">Input detectado</span>
+                                                    "{aiInput}"<span className="animate-pulse text-blue-500">|</span>
+                                                  </>
+                                              ) : (
+                                                  <p className="text-white/30 text-xs tracking-widest font-mono">SISTEMAS A LA ESPERA DE COMANDO...</p>
+                                              )}
+                                          </div>
+                                      )}
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+               )}
            </>
        )}
 
-       {/* PANELES FLOTANTES - CONECTADOS A LA MEMORIA INTERNA (localFavs) */}
+       {/* --- PANELES LATERALES Y FLOTANTES (RECUPERADOS) --- */}
        
        <ProfilePanel 
            rightPanel={rightPanel} 
@@ -293,7 +641,7 @@ export default function UIPanels({
 
        <MarketPanel 
            isOpen={activePanel === 'MARKETPLACE'} 
-           onClose={() => toggleMainPanel('NONE')} 
+           onClose={() => setActivePanel('NONE')} 
            marketTab={marketTab} 
            setMarketTab={setMarketTab} 
            selectedReqs={selectedReqs} 
@@ -302,11 +650,10 @@ export default function UIPanels({
            playSynthSound={playSynthSound} 
        />
        
-       {/* 🚀 FAVORITOS: AHORA USAN LA MEMORIA INTERNA (localFavs) */}
        <VaultPanel 
            rightPanel={rightPanel} 
            toggleRightPanel={toggleRightPanel} 
-           favorites={localFavs} // <--- CAMBIO CRÍTICO: Usamos el estado local persistente
+           favorites={localFavs} 
            onToggleFavorite={handleToggleFavorite} 
            map={map} 
            soundEnabled={soundEnabled} 
@@ -321,32 +668,18 @@ export default function UIPanels({
            playSynthSound={playSynthSound} 
        />
        
-       {/* FICHA DE PROPIEDAD REAL */}
-       {activePanel === 'DETAILS' && selectedProp && (
+       {activePanel === 'DETAILS' && (
            <DetailsPanel 
                selectedProp={selectedProp} 
-               onClose={() => toggleMainPanel('NONE')} 
+               onClose={() => setActivePanel('NONE')} 
                onToggleFavorite={handleToggleFavorite} 
-               favorites={localFavs} // <--- CAMBIO CRÍTICO
+               favorites={localFavs} 
                soundEnabled={soundEnabled} 
                playSynthSound={playSynthSound} 
                onOpenInspector={() => setActivePanel('INSPECTOR')} 
            />
        )}
 
-       {/* IA */}
-       {activePanel === 'AI' && (
-           <div className="absolute bottom-32 left-1/2 -translate-x-1/2 w-full max-w-lg z-20 pointer-events-auto animate-fade-in-up">
-              <div className="rounded-[2.5rem] p-8 bg-[#050505] border border-blue-500/30">
-                  <div className="flex justify-between items-center mb-6 text-white"><span className="text-xs font-bold tracking-[0.3em] flex items-center gap-2"><Sparkles size={14} className="text-blue-500 animate-pulse"/> OMNI INTELLIGENCE</span><button onClick={()=>toggleMainPanel('NONE')}><X size={18}/></button></div>
-                  <div className="h-40 flex flex-col items-center justify-center text-center gap-4">
-                      {isAiTyping ? <div className="flex gap-2"><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"/><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-75"/><div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"/></div> : <p className="text-white/50 text-xs max-w-xs">{aiResponse || "Sistemas listos. Esperando órdenes verbales o escritas."}</p>}
-                  </div>
-              </div>
-          </div>
-       )}
     </div>
   );
 }
-
-

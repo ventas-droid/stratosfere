@@ -96,6 +96,33 @@ export default function DetailsPanel({
                 </div>
             </div>
 
+{/* 🔥 NARRATIVA (DESCRIPCIÓN) - INSERTAR AQUÍ */}
+            {(selectedProp.description || selectedProp.title) && (
+                <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white/50 animate-fade-in">
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sobre este activo</span>
+                        {/* Etiqueta decorativa */}
+                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-bold border border-blue-100">
+                            IA INDEXED
+                        </span>
+                    </div>
+
+                    {/* Título */}
+                    {selectedProp.title && (
+                        <h3 className="font-bold text-slate-900 mb-2 text-base leading-tight">
+                            {selectedProp.title}
+                        </h3>
+                    )}
+
+                    {/* Descripción */}
+                    {selectedProp.description && (
+                        <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
+                            {selectedProp.description}
+                        </p>
+                    )}
+                </div>
+            )}
+
             {/* 3. BOTONES DE ACCIÓN */}
             <div className="flex gap-3">
                 <button className="flex-1 py-4 bg-[#1c1c1e] text-white rounded-[24px] font-bold text-sm shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all cursor-pointer">

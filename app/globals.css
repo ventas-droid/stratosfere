@@ -102,5 +102,40 @@ html, body {
   border: 1px solid rgba(255, 215, 0, 0.5);
 }
 
+/* Corrección texto IA */
+.ia-helper-text {
+  color: #4ADE80 !important; /* Verde brillante */
+  opacity: 1 !important;       /* Sin transparencia */
+  font-weight: 500;            /* Un poco más gordita */
+}
 
+/* 1. Definimos la animación de latido suave */
+@keyframes iaPulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; } /* Baja un poco la intensidad */
+  100% { opacity: 1; }
+}
 
+/* 2. Estilos para el texto de la IA */
+.ia-text-normal {
+  /* Color verde sólido y brillante para que se lea bien sobre negro */
+  color: #4ade80 !important; 
+  
+  /* Eliminamos cualquier sombra o brillo anterior */
+  text-shadow: none !important;
+  filter: none !important;
+  
+  /* Aseguramos visibilidad y tamaño */
+  font-size: 13px;
+  font-weight: 500; /* Peso medio para que no se vea "fina" */
+  margin-top: 8px;
+  
+  /* Aplicamos la animación de latido (duración 2 segundos, infinita) */
+  animation: iaPulse 2s infinite ease-in-out;
+}
+
+/* Ocultar la brújula y controles de navegación de Mapbox */
+.mapboxgl-ctrl-compass, 
+.mapboxgl-ctrl-group {
+    display: none !important;
+}

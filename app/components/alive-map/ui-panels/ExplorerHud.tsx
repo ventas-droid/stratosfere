@@ -1,96 +1,162 @@
+// @ts-nocheck
 "use client";
-import React, { useState, useEffect } from 'react';
-import { Radar as RadarIcon, LayoutGrid, SlidersHorizontal, ArrowRight } from 'lucide-react';
-// IMPORTANTE: Al ser .tsx ahora, este import funcionará sin problemas
-import MapNanoCard from './MapNanoCard'; 
 
-export default function ExplorerHud({ onCloseMode, soundFunc, onGoToMap, favorites = [] }: any) {
-  const [phase, setPhase] = useState('SCAN'); 
-  const [steps, setSteps] = useState(20); 
-  const [selectedType, setSelectedType] = useState('RESIDENCIAL');
-  const isElite = steps * 50000 >= 5000000;
+import React, { useState } from 'react';
 
-  // DATOS MOCK
-  const nearbyProps = [
-    { id: 101, title: "Loft Industrial", price: "140.000€", priceValue: 140000, type: "Loft", coords: { x: 25, y: 40 }, img: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2" },
-    { id: 102, title: "Ático Luminoso", price: "280.000€", priceValue: 280000, type: "Ático", coords: { x: 55, y: 25 }, img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750" },
-    { id: 103, title: "Piso Salamanca", price: "450.000€", priceValue: 450000, type: "Piso", coords: { x: 40, y: 60 }, img: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c" },
-    { id: 104, title: "Design Villa", price: "850.000€", priceValue: 850000, type: "Villa", coords: { x: 75, y: 65 }, img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c" },
-    { id: 105, title: "Palacio Real", price: "1.2M€", priceValue: 1200000, type: "Mansión", coords: { x: 60, y: 45 }, img: "https://images.unsplash.com/photo-1600596542815-27b5aec872c3" },
-    { id: 106, title: "Sky Mansion", price: "3.5M€", priceValue: 3500000, type: "Penthouse", coords: { x: 30, y: 75 }, img: "https://images.unsplash.com/photo-1512915922686-57c11dde9b6b" },
-  ];
+// --- IMÁGENES STRATOS ---
+const IMG_HOME = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80";
+const IMG_OFFICE = "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80";
+const IMG_LAND = "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80";
 
-  useEffect(() => {
-    if (phase === 'SCAN') {
-       const timer = setTimeout(() => { if(soundFunc) soundFunc('ping'); setPhase('CONFIG'); }, 2000);
-       return () => clearTimeout(timer);
-    }
-  }, [phase]);
+export default function ExplorerHud({ onCloseMode }: any) {
+  
+  // ESTADO DE NAVEGACIÓN: 'MENU' | 'VIVIENDA' | 'NEGOCIO' | 'SUELO'
+  const [currentView, setCurrentView] = useState('MENU');
+  
+  // ESTADO DE CIERRE (Animación)
+  const [isClosing, setIsClosing] = useState(false);
 
-  return (
-    <div className="fixed inset-0 z-[200] pointer-events-none text-slate-900 select-none">
-      
-      {/* HEADER */}
-      {(phase === 'SCAN' || phase === 'CONFIG') && (
-      <div className="absolute top-10 left-10 flex items-center gap-6 pointer-events-auto z-[210]">
-         <div onClick={onCloseMode} className="cursor-pointer p-4 rounded-3xl group hover:bg-white/20 shadow-[0_5px_30px_rgba(255,255,255,0.5)] bg-white/5 border border-white/20">
-             <LayoutGrid size={28} className="text-black group-hover:scale-110 transition-transform"/>
-         </div>
-         <div>
-             <h1 className="text-4xl font-black tracking-tighter leading-none mb-1"><span className="text-black">Stratosfere</span><span className="text-slate-500 text-lg font-light tracking-widest ml-1">OS.</span></h1>
-             <p className="text-sm text-black font-bold tracking-[0.2em] uppercase">Módulo de Búsqueda</p>
-         </div>
+  // VALORES VISUALES (Los conectaremos al cerebro luego)
+  const [price, setPrice] = useState(50); // % del slider
+  const [surface, setSurface] = useState(30); // % del slider
+
+  // FUNCIÓN PARA CERRAR EL HUB E IR AL MAPA
+  const handleLaunch = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+        if (onCloseMode) onCloseMode();
+    }, 300);
+  };
+
+  // --- COMPONENTE: TARJETA DEL MENÚ ---
+  const MenuCard = ({ title, subtitle, img, onClick, color }) => (
+    <div onClick={onClick} className="group relative h-80 rounded-[32px] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2">
+      <img src={img} alt={title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity">
+        <div className="absolute bottom-8 left-8 text-left">
+            <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full w-fit mb-3 border border-white/10">
+                <span className="text-white text-[10px] font-bold uppercase tracking-widest">{subtitle}</span>
+            </div>
+            <h3 className="text-3xl font-bold text-white leading-none">{title}</h3>
+        </div>
       </div>
-      )}
+    </div>
+  );
 
-      {/* SCAN */}
-      {phase === 'SCAN' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-300/30 backdrop-blur-md animate-fade-in pointer-events-auto">
-            <div className="text-center animate-pulse">
-                <div className="bg-white/60 p-8 rounded-full shadow-xl mb-6 backdrop-blur-xl border border-white/40"><RadarIcon size={64} className="text-[#0071e3] animate-spin-slow"/></div>
-                <h2 className="text-3xl font-bold text-slate-900">Sincronizando</h2>
-            </div>
+  // --- COMPONENTE: CONTROL DESLIZANTE (ACTUALIZADO) ---
+  const AppleSlider = ({ label, value, onChange, colorClass, isSurface }) => (
+    <div className="mb-8">
+        <div className="flex justify-between mb-3 px-1">
+            <span className="text-sm font-bold text-gray-500 tracking-wide uppercase">{label}</span>
+            <span className={`text-sm font-bold ${colorClass}`}>
+                {/* SI ES SUPERFICIE MUESTRA m², SI NO MUESTRA € */}
+                {isSurface ? `${value * 10} m²` : `${value * 20}k €`} 
+            </span> 
         </div>
-      )}
+        <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className={`absolute top-0 bottom-0 left-0 rounded-full ${colorClass.replace('text-', 'bg-')}`} style={{ width: `${value}%` }}></div>
+        </div>
+        <input 
+            type="range" min="0" max="100" value={value} onChange={(e) => onChange(e.target.value)}
+            className="absolute -mt-2 w-full h-4 opacity-0 cursor-pointer"
+        />
+    </div>
+  );
 
-      {/* CONFIG */}
-      {phase === 'CONFIG' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-300/30 backdrop-blur-md animate-fade-in pointer-events-auto">
-            <div className="bg-[#f2f2f7]/90 backdrop-blur-3xl border border-white/60 p-10 rounded-[2.5rem] shadow-2xl max-w-2xl w-full animate-fade-in-up relative z-50">
-                <div className="flex justify-between items-center mb-8 border-b border-slate-200/60 pb-4">
-                   <h2 className="text-lg font-bold tracking-wide flex items-center gap-3 text-slate-900"><SlidersHorizontal className="text-[#0071e3]" size={20}/> PARÁMETROS</h2>
+  // --- RENDERIZADO PRINCIPAL ---
+  return (
+<div className={`fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-md p-4 pointer-events-auto transition-opacity duration-500 ${isClosing ? 'opacity-0' : 'opacity-100'}`}>
+      {/* CÁPSULA FLOTANTE */}
+      <div className={`bg-white/90 backdrop-blur-2xl rounded-[40px] shadow-[0_40px_80px_rgba(0,0,0,0.3)] w-full max-w-5xl h-[600px] overflow-hidden transform transition-all duration-500 flex flex-col relative ${isClosing ? 'scale-95 translate-y-4' : 'scale-100 translate-y-0'}`}>
+        
+        {/* BOTÓN CERRAR (X) */}
+        <button onClick={handleLaunch} className="absolute top-8 right-8 z-20 p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition">
+            <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        {/* --- VISTA 1: MENÚ PRINCIPAL --- */}
+        {currentView === 'MENU' && (
+            <div className="p-12 h-full flex flex-col justify-center animate-fade-in">
+                <div className="text-center mb-10">
+                    <h1 className="text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">Stratosfere OS.</h1>
+                    <p className="text-lg text-gray-500 font-medium">Seleccione su objetivo estratégico.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-8 mb-8">
-                   <div className="space-y-4"><label className="text-xs text-slate-400 font-bold uppercase">Tipo</label><div className="grid grid-cols-2 gap-3">{['RESIDENCIAL', 'CORPORATIVO'].map(t => (<button key={t} onClick={() => setSelectedType(t)} className={`p-4 border rounded-2xl text-xs font-bold ${selectedType===t ? 'bg-[#0071e3] text-white' : 'bg-white text-slate-500'}`}>{t}</button>))}</div></div>
-                   <div className="space-y-4"><label className="text-xs text-slate-400 font-bold uppercase flex justify-between"><span>Presupuesto</span><span className={isElite ? 'text-amber-500 font-black' : 'text-[#0071e3] font-black'}>{isElite ? 'ELITE CLASS' : `${(steps * 50000).toLocaleString()} €`}</span></label><div onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); setSteps(Math.round(((e.clientX - rect.left) / rect.width) * 100)); }} className="h-12 bg-white border border-slate-200 rounded-2xl flex items-center px-4 relative cursor-pointer overflow-hidden"><div className={`h-2 rounded-full w-full relative z-10 ${isElite ? 'bg-amber-500' : 'bg-[#0071e3]'}`} style={{ width: `${steps}%` }}></div></div></div>
-                </div>
-                <div className="flex gap-4 pt-6 border-t border-slate-200/60">
-                    <button onClick={onCloseMode} className="px-8 py-4 rounded-2xl border border-slate-200 bg-white text-slate-500 font-bold">CANCELAR</button>
-                    <button onClick={() => { if(soundFunc) soundFunc('complete'); setPhase('ACTIVE'); if(onGoToMap) onGoToMap(); }} className={`flex-1 py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-3 ${isElite ? 'bg-amber-500' : 'bg-[#0071e3]'}`}>INICIAR BÚSQUEDA <ArrowRight size={16}/></button>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <MenuCard title="Vivir." subtitle="Residencial" img={IMG_HOME} onClick={() => setCurrentView('VIVIENDA')} />
+                    <MenuCard title="Pro." subtitle="Corporativo" img={IMG_OFFICE} onClick={() => setCurrentView('NEGOCIO')} />
+                    <MenuCard title="Suelo." subtitle="Inversión" img={IMG_LAND} onClick={() => setCurrentView('SUELO')} />
                 </div>
             </div>
-        </div>
-      )}
+        )}
 
-      {/* ACTIVE (MAPA) */}
-      {phase === 'ACTIVE' && nearbyProps.map((prop) => {
-            const isFav = favorites.some((f: any) => f.id === prop.id);
-            return (
-                // El contenedor posiciona el componente
-                <div key={prop.id} className="absolute" style={{ left: `${prop.coords.x}%`, top: `${prop.coords.y}%` }}>
-                    <MapNanoCard 
-                        id={prop.id}
-                        price={prop.price}
-                        priceValue={prop.priceValue}
-                        type={prop.type}
-                        img={prop.img}   // CORRECCIÓN: Ahora pasamos 'img' correctamente
-                        lat={prop.coords.y} // Pasamos coords simuladas como lat/lng
-                        lng={prop.coords.x}
-                        isFav={isFav}
+        {/* --- VISTA 2: DETALLE (VIVIENDA / NEGOCIO / SUELO) --- */}
+        {currentView !== 'MENU' && (
+            <div className="flex h-full animate-fade-in-up">
+                
+                {/* LADO IZQUIERDO: IMAGEN GRANDE */}
+                <div className="w-1/3 relative hidden md:block">
+                    <img 
+                        src={currentView === 'VIVIENDA' ? IMG_HOME : currentView === 'NEGOCIO' ? IMG_OFFICE : IMG_LAND} 
+                        className="absolute inset-0 w-full h-full object-cover" 
                     />
+                    <div className="absolute inset-0 bg-black/20"></div>
+                    <div className="absolute bottom-10 left-10 text-white">
+                        <h2 className="text-5xl font-black mb-2">{currentView === 'VIVIENDA' ? 'Vivir.' : currentView === 'NEGOCIO' ? 'Pro.' : 'Suelo.'}</h2>
+                        <p className="text-white/80 font-medium tracking-wide">Configuración de búsqueda</p>
+                    </div>
                 </div>
-            );
-      })}
+
+                {/* LADO DERECHO: CONTROLES */}
+                <div className="w-full md:w-2/3 p-12 flex flex-col">
+                    
+                    {/* Botón Atrás */}
+                    <button onClick={() => setCurrentView('MENU')} className="self-start flex items-center gap-2 text-gray-400 hover:text-gray-800 font-bold text-sm mb-10 transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                        VOLVER AL MENÚ
+                    </button>
+
+                    <div className="flex-1 max-w-lg mx-auto w-full">
+                        <div className="mb-8">
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2">Defina sus parámetros.</h3>
+                            <p className="text-gray-500">Ajuste el rango para filtrar el mapa en tiempo real.</p>
+                        </div>
+
+                        <AppleSlider 
+    label="Presupuesto Máximo" 
+    value={price} 
+    onChange={setPrice} 
+    colorClass="text-blue-600" 
+/>
+
+<AppleSlider 
+    label="Superficie Mínima" 
+    value={surface} 
+    onChange={setSurface} 
+    colorClass="text-blue-600" 
+    isSurface={true}  // <--- ¡ESTA ES LA CLAVE!
+/>
+
+                        {/* Botón de Acción */}
+                        <button 
+                            onClick={handleLaunch}
+                            className={`w-full mt-8 py-5 text-white text-lg font-bold rounded-2xl transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3
+                            ${currentView === 'VIVIENDA' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30' : 
+                              currentView === 'NEGOCIO' ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/30' : 
+                              'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30'}`}
+                        >
+                            Ver Resultados en Mapa
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        )}
+
+      </div>
     </div>
   );
 }

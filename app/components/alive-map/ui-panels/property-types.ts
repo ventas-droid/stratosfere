@@ -1,0 +1,57 @@
+// @ts-nocheck
+// ARCHIVO: app/components/alive-map/ui-panels/property-types.ts
+
+// 1. DICCIONARIO DE TIPOS DE INMUEBLE (Stratos Standard)
+export const PROPERTY_TYPES = {
+  // --- VIVIENDA: PISOS ---
+  PISO: 'Piso',
+  ATICO: 'Ático',
+  DUPLEX: 'Dúplex',
+  LOFT: 'Loft',
+  ESTUDIO: 'Estudio',
+  
+  // --- VIVIENDA: CASAS ---
+  CHALET: 'Chalet',
+  VILLA: 'Villa',
+  BUNGALOW: 'Bungalow',
+  CASA_PUEBLO: 'Casa de Pueblo',
+  
+  // --- NEGOCIO ---
+  OFICINA: 'Oficina',
+  LOCAL: 'Local Comercial',
+  NAVE: 'Nave Industrial',
+  EDIFICIO: 'Edificio',
+  
+  // --- OTROS ---
+  SOLAR: 'Solar Urbano',
+  FINCA: 'Finca Rústica',
+  GARAGE: 'Garaje',
+  TRASTERO: 'Trastero'
+};
+
+// 2. MAPA DE COLORES (Para el HUD y el Mapa)
+export const CATEGORY_MAP = {
+  // GAMA ESMERALDA (VIVIENDA)
+  [PROPERTY_TYPES.PISO]: 'VIVIENDA',
+  [PROPERTY_TYPES.ATICO]: 'VIVIENDA',
+  [PROPERTY_TYPES.DUPLEX]: 'VIVIENDA',
+  [PROPERTY_TYPES.LOFT]: 'VIVIENDA',
+  [PROPERTY_TYPES.ESTUDIO]: 'VIVIENDA',
+  [PROPERTY_TYPES.CHALET]: 'VIVIENDA',
+  [PROPERTY_TYPES.VILLA]: 'VIVIENDA',
+  [PROPERTY_TYPES.BUNGALOW]: 'VIVIENDA',
+  [PROPERTY_TYPES.CASA_PUEBLO]: 'VIVIENDA',
+
+  // GAMA AZUL (NEGOCIO)
+  [PROPERTY_TYPES.OFICINA]: 'NEGOCIO',
+  [PROPERTY_TYPES.LOCAL]: 'NEGOCIO',
+  [PROPERTY_TYPES.NAVE]: 'NEGOCIO',
+  [PROPERTY_TYPES.EDIFICIO]: 'NEGOCIO',
+
+  // GAMA ORO (SUELO Y OTROS)
+  [PROPERTY_TYPES.SOLAR]: 'TERRENO',
+  [PROPERTY_TYPES.FINCA]: 'TERRENO',
+  [PROPERTY_TYPES.GARAGE]: 'TERRENO',
+  [PROPERTY_TYPES.TRASTERO]: 'TERRENO'
+};
+

@@ -77,7 +77,6 @@ export const StatusDeck = ({ notifications, clearNotifications, lang, setLang, s
             <div className="mt-3 pt-3 border-t border-white/10 overflow-hidden animate-fade-in-up">
                 {notifications.map((notif, i) => (
                     <div key={i} className="mb-3 last:mb-0 pb-2 last:pb-0 border-b last:border-b-0 border-white/5">
-                        <div className="text-[9px] mb-1 font-mono uppercase animate-pulse truncate w-full" style={{color: CORPORATE_BLUE}}>{notif.title}</div>
                         <div className="text-[10px] text-white/80 leading-tight w-full whitespace-normal">{notif.desc}</div>
                         {notif.action === 'CHAT' && (
                             <button onClick={() => onOpenChat()} className="mt-2 w-full py-1.5 bg-white/10 hover:bg-white/20 text-[9px] font-bold text-white rounded transition-colors flex items-center justify-center gap-1">{t.commandPanel.contact} <ArrowRight size={10}/></button>

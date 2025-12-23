@@ -1,132 +1,115 @@
-// path: lib/ui/alive-map/ui-panels/DualGateway.tsx
+// @ts-nocheck
 "use client";
-import React, { useEffect, useRef } from 'react';
-import { Radar as RadarIcon, Building as BuildingIcon } from 'lucide-react';
 
-export default function DualGateway({ onSelectMode }: { onSelectMode: (mode: string) => void }) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+import React, { useState } from 'react';
+import { Search, PenTool, ArrowRight } from 'lucide-react';
 
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+// IMÁGENES STRATOS (Alta luminosidad)
+const IMG_EXPLORER = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80";
+const IMG_ARCHITECT = "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80";
+
+export default function DualGateway({ onSelectMode }: any) {
+
+  return (
+    // 1. FONDO "APPLE GRAY" (Limpio y luminoso)
+    <div className="fixed inset-0 z-[50000] bg-[#F5F5F7] flex flex-col items-center justify-center font-sans select-none overflow-hidden">
+      
+      {/* ORBES DE COLOR DIFUMINADO (Para dar profundidad sutil estilo iOS) */}
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-200/40 blur-[120px] rounded-full mix-blend-multiply"></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-200/40 blur-[120px] rounded-full mix-blend-multiply"></div>
+
+      {/* CABECERA (Logo All Black) */}
+      <div className="relative z-10 text-center mb-16 animate-fade-in-down">
+          {/* Aquí está el cambio: text-black y sin span azul */}
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-black mb-4">
+            Stratosfere OS.
+          </h1>
+          <p className="text-xl text-gray-500 font-medium tracking-wide">
+            Selecciona tu perfil para comenzar.
+          </p>
+      </div>
+
+      {/* CONTENEDOR DE TARJETAS (GRID) */}
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl px-6">
         
-        let w: number, h: number, particles: any[] = [];
-        const particleCount = 100;
-        const connectionDistance = 100;
-        const mouse = { x: -9999, y: -9999, radius: 150 }; // Inicializado lejos
+        {/* === TARJETA 1: COMPRADOR (EXPLORER) === */}
+        <div 
+            onClick={() => onSelectMode('EXPLORER')}
+            className="group relative bg-white rounded-[40px] shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden transform hover:-translate-y-2 h-[500px]"
+        >
+            {/* Imagen (Mitad superior) */}
+            <div className="h-[60%] overflow-hidden relative">
+                <img 
+                    src={IMG_EXPLORER} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    alt="Comprador"
+                />
+                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors"></div>
+            </div>
 
-        const resize = () => { 
-            w = canvas.width = window.innerWidth; 
-            h = canvas.height = window.innerHeight; 
-        };
-        
-        class Particle {
-            x: number; y: number; vx: number; vy: number; size: number;
-            constructor() { 
-                this.x = Math.random() * w; 
-                this.y = Math.random() * h; 
-                this.vx = Math.random() * 0.5 - 0.25; 
-                this.vy = Math.random() * 0.5 - 0.25; 
-                this.size = Math.random() * 1.5 + 0.5; 
-            }
-            update() { 
-                this.x += this.vx; 
-                this.y += this.vy; 
-                if (this.x < 0 || this.x > w) this.vx *= -1; 
-                if (this.y < 0 || this.y > h) this.vy *= -1; 
-
-                // Interacción ratón
-                const dx = mouse.x - this.x;
-                const dy = mouse.y - this.y;
-                const distance = Math.sqrt(dx*dx + dy*dy);
-                if (distance < mouse.radius) {
-                    const force = (mouse.radius - distance) / mouse.radius;
-                    const angle = Math.atan2(dy, dx);
-                    this.x -= Math.cos(angle) * force * 2;
-                    this.y -= Math.sin(angle) * force * 2;
-                }
-            }
-            draw() { 
-                if(!ctx) return;
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; 
-                ctx.beginPath(); 
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); 
-                ctx.fill(); 
-            }
-        }
-
-        const connectParticles = () => {
-            for (let i = 0; i < particles.length; i++) {
-                for (let j = i + 1; j < particles.length; j++) {
-                    const dx = particles[i].x - particles[j].x;
-                    const dy = particles[i].y - particles[j].y;
-                    const distance = Math.sqrt(dx*dx + dy*dy);
-                    if (distance < connectionDistance) {
-                        const opacity = 1 - distance / connectionDistance;
-                        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.2})`;
-                        ctx.lineWidth = 0.5;
-                        ctx.beginPath();
-                        ctx.moveTo(particles[i].x, particles[i].y);
-                        ctx.lineTo(particles[j].x, particles[j].y);
-                        ctx.stroke();
-                    }
-                }
-            }
-        };
-
-        const init = () => { particles = []; for (let i = 0; i < particleCount; i++) particles.push(new Particle()); };
-        const animate = () => { 
-            ctx.clearRect(0, 0, w, h); 
-            particles.forEach(p => { p.update(); p.draw(); }); 
-            connectParticles();
-            requestAnimationFrame(animate); 
-        };
-        
-        const handleMouseMove = (e: MouseEvent) => {
-            const rect = canvas.getBoundingClientRect();
-            mouse.x = e.clientX - rect.left;
-            mouse.y = e.clientY - rect.top;
-        };
-
-        window.addEventListener('resize', resize);
-        window.addEventListener('mousemove', handleMouseMove);
-        resize(); init(); animate();
-        
-        return () => {
-            window.removeEventListener('resize', resize);
-            window.removeEventListener('mousemove', handleMouseMove);
-        };
-    }, []);
-
-    return (
-        <div className="relative h-screen w-full flex items-center justify-center overflow-hidden bg-[#020412]">
-            <canvas ref={canvasRef} className="absolute inset-0 z-0" />
-            <div className="relative z-10 flex flex-col items-center justify-center p-4 w-full max-w-6xl">
-                <h1 className="text-4xl md:text-6xl font-thin text-white tracking-[0.3em] text-center mb-16 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">SELECCIONA TU CAMINO</h1>
-                <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full z-10">
-                    {/* EXPLORER CARD */}
-                    <div onClick={() => onSelectMode('EXPLORER')} className="group cursor-pointer glass-panel p-12 rounded-[2.5rem] border border-blue-500/70 hover:border-cyan-400 bg-blue-950/50 backdrop-blur-xl text-center transition-all duration-500 hover:scale-[1.02] shadow-[0_0_40px_rgba(37,99,235,0.35)] relative overflow-hidden h-[450px] flex flex-col justify-center items-center w-full md:w-1/2">
-                        <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 via-transparent to-blue-900/40 opacity-100 mix-blend-screen"></div>
-                        <div className="relative z-10 transform group-hover:-translate-y-3 transition-transform duration-500 ease-out">
-                            <div className="w-24 h-24 bg-blue-900/40 rounded-full flex items-center justify-center mb-8 border-2 border-blue-400/80 shadow-[0_0_30px_rgba(59,130,246,0.5)] group-hover:shadow-[0_0_70px_rgba(59,130,246,1)] transition-all"><RadarIcon className="w-10 h-10 text-blue-300 group-hover:text-white" /></div>
-                            <h2 className="text-3xl font-light text-blue-100 tracking-[0.2em] mb-4">EXPLORADOR</h2>
-                            <p className="text-xs text-blue-300 font-mono tracking-[0.3em]">BUSCO OPORTUNIDADES</p>
+            {/* Contenido (Mitad inferior blanca) */}
+            <div className="h-[40%] p-10 flex flex-col justify-between relative">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-blue-100 text-blue-600 rounded-full">
+                            <Search size={20} />
                         </div>
+                        <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">Búsqueda</span>
                     </div>
-                    {/* ARCHITECT CARD */}
-                    <div onClick={() => onSelectMode('ARCHITECT')} className="group cursor-pointer glass-panel p-12 rounded-[2.5rem] border border-amber-500/70 hover:border-orange-400 bg-amber-950/50 backdrop-blur-xl text-center transition-all duration-500 hover:scale-[1.02] shadow-[0_0_40px_rgba(217,119,6,0.35)] relative overflow-hidden h-[450px] flex flex-col justify-center items-center w-full md:w-1/2">
-                        <div className="absolute inset-0 bg-gradient-to-b from-amber-600/10 via-transparent to-amber-900/40 opacity-100 mix-blend-screen"></div>
-                        <div className="relative z-10 transform group-hover:-translate-y-3 transition-transform duration-500 ease-out">
-                            <div className="w-24 h-24 bg-amber-900/40 rounded-full flex items-center justify-center mb-8 border-2 border-amber-400/80 shadow-[0_0_30px_rgba(245,158,11,0.5)] group-hover:shadow-[0_0_70px_rgba(245,158,11,1)] transition-all"><BuildingIcon className="w-10 h-10 text-amber-300 group-hover:text-white" /></div>
-                            <h2 className="text-3xl font-light text-amber-100 tracking-[0.2em] mb-4">ARQUITECTO</h2>
-                            <p className="text-xs text-amber-300 font-mono tracking-[0.3em]">GESTIONAR MI ACTIVO</p>
-                        </div>
-                    </div>
+                    <h2 className="text-3xl font-bold text-gray-900 leading-tight">Comprar.</h2>
+                    <p className="text-gray-500 mt-2 font-medium">Encuentra activos exclusivos en el mapa 3D.</p>
+                </div>
+                
+                {/* Botón fake */}
+                <div className="flex items-center gap-2 text-gray-900 font-bold group-hover:text-blue-600 transition-colors">
+                    Iniciar Explorador <ArrowRight size={18} />
                 </div>
             </div>
         </div>
-    );
+
+        {/* === TARJETA 2: VENDEDOR (ARCHITECT) === */}
+        <div 
+            onClick={() => onSelectMode('ARCHITECT')}
+            className="group relative bg-white rounded-[40px] shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden transform hover:-translate-y-2 h-[500px]"
+        >
+            {/* Imagen */}
+            <div className="h-[60%] overflow-hidden relative">
+                <img 
+                    src={IMG_ARCHITECT} 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    alt="Vendedor"
+                />
+                <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors"></div>
+            </div>
+
+            {/* Contenido */}
+            <div className="h-[40%] p-10 flex flex-col justify-between relative">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-purple-100 text-purple-600 rounded-full">
+                            <PenTool size={20} />
+                        </div>
+                        <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">Gestión</span>
+                    </div>
+                    <h2 className="text-3xl font-bold text-gray-900 leading-tight">Vender.</h2>
+                    <p className="text-gray-500 mt-2 font-medium">Herramientas de valoración y venta de suelo.</p>
+                </div>
+
+                {/* Botón fake */}
+                <div className="flex items-center gap-2 text-gray-900 font-bold group-hover:text-purple-600 transition-colors">
+                    Acceder como Propietario <ArrowRight size={18} />
+                </div>
+            </div>
+        </div>
+
+      </div>
+
+      {/* FOOTER DISCRETO */}
+      <div className="absolute bottom-8 text-gray-400 text-xs font-medium tracking-wide">
+        Stratosfere Operating System v2.0
+      </div>
+
+    </div>
+  );
 }
 
