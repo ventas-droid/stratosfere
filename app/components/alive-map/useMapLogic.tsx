@@ -29,72 +29,129 @@ const FULL_DATABASE = [
     // --- GAMA ALTA (AZUL / VIOLETA) ---
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6883, 40.4280] }, 
-        properties: { price: "5.2M€", priceValue: 5200000, m2: 450, type: "PENTHOUSE", id: 1, role: "PREMIUM", description: "Ático triplex con piscina.", img: IMG.PENTHOUSE } 
+        properties: { 
+            price: "5.2M€", priceValue: 5200000, m2: 450, type: "PENTHOUSE", id: 1, role: "PREMIUM", 
+            description: "Ático triplex con piscina privada y vistas al skyline.", img: IMG.PENTHOUSE,
+            energyConsumption: 'A', energyEmissions: 'A' // 🔥 AÑADIDO
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6850, 40.4200] }, 
-        properties: { price: "12.5M€", priceValue: 12500000, m2: 1200, type: "ROYAL VILLA", id: 2, role: "VIP CLASS", description: "Palacete histórico.", img: IMG.VILLA } 
+        properties: { 
+            price: "12.5M€", priceValue: 12500000, m2: 1200, type: "ROYAL VILLA", id: 2, role: "VIP CLASS", 
+            description: "Palacete histórico reformado integralmente.", img: IMG.VILLA,
+            energyConsumption: 'C', energyEmissions: 'C' // 🔥 AÑADIDO
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6910, 40.4350] }, 
-        properties: { price: "8.9M€", priceValue: 8900000, m2: 600, type: "SKY VIEW", id: 3, role: "HIGH CLASS", description: "Vistas 360º.", img: IMG.MODERN } 
+        properties: { 
+            price: "8.9M€", priceValue: 8900000, m2: 600, type: "SKY VIEW", id: 3, role: "HIGH CLASS", 
+            description: "Vistas 360º en plena milla de oro.", img: IMG.MODERN,
+            energyConsumption: 'B', energyEmissions: 'A' 
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6780, 40.4450] }, 
-        properties: { price: "3.5M€", priceValue: 3500000, m2: 400, type: "MANSION", id: 10, role: "PRIVADO", description: "Seguridad privada.", img: IMG.INTERIOR } 
+        properties: { 
+            price: "3.5M€", priceValue: 3500000, m2: 400, type: "MANSION", id: 10, role: "PRIVADO", 
+            description: "Seguridad privada 24h.", img: IMG.INTERIOR,
+            energyConsumption: 'D', energyEmissions: 'D'
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6900, 40.4260] }, 
-        properties: { price: "1.2M€", priceValue: 1200000, m2: 180, type: "PISO LUJO", id: 8, role: "EXCLUSIVO", description: "Salamanca Prime.", img: IMG.COZY } 
+        properties: { 
+            price: "1.2M€", priceValue: 1200000, m2: 180, type: "PISO LUJO", id: 8, role: "EXCLUSIVO", 
+            description: "Salamanca Prime, techos altos.", img: IMG.COZY,
+            energyConsumption: 'E', energyEmissions: 'E'
+        } 
     },
 
     // --- GAMA MEDIA (ROSA / NARANJA) ---
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7050, 40.4180] }, 
-        properties: { price: "680k€", priceValue: 680000, m2: 110, type: "DUPLEX", id: 102, role: "FAMILIAR", description: "Luminoso.", img: IMG.LOFT } 
+        properties: { 
+            price: "680k€", priceValue: 680000, m2: 110, type: "DUPLEX", id: 102, role: "FAMILIAR", 
+            description: "Luminoso y bien comunicado.", img: IMG.LOFT,
+            energyConsumption: 'C', energyEmissions: 'D'
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7100, 40.4200] }, 
-        properties: { price: "550k€", priceValue: 550000, m2: 90, type: "LOFT", id: 104, role: "OPORTUNIDAD", description: "Céntrico.", img: IMG.STUDIO } 
+        properties: { 
+            price: "550k€", priceValue: 550000, m2: 90, type: "LOFT", id: 104, role: "OPORTUNIDAD", 
+            description: "Céntrico, ideal parejas.", img: IMG.STUDIO,
+            energyPending: true // 🔥 EJEMPLO: EN TRÁMITE
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6980, 40.4080] }, 
-        properties: { price: "720k€", priceValue: 720000, m2: 130, type: "ÁTICO", id: 13, role: "VISTAS", description: "Terraza 40m2.", img: IMG.PENTHOUSE } 
+        properties: { 
+            price: "720k€", priceValue: 720000, m2: 130, type: "ÁTICO", id: 13, role: "VISTAS", 
+            description: "Terraza 40m2 espectacular.", img: IMG.PENTHOUSE,
+            energyConsumption: 'G', energyEmissions: 'F'
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6800, 40.4250] }, 
-        properties: { price: "340k€", priceValue: 340000, m2: 70, type: "SMART HOME", id: 4, role: "MODERNO", description: "Tecnología.", img: IMG.COZY } 
+        properties: { 
+            price: "340k€", priceValue: 340000, m2: 70, type: "SMART HOME", id: 4, role: "MODERNO", 
+            description: "Domótica completa incluida.", img: IMG.COZY,
+            energyConsumption: 'A', energyEmissions: 'A'
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7000, 40.4150] }, 
-        properties: { price: "450k€", priceValue: 450000, m2: 45, type: "STUDIO", id: 101, role: "ALQUILER", description: "Ideal inversores.", img: IMG.STUDIO } 
+        properties: { 
+            price: "450k€", priceValue: 450000, m2: 45, type: "STUDIO", id: 101, role: "ALQUILER", 
+            description: "Ideal inversores, alta rentabilidad.", img: IMG.STUDIO,
+            energyConsumption: 'E', energyEmissions: 'E'
+        } 
     },
 
     // --- GAMA ACCESIBLE (AMARILLO / VERDE) ---
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6950, 40.4220] }, 
-        properties: { price: "210k€", priceValue: 210000, m2: 50, type: "MINI LOFT", id: 5, role: "DISEÑO", description: "Pequeño pero matón.", img: IMG.LOFT } 
+        properties: { 
+            price: "210k€", priceValue: 210000, m2: 50, type: "MINI LOFT", id: 5, role: "DISEÑO", 
+            description: "Pequeño pero matón.", img: IMG.LOFT,
+            energyConsumption: 'F', energyEmissions: 'G'
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7060, 40.4100] }, 
-        properties: { price: "180k€", priceValue: 180000, m2: 40, type: "BUHARDILLA", id: 14, role: "BOHEMIO", description: "Con encanto.", img: IMG.COZY } 
+        properties: { 
+            price: "180k€", priceValue: 180000, m2: 40, type: "BUHARDILLA", id: 14, role: "BOHEMIO", 
+            description: "Con encanto y vigas vistas.", img: IMG.COZY,
+            energyPending: true
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6920, 40.4100] }, 
-        properties: { price: "20k€", priceValue: 20000, m2: 12, type: "GARAGE", id: 201, role: "INVERSIÓN", description: "Plaza amplia.", img: IMG.GARAGE } 
+        properties: { 
+            price: "20k€", priceValue: 20000, m2: 12, type: "GARAGE", id: 201, role: "INVERSIÓN", 
+            description: "Plaza amplia para coche grande.", img: IMG.GARAGE 
+        } 
     },
     
     // --- NUEVOS (OFICINAS Y SUELO) ---
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.6900, 40.4400] }, 
-        properties: { price: "1.5M€", priceValue: 1500000, m2: 300, type: "OFICINA", id: 301, role: "CORPORATE", description: "Sede representativa.", img: IMG.OFFICE } 
+        properties: { 
+            price: "1.5M€", priceValue: 1500000, m2: 300, type: "OFICINA", id: 301, role: "CORPORATE", 
+            description: "Sede representativa.", img: IMG.OFFICE,
+            energyConsumption: 'C', energyEmissions: 'C'
+        } 
     },
     { 
         type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7500, 40.4500] }, 
-        properties: { price: "850k€", priceValue: 850000, m2: 2000, type: "SOLAR", id: 401, role: "DESARROLLO", description: "Licencia directa.", img: IMG.LAND } 
+        properties: { 
+            price: "850k€", priceValue: 850000, m2: 2000, type: "SOLAR", id: 401, role: "DESARROLLO", 
+            description: "Licencia directa para construir.", img: IMG.LAND 
+        } 
     },
 ];
-
 // ----------------------------------------------------------------------
 // 2. LÓGICA DEL MAPA
 // ----------------------------------------------------------------------
@@ -109,19 +166,8 @@ export const useMapLogic = () => {
     
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
+    // 1. CREAR EL MAPA (CORREGIDO: SOLO UNA VEZ)
     map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/standard',
-      center: [-3.6883, 40.4280],
-      zoom: 13, 
-      pitch: 65,
-      bearing: -20,
-      attributionControl: false,
-      antialias: true,
-      projection: 'globe' 
-    });
-
-   map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/standard',
       center: [-3.6883, 40.4280],
@@ -136,17 +182,53 @@ export const useMapLogic = () => {
       projection: 'globe' 
     });
 
+    // 🔥 INSTALAR BRÚJULA EN ESQUINA INFERIOR IZQUIERDA (LIBRE DE OBSTÁCULOS)
+    map.current.addControl(
+        new mapboxgl.NavigationControl({ 
+            showCompass: true, 
+            showZoom: true, 
+            visualizePitch: true 
+        }), 
+        'bottom-left' // <--- CAMBIO TÁCTICO: ABAJO A LA IZQUIERDA
+    );
+
     map.current.on('load', () => {
       console.log("🟢 MAPA 3D: SISTEMAS LISTOS");
-      setIsLoaded(true); 
+      setIsLoaded(true);
 
-     map.current.addSource('properties', {
-  type: 'geojson',
-  data: { type: 'FeatureCollection', features: FULL_DATABASE },
-  cluster: true,
-  clusterMaxZoom: 15, // Aumenta un poco esto para mantener grupos más tiempo
-  clusterRadius: 80   // ⚠️ CAMBIO CRÍTICO: De 50 a 80/90 para evitar solapamiento de pills
-});
+      // 🔥 1. RADAR DE MEMORIA: Leemos el disco duro
+      let userAssets = [];
+      try {
+          const saved = localStorage.getItem('stratos_my_properties');
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              // Convertimos sus datos guardados al formato del mapa (GeoJSON)
+              userAssets = parsed.map(p => ({
+                  type: 'Feature',
+                  geometry: { type: 'Point', coordinates: p.coordinates || [-3.6883, 40.4280] },
+                  properties: {
+                      ...p,
+                      priceValue: p.rawPrice || 0, // Aseguramos compatibilidad numérica
+                      role: 'PROPIETARIO',         // Rol especial
+                      type: p.type || 'Propiedad'
+                  }
+              }));
+              console.log(`📡 RADAR: Detectados ${userAssets.length} activos propios.`);
+          }
+      } catch (e) { console.error("Error leyendo radar:", e); }
+
+      // 🔥 2. FUSIÓN DE DATOS: Base de datos + Sus activos
+      const combinedData = [...FULL_DATABASE, ...userAssets];
+
+      map.current.addSource('properties', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: combinedData }, // Usamos la combinada
+        cluster: true,
+        clusterMaxZoom: 15,
+        clusterRadius: 80 
+      });
+
+      // ... (El resto de addLayer, clusters, etc. sigue igual debajo) ...
 
       // 🔵 CAPA CLUSTERS (Glow Effect)
       map.current.addLayer({
@@ -201,27 +283,48 @@ export const useMapLogic = () => {
   }, []);
 
   // ----------------------------------------------------------------------
-  // 3. LÓGICA DE FILTRADO (BLINDADA & CONECTADA)
+  // 3. LÓGICA DE FILTRADO (BLINDADA: BASE DE DATOS + SUS ACTIVOS)
   // ----------------------------------------------------------------------
   useEffect(() => {
       const handleFilterSignal = (e: any) => {
           if (!map.current || !map.current.getSource('properties')) return;
           
           const { priceRange, surfaceRange, context } = e.detail;
-          
-          // Límites de seguridad locales
           const LIMITS: any = { 'VIVIENDA': 1000, 'NEGOCIO': 2000, 'TERRENO': 10000 };
           
           console.log(`🔍 FILTRANDO: ${context} | €${priceRange.min}-${priceRange.max}`);
 
-          const filteredFeatures = FULL_DATABASE.filter(f => {
+          // 🔥 PASO 1: RECUPERAR SUS ACTIVOS DEL DISCO DURO (Para no perderlos al filtrar)
+          let userAssets: any[] = [];
+          try {
+              const saved = localStorage.getItem('stratos_my_properties');
+              if (saved) {
+                  const parsed = JSON.parse(saved);
+                  // Convertimos al formato GeoJSON del mapa
+                  userAssets = parsed.map((p: any) => ({
+                      type: 'Feature',
+                      geometry: { type: 'Point', coordinates: p.coordinates || [-3.6883, 40.4280] },
+                      properties: {
+                          ...p,
+                          priceValue: p.rawPrice || 0, 
+                          type: p.type || 'Propiedad'
+                      }
+                  }));
+              }
+          } catch (err) { console.error(err); }
+
+          // 🔥 PASO 2: FUSIONAR TODO (Base de Datos + Sus Activos)
+          const allData = [...FULL_DATABASE, ...userAssets];
+
+          // PASO 3: FILTRAR SOBRE LA LISTA COMPLETA
+          const filteredFeatures = allData.filter(f => {
               // 1. PRECIO
               const p = f.properties.priceValue;
               if (!p) return false;
               const priceOK = p >= priceRange.min && p <= priceRange.max;
               
               // 2. SUPERFICIE
-              const m2 = f.properties.m2 || Math.floor(f.properties.priceValue / 4000);
+              const m2 = f.properties.m2 || Math.floor(f.properties.priceValue / 4000); // Fallback si no hay m2
               const maxLimit = LIMITS[context] || 1000;
               const isMaxSelection = surfaceRange.max >= (maxLimit * 0.95);
               const surfaceOK = m2 >= surfaceRange.min && (isMaxSelection || m2 <= surfaceRange.max);
@@ -235,7 +338,7 @@ export const useMapLogic = () => {
               } else if (context === 'TERRENO') {
                   typeOK = ['SOLAR', 'TERRENO', 'FINCA', 'PARCELA'].some(t => type.includes(t));
               } else {
-                  // VIVIENDA
+                  // VIVIENDA (Por descarte)
                   const esNoVivienda = ['LOCAL', 'GARAGE', 'TRASTERO', 'NAVE', 'OFICINA', 'SOLAR', 'TERRENO'].some(t => type.includes(t));
                   typeOK = !esNoVivienda;
               }
@@ -243,7 +346,7 @@ export const useMapLogic = () => {
               return priceOK && surfaceOK && typeOK;
           });
 
-          // APLICAR
+          // APLICAR RESULTADOS
           map.current.getSource('properties').setData({
               type: 'FeatureCollection',
               features: filteredFeatures
@@ -256,22 +359,49 @@ export const useMapLogic = () => {
       return () => window.removeEventListener('apply-filter-signal', handleFilterSignal);
   }, []);
 
-  // 4. MARCADORES (NANO CARDS)
- // --- PEGAR ESTO EN useMapLogic.tsx (Reemplaza tu función updateMarkers) ---
+  // ----------------------------------------------------------------------
+  // 🎧 4. SISTEMA DE TELETRANSPORTE (ESCUCHAR ORDEN DE VUELO DEL PERFIL)
+  // ----------------------------------------------------------------------
+  useEffect(() => {
+      const handleFlyTo = (e: any) => {
+          if (!map.current) return;
+          const { center, zoom, pitch } = e.detail;
+          
+          console.log("✈️ RECIBIDA ORDEN DE VUELO:", center);
+          
+          map.current.flyTo({
+              center: center,
+              zoom: zoom || 18,
+              pitch: pitch || 60,
+              bearing: -20,
+              duration: 3000,
+              essential: true
+          });
+      };
+
+      window.addEventListener('fly-to-location', handleFlyTo);
+      return () => window.removeEventListener('fly-to-location', handleFlyTo);
+  }, []);
+
+
+  // ----------------------------------------------------------------------
+  // E. PINTOR DE MARCADORES (UPDATE MARKERS) - VERSIÓN CORREGIDA
+  // ----------------------------------------------------------------------
   const updateMarkers = () => {
       const mapInstance = map.current;
       if (!mapInstance || !mapInstance.getSource('properties')) return;
 
+      // 1. Obtener características visibles que NO son clusters
       const features = mapInstance.querySourceFeatures('properties', {
           filter: ['!', ['has', 'point_count']] 
       });
 
-      // 🔥 LÍNEA NUEVA: ORDENAR DE NORTE A SUR
-      // Esto hace que los de abajo (Sur) se pinten al final y queden "encima"
+      // 2. Ordenar para que los de abajo (Sur) queden por encima visualmente
       features.sort((a, b) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
 
       const visibleIds = new Set(features.map(f => f.properties.id));
 
+      // 3. Limpiar marcadores que ya no se ven
       Object.keys(markersRef.current).forEach((id) => {
           if (!visibleIds.has(Number(id))) {
               markersRef.current[id].remove(); 
@@ -279,28 +409,49 @@ export const useMapLogic = () => {
           }
       });
 
+      // 4. Crear o Actualizar Marcadores Nuevos
       features.forEach((feature) => {
           const id = feature.properties.id;
-          if (markersRef.current[id]) return; 
+          if (markersRef.current[id]) return; // Si ya existe, no hacer nada
 
           const el = document.createElement('div');
           el.className = 'nanocard-marker';
           
           const root = createRoot(el);
-          
-          const safeImg = feature.properties.img || IMG.PENTHOUSE;
+          const p = feature.properties;
+          const safeImg = p.img || p.image || IMG.PENTHOUSE;
 
+          // 🔥 AQUÍ ESTÁ LA CORRECCIÓN CLAVE
+          // Nos aseguramos de pasar TODAS las variantes posibles de ubicación
+          // para que la tarjeta encuentre alguna válida.
           root.render(
             <MapNanoCard 
                id={id} 
-               price={feature.properties.price} 
-               priceValue={feature.properties.priceValue}
-               type={feature.properties.type} 
+               // PRECIOS
+               price={p.price} 
+               priceValue={p.priceValue}
+               rawPrice={p.priceValue} 
+               
+               // DATOS VISUALES
+               type={p.type} 
                img={safeImg}
                lat={feature.geometry.coordinates[1]}
                lng={feature.geometry.coordinates[0]}
-               role={feature.properties.role} 
-               description={feature.properties.description}
+               
+               // DATOS DE TEXTO
+               role={p.role} 
+               description={p.description}
+               title={p.title}
+               
+               // 📍 UBICACIÓN (EL BLINDAJE)
+               address={p.address || p.location} // Probamos ambos
+               city={p.city || p.location}       // Probamos ambos
+               location={p.location || p.city || p.address} // Red de seguridad
+               
+               // ENERGÍA
+               energyConsumption={p.energyConsumption}
+               energyEmissions={p.energyEmissions}
+               energyPending={p.energyPending}
             />
           );
 
@@ -311,7 +462,6 @@ export const useMapLogic = () => {
           markersRef.current[id] = marker;
       });
   };
-// ... (aquí arriba termina tu updateMarkers) ...
 
  // ----------------------------------------------------------------------
   // 5. FUNCIÓN DE BÚSQUEDA OMNI V3 (AUTO-ZOOM TÁCTICO)
@@ -378,71 +528,87 @@ export const useMapLogic = () => {
   };
 
 // ----------------------------------------------------------------------
-  // 📻 7. RECEPTOR DE NUEVAS PROPIEDADES (USER GENERATED CONTENT)
+  // 📻 7. RECEPTOR DE NUEVAS PROPIEDADES (CON DISPERSIÓN ANTI-SOLAPAMIENTO)
   // ----------------------------------------------------------------------
   useEffect(() => {
     const handleNewProperty = async (event: any) => {
-        const formData = event.detail; // Los datos que vienen del formulario
+        const formData = event.detail; 
         if (!map.current || !formData) return;
 
         console.log("📦 Recibiendo nueva propiedad:", formData);
 
-        // A. BUSCAR COORDENADAS (Geocoding de la dirección del usuario)
-        let coords = [-3.6883, 40.4280]; // Defecto: Madrid
+        // A. BUSCAR COORDENADAS BASE (Geocoding)
+        let baseCoords = [-3.6883, 40.4280]; 
         try {
-            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${mapboxgl.accessToken}`;
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${mapboxgl.accessToken}&country=es`;
             const res = await fetch(url);
             const data = await res.json();
+            
             if (data.features?.[0]) {
-                coords = data.features[0].center;
+                baseCoords = data.features[0].center;
+                console.log("📍 Coordenadas detectadas (Base):", baseCoords);
             }
-        } catch (e) { console.error("Error geolocalizando usuario:", e); }
+        } catch (e) { console.error("Error geolocalizando:", e); }
 
-        // B. CREAR EL OBJETO GEOJSON (LA NANOCARD)
+        // 🔥 B. APLICAR DISPERSIÓN (JITTER)
+        // Generamos un desplazamiento aleatorio minúsculo (±0.0002 grados ~ 20 metros)
+        // Esto evita que dos pisos en el mismo edificio se tapen.
+        const jitter = () => (Math.random() - 0.5) * 0.0004; 
+        
+        const finalCoords = [
+            baseCoords[0] + jitter(), // Longitud con ruido
+            baseCoords[1] + jitter()  // Latitud con ruido
+        ];
+
+        // C. CREAR EL OBJETO GEOJSON
         const newFeature = {
             type: 'Feature',
-            geometry: { type: 'Point', coordinates: coords },
+            geometry: { type: 'Point', coordinates: finalCoords }, // <--- USAMOS LAS COORDENADAS DISPERSAS
             properties: {
-                id: Date.now(), // ID único basado en la hora
-                type: formData.type || 'Piso', // El tipo que eligió (Ático, Local...)
+                id: formData.id || Date.now(), 
+                type: formData.type || 'Piso', 
                 
-                // DATOS CLAVE
-                price: `${formData.price}€`,
-                priceValue: parseInt(formData.price || '0'),
+                // DATOS ECONÓMICOS
+                price: `${formData.price}€`, 
+                priceValue: parseInt((formData.price || '0').replace(/\./g, '')), 
                 m2: parseInt(formData.mBuilt || '0'),
+                communityFees: formData.communityFees,
+
+                // DATOS DE ENERGÍA
+                energyConsumption: formData.energyConsumption,
+                energyEmissions: formData.energyEmissions,
+                energyPending: formData.energyPending,
                 
-                // 🔥 LA NARRATIVA (LO NUEVO)
+                // UBICACIÓN REAL (GUARDAMOS LA DEL FORMULARIO)
+                address: formData.address,     // <--- IMPORTANTE
+                city: formData.city,           // <--- IMPORTANTE
+                location: formData.location,   // <--- IMPORTANTE (PARA QUE NO DIGA MADRID)
+
+                // NARRATIVA & VISUAL
                 title: formData.title || `Oportunidad en ${formData.address}`,
-                description: formData.description || "Propiedad exclusiva recién listada en el mercado.",
-                
-                // Metadatos visuales
-                role: "NUEVO",
-                img: 'https://images.unsplash.com/photo-1600596542815-60c37c6525fa?q=80&w=800&auto=format&fit=crop' // Foto por defecto (luego usaremos las suyas)
+                description: formData.description || "Propiedad exclusiva.",
+                role: "PROPIETARIO",
+                img: formData.photos && formData.photos.length > 0 ? formData.photos[0] : IMG.PENTHOUSE
             }
         };
 
-        // C. INYECTAR EN EL MAPA SIN RECARGAR
+        // D. INYECTAR EN EL MAPA
         const source: any = map.current.getSource('properties');
         if (source && source._data) {
             const currentFeatures = source._data.features;
-            // Añadimos la nueva al array
             const newFeatures = [...currentFeatures, newFeature];
-            // Actualizamos el mapa
             source.setData({ type: 'FeatureCollection', features: newFeatures });
             
-            // D. VOLAR AL OBJETIVO ✈️
-            map.current.flyTo({ center: coords, zoom: 16, pitch: 60, essential: true });
-            
-            console.log("✅ Propiedad inyectada en el mapa con éxito.");
+            // E. VOLAR AL OBJETIVO
+            map.current.flyTo({ center: finalCoords, zoom: 17, pitch: 60, essential: true });
         }
     };
 
-    // Activamos la escucha
     window.addEventListener('add-property-signal', handleNewProperty);
-    // Limpiamos al salir
     return () => window.removeEventListener('add-property-signal', handleNewProperty);
   }, [map]);
 
+  
   // ----------------------------------------------------------------------
   // 6. SALIDA FINAL DEL SISTEMA (RETURN)
   // ----------------------------------------------------------------------

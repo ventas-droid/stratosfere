@@ -48,6 +48,7 @@ export default function UIPanels({
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
+  const [editingProp, setEditingProp] = useState<any>(null);
   const [explorerIntroDone, setExplorerIntroDone] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   
@@ -75,7 +76,7 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
       localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
   }, [localFavs]);
 
-  // 3. FUNCIÓN DE GUARDADO + APERTURA AUTOMÁTICA (VERSIÓN FINAL BLINDADA)
+  // 3. FUNCIÓN DE GUARDADO BLINDADA (CON RADIO DE SINCRONIZACIÓN)
   const handleToggleFavorite = (prop: any) => {
       if (!prop) return;
       if (soundEnabled) playSynthSound('click');
@@ -90,41 +91,41 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
 
       const exists = localFavs.some(f => f.id === safeProp.id);
       let newFavs;
+      let newStatus; // <--- VARIABLE TÁCTICA: ¿Cómo queda al final?
 
       if (exists) {
           // A. SI YA EXISTE: BORRAMOS
           newFavs = localFavs.filter(f => f.id !== safeProp.id);
           addNotification("Eliminado de colección");
           
-          // 🔥 CLAVE: Borrado físico INMEDIATO (Antes de actualizar React)
-          // Esto asegura que cuando la NanoCard pregunte, la respuesta sea "FALSE"
+          // Borrado físico INMEDIATO
           localStorage.removeItem(`fav-${safeProp.id}`); 
+          newStatus = false; // El estado final es APAGADO
       } else {
           // B. SI NO EXISTE: AÑADIMOS
           newFavs = [...localFavs, { ...safeProp, savedAt: Date.now() }];
           addNotification("Guardado en Favoritos");
           
-          // 🔥 CLAVE: Guardado físico INMEDIATO
-          // Esto asegura que cuando la NanoCard pregunte, la respuesta sea "TRUE"
+          // Guardado físico INMEDIATO
           localStorage.setItem(`fav-${safeProp.id}`, 'true');
-          
-          // 🚀 ORDEN TÁCTICA: Abrir columna al guardar
           setRightPanel('VAULT'); 
+          newStatus = true; // El estado final es ENCENDIDO
       }
       
-      // Actualizamos React (Visual del panel)
+      // Actualizamos la lista oficial
       setLocalFavs(newFavs);
 
-      // 🔥 EL GRITO DE SINCRONIZACIÓN
-      // Ahora es seguro gritar porque ya hemos escrito en el disco duro en las líneas de arriba
+      // 🔥 EL GRITO DE SINCRONIZACIÓN (LA CORRECCIÓN FINAL)
+      // Enviamos a la NanoCard la orden EXACTA: "Ponte True" o "Ponte False"
       if (typeof window !== 'undefined') {
-          // Enviamos señal genérica de "revisad todos vuestros estados"
-          window.dispatchEvent(new CustomEvent('force-sync-favs'));
-          // Enviamos señal específica también por seguridad
-          window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: safeProp }));
+          window.dispatchEvent(new CustomEvent('sync-property-state', { 
+              detail: { 
+                  id: safeProp.id, 
+                  isFav: newStatus 
+              } 
+          }));
       }
   };
-
     // Estados Mercado e IA
   const [marketTab, setMarketTab] = useState('ONLINE');
   const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
@@ -134,9 +135,36 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
   const [isListening, setIsListening] = useState(false); 
 
   // Helpers
-  const toggleRightPanel = (p: string) => { if(soundEnabled) playSynthSound('click'); setRightPanel(rightPanel === p ? 'NONE' : p); };
-  const toggleMainPanel = (p: string) => { if(soundEnabled) playSynthSound('click'); setActivePanel(activePanel === p ? 'NONE' : p); };
-  
+ // A. GESTIÓN PANEL LATERAL
+  const toggleRightPanel = (p: string) => { 
+      if(soundEnabled) playSynthSound('click'); 
+      setRightPanel(rightPanel === p ? 'NONE' : p); 
+  };
+
+  // B. GESTIÓN DE MODOS (Aquí estaba el fallo)
+  // Esta función decide si cambiamos un panel flotante o EL MODO ENTERO del sistema
+  const toggleMainPanel = (p: string) => { 
+      if(soundEnabled) playSynthSound('click'); 
+      
+      if (p === 'ARCHITECT') {
+          // Si nos piden Arquitecto: Limpiamos edición, cerramos paneles y cambiamos MODO
+          setEditingProp(null); 
+          setRightPanel('NONE');
+          setSystemMode('ARCHITECT');
+      } else {
+          // Si es otra cosa (Chat, Market...), solo cambiamos panel
+          setActivePanel(activePanel === p ? 'NONE' : p); 
+      }
+  };
+
+  // C. NUEVA FUNCIÓN: MANEJAR EDICIÓN
+  const handleEditAsset = (asset: any) => {
+      console.log("📝 EDITANDO ACTIVO:", asset);
+      if(soundEnabled) playSynthSound('click');
+      setEditingProp(asset);  // Cargamos datos en la memoria
+      setRightPanel('NONE');  // Cerramos perfil
+      setSystemMode('ARCHITECT'); // Activamos modo Arquitecto
+  };
   const toggleRequirement = (item: any) => {
       if(soundEnabled) playSynthSound('click');
       setSelectedReqs(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
@@ -284,12 +312,18 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
       {/* BLOQUE 1: MODO ARQUITECTO (VENDER) - CONVOY DE DATOS ACTIVADO 🚚 */}
        {systemMode === 'ARCHITECT' && (
            <ArchitectHud 
-               // Pasamos la función de sonido si la tiene (si no, borre esta línea)
                soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
                
-               // 🔥 AQUÍ ESTÁ EL CAMBIO CLAVE: Recibimos (success, payload)
+               // 🔥 AÑADA ESTA LÍNEA AQUÍ:
+               initialData={editingProp} 
+               
                onCloseMode={(success: boolean, payload: any) => { 
+                   // ... (el resto de su código onCloseMode está perfecto, déjelo igual)
+                   // Solo recuerde limpiar la edición al salir:
+                   setEditingProp(null); // <--- AÑADIR ESTO DENTRO DE ONCLOSEMODE (al principio o final)
+                   
                    if (success) {
+                       // ...
                        // 1. Notificación Visual
                        // (Si tiene una función addNotification úsela, si no, console.log)
                        console.log("✅ Propiedad publicada con éxito");
@@ -628,38 +662,46 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            </>
        )}
 
-       {/* --- PANELES LATERALES Y FLOTANTES (RECUPERADOS) --- */}
+  {/* --- PANELES LATERALES Y FLOTANTES (SISTEMA MULTITAREA) --- */}
        
+       {/* 1. PERFIL (COLUMNA DERECHA) */}
+       {/* Se mantiene visible si rightPanel es 'PROFILE' */}
        <ProfilePanel 
            rightPanel={rightPanel} 
            toggleRightPanel={toggleRightPanel} 
            toggleMainPanel={toggleMainPanel} 
-           selectedReqs={selectedReqs} 
+           onEdit={handleEditAsset}       
+           selectedReqs={selectedReqs}    
            soundEnabled={soundEnabled} 
            playSynthSound={playSynthSound} 
        />
 
+       {/* 2. MERCADO DE SERVICIOS (COLUMNA IZQUIERDA) */}
+       {/* Se mantiene visible si activePanel es 'MARKETPLACE' (Independiente del Perfil) */}
        <MarketPanel 
            isOpen={activePanel === 'MARKETPLACE'} 
            onClose={() => setActivePanel('NONE')} 
            marketTab={marketTab} 
            setMarketTab={setMarketTab} 
-           selectedReqs={selectedReqs} 
+           selectedReqs={selectedReqs}        
            toggleRequirement={toggleRequirement} 
            soundEnabled={soundEnabled} 
            playSynthSound={playSynthSound} 
        />
        
+       {/* 3. BÓVEDA DE FAVORITOS (COLUMNA DERECHA) */}
+       {/* Alterna con Perfil porque ambos usan 'rightPanel' */}
        <VaultPanel 
            rightPanel={rightPanel} 
            toggleRightPanel={toggleRightPanel} 
-           favorites={localFavs} 
-           onToggleFavorite={handleToggleFavorite} 
+           favorites={localFavs}               // <--- MUNICIÓN (Sincronización)
+           onToggleFavorite={handleToggleFavorite} // <--- GATILLO (Sincronización)
            map={map} 
            soundEnabled={soundEnabled} 
            playSynthSound={playSynthSound} 
        />
        
+       {/* 4. INSPECTOR HOLOGRÁFICO (FLOTANTE) */}
        <HoloInspector 
            prop={selectedProp} 
            isOpen={activePanel === 'INSPECTOR'} 
@@ -668,12 +710,13 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            playSynthSound={playSynthSound} 
        />
        
+       {/* 5. FICHA DE DETALLES (CENTRAL) */}
        {activePanel === 'DETAILS' && (
            <DetailsPanel 
                selectedProp={selectedProp} 
                onClose={() => setActivePanel('NONE')} 
-               onToggleFavorite={handleToggleFavorite} 
-               favorites={localFavs} 
+               onToggleFavorite={handleToggleFavorite} // <--- GATILLO COMPARTIDO
+               favorites={localFavs}               // <--- MUNICIÓN COMPARTIDA
                soundEnabled={soundEnabled} 
                playSynthSound={playSynthSound} 
                onOpenInspector={() => setActivePanel('INSPECTOR')} 
