@@ -1,302 +1,378 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
-    X, Heart, Share2, MapPin, Ruler, Bed, Bath, Sparkles, 
-    TrendingUp, Phone, CheckCircle2, Camera, Zap, Globe, Newspaper, 
-    Shield, ShieldCheck, MessageCircle, Star, Maximize2,
-    LayoutGrid, FileText, Box, Droplets, Award, Crown, Hammer, Mail, 
-    Smartphone, Truck, Paintbrush, FileCheck, Activity
+    X, Heart, Phone, Sparkles, 
+    // Iconos Genéricos
+    Star, 
+    // Iconos Físicos (Para Ficha Técnica)
+    Home, Maximize2, Building2, ArrowUp, // Básicos
+    Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
+    // Iconos Servicios (Para Sección Servicios)
+    Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, 
+    TrendingUp, Share2, Mail, FileText, FileCheck, Activity, 
+    Newspaper, KeyRound, Sofa, Droplets, Paintbrush, Truck, Briefcase,
+    Bed, Bath
 } from 'lucide-react';
 
-
-// --- DICCIONARIO DE ICONOS (Traductor ID -> Icono Visual) ---
+// --- 1. CONFIGURACIÓN: DICCIONARIO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
-    'pack_basic': Star, 'pack_pro': Award, 'pack_elite': Crown, 'pack_investor': TrendingUp, 'pack_express': Zap,
-    'foto': Camera, 'video': Globe, 'drone': Globe, 'tour3d': Box, 'destacado': TrendingUp, 
-    'ads': Share2, 'web': Smartphone, 'render': Hammer, 'plano_2d': Ruler, 'plano_3d': Box,
-    'email': Mail, 'copy': FileText, 'certificado': FileText, 'cedula': FileText, 'nota_simple': Shield,
-    'tasacion': TrendingUp, 'lona': LayoutGrid, 'buzoneo': MapPin, 'revista': Newspaper, 
-    'openhouse': Zap, 'homestaging': Box, 'limpieza': Droplets, 'pintura': Paintbrush, 
-    'mudanza': Truck, 'seguro': ShieldCheck
+    // --- FÍSICOS (Van a Ficha Técnica) ---
+    'pool': Waves, 'piscina': Waves,
+    'garage': Car, 'garaje': Car, 'parking': Car,
+    'garden': Trees, 'jardin': Trees, 'jardín': Trees,
+    'elevator': ArrowUp, 'ascensor': ArrowUp, 'lift': ArrowUp,
+    'terrace': Sun, 'terraza': Sun,
+    'storage': Box, 'trastero': Box, 
+    'ac': Thermometer, 'aire': Thermometer, 'calefaccion': Thermometer,
+    'security': ShieldCheck, 'seguridad': ShieldCheck, 'alarma': ShieldCheck,
+
+    // --- SERVICIOS MARKETING/GESTIÓN (Van abajo) ---
+    'foto': Camera, 'photo': Camera,
+    'video': Globe, 
+    'drone': Plane, 
+    'tour3d': Box, '3d': Box,
+    'render': Hammer, 
+    'plano': Ruler, 'plano_2d': Ruler, 'plano_3d': LayoutGrid, 
+    'destacado': TrendingUp, 
+    'ads': Share2, 'publicidad': Share2,
+    'email': Mail, 
+    'copy': FileText, 
+    'certificado': FileCheck, 
+    'tasacion': Activity, 
+    'revista': Newspaper, 
+    'openhouse': KeyRound, 
+    'homestaging': Sofa, 
+    'limpieza': Droplets, 
+    'pintura': Paintbrush, 
+    'mudanza': Truck, 
+    'abogado': Briefcase, 
+    'seguro': ShieldCheck
 };
+
+// Claves que FORZAREMOS a ir a la Ficha Técnica (ignorando mayúsculas/corchetes)
+const PHYSICAL_KEYWORDS = [
+  'pool', 'piscina', 'garage', 'garaje', 'parking', 'garden', 'jardin', 'jardín', 
+  'terrace', 'terraza', 'storage', 'trastero', 'ac', 'aire', 'security', 'seguridad',
+  'elevator', 'ascensor', 'lift'
+];
 
 export default function DetailsPanel({ 
   selectedProp, 
   onClose, 
   onToggleFavorite, 
   favorites = [], 
-  soundEnabled, 
-  playSynthSound, 
   onOpenInspector 
 }: any) {
     
     if (!selectedProp) return null;
 
-    // 1. FOTO Y FAVORITOS
-    const currentImageSrc = selectedProp.img || selectedProp.images?.[0] || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3";
-    const isFavorite = favorites.some((f: any) => f.id === selectedProp.id);
-    
-    // 2. LÓGICA DE SERVICIOS REALES (El cerebro visual)
-    const activeServices = selectedProp.selectedServices && selectedProp.selectedServices.length > 0 
-        ? selectedProp.selectedServices.map((id: string) => ({
-            id,
-            icon: ICON_MAP[id] || Sparkles, // Si falla, pone estrellita
-            label: id.replace('pack_', '').replace('_', ' ').toUpperCase(),
-            color: id.startsWith('pack') ? "text-purple-600" : "text-blue-600",
-            bg: "bg-white"
-          }))
-        : [ // DUMMY DATA (Solo si no es propiedad tuya)
-            {icon:Camera, label:"PRO PHOTO", color:"text-purple-600", bg:"bg-white"},
-            {icon:Zap, label:"BOOST", color:"text-blue-600", bg:"bg-white"},
-            {icon:Globe, label:"GLOBAL", color:"text-indigo-600", bg:"bg-white"},
-            {icon:Shield, label:"VERIFIED", color:"text-emerald-600", bg:"bg-white"} 
-        ];
-    return (
-    <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
-      
-      {/* FONDO CRISTAL "APPLE GLASS" */}
-      <div className="absolute inset-0 bg-[#E5E5EA]/90 backdrop-blur-3xl shadow-[20px_0_40px_rgba(0,0,0,0.2)] border-r border-white/20"></div>
-      
-      <div className="relative z-10 flex flex-col h-full text-slate-900">
+    // ========================================================================
+    // 🛠️ 1. LIMPIEZA DE DATOS (Tags y Strings sucios)
+    // ========================================================================
+
+    // Función: Deja SOLO letras y números. Elimina [" ] ' y cualquier símbolo raro.
+    // ESTO ARREGLA EL PROBLEM DE ["POOL"]
+    const cleanKey = (raw: any): string => {
+        if (!raw) return "";
+        let str = String(raw);
+        str = str.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
+        return str;
+    };
+
+    // Función: Etiquetas bonitas (ej: pool -> Piscina)
+    const getNiceLabel = (key: string) => {
+        const labels: any = {
+            'pool': 'Piscina', 'garage': 'Garaje', 'garden': 'Jardín',
+            'elevator': 'Ascensor', 'ascensor': 'Ascensor', 'lift': 'Ascensor',
+            'terrace': 'Terraza', 'storage': 'Trastero',
+            'ac': 'Aire Acond.', 'security': 'Seguridad', 
+            'foto': 'Fotografía Pro', 'video': 'Vídeo', 'drone': 'Dron', 
+            'ads': 'Campaña Ads', 'destacado': 'Destacado', 
+            'plano_2d': 'Plano 2D', 'plano_3d': 'Plano 3D',
+            'email': 'Email Mkt', 'copy': 'Copywriting'
+        };
+        return labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
+    };
+
+    // A. RECOLECCIÓN DE TODOS LOS TAGS
+    const allTags = new Set<string>();
+
+    // 1. Del array selectedServices
+    if (selectedProp?.selectedServices) {
+        let services = selectedProp.selectedServices;
+        if (typeof services === 'string') {
+             services.split(',').forEach(s => allTags.add(cleanKey(s)));
+        } else if (Array.isArray(services)) {
+             services.forEach(s => allTags.add(cleanKey(s)));
+        }
+    }
+
+    // 2. De las propiedades booleanas directas
+    ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac'].forEach(k => {
+        const val = selectedProp?.[k];
+        // Aquí usamos una comprobación laxa para añadir el tag
+        if (val === true || val === "true" || val === "Sí" || val === "Si" || val === 1) {
+            allTags.add(cleanKey(k));
+        }
+    });
+
+    // B. SEPARACIÓN EN DOS LISTAS: FÍSICOS VS SERVICIOS
+    const physicalItems: any[] = [];
+    const serviceItems: any[] = [];
+
+    allTags.forEach(tag => {
+        if (!tag) return;
         
-        {/* HEADER */}
-        <div className="px-8 pt-10 pb-2 flex justify-between items-start shrink-0">
-            <div>
-                <div className="flex gap-2 mb-2">
-                    <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
-                        {selectedProp.type || "PREMIUM"}
-                    </span>
-                    <span className="bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                        <Star size={10} fill="currentColor" /> TOP
-                    </span>
-                </div>
-                <h2 className="text-3xl font-black text-slate-900 leading-none mb-1">
-                    {selectedProp.title || "Activo Exclusivo"}
-                </h2>
-                <p className="text-xl font-bold text-slate-500">
-                    {selectedProp.formattedPrice || "2.1M €"}
-                </p>
-            </div>
-            <button 
-                onClick={onClose} 
-                className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-500 hover:scale-110 transition-transform cursor-pointer"
-            >
-                <X size={20} />
-            </button>
-        </div>
+        // El Ascensor lo quitamos de aquí porque tiene su propia caja especial
+        if (['elevator', 'ascensor', 'lift'].includes(tag)) return;
 
-        {/* SCROLLABLE - AQUI ESTÁN LOS DATOS QUE FALTABAN */}
-        <div className="flex-1 overflow-y-auto px-6 pb-48 pt-4 space-y-6 scrollbar-hide">
-            
-            {/* 1. FOTO PRINCIPAL CON EFECTO "ALIVE" (Zoom Lento) */}
-            <div 
-                onClick={onOpenInspector}
-                className="relative aspect-[4/3] w-full bg-black rounded-[32px] overflow-hidden shadow-2xl cursor-pointer group"
-            >
-                <img 
-                    src={currentImageSrc} 
-                    className="w-full h-full object-cover transition-transform duration-[2000ms] ease-out group-hover:scale-110" 
-                    alt="Casa" 
-                />
-                
-                {/* Capa de brillo sutil al pasar el ratón */}
-                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-700"></div>
+        const itemObj = {
+            id: tag,
+            label: getNiceLabel(tag),
+            icon: ICON_MAP[tag] || Star 
+        };
 
-                <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md p-2 rounded-full text-white border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <Maximize2 size={20} />
-                </div>
-            </div>
+        if (PHYSICAL_KEYWORDS.includes(tag)) {
+            physicalItems.push(itemObj);
+        } else {
+            serviceItems.push(itemObj);
+        }
+    });
 
-           {/* 2. SPECS REALES (CORREGIDO) */}
-<div className="flex justify-between gap-3">
-    <div className="flex-1 bg-white p-3 rounded-[24px] flex flex-col items-center justify-center shadow-sm border border-white/50">
-        <span className="text-[9px] text-slate-400 font-bold uppercase">Dormitorios</span>
-        <span className="text-lg font-black flex gap-1">
-            <Bed size={16} className="text-slate-300"/> {selectedProp.rooms || 0}
-        </span>
-    </div>
-    <div className="flex-1 bg-white p-3 rounded-[24px] flex flex-col items-center justify-center shadow-sm border border-white/50">
-        <span className="text-[9px] text-slate-400 font-bold uppercase">Baños</span>
-        <span className="text-lg font-black flex gap-1">
-            <Bath size={16} className="text-slate-300"/> {selectedProp.baths || 0}
-        </span>
-    </div>
-    <div className="flex-1 bg-white p-3 rounded-[24px] flex flex-col items-center justify-center shadow-sm border border-white/50">
-        <span className="text-[9px] text-slate-400 font-bold uppercase">Sup.</span>
-        <span className="text-lg font-black flex gap-1">
-            <Maximize2 size={16} className="text-slate-300"/> {selectedProp.m2 || selectedProp.mBuilt || 0}
-        </span>
-    </div>
-</div>
+    // ========================================================================
+    // 🚨 FIX ASCENSOR: CAPTURA EL "Sí" DEL ARCHITECTHUD
+    // ========================================================================
+    
+    let hasElevator = false;
 
-{/* 🔥 NARRATIVA (DESCRIPCIÓN) - INSERTAR AQUÍ */}
-            {(selectedProp.description || selectedProp.title) && (
-                <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white/50 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sobre este activo</span>
-                        {/* Etiqueta decorativa */}
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 text-[9px] font-bold border border-blue-100">
-                            IA INDEXED
+    // Helper para detectar "Sí", "Si", "Yes", "true", "1"
+    // AQUÍ ESTÁ LA SOLUCIÓN A TU PROBLEMA DEL "NO TIENE"
+    const isYes = (val: any) => {
+        if (!val) return false;
+        const s = String(val).toLowerCase().trim();
+        // Agregamos explícitamente 'si' y 'sí' con tilde
+        return ['si', 'sí', 'yes', 'true', '1', 'on'].includes(s);
+    };
+    
+    // 1. Revisión masiva de cualquier campo que suene a ascensor
+    if (isYes(selectedProp?.elevator)) hasElevator = true;
+    if (isYes(selectedProp?.ascensor)) hasElevator = true;
+    if (isYes(selectedProp?.hasElevator)) hasElevator = true;
+    if (selectedProp?.specs && isYes(selectedProp.specs.elevator)) hasElevator = true;
+
+    // 2. Revisión de Tags (Por si viene en la lista de extras)
+    if (allTags.has('elevator') || allTags.has('ascensor')) {
+        hasElevator = true;
+    }
+
+    // 3. Fallback: Búsqueda de texto bruto en servicios
+    const rawServicesString = JSON.stringify(selectedProp?.selectedServices || "").toLowerCase();
+    if (rawServicesString.includes("elevator") || rawServicesString.includes("ascensor")) {
+        hasElevator = true;
+    }
+
+    // Configuración visual del Ascensor
+    const elevatorText = hasElevator ? "SÍ TIENE" : "NO TIENE";
+    const elevatorColor = hasElevator ? "text-green-600" : "text-slate-400";
+    const elevatorIconColor = hasElevator ? "text-green-500" : "text-slate-300";
+
+
+    // D. DATOS GENERALES Y FORMATO
+    const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
+    const m2 = selectedProp?.mBuilt || selectedProp?.m2 || selectedProp?.surface || 0;
+    const isFavorite = favorites.some((f: any) => f.id === selectedProp?.id);
+    
+    const getEnergyColor = (rating: string) => {
+        const map: any = { A: "bg-green-600", B: "bg-green-500", C: "bg-green-400", D: "bg-yellow-400", E: "bg-yellow-500", F: "bg-orange-500", G: "bg-red-600" };
+        return map[rating] || "bg-gray-400";
+    };
+
+    return (
+        <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
+            <div className="absolute inset-0 bg-[#E5E5EA]/95 backdrop-blur-3xl shadow-2xl border-r border-white/20"></div>
+
+            <div className="relative z-10 flex flex-col h-full text-slate-900">
+                {/* --- HEADER --- */}
+                <div className="px-8 pt-10 pb-4 flex justify-between items-start shrink-0">
+                    <div>
+                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
+                            {selectedProp?.type || "INMUEBLE"}
                         </span>
-                    </div>
-
-                    {/* Título */}
-                    {selectedProp.title && (
-                        <h3 className="font-bold text-slate-900 mb-2 text-base leading-tight">
-                            {selectedProp.title}
-                        </h3>
-                    )}
-
-                    {/* Descripción */}
-                    {selectedProp.description && (
-                        <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
-                            {selectedProp.description}
+                        <h2 className="text-3xl font-black text-slate-900 leading-none mb-1">
+                            {selectedProp?.title || "Detalle del Inmueble"}
+                        </h2>
+                        <p className="text-xl font-bold text-slate-500">
+                            {typeof selectedProp?.price === 'number' 
+                                ? new Intl.NumberFormat("es-ES").format(selectedProp.price) + " €" 
+                                : selectedProp?.price || "Consultar"}
                         </p>
+                    </div>
+                    <button onClick={onClose} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* --- SCROLL CONTENT --- */}
+                <div className="flex-1 overflow-y-auto px-6 pb-32 space-y-6 scrollbar-hide">
+                    
+                    {/* 1. FOTO */}
+                    <div onClick={onOpenInspector} className="relative aspect-video w-full bg-gray-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white cursor-pointer hover:shadow-2xl transition-shadow">
+                        <img src={img} className="w-full h-full object-cover" alt="Propiedad" />
+                        <div className="absolute inset-0 bg-black/10 hover:bg-transparent transition-colors"></div>
+                    </div>
+
+                    {/* 2. DATOS RÁPIDOS */}
+                    <div className="flex justify-between gap-3">
+                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Hab.</span>
+                            <div className="font-black text-lg flex items-center gap-1">
+                                <Bed size={16} className="text-slate-800"/> {selectedProp?.rooms || 0}
+                            </div>
+                        </div>
+                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Baños</span>
+                            <div className="font-black text-lg flex items-center gap-1">
+                                <Bath size={16} className="text-slate-800"/> {selectedProp?.baths || 0}
+                            </div>
+                        </div>
+                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">M²</span>
+                            <div className="font-black text-lg flex items-center gap-1">
+                                <Maximize2 size={16} className="text-slate-800"/> {m2}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. FICHA TÉCNICA (FÍSICOS) */}
+                    <div className="bg-white rounded-[24px] p-6 shadow-sm border border-white">
+                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
+                            <Home size={14} className="text-blue-500"/> Ficha Técnica & Extras
+                        </h3>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                            {/* Tipología */}
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase block">Tipología</span>
+                                <span className="font-bold text-sm text-slate-800">{selectedProp?.type || "Piso"}</span>
+                            </div>
+                            
+                            {/* Superficie */}
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span className="text-[9px] text-slate-400 font-bold uppercase block">Superficie</span>
+                                <span className="font-bold text-sm text-slate-800">{m2} m²</span>
+                            </div>
+
+                            {/* EL ASCENSOR (Arreglado para "Sí") */}
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center group">
+                                <div>
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase block">Ascensor</span>
+                                    <span className={`font-bold text-sm ${elevatorColor}`}>
+                                        {elevatorText}
+                                    </span>
+                                </div>
+                                <ArrowUp size={18} className={`${elevatorIconColor} group-hover:-translate-y-1 transition-transform`} />
+                            </div>
+
+                            {/* Extras Físicos (Piscina, Garaje...) */}
+                            {physicalItems.map((item) => (
+                                <div key={item.id} className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex justify-between items-center group">
+                                    <div>
+                                        <span className="text-[9px] text-blue-400 font-bold uppercase block">Incluido</span>
+                                        <span className="font-bold text-sm text-blue-900">{item.label}</span>
+                                    </div>
+                                    <item.icon size={18} className="text-blue-500 group-hover:scale-110 transition-transform"/>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 4. DESCRIPCIÓN */}
+                    {selectedProp?.description && (
+                        <div className="bg-white p-6 rounded-[24px] shadow-sm border border-white">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-3">
+                                Sobre este inmueble
+                            </span>
+                            <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line font-medium">
+                                {selectedProp.description}
+                            </p>
+                        </div>
                     )}
-                </div>
-            )}
 
-{/* 🔥 BLOQUE CERTIFICADO ENERGÉTICO (ESTILO COMPETENCIA) */}
-            <div className="mt-4 mb-6">
-                 {/* CASO 1: EN TRÁMITE */}
-                 {selectedProp.energyPending && (
-                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl">
-                        <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
-                        <span className="text-xs font-bold text-gray-600 uppercase">Certificado Energético: <span className="text-gray-900">En trámite</span></span>
-                    </div>
-                 )}
+                    {/* 5. CERTIFICADO ENERGÉTICO */}
+                    <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center">
+                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Certificación<br/>Energética</span>
+                        
+                        {selectedProp?.energyPending ? (
+                            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg border border-blue-100 animate-pulse">
+                                En trámite
+                            </span>
+                        ) : (
+                            <div className="flex gap-3">
+                                {selectedProp?.energyConsumption ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyConsumption)}`}>
+                                            {selectedProp.energyConsumption}
+                                        </div>
+                                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Cons.</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-[10px] text-gray-400 font-bold self-center">N/D</span>
+                                )}
 
-                 {/* CASO 2: TIENE LETRAS (DOBLE SELLO) */}
-                 {!selectedProp.energyPending && (selectedProp.energyConsumption || selectedProp.energyEmissions) && (
-                    <div className="flex gap-3">
-                        {/* CONSUMO */}
-                        {selectedProp.energyConsumption && (
-                             <div className="flex-1 bg-white border border-gray-100 p-3 rounded-2xl shadow-sm flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase">Consumo</span>
-                                <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-sm ${getEnergyColorClass(selectedProp.energyConsumption)}`}>
-                                    {selectedProp.energyConsumption}
-                                </span>
-                             </div>
-                        )}
-                        {/* EMISIONES */}
-                        {selectedProp.energyEmissions && (
-                             <div className="flex-1 bg-white border border-gray-100 p-3 rounded-2xl shadow-sm flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase">Emisiones</span>
-                                <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-sm ${getEnergyColorClass(selectedProp.energyEmissions)}`}>
-                                    {selectedProp.energyEmissions}
-                                </span>
-                             </div>
+                                {selectedProp?.energyEmissions && (
+                                    <div className="flex flex-col items-center">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyEmissions)}`}>
+                                            {selectedProp.energyEmissions}
+                                        </div>
+                                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Emis.</span>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
-                 )}
-            </div>
 
-          {/* 4. BLOQUE DE INTELIGENCIA Y SERVICIOS */}
-            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-white/50 mb-6">
-                
-                {/* Cabecera Inteligencia */}
-                <div className="flex justify-between items-center mb-6">
-                    <span className="text-xs font-black text-slate-900 flex items-center gap-2 uppercase tracking-wide">
-                        <TrendingUp size={16} className="text-blue-600"/> Inteligencia
-                    </span>
-                    <div className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[9px] font-bold border border-green-200">
-                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full animate-pulse"></div> LIVE
-                    </div>
+                    {/* 6. SERVICIOS ACTIVOS (Marketing/Gestión) */}
+                    {serviceItems.length > 0 && (
+                        <div className="bg-[#F2F2F7] rounded-[24px] p-6 shadow-inner border border-white">
+                            <div className="text-center mb-5 opacity-60">
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 text-slate-500">
+                                    <Sparkles size={12} className="text-purple-500"/> Servicios Activos
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-4">
+                                {serviceItems.map((item) => (
+                                    <div key={item.id} className="flex flex-col items-center gap-2 group cursor-default">
+                                        <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-purple-600 border border-purple-100 group-hover:scale-110 transition-transform duration-300">
+                                            <item.icon size={20} strokeWidth={2}/>
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-500 uppercase text-center leading-tight">
+                                            {item.label}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <div className="h-6"></div>
                 </div>
 
-                {/* Estadísticas */}
-                <div className="flex justify-between text-center mb-6 px-2">
-                    <div>
-                        <div className="text-2xl font-black text-slate-900">120</div>
-                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Visitas</div>
-                    </div>
-                    <div className="w-[1px] bg-slate-100"></div>
-                    <div>
-                        <div className="text-2xl font-black text-slate-900">5</div>
-                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Guardados</div>
-                    </div>
-                    <div className="w-[1px] bg-slate-100"></div>
-                    <div>
-                        <div className="text-2xl font-black text-blue-600">Alta</div>
-                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Demanda</div>
-                    </div>
-                </div>
-
-                {/* Grid de Servicios */}
-                {/* Grid de Servicios REAL */}
-<div className="bg-[#F2F2F7] rounded-[24px] p-4">
-    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest text-center mb-4">Servicios Activos</p>
-    <div className="grid grid-cols-3 gap-y-6 gap-x-2">
-        {activeServices.map((item: any, i: number) => (
-            <div key={i} className="flex flex-col items-center gap-2">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm ${item.bg} ${item.color}`}>
-                    <item.icon size={16} />
-                </div>
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide text-center w-full truncate px-1">
-                    {item.label}
-                </span>
-            </div>
-        ))}
-    </div>
-</div>
-            </div>
-
-            {/* 5. TARJETA DE AGENTE (GAMIFICADA) */}
-            <div className="bg-white rounded-[24px] p-4 pr-6 shadow-sm border border-gray-100 flex items-center gap-4 mb-8">
-                {/* Avatar */}
-                <div className="w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 to-yellow-600">
-                     <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80" className="w-full h-full object-cover rounded-full border-2 border-white" alt="Agente"/>
-                </div>
-                
-                {/* Info */}
-                <div>
-                    <div className="font-bold text-slate-900 text-sm flex items-center gap-1">
-                        Agente Senior <span className="text-yellow-500">★</span>
-                    </div>
-                    <div className="text-xs text-slate-500 font-bold flex items-center gap-1">
-                        Stratosfere Partners <CheckCircle2 size={10} className="text-blue-500"/>
-                    </div>
-                </div>
-
-                {/* Insignia ELITE (Ahora usa ShieldCheck correctamente) */}
-                <div className="ml-auto">
-                    <div className="bg-black text-white px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-lg">
-                        <ShieldCheck size={10} className="text-yellow-400"/> ELITE
-                    </div>
+                {/* --- FOOTER --- */}
+                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
+                    <button className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95">
+                        <Phone size={18} /> Contactar Agente
+                    </button>
+                    <button 
+                        onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
+                        className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"}`}
+                    >
+                        <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
+                    </button>
                 </div>
             </div>
-
-            {/* SEPARADOR FINAL */}
-            <hr className="border-slate-200 mb-6" />
-
-            {/* 🔥 6. BOTONES DE ACCIÓN (VARIABLES CORREGIDAS: isFavorite) */}
-            <div className="flex gap-3 pb-8">
-                <button className="flex-1 py-4 bg-[#1c1c1e] text-white rounded-[24px] font-bold text-sm shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all cursor-pointer group active:scale-95">
-                    <Phone size={18} className="group-hover:animate-pulse"/> Contactar
-                </button>
-                <button 
-                    onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
-                    className={`w-20 rounded-[24px] flex items-center justify-center transition-all cursor-pointer shadow-sm border border-gray-100 ${isFavorite ? 'bg-red-50 text-red-500 border-red-100' : 'bg-white text-slate-400'}`}
-                >
-                    <Heart size={22} fill={isFavorite ? "currentColor" : "none"}/>
-                </button>
-            </div>
-            
-            {/* Espacio extra */}
-            <div className="h-12"></div>
-
         </div>
-      </div>
-    </div>
     );
 }
 
-// Helper de colores (MANTENER SIEMPRE AL FINAL)
-const getEnergyColorClass = (rating: string) => {
-    const colors: any = {
-        'A': 'bg-green-600', 'B': 'bg-green-500', 'C': 'bg-green-400',
-        'D': 'bg-yellow-400', 'E': 'bg-yellow-500', 'F': 'bg-orange-500', 'G': 'bg-red-600'
-    };
-    return colors[rating] || 'bg-gray-400';
-};
 

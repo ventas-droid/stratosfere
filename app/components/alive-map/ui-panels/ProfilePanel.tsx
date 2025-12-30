@@ -1,27 +1,44 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import { 
-    X, User, Settings, Edit3, Trash2, MapPin, Zap, ShieldCheck,
-    Star, Award, Crown, TrendingUp, Camera, Globe, Box, Newspaper, Share2, Shield, Hammer, Mail, Smartphone, Ruler, FileText, Activity, LayoutGrid, Droplets, Paintbrush, Truck, FileCheck, Building2, Heart, Store, LogOut, Plus, ChevronRight, ArrowLeft, Crosshair
-} from "lucide-react";
+    // Iconos de Interfaz
+    X, Plus, ArrowLeft, User, Heart, ChevronRight, Store, LogOut,
+    MapPin, Zap, Building2, Crosshair, Edit3, Trash2,
+    
+    // 🔥 TODOS LOS ICONOS DE SERVICIOS
+    Waves, Car, Trees, ShieldCheck, ArrowUp, Sun, Box, Star, Award, Crown, 
+    TrendingUp, Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
+    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
+    Droplets, Paintbrush, Truck, Briefcase, Sparkles
+} from 'lucide-react';
 
-// --- DICCIONARIO DE ICONOS (Sincronizado con todo el sistema) ---
+// DICCIONARIO MAESTRO (IDÉNTICO AL DE DETAILSPANEL)
 const ICON_MAP: Record<string, any> = {
-    'pack_basic': Star, 'pack_pro': Award, 'pack_elite': Crown, 'pack_investor': TrendingUp, 'pack_express': Zap,
-    'foto': Camera, 'video': Globe, 'drone': Globe, 'tour3d': Box, 'destacado': TrendingUp, 
-    'ads': Share2, 'web': Smartphone, 'render': Hammer, 'plano_2d': Ruler, 'plano_3d': Box,
-    'email': Mail, 'copy': FileText, 'certificado': FileText, 'cedula': FileText, 'nota_simple': Shield,
-    'tasacion': TrendingUp, 'lona': LayoutGrid, 'buzoneo': MapPin, 'revista': Newspaper, 
-    'openhouse': Zap, 'homestaging': Box, 'limpieza': Droplets, 'pintura': Paintbrush, 
-    'mudanza': Truck, 'seguro': ShieldCheck
+    'pool': Waves, 'piscina': Waves,
+    'garage': Car, 'garaje': Car,
+    'garden': Trees, 'jardin': Trees, 'jardín': Trees,
+    'security': ShieldCheck, 'seguridad': ShieldCheck,
+    'elevator': ArrowUp, 'ascensor': ArrowUp,
+    'terrace': Sun, 'terraza': Sun,
+    'storage': Box, 'trastero': Box, 'ac': Zap,
+    'pack_basic': Star, 'pack_pro': Award, 'pack_elite': Crown, 
+    'pack_investor': TrendingUp, 'pack_express': Zap,
+    'foto': Camera, 'video': Globe, 'drone': Plane, 
+    'tour3d': Box, 'render': Hammer, 'plano_2d': Ruler, 'plano_3d': LayoutGrid, 
+    'destacado': TrendingUp, 'ads': Share2, 'email': Mail, 'copy': FileText, 
+    'certificado': FileCheck, 'cedula': FileText, 'nota_simple': FileText, 
+    'tasacion': Activity, 'lona': LayoutGrid, 'buzoneo': MapPin, 
+    'revista': Newspaper, 'openhouse': KeyRound, 'homestaging': Sofa, 
+    'limpieza': Droplets, 'pintura': Paintbrush, 'mudanza': Truck, 
+    'seguro': ShieldCheck, 'abogado': Briefcase
 };
 
 export default function ProfilePanel({ 
   rightPanel, 
   toggleRightPanel, 
-  toggleMainPanel, // <--- Necesario para abrir el Market desde aquí
-  onEdit,          // <--- Cable para editar
+  toggleMainPanel, 
+  onEdit,          
   soundEnabled, 
   playSynthSound 
 }: any) {
@@ -30,14 +47,28 @@ export default function ProfilePanel({
   const [myProperties, setMyProperties] = useState<any[]>([]);
   const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "isidro@stratosfere.com" });
 
-  // 1. CARGAR MEMORIA
+  // 1. CARGAR MEMORIA (BLINDADA)
   const loadData = () => {
       if (typeof window === 'undefined') return;
-      const saved = localStorage.getItem('stratos_my_properties');
-      if (saved) {
-        try { setMyProperties(JSON.parse(saved)); } 
-        catch (e) { console.error(e); }
-      }
+      try {
+          const saved = localStorage.getItem('stratos_my_properties');
+          if (saved) {
+             const parsed = JSON.parse(saved);
+
+             // 🔥 NORMALIZACIÓN DE DATOS
+             const validProperties = parsed.map((p: any) => ({
+                 ...p,
+                 selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
+                 elevator: (p.elevator === true || String(p.elevator) === "true" || p.elevator === 1),
+                 mBuilt: Number(p.mBuilt || p.m2 || 0),
+                 m2: Number(p.mBuilt || p.m2 || 0),
+                 rawPrice: Number(p.rawPrice || p.priceValue || 0),
+                 coordinates: p.coordinates || [-3.6883, 40.4280]
+             }));
+
+             setMyProperties(validProperties); 
+          }
+      } catch (e) { console.error("Error cargando perfil:", e); }
   };
 
   useEffect(() => {
@@ -52,43 +83,54 @@ export default function ProfilePanel({
 
   // 2. BORRAR
   const handleDelete = (e: any, id: number) => {
-      e.stopPropagation();
+      e.stopPropagation(); // Seguridad
       if(confirm('¿Seguro que quieres eliminar este activo? Esta acción es irreversible.')) {
           const updated = myProperties.filter(p => p.id !== id);
           setMyProperties(updated);
           localStorage.setItem('stratos_my_properties', JSON.stringify(updated));
+          
+          if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('force-map-refresh'));
+              window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+          }
+          
           if(soundEnabled && playSynthSound) playSynthSound('error');
       }
   };
 
-  // 3. EDITAR (Envia los datos al ArchitectHud)
+  // 3. EDITAR
   const handleEditClick = (e: any, property: any) => {
-      e.stopPropagation();
+      e.stopPropagation(); // Seguridad
       if(soundEnabled && playSynthSound) playSynthSound('click');
-      // Cerramos perfil para dar espacio, pero abrimos el modo Arquitecto con datos
       toggleRightPanel('NONE'); 
       if (onEdit) onEdit(property); 
   };
 
-  // 4. TELETRANSPORTE (Ir a la casa en el mapa)
-  const handleFlyTo = (e: any, coords: any) => {
-      e.stopPropagation();
-      if(soundEnabled && playSynthSound) playSynthSound('click');
-      toggleRightPanel('NONE'); // Cerramos para ver el mapa
+  // 4. MANIOBRA DE DESPLIEGUE "VAULT" (Copiada de Favoritos)
+  const handleFlyTo = (e: any, property: any) => {
+      // Detenemos el click para controlar nosotros la secuencia
+      if (e && e.stopPropagation) e.stopPropagation();
       
-      if (coords && typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('fly-to-location', { 
-              detail: { center: coords, zoom: 18, pitch: 60 } 
-          }));
-      } else {
-          alert("⚠️ Este activo antiguo no tiene coordenadas GPS. Elimínelo y cree uno nuevo.");
-      }
-  };
+      if (soundEnabled && playSynthSound) playSynthSound('click');
+      
+      // ⛔️ IMPORTANTE: NO CERRAMOS EL PANEL DERECHO
+      // toggleRightPanel('NONE'); <--- Al anular esto, usted se queda en su perfil.
 
-  // Navegación interna
-  const navigateTo = (view: 'MAIN' | 'PROPERTIES') => {
-    if (soundEnabled && playSynthSound) playSynthSound('click');
-    setInternalView(view);
+      if (typeof window !== 'undefined') {
+          console.log("🦅 Ejecutando protocolo de vuelo cruzado...");
+
+          // ✅ A. LA SEÑAL CLAVE (Copiada de VaultPanel)
+          // Esta es la orden prioritaria que obliga al sistema a desplegar el panel izquierdo
+          window.dispatchEvent(new CustomEvent('open-details-signal', { detail: property }));
+
+          // ✅ B. LA ORDEN DE VUELO
+          // Usamos el sistema de eventos global para mover la cámara
+          if (property.coordinates) {
+              window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                  detail: { center: property.coordinates, zoom: 18.5, pitch: 60 } 
+              }));
+          }
+      }
   };
 
   if (rightPanel !== 'PROFILE') return null;
@@ -105,7 +147,7 @@ export default function ProfilePanel({
               <p className="text-slate-500 font-bold text-xs tracking-widest uppercase">Gestiona tu identidad.</p>
             </>
           ) : (
-            <button onClick={() => navigateTo('MAIN')} className="flex items-center gap-2 text-slate-500 hover:text-black transition-colors group cursor-pointer">
+            <button onClick={() => setInternalView('MAIN')} className="flex items-center gap-2 text-slate-500 hover:text-black transition-colors group cursor-pointer">
               <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform"/>
               <span className="font-bold text-sm uppercase tracking-wider">Volver</span>
             </button>
@@ -154,7 +196,7 @@ export default function ProfilePanel({
             <div className="space-y-2">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4 mb-2">Sistema</p>
                 
-                <button onClick={() => navigateTo('PROPERTIES')} className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-200 cursor-pointer">
+                <button onClick={() => setInternalView('PROPERTIES')} className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-200 cursor-pointer">
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors"><Building2 size={18}/></div>
                         <span className="font-bold text-slate-900 text-sm">Mis Propiedades</span>
@@ -162,6 +204,7 @@ export default function ProfilePanel({
                     <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500"/>
                 </button>
 
+                {/* BOTÓN FAVORITOS */}
                 <button onClick={() => { if(soundEnabled && playSynthSound) playSynthSound('click'); toggleRightPanel('VAULT'); }} className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer">
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-500 transition-colors"><Heart size={18} /></div>
@@ -170,16 +213,25 @@ export default function ProfilePanel({
                     <ChevronRight size={16} className="text-slate-300"/>
                 </button>
 
-                {/* CORREGIDO: Eliminado el comando de cierre, ahora solo abre Market */}
-                <button onClick={() => { if(soundEnabled && playSynthSound) playSynthSound('click'); toggleMainPanel('MARKETPLACE'); }} className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer">
+              {/* BOTÓN MARKETPLACE */}
+                <button 
+                    onClick={() => { 
+                        if(soundEnabled && playSynthSound) playSynthSound('click'); 
+                        if(toggleMainPanel) toggleMainPanel('MARKETPLACE'); 
+                    }} 
+                    className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer border border-transparent hover:border-emerald-200"
+                >
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors"><Store size={18} /></div>
+                        <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors">
+                            <Store size={18} />
+                        </div>
                         <span className="font-bold text-slate-900 text-sm">Marketplace</span>
                     </div>
-                    <ChevronRight size={16} className="text-slate-300"/>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-500"/>
                 </button>
             </div>
             
+            {/* BOTÓN CERRAR SESIÓN */}
             <button className="w-full py-4 mt-8 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer">
                 <LogOut size={16}/> Cerrar Sesión
             </button>
@@ -192,7 +244,7 @@ export default function ProfilePanel({
             <div className="flex justify-between items-end mb-4">
                <h3 className="text-2xl font-black text-slate-900">Mis Activos</h3>
                <button 
-                    onClick={() => { toggleRightPanel('NONE'); toggleMainPanel('ARCHITECT'); }} 
+                    onClick={() => { toggleRightPanel('NONE'); if(toggleMainPanel) toggleMainPanel('ARCHITECT'); }} 
                     className="bg-black text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 hover:scale-105 transition-transform cursor-pointer"
                >
                     <Plus size={14}/> CREAR NUEVO
@@ -207,16 +259,22 @@ export default function ProfilePanel({
             ) : (
                 <div className="space-y-4">
                     {myProperties.map((prop) => (
-                        <div key={prop.id} className="group bg-white p-5 rounded-[24px] shadow-sm border border-transparent hover:border-blue-500/30 transition-all cursor-default">
+                        <div 
+                            key={prop.id} 
+                            // 🔥 1. CLICK EN EL CUERPO PARA VOLAR + ABRIR DETAILS (Sin cerrar perfil)
+                            onClick={(e) => handleFlyTo(e, prop)}
+                            className="group bg-white p-5 rounded-[24px] shadow-sm border border-transparent hover:border-blue-500/30 transition-all cursor-pointer relative"
+                        >
                             
-                            {/* CABECERA */}
+                            {/* CABECERA DE LA TARJETA */}
                             <div className="flex gap-4 mb-4">
-                                <div className="w-20 h-20 rounded-2xl bg-slate-200 overflow-hidden shrink-0 shadow-inner">
-                                    <img src={prop.img || prop.images?.[0] || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"} className="w-full h-full object-cover" alt="Propiedad"/>
+                                <div className="w-20 h-20 rounded-2xl bg-slate-200 overflow-hidden shrink-0 shadow-inner relative">
+                                    <img src={prop.img || (prop.images && prop.images[0]) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"} className="w-full h-full object-cover" alt="Propiedad"/>
+                                    {prop.elevator && <div className="absolute top-1 right-1 bg-green-500 p-1 rounded-md text-white shadow-sm"><ArrowUp size={8} strokeWidth={4}/></div>}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
-                                        <h4 className="font-bold text-slate-900 truncate text-lg">{prop.title || "Sin título"}</h4>
+                                        <h4 className="font-bold text-slate-900 truncate text-lg group-hover:text-blue-600 transition-colors">{prop.title || "Sin título"}</h4>
                                         <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-green-100 text-green-700`}>ONLINE</span>
                                     </div>
                                     <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
@@ -227,20 +285,23 @@ export default function ProfilePanel({
                                 </div>
                             </div>
 
-                            {/* 🔥 SERVICIOS ACTIVOS (VISUAL) */}
+                            {/* SERVICIOS ACTIVOS */}
                             {prop.selectedServices && prop.selectedServices.length > 0 && (
                                 <div className="mb-4 bg-slate-50 p-3 rounded-2xl">
                                     <p className="text-[9px] text-slate-400 font-bold uppercase mb-2 tracking-wider flex items-center gap-1">
-                                        <Zap size={10} className="text-yellow-500"/> Estrategia Activa
+                                        <Zap size={10} className="text-yellow-500 fill-yellow-500"/> Estrategia Activa
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                         {prop.selectedServices.slice(0, 4).map((srvId: string) => {
-                                            const Icon = ICON_MAP[srvId] || Zap;
-                                            const isPack = srvId.startsWith('pack');
+                                            const key = srvId.toLowerCase().trim();
+                                            const Icon = ICON_MAP[key] || ICON_MAP[srvId] || Sparkles;
+                                            const isPack = key.startsWith('pack');
+                                            const label = srvId.replace('pack_', '').replace(/_/g, ' ');
+                                            
                                             return (
-                                                <div key={srvId} className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase ${isPack ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-white border-slate-200 text-slate-500'}`}>
+                                                <div key={srvId} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase ${isPack ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-white border-slate-200 text-slate-500'}`}>
                                                     <Icon size={10} />
-                                                    <span>{srvId.replace('pack_', '')}</span>
+                                                    <span>{label}</span>
                                                 </div>
                                             );
                                         })}
@@ -251,19 +312,34 @@ export default function ProfilePanel({
                                 </div>
                             )}
 
-                            {/* BARRA DE ACCIONES */}
+                           {/* BARRA DE ACCIONES */}
                             <div className="pt-3 border-t border-slate-100 flex gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                 
-                                {/* 1. VER EN MAPA */}
+                               {/* 🔥 BOTÓN MARKETPLACE (SIN CERRAR PERFIL) */}
                                 <button 
-                                    onClick={(e) => handleFlyTo(e, prop.coordinates)}
-                                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                                    title="Ver en Mapa"
+                                    onClick={(e) => {
+                                        e.stopPropagation(); 
+                                        if(soundEnabled && playSynthSound) playSynthSound('click');
+                                        
+                                        // 1. INYECCIÓN DE DATOS: 
+                                        // Le decimos al sistema: "Carga la configuración de ESTA propiedad en el ArchitectHud"
+                                        if (typeof window !== 'undefined') {
+                                            window.dispatchEvent(new CustomEvent('edit-asset-services', { detail: prop }));
+                                        }
+
+                                        // 2. ABRIR PANEL IZQUIERDO (Marketplace/ArchitectHud)
+                                        if(toggleMainPanel) toggleMainPanel('MARKETPLACE'); 
+                                        
+                                        // ⛔️ ANULADO: Ya no cerramos el panel derecho.
+                                        // toggleRightPanel('NONE'); 
+                                    }}
+                                    className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2 cursor-pointer border border-emerald-100"
+                                    title="Gestionar Servicios"
                                 >
-                                    <Crosshair size={14}/>
+                                    <Store size={14}/>
                                 </button>
 
-                                {/* 2. EDITAR (CARGA EL FORMULARIO) */}
+                                {/* GESTIONAR */}
                                 <button 
                                     onClick={(e) => handleEditClick(e, prop)} 
                                     className="flex-1 py-2 bg-black text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
@@ -271,7 +347,7 @@ export default function ProfilePanel({
                                     <Edit3 size={12}/> GESTIONAR
                                 </button>
 
-                                {/* 3. ELIMINAR */}
+                                {/* ELIMINAR */}
                                 <button 
                                     onClick={(e) => handleDelete(e, prop.id)}
                                     className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center cursor-pointer"
@@ -290,4 +366,3 @@ export default function ProfilePanel({
     </div>
   );
 }
-

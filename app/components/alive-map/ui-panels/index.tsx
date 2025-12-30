@@ -17,17 +17,17 @@ import { CONTEXT_CONFIG } from '../smart-search';
 
 // --- 3. IMPORTACIONES DE SUS PANELES ---
 import ProfilePanel from "./ProfilePanel";
-import MarketPanel from "./MarketPanel";
+import DualGateway from "./DualGateway";
 import VaultPanel from "./VaultPanel";         
 import HoloInspector from "./HoloInspector";   
 import ExplorerHud from "./ExplorerHud";       
 import ArchitectHud from "./ArchitectHud";     
-import DualGateway from "./DualGateway";       
+import MarketPanel from './MarketPanel'; // ✅ Correcto: Es su vecinoimport DualGateway from "./DualGateway";       
 import DualSlider from './DualSlider';
 // --- 4. COMPONENTES LÓGICOS ---
 import DetailsPanel from "./DetailsPanel"; 
 import { playSynthSound } from './audio';
-
+import StratosConsole from "./StratosConsole";
 // --- 2. UTILIDADES ---
 export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
@@ -49,7 +49,18 @@ export default function UIPanels({
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
   const [editingProp, setEditingProp] = useState<any>(null);
-  const [explorerIntroDone, setExplorerIntroDone] = useState(false);
+  
+  // 🔥 CAMBIO 1: INTRO YA HECHA (Para saltar el menú blanco aburrido)
+  const [explorerIntroDone, setExplorerIntroDone] = useState(true);
+
+  // 🔥 CAMBIO 2: ESTADO DE ATERRIZAJE (Para la nueva pantalla "Target Locked")
+  // Ya solo aparece UNA vez aquí:
+  const [landingComplete, setLandingComplete] = useState(false); 
+
+  // 🔥 AÑADA ESTA LÍNEA EXACTA AQUÍ:
+  const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
+  // ✅ NUEVO: Memoria para saber qué propiedad editar en el Market
+  const [marketTargetProp, setMarketTargetProp] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   
 // --- C. VARIABLES DE FILTROS TÁCTICOS (NUEVOS RANGOS) ---
@@ -132,8 +143,7 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
   const [aiInput, setAiInput] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiTyping, setIsAiTyping] = useState(false);
-  const [isListening, setIsListening] = useState(false); 
-
+  const [isListening, setIsListening] = useState(false);
   // Helpers
  // A. GESTIÓN PANEL LATERAL
   const toggleRightPanel = (p: string) => { 
@@ -205,7 +215,7 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
   };
 
 
-  // --- C. ESCUCHA DE EVENTOS (SISTEMA NERVIOSO) ---
+// --- C. ESCUCHA DE EVENTOS (SISTEMA NERVIOSO) ---
   useEffect(() => {
     const handleOpenDetails = (e: any) => {
         const propData = e.detail;
@@ -224,22 +234,149 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
         handleToggleFavorite(e.detail);
     };
 
+    // ✅ NUEVO: Escucha el botón verde "Tienda" del perfil
+    const handleEditAssetServices = (e: any) => {
+        const prop = e?.detail;
+        if (!prop) return;
+        setMarketTargetProp(prop);      // Guardar
+        setActivePanel('MARKETPLACE');  // Abrir
+    };
+
+    // ✅ NUEVO: Actualización en vivo
+    const handleUpdateDetailsLive = (e: any) => {
+        const updated = e?.detail;
+        if (!updated?.id) return;
+        
+        // Actualizar ficha si está abierta
+        setSelectedProp((prev: any) => 
+            prev && String(prev.id) === String(updated.id) ? { ...prev, ...updated } : prev
+        );
+        // Actualizar memoria del mercado
+        setMarketTargetProp((prev: any) => 
+            prev && String(prev.id) === String(updated.id) ? { ...prev, ...updated } : prev
+        );
+    };
+
     window.addEventListener('open-details-signal', handleOpenDetails);
     window.addEventListener('toggle-fav-signal', handleToggleFavSignal);
+    window.addEventListener('edit-asset-services', handleEditAssetServices); // ✅
+    window.addEventListener('update-details-live', handleUpdateDetailsLive); // ✅
     
     return () => {
         window.removeEventListener('open-details-signal', handleOpenDetails);
         window.removeEventListener('toggle-fav-signal', handleToggleFavSignal);
+        window.removeEventListener('edit-asset-services', handleEditAssetServices); // ✅
+        window.removeEventListener('update-details-live', handleUpdateDetailsLive); // ✅
     };
-  }, [soundEnabled, localFavs]); // Dependencia crítica
+  }, [soundEnabled, localFavs]);
 
-  useEffect(() => { if (systemMode !== 'EXPLORER') setExplorerIntroDone(false); }, [systemMode]);
+// ---------------------------------------------------------------------------
+  // ⚠️ ZONA NEUTRALIZADA: ESTA ERA LA LÍNEA QUE REINICIABA LA INTRO
+  // LA HEMOS COMENTADO PARA QUE NO MOLESTE MÁS.
+  // ---------------------------------------------------------------------------
+  // useEffect(() => { if (systemMode !== 'EXPLORER') setExplorerIntroDone(false); }, [systemMode]);
 
-  
+  // ===========================================================================
+  // ⚡️ LA PIEZA CLAVE: FUNCIÓN TRADUCTORA PARA EL EXPLORER (MENÚ BLANCO)
+  // ===========================================================================
+  const handleExplorerSearch = (datos: any) => {
+      // 1. Sonido de éxito
+      if (soundEnabled && typeof playSynthSound === 'function') playSynthSound('success');
+
+      // 2. Definir límite máximo según categoría
+      const maxSurface = (typeof CONTEXT_CONFIG !== 'undefined' && CONTEXT_CONFIG[datos.category]) 
+          ? CONTEXT_CONFIG[datos.category].maxM2 
+          : 50000;
+
+      // 3. Empaquetar la orden para el mapa
+      const payload = {
+          priceRange: { min: 0, max: datos.price },      // Precio
+          surfaceRange: { min: datos.surface, max: maxSurface }, // Superficie
+          context: datos.category                        // Categoría
+      };
+
+      console.log("🛰️ EXPLORER BLANCO -> MAPA:", payload);
+
+      // 4. Disparar la señal
+      if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('apply-filter-signal', { 
+              detail: payload 
+          }));
+      }
+
+      // 5. Cerrar menú y notificar
+      if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true);
+      if (typeof addNotification === 'function') addNotification(`Filtro Activo: ${datos.category}`);
+  };
+  // ===========================================================================
+  // 🚀 CÓDIGO DE LANZAMIENTO (V3 - GPS CORREGIDO: NO MÁS MAR)
+  // ===========================================================================
+  const handleStratosLaunch = (data: any) => {
+      // 1. Sonido Táctico
+      if(soundEnabled) playSynthSound('warp');
+      
+      // 2. DICCIONARIO DE TRADUCCIÓN
+      const TYPE_TRANSLATOR: Record<string, string> = {
+          'flat': 'Piso',
+          'penthouse': 'Ático',
+          'villa': 'Villa',
+          'house': 'Villa',
+          'office': 'Oficina',
+          'industrial': 'Nave',
+          'land': 'Suelo',
+          'solar': 'Suelo'
+      };
+
+      const rawType = data.type; 
+      const dbType = TYPE_TRANSLATOR[rawType] || rawType; 
+
+      // 3. Traductor de Contexto
+      let derivedContext = 'VIVIENDA'; 
+      if (['office', 'industrial', 'local', 'nave', 'oficina'].includes(rawType)) {
+          derivedContext = 'NEGOCIO';
+      } else if (['land', 'solar', 'suelo', 'terreno'].includes(rawType)) {
+          derivedContext = 'TERRENO';
+      }
+
+      // 4. Enviar Señal de Filtros
+      if (typeof window !== 'undefined') {
+          console.log("🔍 Búsqueda Stratos:", { raw: rawType, translated: dbType, context: derivedContext });
+          window.dispatchEvent(new CustomEvent('apply-filter-signal', { 
+              detail: { 
+                  priceRange: { min: 0, max: data.priceMax },
+                  surfaceRange: { min: 0, max: 10000 }, 
+                  context: derivedContext, 
+                  specs: data.specs,
+                  specificType: dbType
+              } 
+          }));
+      }
+
+      // 5. SISTEMA DE NAVEGACIÓN (CORREGIDO) 🧭
+      // Si hay ubicación escrita, la buscamos. Si NO, vamos a MADRID.
+      if(data.location && searchCity) {
+          searchCity(data.location);
+          if (typeof addNotification === 'function') addNotification(`Viajando a: ${data.location}`);
+      } else {
+          // 🔥 AQUÍ ESTÁ LA SOLUCIÓN AL "PUNTO PERDIDO EN EL MAR"
+          console.log("📍 Sin destino específico. Volando a Base (Madrid).");
+          map?.current?.flyTo({ 
+              center: [-3.6883, 40.4280], // <--- COORDENADAS FIJAS
+              pitch: 60, 
+              zoom: 14,
+              duration: 2000
+          });
+      }
+
+      // 6. Aterrizaje
+      setLandingComplete(true);
+      setShowAdvancedConsole(false);
+  };
+  // ===========================================================================
+
   if (!gateUnlocked) {
     return (
       <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none overflow-hidden">
-        
         {/* =========================================================================
             ILUSTRACIÓN DE FONDO (COHETE + ESTELA) - ESTILO BOLI NEGRO
             z-0 para que quede DETRÁS del texto y botón
@@ -314,29 +451,30 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            <ArchitectHud 
                soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
                
-               // 🔥 AÑADA ESTA LÍNEA AQUÍ:
+               // 🔥 DATOS INICIALES (Para editar si existen)
                initialData={editingProp} 
                
                onCloseMode={(success: boolean, payload: any) => { 
-                   // ... (el resto de su código onCloseMode está perfecto, déjelo igual)
-                   // Solo recuerde limpiar la edición al salir:
-                   setEditingProp(null); // <--- AÑADIR ESTO DENTRO DE ONCLOSEMODE (al principio o final)
+                   // 1. Limpieza de memoria temporal
+                   setEditingProp(null); 
                    
                    if (success) {
-                       // ...
-                       // 1. Notificación Visual
-                       // (Si tiene una función addNotification úsela, si no, console.log)
                        console.log("✅ Propiedad publicada con éxito");
                        
-                       // 2. CAMBIO DE MODO
+                       // 2. CAMBIO A MODO EXPLORADOR
                        setSystemMode('EXPLORER');
                        
-                       // Evitamos que salga el tutorial de bienvenida
+                       // 🔥 LA CLAVE: EVITAR LA CONSOLA DE BÚSQUEDA
+                       // Al poner esto en true, el sistema asume que ya hemos "aterrizado"
+                       // y muestra directamente el mapa con la propiedad.
+                       setLandingComplete(true); 
+                       
+                       // 3. Evitar tutoriales antiguos
                        if (typeof setExplorerIntroDone === 'function') {
                            setExplorerIntroDone(true); 
                        }
 
-                       // 3. 📡 LANZAMIENTO DE LA SEÑAL AL MAPA (El Convoy)
+                       // 4. 📡 LANZAMIENTO DE LA SEÑAL AL MAPA (El Convoy)
                        if (payload) {
                            console.log("📡 Enviando datos al mapa...", payload);
                            setTimeout(() => {
@@ -347,18 +485,6 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                                }
                            }, 100); // Pequeño delay para asegurar que el mapa está atento
                        }
-
-                       // 4. Vuelo seguro de confirmación (Opcional, ya que el mapa volará a la casa)
-                       // Pero lo dejamos por seguridad si la geolocalización falla
-                       /* map?.current?.flyTo({
-                           center: [-3.6883, 40.4280],
-                           zoom: 16.5,
-                           pitch: 65,
-                           bearing: -20,
-                           duration: 4000,
-                           essential: true
-                       });
-                       */
                    } else {
                        // SI CANCELA: Volvemos al menú principal
                        setSystemMode('GATEWAY');
@@ -367,34 +493,29 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            />
        )}
 
-       {/* BLOQUE 2: MODO EXPLORADOR (COMPRAR) */}
+     {/* BLOQUE 2: MODO EXPLORADOR (COMPRAR) */}
        {systemMode === 'EXPLORER' && (
            <>
-              {/* PANTALLA DE BIENVENIDA (Solo si no se ha hecho la intro) */}
-              {!explorerIntroDone && (
-                 <ExplorerHud 
-                     soundFunc={playSynthSound} 
-                     onCloseMode={() => { 
-                         // 1. Sonido
-                         playSynthSound('success'); 
-                         
-                         // 2. Quitar pantalla blanca
-                         setExplorerIntroDone(true); 
-                         
-                         // 3. CINEMÁTICA DE ATERRIZAJE 🛬
-                         map?.current?.flyTo({
-                             center: [-3.6883, 40.4280], // Madrid Stratos
-                             zoom: 16.5,
-                             pitch: 65,
-                             bearing: -20,
-                             duration: 4000,
-                             essential: true
-                         });
-                     }} 
-                 />
-              )}
+               {/* ================================================================
+                   🔥 1. CONSOLA STRATOS (EL CEREBRO NUEVO)
+                   Sustituye al antiguo ExplorerHud.
+                   Se muestra si:
+                   A) No hemos aterrizado (!landingComplete) -> Intro
+                   B) Pulsamos el botón de filtros (showAdvancedConsole) -> Filtros
+                   ================================================================ */}
+               {(showAdvancedConsole || !landingComplete) && (
+                   <StratosConsole 
+                       isInitial={!landingComplete} // Si es manual, muestra la X de cerrar
+                       
+                       // PERMITE CERRARLO MANUALMENTE
+                       onClose={() => setShowAdvancedConsole(false)}
 
-             
+                       // EJECUTA LA BÚSQUEDA Y ATERRIZA
+                       onLaunch={handleStratosLaunch}
+                   />
+               )}
+
+               {/* INTERFAZ FLOTANTE (Logo, Botones, etc.) */}
                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
   
   {/* --- 1. IZQUIERDA: SOLO EL LOGO (Sin botón, texto negro y grueso) --- */}
@@ -437,161 +558,128 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
                       <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
                         
-                        {/* ZONA 1: IZQUIERDA */}
+                       {/* ZONA 1: IZQUIERDA */}
                         <div className="flex items-center gap-1">
-                            <button onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all" title="Menú Principal"><LayoutGrid size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'FILTERS' ? 'NONE' : 'FILTERS'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='FILTERS' ? 'text-white bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`} title="Filtros"><SlidersHorizontal size={18}/></button>
+                            {/* Botón Menú Principal */}
+                            <button 
+                                onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} 
+                                className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all" 
+                                title="Menú Principal"
+                            >
+                                <LayoutGrid size={18}/>
+                            </button>
+                            
+                            {/* 🔥 BOTÓN FILTROS (CORREGIDO): AHORA ABRE LA CONSOLA NUEVA */}
+                            <button 
+                                onClick={() => { playSynthSound('click'); setShowAdvancedConsole(true); }} 
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${showAdvancedConsole ? 'text-white bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`} 
+                                title="Filtros Avanzados"
+                            >
+                                <SlidersHorizontal size={18}/>
+                            </button>
                         </div>
 
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                        {/* ZONA 2: SEARCH INPUT (Con sonido en el micro) */}
-                        <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50 focus-within:bg-blue-500/5 transition-all group">
-                            <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
-                            <input 
-                                value={aiInput} 
-                                onChange={e=>setAiInput(e.target.value)} 
-                                onKeyDown={e=>e.key==='Enter' && handleAICommand(e)} 
-                                className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20" 
-                                placeholder="LOCALIZACIÓN..." 
-                            />
-                            <Mic size={16} onClick={() => { playSynthSound('click'); setIsListening(true); setTimeout(() => setIsListening(false), 2000); }} className={`cursor-pointer transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-white/30 hover:text-white'}`}/>
-                        </div>
+                        {/* ZONA 2: OMNI SEARCH (ESCRIBIBLE + ENTER PARA VOLAR, NO ABRE FILTROS) */}
+<div
+  className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50 focus-within:bg-blue-500/5 transition-all group"
+>
+  <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
+  <input
+    value={aiInput}
+    onChange={(e) => setAiInput(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleAICommand(e);
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        (e.target as HTMLInputElement).blur();
+      }
+    }}
+    className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text"
+    placeholder="LOCALIZACIÓN..."
+  />
+  <Mic size={16} className="text-white/30"/>
+</div>
+
 
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
                         
-                      {/* ZONA 3: APLICACIONES (SONIDO ACTIVADO) */}
+                     {/* ZONA 3: APLICACIONES (SONIDO ACTIVADO) */}
                         <div className="flex items-center gap-1">
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='MARKETPLACE'?'text-emerald-400':'text-white/50 hover:text-white'}`}><Store size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'CHAT' ? 'NONE' : 'CHAT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'}`}><MessageCircle size={18}/></button>
                             
-                            {/* IA OMNI */}
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'}`}>
+                            {/* 1. MARKETPLACE (MULTITAREA: NO cierra perfil) */}
+                            <button 
+                                onClick={() => { 
+                                    playSynthSound('click'); 
+                                    setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE'); 
+                                }} 
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='MARKETPLACE'?'text-emerald-400':'text-white/50 hover:text-white'}`}
+                            >
+                                <Store size={18}/>
+                            </button>
+
+                            {/* 2. CHAT */}
+                            <button 
+                                onClick={() => { 
+                                    playSynthSound('click'); 
+                                    setActivePanel(activePanel === 'CHAT' ? 'NONE' : 'CHAT'); 
+                                }} 
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'}`}
+                            >
+                                <MessageCircle size={18}/>
+                            </button>
+                            
+                            {/* 3. IA OMNI */}
+                            <button 
+                                onClick={() => { 
+                                    playSynthSound('click'); 
+                                    setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); 
+                                }} 
+                                className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'}`}
+                            >
                                 <Sparkles size={18} className="relative z-10"/>
                             </button>
                             
-                            <button onClick={() => { playSynthSound('click'); toggleRightPanel('VAULT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='VAULT'?'text-red-500':'text-white/50 hover:text-white'}`}><Heart size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); toggleRightPanel('PROFILE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='PROFILE'?'text-white':'text-white/50 hover:text-white'}`}><User size={18}/></button>
+                            {/* 4. BÓVEDA (DERECHA) */}
+                            <button 
+                                onClick={() => { 
+                                    playSynthSound('click'); 
+                                    toggleRightPanel('VAULT'); 
+                                }} 
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='VAULT'?'text-red-500':'text-white/50 hover:text-white'}`}
+                            >
+                                <Heart size={18}/>
+                            </button>
+                            
+                            {/* 5. PERFIL (DERECHA) */}
+                            <button 
+                                onClick={() => { 
+                                    playSynthSound('click'); 
+                                    toggleRightPanel('PROFILE'); 
+                                }} 
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='PROFILE'?'text-white':'text-white/50 hover:text-white'}`}
+                            >
+                                <User size={18}/>
+                            </button>
                         </div>
+                        
+                      {/* 🔥 ESTOS SON LOS CIERRES QUE FALTABAN Y CAUSABAN EL ERROR ROJO: */}
                       </div>
                   </div>
                </div>
 
-               {/* --- SISTEMA DE CONSOLAS (CORREGIDO: pointer-events-auto) --- */}
+         {/* --- SISTEMA DE CONSOLAS (CORREGIDO) --- */}
                
-             {/* 1. FILTROS INTELIGENTES (SMART CONSOLE) */}
-               {activePanel === 'FILTERS' && (
-                   <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
-                       <div className="animate-fade-in glass-panel p-6 rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl">
-                           
-                           {/* CABECERA */}
-                           <div className="flex justify-between items-center mb-4">
-                               <span className="text-xs font-bold tracking-widest text-white flex items-center gap-2">
-                                   <SlidersHorizontal size={14}/> PARÁMETROS
-                               </span>
-                               <button onClick={() => { playSynthSound('click'); setActivePanel('NONE'); }} className="text-white/30 hover:text-white transition-colors p-2"><X size={16}/></button>
-                           </div>
+               {/* 1. FILTROS INTELIGENTES: ELIMINADO 🗑️ */}
+               {/* (La nueva consola StratosConsole se encarga de esto ahora) */}
 
-                           {/* SELECTOR DE CONTEXTO */}
-                           <div className="flex bg-white/5 rounded-lg p-1 mb-6 border border-white/5">
-                               {[
-                                   { id: 'VIVIENDA', icon: Home, label: 'Vivir' },
-                                   { id: 'NEGOCIO',  icon: Briefcase, label: 'Pro' },
-                                   { id: 'TERRENO',  icon: MapIcon, label: 'Suelo' }
-                               ].map((ctx) => (
-                                   <button
-                                       key={ctx.id}
-                                       onClick={() => { 
-                                           playSynthSound('click'); 
-                                           setSearchContext(ctx.id as any); 
-                                           // Reseteamos superficie al cambiar de contexto
-                                           setSurfaceRange({ min: 0, max: CONTEXT_CONFIG[ctx.id as keyof typeof CONTEXT_CONFIG].maxM2 });
-                                       }}
-                                       className={`flex-1 flex flex-col items-center justify-center py-2 rounded-md transition-all ${searchContext === ctx.id ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
-                                   >
-                                       <ctx.icon size={14} className="mb-1"/>
-                                       <span className="text-[9px] font-bold tracking-wider">{ctx.label}</span>
-                                   </button>
-                               ))}
-                           </div>
-
-                           <div className="space-y-6">
-                               
-                               {/* --- SLIDER DE PRECIO (DOBLE) --- */}
-{/* 1. CAMBIO: space-y-10 para separar los bloques */}
-<div className="space-y-10">
-   {/* 2. CAMBIO: mb-8 para que el título no toque los números */}
-   <div className="flex justify-between text-[10px] uppercase font-bold text-white/50 mb-8">
-       <span>Rango Presupuesto</span>
-   </div>
-   <DualSlider 
-        min={0} 
-        max={5000000} 
-        step={50000}
-        value={priceRange} 
-        onChange={setPriceRange}
-        formatLabel={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : `${(v/1000).toFixed(0)}k`}
-   />
-</div>
-
-{/* --- SLIDER DE SUPERFICIE (DOBLE) --- */}
-{/* 1. CAMBIO: space-y-10 para separar los bloques */}
-<div className="space-y-10 mt-8">
-   {/* 2. CAMBIO: mb-8 para que el título no toque los números */}
-   <div className="flex justify-between text-[10px] uppercase font-bold text-white/50 mb-8">
-       <span>Rango Superficie</span>
-   </div>
-   <DualSlider 
-       min={0} 
-       max={CONTEXT_CONFIG[searchContext].maxM2} 
-       step={CONTEXT_CONFIG[searchContext].step}
-       value={surfaceRange} 
-       onChange={setSurfaceRange}
-       formatLabel={(v) => `${v} m²`}
-   />
-</div>
-
-<div className="grid grid-cols-2 gap-2 mt-12 pt-4 border-t border-white/5">
-   <button 
-        onClick={() => { 
-            playSynthSound('click'); 
-            // Resetear valores
-            setPriceRange({ min: 100000, max: 2000000 });
-            // 3. CAMBIO: Usar el máximo real del contexto (ej: 1000m2) en vez de 500
-            setSurfaceRange({ min: 0, max: CONTEXT_CONFIG[searchContext].maxM2 });
-        }} 
-        className="py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-white border border-white/5 transition-all active:scale-95 cursor-pointer"
-   >
-        LIMPIAR
-   </button>
-   
-   <button 
-        onClick={() => { 
-            playSynthSound('success'); 
-            if (typeof window !== 'undefined') {
-                // 🔥 ENVIAR RANGOS COMPLETOS
-                window.dispatchEvent(new CustomEvent('apply-filter-signal', {
-                    detail: { 
-                        priceRange: priceRange,
-                        surfaceRange: surfaceRange,
-                        context: searchContext 
-                    } 
-                }));
-            }
-            addNotification(`Filtro aplicado`);
-            setActivePanel('NONE'); 
-        }} 
-        className="py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg text-[10px] font-bold shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:bg-blue-500/30 transition-all active:scale-95 cursor-pointer"
-   >
-        APLICAR
-   </button>
-</div>
-                           </div>
-                       </div>
-                   </div>
-               )}
-
-               {/* 2. CHAT */}
+            {/* 2. CHAT PANEL */}
                {activePanel === 'CHAT' && (
                    <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
                        <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
@@ -620,7 +708,7 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                    </div>
                )}
 
-               {/* 3. IA OMNI */}
+               {/* 3. IA OMNI PANEL */}
                {activePanel === 'AI' && (
                    <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-[20000] pointer-events-auto">
                       <div className="animate-fade-in rounded-[2.5rem] p-8 bg-[#050505]/95 backdrop-blur-2xl border border-blue-500/30 shadow-[0_0_100px_rgba(59,130,246,0.2)]">
@@ -631,37 +719,27 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                               <button onClick={() => setActivePanel('NONE')} className="hover:text-red-500 transition-colors p-2"><X size={18}/></button>
                           </div>
                           <div className="h-48 flex flex-col items-center justify-center text-center gap-4 relative">
-                              {isAiTyping ? (
-                                  <div className="flex gap-2">
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"/>
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-75"/>
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"/>
-                                  </div>
-                              ) : (
-                                  <div className="w-full">
-                                      {aiResponse ? (
-                                          <p className="text-blue-200 text-sm font-mono leading-relaxed animate-fade-in text-left"><span className="text-blue-500 mr-2">{">"}</span>{aiResponse}<span className="animate-pulse ml-1">_</span></p>
-                                      ) : (
-                                          <div className="text-2xl font-light text-white tracking-wide break-words">
-                                              {aiInput ? (
-                                                  <>
-                                                    <span className="opacity-50 text-[10px] block mb-4 font-mono tracking-widest text-blue-400 uppercase">Input detectado</span>
-                                                    "{aiInput}"<span className="animate-pulse text-blue-500">|</span>
-                                                  </>
-                                              ) : (
-                                                  <p className="text-white/30 text-xs tracking-widest font-mono">SISTEMAS A LA ESPERA DE COMANDO...</p>
-                                              )}
-                                          </div>
-                                      )}
-                                  </div>
-                              )}
+                              <div className="w-full">
+                                  {isAiTyping ? (
+                                      <div className="flex justify-center gap-2">
+                                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"/>
+                                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-75"/>
+                                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"/>
+                                      </div>
+                                  ) : (
+                                      <p className="text-white/30 text-xs tracking-widest font-mono">
+                                          {aiResponse ? aiResponse : "SISTEMAS A LA ESPERA DE COMANDO..."}
+                                      </p>
+                                  )}
+                              </div>
                           </div>
                       </div>
                   </div>
                )}
+           
+           {/* 🔥 AQUÍ ESTÁN LAS LLAVES DE CIERRE QUE FALTABAN: */}
            </>
        )}
-
   {/* --- PANELES LATERALES Y FLOTANTES (SISTEMA MULTITAREA) --- */}
        
        {/* 1. PERFIL (COLUMNA DERECHA) */}
@@ -676,18 +754,21 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            playSynthSound={playSynthSound} 
        />
 
-       {/* 2. MERCADO DE SERVICIOS (COLUMNA IZQUIERDA) */}
-       {/* Se mantiene visible si activePanel es 'MARKETPLACE' (Independiente del Perfil) */}
-       <MarketPanel 
-           isOpen={activePanel === 'MARKETPLACE'} 
-           onClose={() => setActivePanel('NONE')} 
-           marketTab={marketTab} 
-           setMarketTab={setMarketTab} 
-           selectedReqs={selectedReqs}        
-           toggleRequirement={toggleRequirement} 
-           soundEnabled={soundEnabled} 
-           playSynthSound={playSynthSound} 
-       />
+ {/* 2. MERCADO DE SERVICIOS (COLUMNA IZQUIERDA) */}
+     {/* ✅ CORTAFUEGOS: Solo se muestra si estamos en modo EXPLORER (evita solaparse con Architect) */}
+     {systemMode === 'EXPLORER' && activePanel === 'MARKETPLACE' && (
+        <div className="absolute inset-y-0 left-0 w-[420px] z-[50] shadow-2xl animate-slide-in-left bg-white pointer-events-auto">
+            <MarketPanel 
+                // ✅ PASAR DATOS: Le damos la propiedad que guardamos en memoria
+                activeProperty={marketTargetProp || selectedProp}
+                isOpen={true}
+                onClose={() => { 
+                    setActivePanel('NONE'); 
+                    setMarketTargetProp(null); // Limpiar memoria al cerrar
+                }} 
+            />
+        </div>
+     )}
        
        {/* 3. BÓVEDA DE FAVORITOS (COLUMNA DERECHA) */}
        {/* Alterna con Perfil porque ambos usan 'rightPanel' */}
@@ -723,6 +804,54 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            />
        )}
 
+      {/* ================================================================
+           🔥 CAPA DE SUPERPOSICIÓN: STRATOS CONSOLE (CORREGIDA)
+           Ahora traduce el tipo (Oficina/Suelo) al contexto correcto.
+           ================================================================ */}
+       {systemMode === 'EXPLORER' && !landingComplete && (
+           <StratosConsole 
+               isInitial={true}
+               onLaunch={(data: any) => {
+                   if(soundEnabled) playSynthSound('warp');
+                   
+                   // 🧠 TRADUCTOR INTELIGENTE DE CONTEXTO
+                   // Si elige "Oficina" -> Cambia modo a NEGOCIO.
+                   // Si elige "Suelo" -> Cambia modo a TERRENO.
+                   let derivedContext = 'VIVIENDA'; 
+                   const t = data.type; // 'office', 'land', etc.
+
+                   if (['office', 'industrial', 'local', 'nave'].includes(t)) {
+                       derivedContext = 'NEGOCIO';
+                   } else if (['land', 'solar'].includes(t)) {
+                       derivedContext = 'TERRENO';
+                   }
+
+                   // 1. Enviar orden de filtros al mapa
+                   if (typeof window !== 'undefined') {
+                       window.dispatchEvent(new CustomEvent('apply-filter-signal', { 
+                           detail: { 
+                               priceRange: { min: 0, max: data.priceMax },
+                               surfaceRange: { min: 0, max: 10000 }, // Rango abierto por defecto
+                               context: derivedContext, // <--- LA CLAVE: Contexto dinámico
+                               specs: data.specs
+                           } 
+                       }));
+                   }
+
+                   // 2. Volar a la ciudad
+                   if(data.location && searchCity) {
+                       searchCity(data.location);
+                   } else {
+                       map?.current?.flyTo({ pitch: 60, zoom: 14 });
+                   }
+
+                   // 3. Retirar la consola (Aterrizaje completado)
+                   setLandingComplete(true);
+               }}
+           />
+       )}
+
     </div>
   );
 }
+

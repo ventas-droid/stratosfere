@@ -5,7 +5,7 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",        
-    "./app/ui/**/*.{js,ts,jsx,tsx,mdx}",     // <--- ¡ESTA LÍNEA ES LA CLAVE QUE FALTA!
+    "./app/ui/**/*.{js,ts,jsx,tsx,mdx}",     // <--- Tu línea clave
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
