@@ -253,48 +253,31 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
     selectedServices: [] // Guardamos los extras aquí también (piscina, garaje...)
   });
 
- // EDICIÓN BLINDADA V3 (BÚSQUEDA PROFUNDA)
+ // EDICIÓN BLINDADA V4 (CORREGIDA: INICIO INTELIGENTE)
   useEffect(() => {
     if (initialData) {
-      // 🕵️ RASTREO: Abra la consola (F12) para ver qué llega realmente
-      console.log("🔍 INSPECCIÓN DE DATOS ENTRANTE:", initialData);
+      console.log("🔍 MODO ARQUITECTO ACTIVO:", initialData);
 
       // --- 1. OPERACIÓN RESCATE DE SERVICIOS ---
-      // Estrategia: Unir fuerzas. Juntamos lo que haya en 'selectedServices' 
-      // CON lo que encontremos en 'specs'.
       let servicesSet = new Set(initialData.selectedServices || []);
-
       if (initialData.specs && typeof initialData.specs === 'object') {
           Object.keys(initialData.specs).forEach((key) => {
-              // Si es true en specs, lo añadimos al conjunto
-              if (initialData.specs[key] === true) {
-                  servicesSet.add(key);
-              }
+              if (initialData.specs[key] === true) servicesSet.add(key);
           });
       }
-      const normalizedServices = Array.from(servicesSet); // Convertimos de vuelta a Array
-      console.log("✅ Servicios Recuperados:", normalizedServices);
-
+      const normalizedServices = Array.from(servicesSet);
 
       // --- 2. OPERACIÓN RESCATE DE ASCENSOR ---
-      // Buscamos en la raíz O en specs.
       let rawElevator = initialData.elevator;
-      
-      // Si no está en la raíz, miramos en el búnker 'specs'
       if (rawElevator === undefined && initialData.specs) {
           rawElevator = initialData.specs.elevator;
       }
-
-      // Validación final: ¿Es true, "true" o 1?
       const normalizedElevator = rawElevator === true || String(rawElevator) === "true" || rawElevator === 1;
-      console.log("🛗 Ascensor Detectado:", normalizedElevator ? "AFIRMATIVO" : "NEGATIVO", "(Origen:", rawElevator, ")");
-
 
       // --- 3. NORMALIZACIÓN DE PRECIO ---
       const normalizedPrice = initialData.rawPrice 
           ? String(initialData.rawPrice) 
           : (initialData.price ? String(initialData.price).replace(/\D/g, "") : "");
-
 
       // --- 4. DESPLIEGUE FINAL ---
       setSelectedServices(normalizedServices);
@@ -302,26 +285,26 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
       setFormData((prev: any) => ({
         ...prev,
         ...initialData,
-        
-        // 🔥 CORRECCIÓN TÁCTICA 1: BLINDAJE DE SUPERFICIE (ANTI-CERO)
-        // Si el mapa nos manda 'm2' pero el formulario espera 'mBuilt', lo capturamos aquí.
         mBuilt: initialData.mBuilt || initialData.m2 || "",
-        
-        // 🔥 CORRECCIÓN TÁCTICA 2: ASCENSOR VERIFICADO
-        // Usamos el booleano 'normalizedElevator' que calculamos unas líneas arriba
         elevator: normalizedElevator,     
-        
-        // 🔥 CORRECCIÓN TÁCTICA 3: SERVICIOS Y EXTRAS
         selectedServices: normalizedServices,
-        
-        // Precio saneado
         price: normalizedPrice,
         
-        isEditMode: true,
+        // ⚡️ CORRECCIÓN: Solo es modo edición si tiene ID real
+        isEditMode: !!initialData.id, 
+        // ⚡️ CORRECCIÓN: Capturamos la credencial de agencia
+        isAgencyContext: initialData.isAgencyContext || false,
         coordinates: initialData.coordinates || prev.coordinates || null,
       }));
 
-      setStep("BASICS");
+      // 🔥 LÓGICA DE SALTO: ¿NUEVO O EXISTENTE?
+      // Si hay dirección o ID, es edición -> Vamos al paso 2 (BASICS)
+      // Si no hay dirección (Nueva propiedad) -> Empezamos en LOCATION
+      if (initialData.address || initialData.id) {
+          setStep("BASICS");
+      } else {
+          setStep("LOCATION");
+      }
     }
   }, [initialData]);
 
@@ -521,34 +504,44 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
                     {step === "MEDIA" && <StepMedia formData={formData} updateData={updateData} setStep={setStep} />}
                     {step === "PRICE" && <StepPrice formData={formData} updateData={updateData} setStep={setStep} />}
 
-                    {step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
-                    {step === "RADAR" && <MarketRadarStep formData={formData} onNext={() => setStep("STRATEGY")} />}
+                   {step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
+
+                    {step === "RADAR" && <MarketRadarStep formData={formData} onNext={() => {
+                        // ⚡️ INTERRUPTOR AGENCIA: Si es agencia, saltamos STRATEGY y vamos a VERIFY
+                        if (formData.isAgencyContext) {
+                            setStep("VERIFY");
+                        } else {
+                            setStep("STRATEGY");
+                        }
+                    }} />}
+
                     {step === "STRATEGY" && (
-                    <InternalMarketStrategyStep selectedServices={selectedServices} toggleService={toggleService} onNext={() => setStep("VERIFY")} />
+                        <InternalMarketStrategyStep selectedServices={selectedServices} toggleService={toggleService} onNext={() => setStep("VERIFY")} />
                     )}
 
                     {step === "VERIFY" && <StepVerify formData={formData} setStep={setStep} />}
+                    
                     {step === "SECURITY" && <StepSecurity setStep={setStep} setLoading={setLoading} />}
                     
                     {step === "SUCCESS" && (
-                    <StepSuccess
-                        formData={formData} 
-                        handleClose={(payload: any) => {
-                            const rawNum = parsePriceInput(formData.price);
-                            if (typeof window !== "undefined") {
-                            try {
-                                    const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
-                                    const idx = saved.findIndex((p: any) => p.id === payload.id);
-                                    if (idx >= 0) saved[idx] = payload;
-                                    else saved.push(payload);
-                                    localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
-                                    window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-                                    window.dispatchEvent(new CustomEvent("force-map-refresh"));
-                            } catch (e) { console.error(e); }
-                            }
-                            closeWizard(payload);
-                        }}
-                    />
+                        <StepSuccess
+                            formData={formData} 
+                            handleClose={(payload: any) => {
+                                const rawNum = parsePriceInput(formData.price);
+                                if (typeof window !== "undefined") {
+                                try {
+                                        const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
+                                        const idx = saved.findIndex((p: any) => p.id === payload.id);
+                                        if (idx >= 0) saved[idx] = payload;
+                                        else saved.push(payload);
+                                        localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
+                                        window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+                                        window.dispatchEvent(new CustomEvent("force-map-refresh"));
+                                } catch (e) { console.error(e); }
+                                }
+                                closeWizard(payload);
+                            }}
+                        />
                     )}
                 </div>
               </div>
@@ -1119,13 +1112,82 @@ const StepVerify = ({ formData, setStep }: any) => {
   const getPriceStyle = (p: number) => { if (p < 200000) return { hex: "#34C759", bg: "bg-[#34C759]/10", text: "text-[#34C759]", label: "INVEST" }; if (p < 550000) return { hex: "#Eab308", bg: "bg-[#Eab308]/10", text: "text-[#Eab308]", label: "OPPORTUNITY" }; if (p < 1200000) return { hex: "#F97316", bg: "bg-[#F97316]/10", text: "text-[#F97316]", label: "PREMIUM" }; if (p < 3000000) return { hex: "#EF4444", bg: "bg-[#EF4444]/10", text: "text-[#EF4444]", label: "LUXURY" }; return { hex: "#A855F7", bg: "bg-[#A855F7]/10", text: "text-[#A855F7]", label: "EXCLUSIVE" }; };
   const style = getPriceStyle(rawPrice);
 
-  return (
+ return (
     <div className="h-full flex flex-col animate-fade-in relative px-4">
       <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-10">
-        <div className="text-center mb-8"><div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 text-blue-600 rounded-full mb-4 shadow-sm animate-bounce-small"><ShieldCheck size={32} /></div><h2 className="text-3xl font-black text-gray-900 tracking-tight mb-2">Resumen Final</h2><p className="text-gray-500 font-medium">Confirma los datos antes de continuar.</p></div>
-        <div className="w-full max-w-sm bg-white rounded-[32px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden relative group"><div className="p-6 border-b border-gray-50 bg-gray-50/50"><div className="flex justify-between items-start mb-2"><span className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-500">{formData.type || "Inmueble"}</span>{formData.state && (<span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{formData.state}</span>)}</div><div className="flex items-start gap-2 text-gray-900"><MapPin size={18} className="text-gray-400 mt-0.5 shrink-0" /><p className="font-bold leading-tight line-clamp-2">{formData.address || "Ubicación Premium"}</p></div></div><div className="p-8 text-center bg-white relative"><div className={`absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[9px] font-black tracking-[0.2em] uppercase ${style.bg} ${style.text}`}>{style.label}</div><div className={`text-5xl font-black tracking-tighter mt-4 mb-1 ${style.text}`}>{visualPrice}<span className="text-3xl align-top opacity-50 ml-1">€</span></div><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valor de Salida</p></div><div className="grid grid-cols-3 border-t border-gray-100 divide-x divide-gray-100 bg-gray-50/30"><div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.rooms}</span><span className="text-[9px] font-bold text-gray-400 uppercase">Habit.</span></div><div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.baths}</span><span className="text-[9px] font-bold text-gray-400 uppercase">Baños</span></div><div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.mBuilt}</span><span className="text-[9px] font-bold text-gray-400 uppercase">m²</span></div></div></div>
+        <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 text-blue-600 rounded-full mb-4 shadow-sm animate-bounce-small"><ShieldCheck size={32} /></div>
+            <h2 className="text-3xl font-black text-gray-900 tracking-tight mb-2">Resumen Final</h2>
+            <p className="text-gray-500 font-medium">Confirma los datos antes de continuar.</p>
+        </div>
+        
+        {/* TARJETA RESUMEN (NO TOCAR) */}
+        <div className="w-full max-w-sm bg-white rounded-[32px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden relative group">
+            <div className="p-6 border-b border-gray-50 bg-gray-50/50">
+                <div className="flex justify-between items-start mb-2">
+                    <span className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-500">{formData.type || "Inmueble"}</span>
+                    {formData.state && (<span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{formData.state}</span>)}
+                </div>
+                <div className="flex items-start gap-2 text-gray-900">
+                    <MapPin size={18} className="text-gray-400 mt-0.5 shrink-0" />
+                    <p className="font-bold leading-tight line-clamp-2">{formData.address || "Ubicación Premium"}</p>
+                </div>
+            </div>
+            <div className="p-8 text-center bg-white relative">
+                <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[9px] font-black tracking-[0.2em] uppercase ${style.bg} ${style.text}`}>{style.label}</div>
+                <div className={`text-5xl font-black tracking-tighter mt-4 mb-1 ${style.text}`}>{visualPrice}<span className="text-3xl align-top opacity-50 ml-1">€</span></div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valor de Salida</p>
+            </div>
+            <div className="grid grid-cols-3 border-t border-gray-100 divide-x divide-gray-100 bg-gray-50/30">
+                <div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.rooms}</span><span className="text-[9px] font-bold text-gray-400 uppercase">Habit.</span></div>
+                <div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.baths}</span><span className="text-[9px] font-bold text-gray-400 uppercase">Baños</span></div>
+                <div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.mBuilt}</span><span className="text-[9px] font-bold text-gray-400 uppercase">m²</span></div>
+            </div>
+        </div>
       </div>
-      <div className="shrink-0 pb-6 pt-2"><button onClick={() => { if (formData.isEditMode) { setStep("SUCCESS"); } else { setStep("SECURITY"); } }} className="w-full h-16 bg-[#1d1d1f] hover:bg-black text-white rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-between px-8 group"><div className="flex flex-col items-start"><span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 transition-colors">{formData.isEditMode ? "Edición Completada" : "Último Paso"}</span><span className="text-lg font-bold">{formData.isEditMode ? "Guardar Cambios" : "Verificar Identidad"}</span></div><div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">{formData.isEditMode ? <CheckCircle2 size={20} className="text-white"/> : <Smartphone size={20} className="text-white"/>}</div></button><button onClick={() => setStep("STRATEGY")} className="w-full py-3 mt-2 text-gray-400 font-bold hover:text-gray-600 text-xs transition-colors">Volver a Estrategia</button></div>
+
+      {/* BOTONERA INFERIOR BLINDADA */}
+      <div className="shrink-0 pb-6 pt-2">
+          {/* BOTÓN PRINCIPAL */}
+          <button 
+            onClick={() => { 
+                // ⚡️ SI ES EDICIÓN O AGENCIA -> SALTAR SMS E IR A SUCCESS
+                if (formData.isEditMode || formData.isAgencyContext) { 
+                    setStep("SUCCESS"); 
+                } else { 
+                    setStep("SECURITY"); 
+                } 
+            }} 
+            className="w-full h-16 bg-[#1d1d1f] hover:bg-black text-white rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-between px-8 group"
+          >
+            <div className="flex flex-col items-start">
+                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 transition-colors">
+                    {(formData.isEditMode || formData.isAgencyContext) ? "Proceso Completado" : "Último Paso"}
+                </span>
+                <span className="text-lg font-bold">
+                    {(formData.isEditMode || formData.isAgencyContext) ? "Guardar y Publicar" : "Verificar Identidad"}
+                </span>
+            </div>
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                {(formData.isEditMode || formData.isAgencyContext) ? <CheckCircle2 size={20} className="text-white"/> : <Smartphone size={20} className="text-white"/>}
+            </div>
+          </button>
+          
+          {/* BOTÓN VOLVER INTELIGENTE */}
+          <button 
+            onClick={() => {
+                // Si es agencia, volvemos a RADAR (porque nos saltamos Estrategia)
+                if (formData.isAgencyContext) {
+                    setStep("RADAR");
+                } else {
+                    setStep("STRATEGY");
+                }
+            }} 
+            className="w-full py-3 mt-2 text-gray-400 font-bold hover:text-gray-600 text-xs transition-colors"
+          >
+            Volver a {(formData.isAgencyContext) ? "Radar" : "Estrategia"}
+          </button>
+      </div>
     </div>
   );
 };
@@ -1166,20 +1228,15 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80"; 
 
- // --- LÓGICA DE GUARDADO BLINDADA (FINAL) ---
+ // --- LÓGICA DE GUARDADO BLINDADA V2 (CON TURBO) ---
   const handleSafeSave = () => {
       
-      // 🕵️ TRAMPA DE ESPIONAJE (PARA VERIFICAR EN CONSOLA F12)
-      console.log("💾 INTENTO DE GUARDADO - SITREP:");
-      console.log("   > Ascensor (Raw):", formData.elevator);
-      console.log("   > Servicios (Raw):", formData.selectedServices);
-      console.log("   > Precio (Raw):", rawPrice);
-
       // 1. CALIBRACIÓN DE DATOS
-      const finalPrice = rawPrice;
-      
       // Aseguramos que el ascensor sea un Booleano puro (true/false)
       const elevatorBool = formData.elevator === true || String(formData.elevator) === "true" || formData.elevator === 1;
+      
+      // Aseguramos precio numérico limpio
+      const finalPrice = rawPrice;
 
       const basePayload = { 
           ...formData, 
@@ -1200,7 +1257,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           mBuilt: Number(formData.mBuilt || 0), 
           m2: Number(formData.mBuilt || 0), 
           
-          // DATOS DE SERVICIO Y EXTRAS (La clave de todo)
+          // DATOS DE SERVICIO Y EXTRAS
           elevator: elevatorBool,
           selectedServices: formData.selectedServices || [], 
           
@@ -1211,7 +1268,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
       // FOTOS
       const mainImage = hasUserPhoto ? formData.images[0] : previewImage;
 
-      // Versión FULL
+      // Versión FULL (Payload principal)
       const fullPayload = { 
           ...basePayload, 
           images: hasUserPhoto ? formData.images : [previewImage],
@@ -1223,13 +1280,13 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           ...basePayload,
           img: "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80",
           images: ["https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"], 
-          description: basePayload.description + "\n(Imágenes no guardadas por límite de memoria local)"
+          description: basePayload.description + "\n(Lite Mode)"
       };
 
       // --- DISPARO DE EVENTOS ---
       if (typeof window !== "undefined") {
           try {
-              // INTENTO 1: Guardado Normal
+              // INTENTO 1: Guardado Normal en localStorage
               const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
               const idx = saved.findIndex((p: any) => p.id === fullPayload.id);
               
@@ -1237,40 +1294,41 @@ const StepSuccess = ({ handleClose, formData }: any) => {
               else saved.push(fullPayload);
               
               localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
-              console.log("✅ Guardado exitoso (Full Payload)");
+              console.log("✅ Guardado exitoso en disco.");
 
           } catch (e: any) {
-              // MANEJO DE ERROR: Memoria llena
+              // MANEJO DE ERROR: Memoria llena (QuotaExceeded)
               if (e.name === 'QuotaExceededError' || e.code === 22) {
-                  console.warn("⚠️ MEMORIA LLENA. Intentando limpieza táctica...");
+                  console.warn("⚠️ MEMORIA LLENA. Usando modo Lite...");
                   try {
-                      // INTENTO 2: Limpieza radical
-                      localStorage.removeItem("stratos_my_properties");
-                      localStorage.setItem("stratos_my_properties", JSON.stringify([fullPayload]));
+                      localStorage.setItem("stratos_my_properties", JSON.stringify([litePayload]));
                   } catch (e2) {
-                      console.error("❌ Fallo crítico. Usando carga ligera.");
-                      try {
-                          // INTENTO 3: Carga Ligera
-                          localStorage.setItem("stratos_my_properties", JSON.stringify([litePayload]));
-                          // Cambiamos el payload a lite para el evento del mapa
-                          window.dispatchEvent(new CustomEvent("add-property-signal", { detail: litePayload }));
-                          window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-                          window.dispatchEvent(new CustomEvent("force-map-refresh")); 
-                          handleClose(litePayload);
-                          return;
-                      } catch (e3) {
-                          alert("❌ Error Fatal: Almacenamiento local colapsado.");
-                      }
+                      console.error("❌ Fallo crítico de memoria.");
                   }
               }
           }
 
-          // NOTIFICAMOS AL MAPA (Usamos fullPayload si todo fue bien)
-          window.dispatchEvent(new CustomEvent("add-property-signal", { detail: fullPayload })); 
-          window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-          window.dispatchEvent(new CustomEvent("force-map-refresh")); 
+          // ⚡️ NOTIFICACIÓN TURBO AL SISTEMA ⚡️
+          // Aquí es donde ocurre la magia de la velocidad
           
-          if (fullPayload.coordinates) {
+          if (formData.isEditMode) {
+               // A. SI ES EDICIÓN: Grita a la NanoCard "¡Actualízate YA!" (Sin repintar todo el mapa)
+               console.log("⚡️ Actualizando NanoCard en caliente (Edit Mode)");
+               window.dispatchEvent(new CustomEvent("update-marker-signal", { detail: fullPayload }));
+               
+               // También actualiza la ficha de detalles si está abierta
+               window.dispatchEvent(new CustomEvent("update-details-live", { detail: fullPayload }));
+          } else {
+               // B. SI ES NUEVO: Grita al mapa "¡Pinta uno nuevo!"
+               console.log("✨ Creando nueva propiedad");
+               window.dispatchEvent(new CustomEvent("add-property-signal", { detail: fullPayload })); 
+          }
+
+          // Recarga general de seguridad para el perfil (segundo plano)
+          window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+          
+          // Solo volamos si es nuevo o si cambiamos coordenadas, para no marear
+          if (!formData.isEditMode && fullPayload.coordinates) {
                window.dispatchEvent(new CustomEvent("map-fly-to", { detail: { center: fullPayload.coordinates, zoom: 18, pitch: 60, duration: 3000 } }));
           }
       }

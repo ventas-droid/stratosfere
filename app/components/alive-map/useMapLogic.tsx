@@ -468,57 +468,55 @@ export const useMapLogic = () => {
   };
 
   // --------------------------------------------------------------------
-// E. BÚSQUEDA OMNI V3 (AUTO-ZOOM)
-// --------------------------------------------------------------------
-const searchCity = async (rawQuery) => {
-  if (!rawQuery || !map.current) return;
+  // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA 🇪🇸
+  // --------------------------------------------------------------------
+  const searchCity = async (rawQuery: any) => {
+    if (!rawQuery || !map.current) return;
 
-  const { location, filters } = parseOmniSearch(rawQuery);
-  console.log(`📡 OMNI: Loc="${location}" | Filtros=`, filters);
+    const { location, filters } = parseOmniSearch(rawQuery);
+    console.log(`📡 OMNI: Loc="${location}" | Filtros=`, filters);
 
-  // ✅ IMPORTANTE:
-  // La OMNI es SOLO para navegar/volar por el mapa.
-  // El panel de filtro se abre SOLO desde su botón (NO desde aquí).
-  // Por eso eliminamos el dispatch de 'apply-filter-signal' en la OMNI.
-  
-  // Decisión de Vuelo / Auto-Zoom
-  if (location.length > 2) {
-    try {
-      const types = 'place,locality,district,neighborhood,address,poi';
-      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${mapboxgl.accessToken}&types=${types}&language=es`;
-      const response = await fetch(url);
-      const data = await response.json();
+    // Decisión de Vuelo / Auto-Zoom
+    if (location.length > 2) {
+      try {
+        const types = 'place,locality,district,neighborhood,address,poi';
+        
+        // 🔥 CORRECCIÓN TÁCTICA: AÑADIDO '&country=es' PARA EVITAR IR A OHIO
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${mapboxgl.accessToken}&country=es&types=${types}&language=es`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
 
-      if (data.features?.length > 0) {
-        map.current.flyTo({
-          center: data.features[0].center,
-          zoom: 13.5,
-          pitch: 50,
-          bearing: 0,
-          speed: 1.2,
-          essential: true
+        if (data.features?.length > 0) {
+          // Vuelo directo al objetivo español
+          map.current.flyTo({
+            center: data.features[0].center,
+            zoom: 13.5,
+            pitch: 50,
+            bearing: 0,
+            speed: 1.2,
+            essential: true
+          });
+        }
+      } catch (error) {
+        console.error("🚨 Mapbox Error:", error);
+      }
+    } else {
+      // Modo Auto-Enfoque a los resultados locales
+      console.log("🔭 MODO AUTO-ENFOQUE...");
+      setTimeout(() => {
+        const features = map.current.querySourceFeatures('properties', {
+          filter: ['!', ['has', 'point_count']]
         });
-      }
-    } catch (error) {
-      console.error("🚨 Mapbox Error:", error);
+
+        if (features.length > 0) {
+          const bounds = new mapboxgl.LngLatBounds();
+          features.forEach((f: any) => bounds.extend(f.geometry.coordinates));
+          map.current.fitBounds(bounds, { padding: 100, pitch: 40, duration: 2000 });
+        }
+      }, 500);
     }
-  } else {
-    // Modo Auto-Enfoque a los resultados
-    console.log("🔭 MODO AUTO-ENFOQUE...");
-    setTimeout(() => {
-      const features = map.current.querySourceFeatures('properties', {
-        filter: ['!', ['has', 'point_count']]
-      });
-
-      if (features.length > 0) {
-        const bounds = new mapboxgl.LngLatBounds();
-        features.forEach(f => bounds.extend(f.geometry.coordinates));
-        map.current.fitBounds(bounds, { padding: 100, pitch: 40, duration: 2000 });
-      }
-    }, 500);
-  }
-};
-
+  };
   // --------------------------------------------------------------------
   // F. RECEPTOR DE NUEVAS PROPIEDADES (ADD PROPERTY) - VERSIÓN BLINDADA
   // --------------------------------------------------------------------
@@ -656,9 +654,60 @@ const searchCity = async (rawQuery) => {
       }
     };
 
-    window.addEventListener('update-property-signal', handleUpdateProperty);
+   window.addEventListener('update-property-signal', handleUpdateProperty);
     return () => window.removeEventListener('update-property-signal', handleUpdateProperty);
   }, [map]);
 
-  return { mapContainer, map, isMapLoaded: isLoaded, searchCity };
+  // 👇👇👇 AQUI COMIENZA LA NUEVA INTEGRACIÓN DEL RADAR 👇👇👇
+
+  // --------------------------------------------------------------------
+  // H. ESCANER TÁCTICO (RADAR) - INTEGRADO
+  // --------------------------------------------------------------------
+  const scanVisibleProperties = () => {
+    if (!map.current) return [];
+
+    // 1. Obtener límites visuales actuales (lo que ve la cámara)
+    const bounds = map.current.getBounds();
+
+    // 2. Acceder a los datos crudos del mapa
+    const source: any = map.current.getSource('properties');
+    
+    // Si el mapa aún no ha cargado datos, abortamos misión
+    if (!source || !source._data || !source._data.features) return [];
+
+    // 3. Filtrar y Formatear para la Consola
+    const visibleProps = source._data.features
+      .filter((f: any) => {
+         // Matemática: ¿Está el punto dentro del rectángulo de la pantalla?
+         const [lng, lat] = f.geometry.coordinates;
+         return bounds.contains([lng, lat]);
+      })
+      .map((f: any) => ({
+         // Estandarizamos datos para la Consola Táctica
+         id: f.properties.id,
+         address: f.properties.address || f.properties.location || "Ubicación Privada",
+         price: f.properties.price || "Consultar",
+         type: f.properties.type || "Propiedad",
+         lat: f.geometry.coordinates[1],
+         lng: f.geometry.coordinates[0],
+         
+         // Lógica de Venta: Si tiene servicios, GAP vacío. Si no, sugerimos "Foto Pro" y "Plano"
+         gap: (f.properties.selectedServices && f.properties.selectedServices.length > 0) 
+              ? [] 
+              : ["Foto Pro", "Plano 3D"] 
+      }));
+
+    return visibleProps;
+  };
+
+  // --------------------------------------------------------------------
+  // RETORNO FINAL (Cierre del Hook)
+  // --------------------------------------------------------------------
+  return { 
+    mapContainer, 
+    map, 
+    isMapLoaded: isLoaded, 
+    searchCity, 
+    scanVisibleProperties // <--- ✅ EL ARMA HA SIDO CARGADA
+  };
 };

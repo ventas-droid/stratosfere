@@ -12,14 +12,14 @@ export default function VaultPanel({
   playSynthSound 
 }: any) {
   
-  // 1. SI NO ES EL PANEL ACTIVO, NO RENDERIZAR NADA
-  if (rightPanel !== 'VAULT') return null;
-
-  // 2. LÓGICA DE VUELO TÁCTICO (La parte que usted ya tenía bien)
+ // 2. LÓGICA DE VUELO TÁCTICO (MODO MULTITAREA ACTIVO)
   const handleFlyTo = (prop: any) => {
     if (soundEnabled) playSynthSound('click');
     
-    // A. ABRIR FICHA DE DETALLES (Izquierda)
+    // ❌ COMENTADO: No cerramos el panel. Queremos ver la lista y el mapa a la vez.
+    // toggleRightPanel('NONE'); 
+    
+    // A. ABRIR FICHA DE DETALLES (A la izquierda)
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-details-signal', { detail: prop }));
     }
@@ -33,7 +33,6 @@ export default function VaultPanel({
 
     // C. RASTREO DE COORDENADAS
     let finalCoords = null;
-
     if (prop.coordinates && Array.isArray(prop.coordinates)) {
         finalCoords = prop.coordinates;
     } else if (prop.geometry?.coordinates) {
@@ -49,11 +48,9 @@ export default function VaultPanel({
         const c1 = parseFloat(finalCoords[0]);
         const c2 = parseFloat(finalCoords[1]);
         
-        // Corrección Madrid (Si latitud/longitud están invertidas)
+        // Corrección de coordenadas (Madrid)
         let target = [c1, c2];
-        if (c1 > 30 && c2 < 0) {
-            target = [c2, c1]; 
-        }
+        if (c1 > 30 && c2 < 0) target = [c2, c1]; 
 
         console.log(`✈️ VUELO TÁCTICO A: ${prop.title}`, target);
 
@@ -68,6 +65,7 @@ export default function VaultPanel({
     }
   };
 
+  
   // 3. RENDERIZADO VISUAL (Aquí estaba el destrozo, ahora reparado)
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[450px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-right border-l border-white/20">

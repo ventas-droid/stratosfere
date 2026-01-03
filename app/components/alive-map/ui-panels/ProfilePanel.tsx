@@ -34,6 +34,33 @@ const ICON_MAP: Record<string, any> = {
     'seguro': ShieldCheck, 'abogado': Briefcase
 };
 
+// ✅ Separador de "ficha técnica" vs "servicios" (evita mezclar POOL/GARAGE/etc. dentro de Servicios)
+const normalizeKey = (v: any) => String(v || '').toLowerCase().trim();
+
+// Estos NO son servicios del Market: son amenities/ficha técnica. (Se filtran en "Mis Activos")
+const NON_SERVICE_KEYS = new Set([
+    'pool','piscina',
+    'garden','jardin','jardín',
+    'garage','garaje',
+    'security','seguridad',
+    'elevator','ascensor',
+    'parking','aparcamiento',
+    'trastero','storage',
+    'terraza','terraz','balcon','balcón',
+    'aire','air','aircon','ac','calefaccion','calefacción','heating',
+    'm2','mbuilt','m_built',
+    'bed','beds','bath','baths','room','rooms','habitacion','habitaciones','baño','baños','bano','banos'
+]);
+
+const getServiceIds = (prop: any): string[] => {
+    const ids = Array.isArray(prop?.selectedServices) ? prop.selectedServices : [];
+    return ids.filter((id: any) => {
+        const k = normalizeKey(id);
+        if (!k) return false;
+        return !NON_SERVICE_KEYS.has(k);
+    });
+};
+
 export default function ProfilePanel({ 
   rightPanel, 
   toggleRightPanel, 
@@ -45,7 +72,8 @@ export default function ProfilePanel({
   
   const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES'>('MAIN');
   const [myProperties, setMyProperties] = useState<any[]>([]);
-  const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "isidro@stratosfere.com" });
+    const [servicesModalProp, setServicesModalProp] = useState<any | null>(null); // ✅ Modal: ver todos los servicios
+const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "isidro@stratosfere.com" });
 
   // 1. CARGAR MEMORIA (BLINDADA)
   const loadData = () => {
@@ -258,7 +286,9 @@ export default function ProfilePanel({
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {myProperties.map((prop) => (
+                    {myProperties.map((prop) => {
+                        const serviceIds = getServiceIds(prop);
+                        return (
                         <div 
                             key={prop.id} 
                             // 🔥 1. CLICK EN EL CUERPO PARA VOLAR + ABRIR DETAILS (Sin cerrar perfil)
@@ -286,13 +316,13 @@ export default function ProfilePanel({
                             </div>
 
                             {/* SERVICIOS ACTIVOS */}
-                            {prop.selectedServices && prop.selectedServices.length > 0 && (
+                            {prop.selectedServices && serviceIds.length > 0 && (
                                 <div className="mb-4 bg-slate-50 p-3 rounded-2xl">
                                     <p className="text-[9px] text-slate-400 font-bold uppercase mb-2 tracking-wider flex items-center gap-1">
                                         <Zap size={10} className="text-yellow-500 fill-yellow-500"/> Estrategia Activa
                                     </p>
                                     <div className="flex flex-wrap gap-2">
-                                        {prop.selectedServices.slice(0, 4).map((srvId: string) => {
+                                        {serviceIds.slice(0, 4).map((srvId: string) => {
                                             const key = srvId.toLowerCase().trim();
                                             const Icon = ICON_MAP[key] || ICON_MAP[srvId] || Sparkles;
                                             const isPack = key.startsWith('pack');
@@ -305,8 +335,14 @@ export default function ProfilePanel({
                                                 </div>
                                             );
                                         })}
-                                        {prop.selectedServices.length > 4 && (
-                                            <span className="text-[9px] text-slate-400 self-center font-bold">+{prop.selectedServices.length - 4}</span>
+                                        {serviceIds.length > 4 && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setServicesModalProp(prop); }}
+                                                className="px-3 py-1 rounded-full bg-slate-900 text-white text-[10px] font-black tracking-widest uppercase border border-slate-900 hover:bg-slate-800 transition-colors"
+                                                title="Ver todos los servicios"
+                                            >
+                                                VER TODO · +{serviceIds.length - 4}
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -357,12 +393,103 @@ export default function ProfilePanel({
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
             )}
           </div>
         )}
       </div>
+
+
+{/* ✅ MODAL: Ver todos los servicios (solo Market services, sin ficha técnica) */}
+{servicesModalProp && (
+    <div
+        className="fixed inset-0 z-[999999] pointer-events-auto flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        onClick={() => setServicesModalProp(null)}
+    >
+        <div
+            className="w-[min(720px,92vw)] max-h-[82vh] bg-white rounded-[2.5rem] border border-slate-200 shadow-[0_30px_80px_rgba(0,0,0,0.20)] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="px-8 pt-8 pb-4 flex items-start justify-between border-b border-slate-100">
+                <div className="min-w-0">
+                    <p className="text-[11px] font-black tracking-[0.35em] text-slate-400 uppercase flex items-center gap-2">
+                        <Sparkles size={14} className="text-indigo-500" />
+                        SERVICIOS ACTIVOS
+                    </p>
+                    <h3 className="text-2xl font-black tracking-tight text-slate-900 mt-2 truncate">
+                        {servicesModalProp.title || "Activo"}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
+                        <MapPin size={14} />
+                        <span className="truncate">{servicesModalProp.location || servicesModalProp.address || "Ubicación"}</span>
+                    </div>
+                </div>
+
+                <button
+                    className="w-11 h-11 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+                    onClick={() => setServicesModalProp(null)}
+                    aria-label="Cerrar"
+                    title="Cerrar"
+                >
+                    <X size={18} />
+                </button>
+            </div>
+
+            <div className="px-8 py-6 overflow-y-auto">
+                {(() => {
+                    const allSrv = getServiceIds(servicesModalProp);
+                    if (!allSrv.length) {
+                        return (
+                            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-8 text-center">
+                                <p className="text-sm font-bold text-slate-600">Este activo aún no tiene servicios del Market.</p>
+                                <p className="text-xs text-slate-400 mt-2">Pulsa “Gestionar” para activar fotografía, vídeo, tour 3D, etc.</p>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {allSrv.map((srvId: string) => {
+                                const key = normalizeKey(srvId);
+                                const Icon = ICON_MAP[key] || ICON_MAP[srvId] || Sparkles;
+                                const isPack = key.startsWith('pack');
+                                const label = srvId.replace('pack_', '').replace(/_/g, ' ');
+
+                                return (
+                                    <div
+                                        key={srvId}
+                                        className="rounded-[2rem] bg-white border border-slate-200 hover:border-indigo-300 transition-all p-5 flex flex-col items-center text-center"
+                                    >
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border ${
+                                            isPack ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'
+                                        }`}>
+                                            <Icon size={22} className={isPack ? 'text-indigo-600' : 'text-slate-700'} />
+                                        </div>
+                                        <p className="mt-3 text-[12px] font-black tracking-wide uppercase text-slate-700">
+                                            {label}
+                                        </p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
+            </div>
+
+            <div className="px-8 pb-8 pt-2">
+                <button
+                    onClick={() => setServicesModalProp(null)}
+                    className="w-full h-12 rounded-full bg-slate-900 text-white font-black tracking-widest uppercase text-[12px] hover:bg-slate-800 transition-colors"
+                >
+                    CERRAR
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
     </div>
   );
 }

@@ -178,7 +178,7 @@ export default function MarketPanel({ onClose, initialData, activeProperty }: an
   };
 
   // ==============================================================================
-  // 💾 3. GUARDADO 
+  // 💾 3. GUARDADO TURBO (ACTUALIZACIÓN INSTANTÁNEA)
   // ==============================================================================
   const handleConfirm = () => {
       if (!currentProp) return;
@@ -188,39 +188,43 @@ export default function MarketPanel({ onClose, initialData, activeProperty }: an
           if (saved) {
               const allProps = JSON.parse(saved);
               
-              const updatedProps = allProps.map((p: any) => {
-                  if (String(p.id) === String(currentProp.id)) {
-                      
-                      const finalServicesList = [...preservedExtras.current, ...selectedServices];
-                      const newRole = getRoleLabel(authorityLevel);
+              // 1. Preparamos los datos nuevos
+              const finalServicesList = [...preservedExtras.current, ...selectedServices];
+              const newRole = getRoleLabel(authorityLevel);
+              
+              // 2. Construimos el objeto actualizado EN MEMORIA
+              const updatedProp = { 
+                  ...currentProp, 
+                  selectedServices: finalServicesList, 
+                  role: newRole, 
+                  impactLevel: authorityLevel,
+                  strategyValue: total 
+              };
 
-                      console.log(`💾 Guardando ID ${p.id}. Items: ${finalServicesList.length}. Rol: ${newRole}`);
-
-                      return { 
-                          ...p, 
-                          selectedServices: finalServicesList, 
-                          role: newRole, 
-                          impactLevel: authorityLevel,
-                          strategyValue: total 
-                      };
-                  }
-                  return p;
-              });
+              // 3. Guardamos en disco (Lento pero seguro)
+              const updatedPropsList = allProps.map((p: any) => 
+                  String(p.id) === String(currentProp.id) ? updatedProp : p
+              );
+              localStorage.setItem('stratos_my_properties', JSON.stringify(updatedPropsList));
               
-              localStorage.setItem('stratos_my_properties', JSON.stringify(updatedProps));
+              // ⚡️ 4. DISPARO INMEDIATO (TURBO)
+              // Enviamos el objeto YA actualizado directamente a la interfaz.
+              console.log("⚡️ Enviando actualización en caliente:", updatedProp);
               
-              // 📡 AVISAMOS A TODA LA APP
-              window.dispatchEvent(new CustomEvent('reload-profile-assets'));
-              window.dispatchEvent(new CustomEvent('force-map-refresh'));
-              
-              const updatedProp = updatedProps.find((p:any) => String(p.id) === String(currentProp.id));
+              // Actualiza la ficha de detalles (Si está abierta)
               window.dispatchEvent(new CustomEvent('update-details-live', { detail: updatedProp }));
+              
+              // Actualiza la NanoCard en el mapa (Precio/Iconos)
+              window.dispatchEvent(new CustomEvent('update-marker-signal', { detail: updatedProp }));
+              
+              // Fuerza recarga general por seguridad
+              window.dispatchEvent(new CustomEvent('reload-profile-assets'));
 
               if(onClose) onClose();
           }
       } catch(e) { console.error("Error guardando:", e); }
   };
-
+  
   const visibleServices = SERVICES_CATALOG.filter(s => s.category === activeTab);
 
   return (
