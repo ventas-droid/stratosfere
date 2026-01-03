@@ -1,7 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider  = "postgresql"
-  // 1. Usamos la URL acelerada para que la web vaya rápido
   url       = env("PRISMA_DATABASE_URL")
-  // 2. Usamos la URL directa para cuando hagas migraciones (cambios de estructura)
   directUrl = env("POSTGRES_URL")
 }
+
+// ¡Esta es la parte que Vercel dice que falta!
+model Lead {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  source    String?
+}
+
+
