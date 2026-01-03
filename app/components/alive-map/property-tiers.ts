@@ -1,10 +1,10 @@
-// EN app/components/alive-map/property-tiers.ts
+// EN app/ui/property-tiers.ts
 
-// 1. DEFINIMOS LOS COLORES AQUÍ MISMO (Para eliminar la dependencia rota)
+// 1. DEFINIMOS LOS COLORES AQUÍ MISMO (Solución rápida)
 const CORPORATE_BLUE = '#0052CC';
 const NEON_GLOW = '0 0 10px #0052CC';
 
-// 2. RESTO DEL CÓDIGO IGUAL
+// 2. EL RESTO DEL CÓDIGO SE QUEDA IGUAL
 export const TIER_THRESHOLDS = {
     HIGH_CLASS: 800000,
     PREMIUM: 400000,
