@@ -1,11 +1,11 @@
 // EN app/components/alive-map/property-tiers.ts
 
-import { CORPORATE_BLUE, NEON_GLOW } from './data';
+// --- DEFINICIÓN DE COLORES (Arreglo Rápido) ---
+const CORPORATE_BLUE = '#0052CC'; // Azul Corporativo Estándar
+const NEON_GLOW = '0 0 10px #0052CC';
 
 // --- DEFINICIÓN DE UMBRALES DE CLASIFICACIÓN (TIER) ---
 // Estos valores definen el color y la categoría de la propiedad basándose en su precio.
-// Los valores son ejemplares y deben ajustarse a la realidad del mercado.
-
 export const TIER_THRESHOLDS = {
     HIGH_CLASS: 800000,   // Propiedad de 800.000€ o más
     PREMIUM: 400000,      // Propiedad entre 400.000€ y 799.999€
@@ -15,7 +15,7 @@ export const TIER_THRESHOLDS = {
 export const TIER_CONFIG = {
     HIGH_CLASS: {
         name: 'HIGH CLASS',
-        color: '#FFD700', // Oro (Ejemplo)
+        color: '#FFD700', // Oro
         glow: `0 0 10px #FFD700`,
     },
     PREMIUM: {
@@ -25,7 +25,7 @@ export const TIER_CONFIG = {
     },
     SMART: {
         name: 'SMART',
-        color: '#00BFFF', // Azul Cielo (Ejemplo)
+        color: '#00BFFF', // Azul Cielo
         glow: `0 0 8px #00BFFF`,
     },
     DEFAULT: {
@@ -52,4 +52,3 @@ export const getPropertyTier = (price: number): keyof typeof TIER_CONFIG => {
     }
     return 'DEFAULT';
 };
-
