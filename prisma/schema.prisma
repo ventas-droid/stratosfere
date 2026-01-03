@@ -4,38 +4,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Aquí estaba el error. Ahora usaremos el nombre que sí tiene en su .env:
+  url      = env("POSTGRES_URL") 
 }
 
-model User {
-  id       String @id @default(uuid())
-  name     String
-  email    String @unique
-  password String
-  @@map("users") // <--- Esto le dice a Prisma: "Busca en la tabla 'users' que ya llenamos"
+model Lead {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  source    String?
 }
-
-model Customer {
-  id        String @id @default(uuid())
-  name      String
-  email     String
-  image_url String
-  @@map("customers")
-}
-
-model Invoice {
-  id          String   @id @default(uuid())
-  customer_id String
-  amount      Int
-  status      String
-  date        DateTime @db.Date
-  @@map("invoices")
-}
-
-model Revenue {
-  month   String @unique
-  revenue Int
-  @@map("revenue")
-}
-
-
