@@ -51,6 +51,7 @@ export default function UIPanels({
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
   const [editingProp, setEditingProp] = useState<any>(null);
+  const [marketProp, setMarketProp] = useState<any>(null);
   const [showRocket, setShowRocket] = useState(false);
   // 🔥 CAMBIO 1: INTRO YA HECHA (Para saltar el menú blanco aburrido)
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
@@ -247,11 +248,29 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
     window.addEventListener('open-details-signal', handleOpenDetails);
     window.addEventListener('toggle-fav-signal', handleToggleFavSignal);
     
-    return () => {
+   return () => {
         window.removeEventListener('open-details-signal', handleOpenDetails);
         window.removeEventListener('toggle-fav-signal', handleToggleFavSignal);
     };
   }, [soundEnabled, localFavs]); 
+
+  // -----------------------------------------------------------------
+  // 🔥 NUEVO RECEPTOR DE MERCADO (PEGAR ESTO JUSTO DEBAJO)
+  // -----------------------------------------------------------------
+  useEffect(() => {
+      const handleEditMarket = (e: any) => {
+          console.log("🛒 Abriendo Mercado para:", e.detail.id);
+          setMarketProp(e.detail);       // 1. Guardamos la casa en la variable
+          setActivePanel('MARKETPLACE'); // 2. Abrimos el panel automáticamente
+      };
+
+      window.addEventListener('edit-market-signal', handleEditMarket);
+      
+      return () => {
+          window.removeEventListener('edit-market-signal', handleEditMarket);
+      };
+  }, []);
+  // ----------------------------------------------------------------- 
 
 // ---------------------------------------------------------------------------
   // ⚠️ ZONA NEUTRALIZADA: ESTA ERA LA LÍNEA QUE REINICIABA LA INTRO
@@ -745,16 +764,16 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            playSynthSound={playSynthSound} 
        />
 
-     {/* 2. MERCADO DE SERVICIOS (COLUMNA IZQUIERDA - CORREGIDO) */}
-{activePanel === 'MARKETPLACE' && (
-    <div className="absolute inset-y-0 left-0 w-[420px] z-[50] shadow-2xl animate-slide-in-left bg-white pointer-events-auto">
-        {/* ^^^^^^ HE AÑADIDO 'pointer-events-auto' AQUÍ ARRIBA ^^^^^^ */}
-        
-        <MarketPanel 
-            onClose={() => setActivePanel('NONE')} 
-        />
-    </div>
-)}
+    {/* 2. MERCADO DE SERVICIOS (COLUMNA IZQUIERDA) */}
+     {activePanel === 'MARKETPLACE' && (
+        <div className="absolute inset-y-0 left-0 w-[420px] z-[50] shadow-2xl animate-slide-in-left bg-white pointer-events-auto">
+            
+            <MarketPanel 
+                onClose={() => setActivePanel('NONE')} 
+                activeProperty={marketProp} // <--- ¡ESTO ES LO QUE LE FALTABA!
+            />
+        </div>
+     )}
        
        {/* 3. BÓVEDA DE FAVORITOS (AHORA CON CANDADO) */}
        {rightPanel === 'VAULT' && (

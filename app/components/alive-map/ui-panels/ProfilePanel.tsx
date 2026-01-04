@@ -408,23 +408,20 @@ const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "
                            {/* BARRA DE ACCIONES */}
                             <div className="pt-3 border-t border-slate-100 flex gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                 
-                               {/* 🔥 BOTÓN MARKETPLACE (SIN CERRAR PERFIL) */}
+                             {/* 🔥 BOTÓN MARKETPLACE (CORREGIDO Y SINCRONIZADO) */}
                                 <button 
                                     onClick={(e) => {
                                         e.stopPropagation(); 
                                         if(soundEnabled && playSynthSound) playSynthSound('click');
                                         
                                         // 1. INYECCIÓN DE DATOS: 
-                                        // Le decimos al sistema: "Carga la configuración de ESTA propiedad en el ArchitectHud"
+                                        // CAMBIO CRÍTICO: Usamos 'edit-market-signal' para que coincida con index.tsx
                                         if (typeof window !== 'undefined') {
-                                            window.dispatchEvent(new CustomEvent('edit-asset-services', { detail: prop }));
+                                            window.dispatchEvent(new CustomEvent('edit-market-signal', { detail: prop }));
                                         }
 
-                                        // 2. ABRIR PANEL IZQUIERDO (Marketplace/ArchitectHud)
+                                        // 2. ABRIR PANEL IZQUIERDO (Marketplace)
                                         if(toggleMainPanel) toggleMainPanel('MARKETPLACE'); 
-                                        
-                                        // ⛔️ ANULADO: Ya no cerramos el panel derecho.
-                                        // toggleRightPanel('NONE'); 
                                     }}
                                     className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2 cursor-pointer border border-emerald-100"
                                     title="Gestionar Servicios"
