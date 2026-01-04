@@ -1327,8 +1327,8 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           console.error("⚠️ Error de conexión (Modo Offline activo):", err);
       }
 
-      // ---------------------------------------------------------
-      // 🚀 FASE 2: ACTUALIZACIÓN LOCAL (TURBO MODE) - INTACTA
+     // ---------------------------------------------------------
+      // 🚀 FASE 2: ACTUALIZACIÓN LOCAL (TURBO MODE) - CORREGIDO
       // ---------------------------------------------------------
       if (typeof window !== "undefined") {
           try {
@@ -1353,14 +1353,26 @@ const StepSuccess = ({ handleClose, formData }: any) => {
               }
           }
 
-          // ⚡️ NOTIFICACIÓN TURBO AL SISTEMA ⚡️
+          // ⚡️ NOTIFICACIÓN TURBO AL SISTEMA (CORREGIDO) ⚡️
           if (formData.isEditMode) {
-               window.dispatchEvent(new CustomEvent("update-marker-signal", { detail: fullPayload }));
-               window.dispatchEvent(new CustomEvent("update-details-live", { detail: fullPayload }));
+               // 1. Preparamos el paquete EXACTO que espera el Mapa (id + updates)
+               const updatePackage = {
+                   id: fullPayload.id,
+                   updates: fullPayload
+               };
+
+               // 2. DISPARAMOS LA SEÑAL CORRECTA "update-property-signal"
+               // (Esto actualiza la NanoCard y el Mapa AL INSTANTE)
+               window.dispatchEvent(new CustomEvent("update-property-signal", { detail: updatePackage }));
+               
+               // 3. Actualizamos también el panel lateral si está abierto
+               window.dispatchEvent(new CustomEvent("open-details-signal", { detail: fullPayload }));
           } else {
+               // Si es nuevo, usamos la señal de creación
                window.dispatchEvent(new CustomEvent("add-property-signal", { detail: fullPayload })); 
           }
 
+          // Recarga de seguridad por si acaso (Background)
           window.dispatchEvent(new CustomEvent("reload-profile-assets"));
           
           if (!formData.isEditMode && fullPayload.coordinates) {
