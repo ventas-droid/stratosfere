@@ -107,15 +107,37 @@ export default function MapNanoCard(props: any) {
   // Datos Técnicos (Nuevos)
   const floor = props.floor || data.floor;
 
-  // Precios
+  // Precios (MODIFICADO: AHORA TIENE OÍDO TÁCTICO)
   const rawPriceInput = props.rawPrice ?? data?.rawPrice ?? props.priceValue;
   const stringPriceInput = props.price ?? data?.price; 
-  const numericPrice = useMemo(() => safeParsePrice(rawPriceInput, stringPriceInput), [rawPriceInput, stringPriceInput]);
+  
+  // 1. ESTADO LOCAL: Permite cambiar el precio sin recargar el mapa
+  const [currentPrice, setCurrentPrice] = useState(() => safeParsePrice(rawPriceInput, stringPriceInput));
+
+  // 2. 🔥 RECEPTOR DE SEÑAL DE ACTUALIZACIÓN (TURBO)
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+        // Si la señal es para ESTA tarjeta (mismo ID)
+        if (String(e.detail.id) === String(id) && e.detail.updates) {
+            const u = e.detail.updates;
+            // Si la actualización trae precio, lo cambiamos AL INSTANTE
+            if (u.price || u.rawPrice || u.priceValue) {
+                const newP = safeParsePrice(u.rawPrice ?? u.priceValue, u.price);
+                setCurrentPrice(newP);
+            }
+        }
+    };
+    if (typeof window !== 'undefined') window.addEventListener('update-property-signal', handleUpdate);
+    return () => { if (typeof window !== 'undefined') window.removeEventListener('update-property-signal', handleUpdate); };
+  }, [id]);
+
+  // 3. Visualización basada en el precio VIVO (currentPrice)
   const displayLabel = useMemo(() => {
-    if (numericPrice === 0) return "Consultar"; 
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(numericPrice);
-  }, [numericPrice]);
-  const style = getPriceStyle(numericPrice);
+    if (currentPrice === 0) return "Consultar"; 
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(currentPrice);
+  }, [currentPrice]);
+  
+  const style = getPriceStyle(currentPrice);
 
   // --- ESTADO & MEMORIA BLINDADA ---
   const [liked, setLiked] = useState(false);
@@ -146,7 +168,9 @@ export default function MapNanoCard(props: any) {
       e.stopPropagation(); 
       const targetState = action === 'fav' ? !liked : liked;
       const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates || (props.lng && props.lat ? [props.lng, props.lat] : null);
-      const payload = { id, ...props, ...data, price: numericPrice, formattedPrice: displayLabel, role: style.label, img: img, type: type, location: (city || location || address || "MADRID").toUpperCase(), isFav: targetState, isFavorite: targetState, coordinates: navCoords };
+      
+      // 🔥 CORREGIDO: Usamos 'currentPrice' en lugar de 'numericPrice' para enviar el dato actualizado
+      const payload = { id, ...props, ...data, price: currentPrice, formattedPrice: displayLabel, role: style.label, img: img, type: type, location: (city || location || address || "MADRID").toUpperCase(), isFav: targetState, isFavorite: targetState, coordinates: navCoords };
 
       if (action === 'fav') {
           setLiked(targetState); 
@@ -160,12 +184,13 @@ export default function MapNanoCard(props: any) {
               // 1. MANTENEMOS LA SEÑAL ORIGINAL (Abre el panel lateral derecho)
               window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
               
-              // 2. 🔥 AÑADIMOS LA SEÑAL TÁCTICA (Avisa al HUD, Market y Perfil) 🔥
+              // 2. 🔥 SEÑAL TÁCTICA (Avisa al HUD, Market y Perfil)
               window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
           }
           if (props.onSelect) props.onSelect(payload);
       }
   };
+  
   useEffect(() => {
     if (cardRef.current) {
         const marker = cardRef.current.closest('.mapboxgl-marker') as HTMLElement;

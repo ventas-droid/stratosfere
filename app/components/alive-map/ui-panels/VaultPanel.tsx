@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Heart, MapPin, Trash2, Navigation, ArrowRight } from 'lucide-react';
 
 export default function VaultPanel({ 
@@ -12,7 +12,36 @@ export default function VaultPanel({
   playSynthSound 
 }: any) {
   
- // 2. LÓGICA DE VUELO TÁCTICO (MODO MULTITAREA ACTIVO)
+ // 1. CREAMOS LA VARIABLE QUE FALTABA (Con tipo explícito para evitar error)
+  const [localFavorites, setLocalFavorites] = useState<any[]>(favorites);
+
+  // 2. SINCRONIZACIÓN INICIAL
+  useEffect(() => { setLocalFavorites(favorites); }, [favorites]);
+
+  // 3. RECEPTOR TURBO (Con tipos añadidos en 'prev' e 'item' para silenciar el error rojo)
+  useEffect(() => {
+      const handleInstantUpdate = (e: any) => {
+          const { id, updates } = e.detail;
+          
+          // AQUÍ ESTABA EL ERROR: Añadimos ': any[]' y ': any'
+          setLocalFavorites((prev: any[]) => prev.map((item: any) => {
+              if (String(item.id) === String(id)) {
+                  let newFmt = item.formattedPrice;
+                  if (updates.rawPrice || updates.priceValue) {
+                       const val = updates.rawPrice ?? updates.priceValue;
+                       newFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
+                  }
+                  return { ...item, ...updates, formattedPrice: newFmt || item.formattedPrice };
+              }
+              return item;
+          }));
+      };
+      
+      window.addEventListener('update-property-signal', handleInstantUpdate);
+      return () => window.removeEventListener('update-property-signal', handleInstantUpdate);
+  }, []);
+ 
+  // 2. LÓGICA DE VUELO TÁCTICO (MODO MULTITAREA ACTIVO)
   const handleFlyTo = (prop: any) => {
     if (soundEnabled) playSynthSound('click');
     
@@ -106,7 +135,7 @@ export default function VaultPanel({
                 </div>
             ) : (
                 /* LISTA DE TARJETAS */
-                favorites.map((prop: any, index: number) => (
+                localFavorites.map((prop: any, index: number) => (
                     <div 
                         key={prop.id || index} 
                         className="bg-white p-3 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer"
