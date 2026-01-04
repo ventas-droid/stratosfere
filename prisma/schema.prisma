@@ -1,19 +1,151 @@
+// --------------------------------------------------------
+// 1. PROTOCOLO ACERO: MOTOR BLINDADO (FUSIÓN V3)
+// --------------------------------------------------------
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("POSTGRES_URL")       // <--- ¡AHORA SÍ!
-  directUrl = env("POSTGRES_URL")
+  url       = env("POSTGRES_URL")
+  // TRUCO: Usamos la misma variable dos veces para desbloquear su ordenador
+  directUrl = env("POSTGRES_URL") 
 }
 
-// ¡Esta es la parte que Vercel dice que falta!
-model Lead {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-  source    String?
+// --------------------------------------------------------
+// 2. RANGOS Y ACCESOS
+// --------------------------------------------------------
+enum UserRole {
+  PARTICULAR
+  AGENCIA
+  COMPRADOR
+  ADMIN
 }
 
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  phone         String?   
+  phoneVerified DateTime? 
+  
+  role          UserRole  @default(PARTICULAR)
+  avatar        String?   
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
+  properties    Property[]
+  favorites     Favorite[]
+}
+
+// --------------------------------------------------------
+// 3. EL ACTIVO INMOBILIARIO (FULL EQUIP)
+// --------------------------------------------------------
+
+model Property {
+  id            String    @id @default(cuid())
+  
+  // RELACIÓN USUARIO (Opcional por ahora para que no falle al crear sin login)
+  userId        String?   
+  user          User?     @relation(fields: [userId], references: [id])
+
+  // --- PASO 1: UBICACIÓN ---
+  address       String    
+  city          String?   
+  region        String?   // <--- RECUPERADO
+  postcode      String?   // <--- RECUPERADO (zipCode)
+  latitude      Float?    
+  longitude     Float?    
+
+  // --- PASO 2: CARACTERÍSTICAS ---
+  type          String    @default("Piso") // Usamos String para evitar errores de Enum con "Ático" vs "ATICO"
+  floor         String?   
+  door          String?   
+  elevator      Boolean   @default(false) 
+  state         String?   // <--- RECUPERADO (Buen estado, A reformar...)
+
+  // --- PASO 3: ESPECIFICACIONES ---
+  mBuilt        Float     // Cambiado a Float por si ponen decimales
+  rooms         Int       
+  baths         Int       
+  
+  // EXTRAS FÍSICOS (Booleans para filtros rápidos)
+  pool          Boolean   @default(false)
+  garage        Boolean   @default(false)
+  terrace       Boolean   @default(false)
+  garden        Boolean   @default(false)
+  storage       Boolean   @default(false)
+  ac            Boolean   @default(false) 
+  security      Boolean   @default(false)
+  exterior      Boolean   @default(true) // <--- RECUPERADO
+
+  // --- PASO 4: NARRATIVA ---
+  title         String?   
+  description   String?   @db.Text 
+
+  // --- PASO 5: ENERGÍA (HUECOS NUEVOS) ---
+  energyConsumption String? // Letra A-G
+  energyEmissions   String? // Letra A-G
+  energyPending     Boolean @default(false)
+
+  // --- PASO 6: MULTIMEDIA ---
+  mainImage     String?   
+  images        Image[]
+
+  // --- PASO 7: VALORACIÓN ---
+  price         Float?    
+  communityFees Float?    // <--- ¡EL CAMPO QUE FALTABA!
+
+  // --- PASO 8: ESTRATEGIA (LA CLAVE) ---
+  // Guardamos un array simple de Strings para que el Formulario (ArchitectHud)
+  // pueda leer/escribir rápido ("foto", "pack_pro", "drone") sin complicaciones.
+  selectedServices String[] 
+  
+  // Y MANTENEMOS SU TABLA DE ÓRDENES PARA EL FUTURO (Histórico de pagos)
+  serviceOrders ServiceOrder[]
+
+  // --- ESTADO ---
+  status        String    @default("BORRADOR") // String es más seguro para borradores rápidos
+  views         Int       @default(0) 
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  favoritedBy   Favorite[]
+}
+
+// --------------------------------------------------------
+// 4. TABLAS AUXILIARES
+// --------------------------------------------------------
+
+model Image {
+  id         String   @id @default(cuid())
+  url        String   
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model ServiceOrder {
+  id         String   @id @default(cuid())
+  serviceId  String   
+  name       String   
+  price      Float    
+  paid       Boolean  @default(false)
+  
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  propertyId String
+  
+  user       User     @relation(fields: [userId], references: [id])
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+}

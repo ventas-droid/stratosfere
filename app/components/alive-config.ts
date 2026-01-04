@@ -37,13 +37,10 @@ export const TRANSLATIONS = {
   }
 };
 
-export const LUXURY_IMAGES = [
-    "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-];
+// app/lib/alive-config.ts
+
+// BORRE las urls de dentro y déjelo así:
+export const LUXURY_IMAGES = [];
 
 export const TIER_COLORS: any = {
     SMART: { hex: "#10b981", glow: "0 0 15px rgba(16, 185, 129, 0.8)" },   
@@ -51,36 +48,7 @@ export const TIER_COLORS: any = {
     HIGH_CLASS: { hex: "#d946ef", glow: "0 0 20px rgba(217, 70, 239, 0.8)" } 
 };
 
+// 3. ANULAMOS LA FÁBRICA (Ya no genera 5000 puntos, devuelve 0)
 export const generarGeoJSON = (cantidad: number) => {
-  const features = [];
-  const CIUDADES = [{lat: 40.4168, lng: -3.7038}, {lat: 41.40, lng: 2.15}, {lat: 39.47, lng: -0.37}];
-  for (let i = 0; i < cantidad; i++) {
-    const ciudad = CIUDADES[Math.floor(Math.random() * CIUDADES.length)];
-    const r = 0.04 * Math.sqrt(Math.random());
-    const theta = Math.random() * 2 * Math.PI;
-    const lat = ciudad.lat + r * Math.sin(theta);
-    const lng = ciudad.lng + r * Math.cos(theta);
-    const priceValue = Math.floor(Math.random() * 1500000 + 150000); 
-    let tier = "PREMIUM";
-    if (priceValue < 300000) tier = "SMART";
-    else if (priceValue > 600000) tier = "HIGH_CLASS";
-    const colorCore = TIER_COLORS[tier].hex;
-    const mainImgIdx = i % LUXURY_IMAGES.length;
-    const mainImg = LUXURY_IMAGES[mainImgIdx];
-    
-    const gallery = JSON.stringify([mainImg, LUXURY_IMAGES[(mainImgIdx + 1) % LUXURY_IMAGES.length]]);
-
-    features.push({
-      type: 'Feature', geometry: { type: 'Point', coordinates: [lng, lat] },
-      properties: { 
-          id: `SEC-${i}`, title: tier, tier, priceValue, precio: (priceValue/1000).toFixed(0)+"k €", 
-          area: Math.floor(Math.random()*350+50), category: Math.random()>0.4?'PISO':'CASA', 
-          rooms: Math.floor(Math.random()*5)+1, baths: Math.floor(Math.random()*3)+1,
-          photoUrl: mainImg, gallery: gallery, colorCore, lat, lng, 
-          assetScore: Math.floor(Math.random()*30+70) 
-      }
-    });
-  }
-  return { type: 'FeatureCollection', features };
+  return { type: 'FeatureCollection', features: [] };
 };
-

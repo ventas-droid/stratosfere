@@ -15,6 +15,10 @@ import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
 import MarketPanel from "./MarketPanel";
 
+import { savePropertyAction } from '@/app/actions';
+// 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
+import { uploadToCloudinary } from '@/app/utils/upload';
+
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw";
 
 // ==================================================================================
@@ -976,18 +980,40 @@ const StepEnergy = ({ formData, updateData, setStep }: any) => {
 
 const StepMedia = ({ formData, updateData, setStep }: any) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleFileUpload = (e: any) => { const files = Array.from(e.target.files || []); if (files.length === 0) return; const promises = files.map((file: any) => { return new Promise((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve(e.target?.result); reader.readAsDataURL(file); }); }); Promise.all(promises).then((newImages) => { const currentImages = formData.images || []; const combined = [...currentImages, ...newImages].slice(0, 10); updateData("images", combined); }); };
+
+  // 👇 LÓGICA MODIFICADA PARA CLOUDINARY
+  const handleFileUpload = async (e: any) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // 1. Enviamos cada archivo al Dron de Carga
+    const uploadPromises = files.map(async (file: any) => {
+        return await uploadToCloudinary(file);
+    });
+
+    // 2. Esperamos a que el Dron vuelva con las URLs seguras
+    const uploadedUrls = await Promise.all(uploadPromises);
+
+    // 3. Filtramos si alguna falló
+    const validUrls = uploadedUrls.filter(url => url !== null);
+
+    // 4. Actualizamos el formulario con las URLs de internet (no archivos pesados)
+    const currentImages = formData.images || [];
+    const combined = [...currentImages, ...validUrls].slice(0, 10);
+    updateData("images", combined);
+  };
+
   const removeImage = (index: number) => { const currentImages = formData.images || []; const filtered = currentImages.filter((_: any, i: number) => i !== index); updateData("images", filtered); };
   const images = formData.images || [];
 
   return (
     <div className="h-full flex flex-col animate-fade-in-right px-2">
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple accept="image/*" />
-      <div className="mb-6 shrink-0"><h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Multimedia</h2><p className="text-gray-500 font-medium">Sube fotos reales de tu dispositivo.</p></div>
+      <div className="mb-6 shrink-0"><h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Multimedia</h2><p className="text-gray-500 font-medium">Sube fotos reales de tu dispositivo (Cloudinary).</p></div>
       <div className="flex-1 overflow-y-auto px-4 -mx-4 custom-scrollbar pb-4 pt-2">
         <div onClick={() => fileInputRef.current?.click()} className="group relative h-64 rounded-[24px] border-4 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/50 overflow-hidden shadow-sm hover:shadow-md active:scale-95">
           <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/0 to-blue-100/0 group-hover:via-white/20 group-hover:to-blue-100/30 transition-all duration-500" />
-          <div className="relative z-10 flex flex-col items-center p-6"><div className="flex items-center gap-5 mb-6"><div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[-6deg] transition-transform duration-300"><Camera size={32} className="text-blue-600" strokeWidth={2} /></div><div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[6deg] transition-transform duration-300 delay-75"><UploadCloud size={32} className="text-purple-600" strokeWidth={2} /></div></div><h3 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Toca para Subir</h3><p className="text-sm font-bold text-gray-400 mb-3">JPG, PNG del dispositivo.</p><button className="px-6 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-widest rounded-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-transparent transition-all shadow-sm">Abrir Galería</button></div>
+          <div className="relative z-10 flex flex-col items-center p-6"><div className="flex items-center gap-5 mb-6"><div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[-6deg] transition-transform duration-300"><Camera size={32} className="text-blue-600" strokeWidth={2} /></div><div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[6deg] transition-transform duration-300 delay-75"><UploadCloud size={32} className="text-purple-600" strokeWidth={2} /></div></div><h3 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Toca para Subir</h3><p className="text-sm font-bold text-gray-400 mb-3">JPG, PNG a la Nube.</p><button className="px-6 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-widest rounded-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-transparent transition-all shadow-sm">Abrir Galería</button></div>
         </div>
         <div className="mt-8">
           <div className="flex justify-between items-baseline mb-4 px-1"><p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tus Fotos</p><div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded-lg"><p className="text-[11px] font-black text-gray-900 uppercase tracking-widest">{images.length} / 10</p></div></div>
@@ -1226,21 +1252,21 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   
   // Imagen para mostrar en pantalla (Preview)
   const hasUserPhoto = formData.images && formData.images.length > 0;
-  const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80"; 
+  
+  // CAMBIO AQUÍ: Si no hay foto, ponemos NULL. Prohibido inventar.
+  const previewImage = hasUserPhoto ? formData.images[0] : null;
 
- // --- LÓGICA DE GUARDADO BLINDADA V2 (CON TURBO) ---
-  const handleSafeSave = () => {
+ // --- LÓGICA DE GUARDADO BLINDADA V3 (NUBE + TURBO) ---
+  const handleSafeSave = async () => { // <--- AHORA ES ASYNC
       
-      // 1. CALIBRACIÓN DE DATOS
-      // Aseguramos que el ascensor sea un Booleano puro (true/false)
+      // 1. CALIBRACIÓN DE DATOS (Su código original)
       const elevatorBool = formData.elevator === true || String(formData.elevator) === "true" || formData.elevator === 1;
-      
-      // Aseguramos precio numérico limpio
       const finalPrice = rawPrice;
 
       const basePayload = { 
           ...formData, 
-          id: formData.id || Date.now(), 
+          // Si es nuevo, usamos un ID temporal por ahora
+          id: formData.id || Date.now().toString(), 
           
           // PRECIOS
           price: visualPrice, 
@@ -1264,70 +1290,79 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           isNewEntry: true,
           type: formData.type || "Propiedad"
       };
-
-      // FOTOS
-      const mainImage = hasUserPhoto ? formData.images[0] : previewImage;
+// FOTOS (Lógica Limpia)
+      const mainImage = hasUserPhoto ? formData.images[0] : null;
 
       // Versión FULL (Payload principal)
       const fullPayload = { 
           ...basePayload, 
-          images: hasUserPhoto ? formData.images : [previewImage],
+          // CAMBIO AQUÍ: Si no hay foto, array vacío []. Prohibido usar previewImage.
+          images: hasUserPhoto ? formData.images : [],
           img: mainImage 
       };
 
-      // Versión LITE (Respaldo por si falla la memoria)
+      // Versión LITE (Respaldo)
       const litePayload = {
           ...basePayload,
-          img: "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80",
-          images: ["https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"], 
+          img: null,      // <--- AQUI: Quitamos la URL de Unsplash. Ponemos null.
+          images: [],     // <--- AQUI: Quitamos la URL del array. Ponemos vacío.
           description: basePayload.description + "\n(Lite Mode)"
       };
 
-      // --- DISPARO DE EVENTOS ---
+      // ---------------------------------------------------------
+      // 🚀 FASE 1: INTENTO DE GUARDADO EN NUBE (REAL DATABASE)
+      // ---------------------------------------------------------
+      try {
+          console.log("📡 Conectando con Base de Datos...");
+          const serverResult = await savePropertyAction(fullPayload);
+          
+          if (serverResult && serverResult.success) {
+              console.log("✅ GUARDADO EN NUBE CONFIRMADO. ID:", serverResult.property.id);
+              // ¡IMPORTANTE! Usamos el ID real que nos dio la base de datos
+              fullPayload.id = serverResult.property.id;
+          } else {
+              console.warn("⚠️ Guardado local solamente (Server error):", serverResult?.error);
+          }
+      } catch (err) {
+          console.error("⚠️ Error de conexión (Modo Offline activo):", err);
+      }
+
+      // ---------------------------------------------------------
+      // 🚀 FASE 2: ACTUALIZACIÓN LOCAL (TURBO MODE) - INTACTA
+      // ---------------------------------------------------------
       if (typeof window !== "undefined") {
           try {
               // INTENTO 1: Guardado Normal en localStorage
               const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
-              const idx = saved.findIndex((p: any) => p.id === fullPayload.id);
+              
+              // Buscamos por ID (ahora puede ser el ID real de la DB)
+              const idx = saved.findIndex((p: any) => String(p.id) === String(fullPayload.id));
               
               if (idx >= 0) saved[idx] = fullPayload; 
               else saved.push(fullPayload);
               
               localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
-              console.log("✅ Guardado exitoso en disco.");
+              console.log("✅ Caché local actualizada.");
 
           } catch (e: any) {
-              // MANEJO DE ERROR: Memoria llena (QuotaExceeded)
+              // MANEJO DE ERROR: Memoria llena
               if (e.name === 'QuotaExceededError' || e.code === 22) {
-                  console.warn("⚠️ MEMORIA LLENA. Usando modo Lite...");
                   try {
                       localStorage.setItem("stratos_my_properties", JSON.stringify([litePayload]));
-                  } catch (e2) {
-                      console.error("❌ Fallo crítico de memoria.");
-                  }
+                  } catch (e2) { console.error("❌ Fallo crítico de memoria."); }
               }
           }
 
           // ⚡️ NOTIFICACIÓN TURBO AL SISTEMA ⚡️
-          // Aquí es donde ocurre la magia de la velocidad
-          
           if (formData.isEditMode) {
-               // A. SI ES EDICIÓN: Grita a la NanoCard "¡Actualízate YA!" (Sin repintar todo el mapa)
-               console.log("⚡️ Actualizando NanoCard en caliente (Edit Mode)");
                window.dispatchEvent(new CustomEvent("update-marker-signal", { detail: fullPayload }));
-               
-               // También actualiza la ficha de detalles si está abierta
                window.dispatchEvent(new CustomEvent("update-details-live", { detail: fullPayload }));
           } else {
-               // B. SI ES NUEVO: Grita al mapa "¡Pinta uno nuevo!"
-               console.log("✨ Creando nueva propiedad");
                window.dispatchEvent(new CustomEvent("add-property-signal", { detail: fullPayload })); 
           }
 
-          // Recarga general de seguridad para el perfil (segundo plano)
           window.dispatchEvent(new CustomEvent("reload-profile-assets"));
           
-          // Solo volamos si es nuevo o si cambiamos coordenadas, para no marear
           if (!formData.isEditMode && fullPayload.coordinates) {
                window.dispatchEvent(new CustomEvent("map-fly-to", { detail: { center: fullPayload.coordinates, zoom: 18, pitch: 60, duration: 3000 } }));
           }

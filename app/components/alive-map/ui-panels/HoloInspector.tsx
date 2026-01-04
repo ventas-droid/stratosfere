@@ -4,19 +4,7 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, Scan, Sparkles } from "lucide-react";
 
-// --- CATÁLOGO DE LUJO (Relleno Premium) ---
-const LUXURY_CATALOG = [
-  "https://images.unsplash.com/photo-1613490493576-7fde63acd811?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1600607687644-c7171b42498f?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1523217581921-763595883824?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1535118113937-709414a0b71c?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1920&auto=format&fit=crop"
-];
+// --- SIN CATÁLOGO DE RELLENO (Limpieza total) ---
 
 export default function HoloInspector({
   isOpen,
@@ -40,12 +28,19 @@ export default function HoloInspector({
 
   if (!mounted || !isOpen || !prop) return null;
 
-  let album = [prop.img, ...images].filter(Boolean);
-  if (album.length < 5) {
-      album = [...album, ...LUXURY_CATALOG.slice(0, 10 - album.length)];
-  }
+  // 1. LÓGICA DE LA VERDAD (Solo fotos reales)
+  // CORRECCIÓN: Si el array 'images' viene vacío, buscamos dentro de la propiedad (prop.images)
+  const gallerySource = (images && images.length > 0) ? images : (prop.images || []);
   
-  const unique = Array.from(new Set(album));
+  // Unimos la portada (prop.img) con la galería encontrada
+  const rawAlbum = [prop.img, ...gallerySource].filter(Boolean);
+  
+  // Eliminamos duplicados
+  const unique = Array.from(new Set(rawAlbum));
+
+  // Si no hay fotos, no mostramos nada para evitar errores
+  if (unique.length === 0) return null;
+
   const current = unique[idx] || unique[0];
 
   const nav = (dir: number) => {
@@ -112,12 +107,11 @@ export default function HoloInspector({
                  </div>
             </div>
 
-            {/* FLECHAS DE NAVEGACIÓN (CORREGIDAS) */}
+            {/* FLECHAS DE NAVEGACIÓN (RESTAURADAS: SIEMPRE VISIBLES) */}
             <button 
                 onClick={(e) => { e.stopPropagation(); nav(-1); }} 
                 className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 p-4 md:p-6 text-white/30 hover:text-white hover:scale-110 transition-all cursor-pointer z-20"
             >
-                {/* Usamos className para el tamaño responsivo en lugar de props inválidos */}
                 <ChevronLeft className="w-10 h-10 md:w-14 md:h-14" strokeWidth={1.5} />
             </button>
             <button 

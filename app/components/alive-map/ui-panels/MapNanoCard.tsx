@@ -79,8 +79,13 @@ const getPropertyIcon = (typeStr: string) => {
 
 export default function MapNanoCard(props: any) {
   const data = props.data || {};
-  const id = props.id || data.id || data._id || `prop-${Math.random()}`;
 
+  // USAMOS useMemo: Calculamos el ID una vez y lo recordamos para siempre.
+  // Esto evita que la tarjeta crea que es nueva en cada parpadeo.
+  const id = useMemo(() => {
+      return props.id || data.id || data._id || `prop-${Math.random().toString(36).substr(2, 9)}`;
+  }, [props.id, data.id, data._id]);
+ 
   // Datos Básicos
   const rooms = props.rooms ?? data.rooms ?? 0;
   const baths = props.baths ?? data.baths ?? 0;
@@ -179,21 +184,24 @@ export default function MapNanoCard(props: any) {
   return (
     <div ref={cardRef} className="pointer-events-auto flex flex-col items-center group relative z-[50]" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       
-      {/* TARJETA FLOTANTE */}
-      <div className={`absolute bottom-[100%] pb-3 w-[280px] z-[100] origin-bottom transition-all duration-300 ease-out transform ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} onClick={(e) => handleAction(e, 'open')}>
+     {/* TARJETA FLOTANTE (ESTABILIZADA Y CERRADA) */}
+      <div 
+          className={`absolute bottom-[100%] pb-3 w-[280px] z-[100] origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} 
+          onClick={(e) => handleAction(e, 'open')}
+      >
           <div className="flex flex-col rounded-[24px] overflow-hidden shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] border border-white/60 cursor-pointer bg-white ring-1 ring-black/5">
               <div className="bg-white relative">
                   <div className="h-44 relative overflow-hidden group/img">
                       <img src={img} className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-110" alt="Propiedad"/>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
                       
-                      {/* 🔥 BADGE TIPO + ICONO (MEJORADO) */}
+                      {/* 🔥 BADGE TIPO + ICONO */}
                       <div className="absolute top-3 left-3 px-2.5 py-1.5 rounded-xl shadow-lg backdrop-blur-md border border-white/20 bg-white/90 flex items-center gap-1.5">
                           {getPropertyIcon(type)}
                           <span className="text-[10px] font-black uppercase tracking-wide text-gray-800">{type}</span>
                       </div>
 
-                      {/* BADGE CATEGORIA (Color Dinámico) */}
+                      {/* BADGE CATEGORIA */}
                       <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md shadow-sm" style={{ backgroundColor: style.hex }}>
                           <span className="text-[9px] font-bold uppercase tracking-wider text-white">{style.label}</span>
                       </div>
@@ -204,7 +212,6 @@ export default function MapNanoCard(props: any) {
                           </button>
                       </div>
                   </div>
-
                   <div className="p-4 pt-3">
                       <div className="flex justify-between items-start mb-0.5">
                           {/* Precio destacado */}
@@ -246,12 +253,15 @@ export default function MapNanoCard(props: any) {
           </div>
       </div>
 
-      {/* PIN DE MAPA */}
-      <div className={`relative px-3 py-1.5 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.3)] transition-all duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[2px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-xl' : 'scale-100'}`} style={{ backgroundColor: style.hex }} onClick={(e) => handleAction(e, 'open')}>
+   {/* PIN DE MAPA (ESTABILIZADO) */}
+      <div 
+         className={`relative px-3 py-1.5 rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.3)] transition-transform duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[2px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-xl' : 'scale-100'}`} 
+         style={{ backgroundColor: style.hex }} 
+         onClick={(e) => handleAction(e, 'open')}
+      >
          <span className="text-xs font-bold font-mono tracking-tight whitespace-nowrap text-white drop-shadow-md">{displayLabel}</span>
          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px]" style={{ borderTopColor: style.hex }}></div>
       </div>
     </div>
   );
 }
-

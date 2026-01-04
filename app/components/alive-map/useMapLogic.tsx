@@ -10,6 +10,7 @@ import MapNanoCard from './ui-panels/MapNanoCard';
 
 // 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
 import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
+import { getPropertiesAction } from '@/app/actions';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 
@@ -134,10 +135,11 @@ export const useMapLogic = () => {
               // 6. BLINDAJE DE SERVICIOS
               selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
 
-              // 7. IMAGEN SEGURA
+             // 7. IMAGEN SEGURA (VERSIÓN REALISTA)
+              // Si hay foto, la usamos. Si no, NULL.
               img: (p.images && p.images.length > 0)
                 ? p.images[0]
-                : "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"
+                : null
             }
           }));
 
@@ -266,15 +268,16 @@ export const useMapLogic = () => {
             geometry: { type: 'Point', coordinates: p.coordinates || [-3.6883, 40.4280] },
             properties: {
               ...p,
-              id: p.id || Date.now(),
+            id: p.id || Date.now(),
               role: p.role || 'PROPIETARIO',
               type: p.type || 'Propiedad',
               priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
               m2: Number(p.mBuilt || p.m2 || 0),
               mBuilt: Number(p.mBuilt || p.m2 || 0),
+              // CORRECCIÓN: Si no hay foto, ponemos NULL. Prohibido inventar.
               img: (p.images && p.images.length > 0)
                 ? p.images[0]
-                : (p.img || "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"),
+                : (p.img || null),
               selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
               specs: p.specs || {},
 
@@ -571,10 +574,10 @@ export const useMapLogic = () => {
           description: formData.description || "Propiedad exclusiva.",
           role: "PROPIETARIO",
 
-          // Imagen
+         // Imagen (LIMPIEZA TOTAL)
           img: (formData.images && formData.images.length > 0)
             ? formData.images[0]
-            : "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
+            : null,
 
           // Energía
           energyConsumption: formData.energyConsumption,
@@ -666,7 +669,7 @@ export const useMapLogic = () => {
   const scanVisibleProperties = () => {
     if (!map.current) return [];
 
-    // 1. Obtener límites visuales actuales (lo que ve la cámara)
+    // 1. Obtener límites visuales actuales
     const bounds = map.current.getBounds();
 
     // 2. Acceder a los datos crudos del mapa
@@ -678,12 +681,10 @@ export const useMapLogic = () => {
     // 3. Filtrar y Formatear para la Consola
     const visibleProps = source._data.features
       .filter((f: any) => {
-         // Matemática: ¿Está el punto dentro del rectángulo de la pantalla?
          const [lng, lat] = f.geometry.coordinates;
          return bounds.contains([lng, lat]);
       })
       .map((f: any) => ({
-         // Estandarizamos datos para la Consola Táctica
          id: f.properties.id,
          address: f.properties.address || f.properties.location || "Ubicación Privada",
          price: f.properties.price || "Consultar",
@@ -691,7 +692,6 @@ export const useMapLogic = () => {
          lat: f.geometry.coordinates[1],
          lng: f.geometry.coordinates[0],
          
-         // Lógica de Venta: Si tiene servicios, GAP vacío. Si no, sugerimos "Foto Pro" y "Plano"
          gap: (f.properties.selectedServices && f.properties.selectedServices.length > 0) 
               ? [] 
               : ["Foto Pro", "Plano 3D"] 
@@ -699,6 +699,64 @@ export const useMapLogic = () => {
 
     return visibleProps;
   };
+
+  // ====================================================================
+  // ⚡️ VISIÓN GLOBAL: CONEXIÓN CON BASE DE DATOS (NUEVO)
+  // ====================================================================
+  useEffect(() => {
+    if (!isLoaded || !map.current) return;
+
+    const fetchServerProperties = async () => {
+      try {
+        console.log("📡 RADAR: Iniciando escaneo global de Base de Datos...");
+        // Llamamos a la acción del servidor
+        const response = await getPropertiesAction();
+        
+        if (response.success && response.data) {
+           const source: any = map.current.getSource('properties');
+           if (source && source._data) {
+               const currentFeatures = source._data.features;
+               
+               // 1. Convertimos los datos de la DB al formato GeoJSON del Mapa
+               const serverFeatures = response.data.map((p: any) => ({
+                   type: 'Feature',
+                   geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+                   properties: {
+                       ...p,
+                      id: p.id,
+                       priceValue: p.price,
+                       // Recuperamos la foto principal (LIMPIEZA TOTAL)
+                       // Si hay foto, la ponemos. Si no, NULL.
+                       img: p.mainImage || (p.images && p.images[0]?.url) || null,
+                       elevator: p.elevator,
+                       // Recuperamos los extras como servicios
+                       selectedServices: [
+                          p.pool ? 'pool' : null, p.garage ? 'garage' : null,
+                          p.terrace ? 'terrace' : null, p.garden ? 'garden' : null,
+                          p.storage ? 'storage' : null, p.ac ? 'ac' : null, 
+                          p.security ? 'security' : null
+                       ].filter(Boolean)
+                   }
+               }));
+
+               // 2. Fusionamos evitando duplicados (El servidor manda)
+               const existingIds = new Set(currentFeatures.map((f: any) => String(f.properties.id)));
+               const newUnique = serverFeatures.filter((f: any) => !existingIds.has(String(f.properties.id)));
+
+               if (newUnique.length > 0) {
+                   source.setData({
+                       type: 'FeatureCollection',
+                       features: [...currentFeatures, ...newUnique]
+                   });
+                   console.log(`✅ RADAR: ${newUnique.length} objetivos nuevos detectados en la nube.`);
+               }
+           }
+        }
+      } catch (e) { console.error("❌ Fallo de conexión radar:", e); }
+    };
+
+    fetchServerProperties();
+  }, [isLoaded]); // Se dispara cuando el mapa termina de cargar
 
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
@@ -708,6 +766,6 @@ export const useMapLogic = () => {
     map, 
     isMapLoaded: isLoaded, 
     searchCity, 
-    scanVisibleProperties // <--- ✅ EL ARMA HA SIDO CARGADA
+    scanVisibleProperties 
   };
 };

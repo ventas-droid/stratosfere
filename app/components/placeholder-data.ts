@@ -10,13 +10,8 @@ export const TIER_COLORS: any = {
     HIGH_CLASS: { hex: "#d946ef", glow: "0 0 20px rgba(217, 70, 239, 0.8)" } 
 };
 
-export const LUXURY_IMAGES = [
-    "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-];
+// Busque esto y déjelo así (sin enlaces dentro):
+export const LUXURY_IMAGES = [];
 
 export const TRANSLATIONS: any = {
   ES: {
@@ -78,8 +73,8 @@ export const generarGeoJSON = (cantidad: number) => {
       }
     });
   }
-  return { type: 'FeatureCollection', features };
+  return { type: 'FeatureCollection', features: [] };
 };
-export const DATA_PUNTOS = generarGeoJSON(5000);
+export const DATA_PUNTOS = { type: 'FeatureCollection', features: [] };
 
 

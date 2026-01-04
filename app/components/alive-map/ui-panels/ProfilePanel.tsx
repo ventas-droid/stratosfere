@@ -13,6 +13,10 @@ import {
     Droplets, Paintbrush, Truck, Briefcase, Sparkles
 } from 'lucide-react';
 
+// 👇 AÑADIR ESTO ARRIBA CON LOS OTROS IMPORTS
+import { getPropertiesAction, deletePropertyAction } from '@/app/actions';
+
+
 // DICCIONARIO MAESTRO (IDÉNTICO AL DE DETAILSPANEL)
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves,
@@ -54,11 +58,13 @@ const NON_SERVICE_KEYS = new Set([
 
 const getServiceIds = (prop: any): string[] => {
     const ids = Array.isArray(prop?.selectedServices) ? prop.selectedServices : [];
-    return ids.filter((id: any) => {
+    const filtered = ids.filter((id: any) => {
         const k = normalizeKey(id);
         if (!k) return false;
         return !NON_SERVICE_KEYS.has(k);
     });
+    // 🔥 EL FIX: 'Set' elimina duplicados automáticamente
+    return Array.from(new Set(filtered));
 };
 
 export default function ProfilePanel({ 
@@ -75,65 +81,112 @@ export default function ProfilePanel({
     const [servicesModalProp, setServicesModalProp] = useState<any | null>(null); // ✅ Modal: ver todos los servicios
 const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "isidro@stratosfere.com" });
 
-  // 1. CARGAR MEMORIA (BLINDADA)
-  const loadData = () => {
+ const loadData = async () => {
       if (typeof window === 'undefined') return;
+      
       try {
-          const saved = localStorage.getItem('stratos_my_properties');
-          if (saved) {
-             const parsed = JSON.parse(saved);
-
-             // 🔥 NORMALIZACIÓN DE DATOS
-             const validProperties = parsed.map((p: any) => ({
+          // 1. Intentamos leer de la Base de Datos Real
+          const response = await getPropertiesAction();
+          
+          if (response.success && response.data) {
+             // Mapeamos los datos de la DB al formato de su Panel
+             const dbProperties = response.data.map((p: any) => ({
                  ...p,
-                 selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
-                 elevator: (p.elevator === true || String(p.elevator) === "true" || p.elevator === 1),
-                 mBuilt: Number(p.mBuilt || p.m2 || 0),
-                 m2: Number(p.mBuilt || p.m2 || 0),
-                 rawPrice: Number(p.rawPrice || p.priceValue || 0),
-                 coordinates: p.coordinates || [-3.6883, 40.4280]
+                 // Aseguramos que la imagen se llame 'img' como espera su diseño
+                 img: p.mainImage || (p.images && p.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
+                 // Recuperamos los servicios booleanos para que salgan los iconos
+                 selectedServices: [
+                    ...(p.selectedServices || []), // Si hubiera guardados
+                    p.pool ? 'pool' : null, 
+                    p.garage ? 'garage' : null,
+                    p.elevator ? 'elevator' : null,
+                    p.terrace ? 'terrace' : null,
+                    p.garden ? 'garden' : null,
+                    p.storage ? 'storage' : null,
+                    p.ac ? 'ac' : null,
+                    p.security ? 'security' : null
+                 ].filter(Boolean),
+                 // Aseguramos formato numérico
+                 mBuilt: Number(p.mBuilt || 0),
+                 price: new Intl.NumberFormat('es-ES').format(p.price),
+                 coordinates: [p.longitude, p.latitude]
              }));
-
-             setMyProperties(validProperties); 
+             setMyProperties(dbProperties);
+          } else {
+             // Si falla o está vacío, fallback a local (opcional)
+             const saved = localStorage.getItem('stratos_my_properties');
+             if (saved) setMyProperties(JSON.parse(saved));
           }
       } catch (e) { console.error("Error cargando perfil:", e); }
-  };
+ };
 
   useEffect(() => {
     if (rightPanel === 'PROFILE') loadData();
   }, [rightPanel]);
 
   useEffect(() => {
+    // 1. Función para recarga total (desde base de datos)
     const handleReload = () => loadData();
+
+    // 2. 🔥 NUEVO: Función para inyectar la casa AL INSTANTE (sin esperar)
+    const handleNewProperty = (e: any) => {
+        const newProp = e.detail;
+        if (newProp) {
+            // Añadimos la nueva casa arriba del todo inmediatamente
+            setMyProperties(prev => [newProp, ...prev]);
+        }
+    };
+    
+    // Suscripciones
     window.addEventListener('reload-profile-assets', handleReload);
-    return () => window.removeEventListener('reload-profile-assets', handleReload);
+    window.addEventListener('add-property-signal', handleNewProperty); 
+
+    return () => {
+        window.removeEventListener('reload-profile-assets', handleReload);
+        window.removeEventListener('add-property-signal', handleNewProperty);
+    };
   }, []);
 
-  // 2. BORRAR
-  const handleDelete = (e: any, id: number) => {
-      e.stopPropagation(); // Seguridad
-      if(confirm('¿Seguro que quieres eliminar este activo? Esta acción es irreversible.')) {
-          const updated = myProperties.filter(p => p.id !== id);
-          setMyProperties(updated);
-          localStorage.setItem('stratos_my_properties', JSON.stringify(updated));
-          
-          if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('force-map-refresh'));
-              window.dispatchEvent(new CustomEvent('reload-profile-assets'));
-          }
-          
+  // 2. BORRAR (CONECTADO A BASE DE DATOS)
+  const handleDelete = async (e: any, id: any) => {
+      e.stopPropagation();
+      if(confirm('⚠️ ¿CONFIRMAR ELIMINACIÓN DE BASE DE DATOS?\nEsta acción es irreversible.')) {
+
+          // A. Borrado visual inmediato (Optimista)
+          const backup = [...myProperties];
+          setMyProperties(prev => prev.filter(p => p.id !== id));
+
           if(soundEnabled && playSynthSound) playSynthSound('error');
+
+          // B. Borrado Real en Servidor
+          try {
+              const result = await deletePropertyAction(String(id));
+
+              if (!result.success) {
+                  // Si falla, restauramos la lista antigua
+                  alert("Error al borrar: " + result.error);
+                  setMyProperties(backup);
+              } else {
+                  // C. Avisar al mapa para que quite la chincheta
+                  if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('force-map-refresh'));
+                      window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+                  }
+              }
+          } catch (error) {
+              setMyProperties(backup); // Restaurar si hay error crítico
+          }
       }
   };
 
-  // 3. EDITAR
+  // 3. EDITAR (ABRE EL FORMULARIO CON DATOS REALES)
   const handleEditClick = (e: any, property: any) => {
-      e.stopPropagation(); // Seguridad
+      e.stopPropagation();
       if(soundEnabled && playSynthSound) playSynthSound('click');
-      toggleRightPanel('NONE'); 
-      if (onEdit) onEdit(property); 
+      toggleRightPanel('NONE');
+      if (onEdit) onEdit(property);
   };
-
+  
   // 4. MANIOBRA DE DESPLIEGUE "VAULT" (Copiada de Favoritos)
   const handleFlyTo = (e: any, property: any) => {
       // Detenemos el click para controlar nosotros la secuencia

@@ -46,13 +46,7 @@ import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 
 import LandingWaitlist from "./LandingWaitlist";
 
-// --- 6. IMÁGENES DE MUESTRA ---
-export const LUXURY_IMAGES = [
-  "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
-  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
-  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
-  "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
-];
+export const LUXURY_IMAGES = [];
 
 // ==================================================================================
 // COMPONENTE PRINCIPAL (UIPanels)
