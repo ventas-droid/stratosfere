@@ -72,16 +72,25 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
  // Añada el estado para saber qué estamos buscando
 const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
  
- // 1. Cargar memoria (Al inicio)
+ // 1. Cargar memoria (Al inicio) + recarga manual (sin romper nada)
   useEffect(() => {
-      const saved = localStorage.getItem('stratos_favorites_v1');
-      if (saved) {
-          try { setLocalFavs(JSON.parse(saved)); } 
-          catch(e) { console.error(e); }
-      }
+      const loadFavs = () => {
+          const saved = localStorage.getItem('stratos_favorites_v1');
+          if (saved) {
+              try { setLocalFavs(JSON.parse(saved)); } 
+              catch(e) { console.error(e); }
+          }
+      };
+
+      loadFavs();
+
+      const onReloadFavs = () => loadFavs();
+      window.addEventListener('reload-favorites', onReloadFavs);
+
+      return () => window.removeEventListener('reload-favorites', onReloadFavs);
   }, []);
 
-  // 2. Guardar memoria (Sincronización General del Array)
+// 2. Guardar memoria (Sincronización General del Array)
   useEffect(() => {
       localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
   }, [localFavs]);
@@ -427,85 +436,38 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                initialData={editingProp} 
                
                onCloseMode={(success: boolean, payload: any) => { 
-                   // ------------------------------------------------------------
-                   // ✅ RETORNO BLINDADO (NUEVO vs EDITAR)
-                   // - Si editábamos un activo existente -> UPDATE (no duplicar, no geocode, no Madrid)
-                   // - Si es nuevo -> ADD (flujo actual)
-                   // ------------------------------------------------------------
-
-                   // 0) Capturamos contexto ANTES de limpiar memoria
-                   const editingId = editingProp?.id;
-                   const editingSnap = editingProp || null;
-
-                   // 1) Limpieza de memoria temporal (desmonta ArchitectHud sí o sí)
+                   // 1. Limpieza de memoria temporal
                    setEditingProp(null); 
-
+                   
                    if (success) {
-                       console.log("✅ Propiedad guardada con éxito");
-
-                       // 2) Volvemos a EXPLORER (mapa)
+                       console.log("✅ Propiedad publicada con éxito");
+                       
+                       // 2. CAMBIO A MODO EXPLORADOR
                        setSystemMode('EXPLORER');
+                       
+                       // 🔥 LA CLAVE: EVITAR LA CONSOLA DE BÚSQUEDA
+                       // Al poner esto en true, el sistema asume que ya hemos "aterrizado"
+                       // y muestra directamente el mapa con la propiedad.
                        setLandingComplete(true); 
-                       if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true); 
+                       
+                       // 3. Evitar tutoriales antiguos
+                       if (typeof setExplorerIntroDone === 'function') {
+                           setExplorerIntroDone(true); 
+                       }
 
-                       // 3) Cerramos overlays (seguridad)
-                       setActivePanel('NONE');
-                       setRightPanel('NONE');
-
-                       // 4) Sincronización con mapa / perfil / bóveda
+                       // 4. 📡 LANZAMIENTO DE LA SEÑAL AL MAPA (El Convoy)
                        if (payload) {
-                           // A) Merge final (mantiene datos previos si el payload no trae todo)
-                           const merged = { ...(editingSnap || {}), ...(payload || {}), id: (payload?.id ?? editingId ?? payload?.propertyId ?? Date.now()) };
-
-                           // B) Si estábamos editando -> UPDATE (no crea nueva feature, no geocode)
-                           if (editingId) {
-                               // 1) Actualiza el source del mapa + localStorage (useMapLogic)
-                               setTimeout(() => {
-                                   if (typeof window !== 'undefined') {
-                                       window.dispatchEvent(new CustomEvent('update-property-signal', {
-                                           detail: { id: editingId, updates: merged }
-                                       }));
-                                       // Live refresh para Details/Market si están abiertos
-                                       window.dispatchEvent(new CustomEvent('update-details-live', { detail: merged }));
-                                   }
-                               }, 50);
-
-                               // 2) Actualiza bóveda en memoria (si existe en favoritos)
-                               setLocalFavs((prev: any[]) => {
-                                   try {
-                                       return prev.map((f: any) => {
-                                           if (String(f?.id) !== String(editingId)) return f;
-                                           const next = { ...f, ...merged };
-                                           // Normaliza precio mostrado
-                                           next.formattedPrice = next.formattedPrice || next.displayPrice || next.price || f.formattedPrice || "Consultar";
-                                           return next;
-                                       });
-                                   } catch {
-                                       return prev;
-                                   }
-                               });
-
-                               // 3) Vuelo cinemático al activo (SIN geocoding)
-                               try {
-                                   const lng = merged?.lng ?? merged?.longitude ?? merged?.coords?.[0] ?? merged?.coordinates?.[0];
-                                   const lat = merged?.lat ?? merged?.latitude ?? merged?.coords?.[1] ?? merged?.coordinates?.[1];
-                                   if (map?.current && Number.isFinite(Number(lng)) && Number.isFinite(Number(lat))) {
-                                       map.current.flyTo({ center: [Number(lng), Number(lat)], zoom: 17, pitch: 60, duration: 2000 });
-                                   }
-                               } catch {}
-                           } 
-                           // C) Si es nueva -> ADD (flujo actual con geocoding en useMapLogic)
-                           else {
-                               console.log("📡 Enviando NUEVA propiedad al mapa...", merged);
-                               setTimeout(() => {
-                                   if (typeof window !== 'undefined') {
-                                       window.dispatchEvent(new CustomEvent('add-property-signal', { detail: merged }));
-                                   }
-                               }, 100);
-                           }
+                           console.log("📡 Enviando datos al mapa...", payload);
+                           setTimeout(() => {
+                               if (typeof window !== 'undefined') {
+                                   window.dispatchEvent(new CustomEvent('add-property-signal', { 
+                                       detail: payload 
+                                   }));
+                               }
+                           }, 100); // Pequeño delay para asegurar que el mapa está atento
                        }
                    } else {
-                       // SI CANCELA (X)
+                       // SI CANCELA: Volvemos al menú principal
                        setSystemMode('GATEWAY');
                    }
                }} 
