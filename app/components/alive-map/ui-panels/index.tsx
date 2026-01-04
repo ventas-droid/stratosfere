@@ -767,13 +767,13 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            playSynthSound={playSynthSound} 
        />
        
-     {/* 5. FICHA DE DETALLES (CON CANDADO DE SEGURIDAD) */}
-       {activePanel === 'DETAILS' && ( 
+       {/* 5. FICHA DE DETALLES (CENTRAL) */}
+       {activePanel === 'DETAILS' && (
            <DetailsPanel 
                selectedProp={selectedProp} 
                onClose={() => setActivePanel('NONE')} 
-               onToggleFavorite={handleToggleFavorite} 
-               favorites={localFavs}               
+               onToggleFavorite={handleToggleFavorite} // <--- GATILLO COMPARTIDO
+               favorites={localFavs}               // <--- MUNICIÓN COMPARTIDA
                soundEnabled={soundEnabled} 
                playSynthSound={playSynthSound} 
                onOpenInspector={() => setActivePanel('INSPECTOR')} 
