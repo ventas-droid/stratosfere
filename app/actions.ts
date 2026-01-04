@@ -135,10 +135,8 @@ export async function savePropertyAction(data: any) {
 }
 
 // ---------------------------------------------------------
-// 3. 📡 LEER PROPIEDADES (EL GRAN TRADUCTOR)
+// 3. 📡 LEER PROPIEDADES (DATA BRIDGE V3 - FINAL Y BLINDADO)
 // ---------------------------------------------------------
-// Esta función es la que arregla su Frontend roto.
-// Coge los datos nuevos y los disfraza de antiguos.
 export async function getPropertiesAction() {
   try {
     const properties = await prisma.property.findMany({
@@ -149,19 +147,20 @@ export async function getPropertiesAction() {
     // PROCESO DE TRADUCCIÓN (DATOS DB -> DATOS FRONTEND)
     const safeProperties = properties.map((p: any) => {
       
-      // A. LIMPIEZA DE FOTOS (SIN MAQUILLAJE)
-      // Cambio clave: Si no hay foto, se queda vacío (null). Nada de fotos falsas.
-      let cleanImg = null; 
+      // A. GESTIÓN DE FOTOS (ARREGLO DEL SLIDER)
+      // 1. Sacamos todas las URLs de la tabla de imagenes
+      let allImages = p.images.map((i: any) => i.url);
       
-      // Solo si la base de datos tiene una URL real y válida, la usamos:
-      if (p.mainImage && !p.mainImage.includes("{") && p.mainImage.startsWith("http")) {
-          cleanImg = p.mainImage;
-      } else if (p.images && p.images.length > 0) {
-          cleanImg = p.images[0].url; 
+      // 2. Si la lista está vacía, intentamos rescatar la mainImage antigua
+      if (allImages.length === 0 && p.mainImage && !p.mainImage.includes("{") && p.mainImage.startsWith("http")) {
+          allImages.push(p.mainImage);
       }
+      
+      // 3. Definimos la imagen de portada (la primera de la lista)
+      const coverImg = allImages.length > 0 ? allImages[0] : null;
 
-      // B. RECUPERACIÓN DE SERVICIOS (CRÍTICO)
-      // Fusionamos la lista de la DB con los booleanos para que los iconos vuelvan a salir
+      // B. RECUPERACIÓN DE SERVICIOS (CRÍTICO - NO TOCAR)
+      // Esto asegura que los iconos de la tarjeta se vean bien
       const reconstructedServices = [
           ...(p.selectedServices || []),
           p.pool ? 'pool' : null,
@@ -173,55 +172,55 @@ export async function getPropertiesAction() {
           p.ac ? 'ac' : null,
           p.security ? 'security' : null,
           // Si tiene foto, asumimos servicio de foto
-          cleanImg ? 'foto' : null
+          coverImg ? 'foto' : null
       ].filter(Boolean);
 
-      // C. OBJETO FINAL (EL QUE SU DISEÑO ESPERA)
+      // C. COORDENADAS DE RESCATE (OPERACIÓN MADRID)
+      let finalCoords = [Number(p.longitude), Number(p.latitude)];
+      
+      // Si las coordenadas son 0 o nulas, aplicamos la dispersión en Madrid
+      if (!p.longitude || !p.latitude || (p.longitude === 0 && p.latitude === 0)) {
+          const baseLng = -3.7038;
+          const baseLat = 40.4168;
+          const magic = p.id ? p.id.charCodeAt(p.id.length - 1) : 0;
+          const offset = (magic % 50) * 0.0005; 
+          finalCoords = [baseLng + offset, baseLat - offset];
+      }
+
+      // D. RETORNO DEL OBJETO (CON TODO EL EQUIPAMIENTO)
       return {
-          ...p,
+          ...p, // Mantiene cualquier dato extra de la DB
           id: p.id,
           
-          // 1. Fotos arregladas
-          img: cleanImg, 
-          images: p.images.map((i: any) => i.url),
+          // 1. FOTOS ARREGLADAS
+          images: allImages,  // <--- Array completo para el Slider (HoloInspector)
+          img: coverImg,      // <--- Solo una para la Tarjeta (MapNanoCard)
           
-          // 2. Precios formateados (500.000) y puros (500000)
+          // 2. PRECIOS
           price: new Intl.NumberFormat('es-ES').format(p.price || 0),
           rawPrice: p.price,
-          priceValue: p.price, // Para las NanoCards
+          priceValue: p.price,
 
-          // 3. Servicios completos
+          // 3. SERVICIOS (Para los iconos)
           selectedServices: reconstructedServices,
           
-          // 4. Booleanos explícitos para DetailsPanel
+          // 4. BOOLEANOS EXPLÍCITOS (Para que el panel de detalles no falle)
           pool: p.pool,
           garage: p.garage,
           elevator: p.elevator,
           terrace: p.terrace,
           garden: p.garden,
+          storage: p.storage,
+          ac: p.ac,
+          security: p.security,
           
-          // 5. Energía
+          // 5. ENERGÍA
           energyConsumption: p.energyConsumption || "N/D",
           energyEmissions: p.energyEmissions || "N/D",
           energyPending: p.energyPending,
           
-      // 6. COORDENADAS CON DISPERSIÓN (Para que no se apilen en Madrid)
-          coordinates: (() => {
-              // A. Si tiene coordenadas reales, las usamos
-              if (p.longitude && p.latitude) {
-                  return [Number(p.longitude), Number(p.latitude)];
-              }
-
-              // B. Si no, usamos Madrid con un pequeño desplazamiento basado en su ID
-              // Esto separa los puntos para que se vean todos
-              const baseLng = -3.7038;
-              const baseLat = 40.4168;
-              
-              const magic = p.id ? p.id.charCodeAt(p.id.length - 1) : 0;
-              const offset = (magic % 50) * 0.0005; 
-
-              return [baseLng + offset, baseLat - offset];
-          })()
+          // 6. COORDENADAS CALCULADAS
+          coordinates: finalCoords
       };
     });
 
@@ -233,7 +232,9 @@ export async function getPropertiesAction() {
   }
 }
 
-// 4. BORRAR
+// ---------------------------------------------------------
+// 4. BORRAR PROPIEDAD (LA PIEZA PERDIDA)
+// ---------------------------------------------------------
 export async function deletePropertyAction(id: string) {
   try {
     await prisma.property.delete({ where: { id } });
@@ -243,4 +244,3 @@ export async function deletePropertyAction(id: string) {
     return { success: false, error: String(error) };
   }
 }
-
