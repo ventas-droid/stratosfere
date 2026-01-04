@@ -697,67 +697,95 @@ export const useMapLogic = () => {
   };
 
  // ====================================================================
-  // ⚡️ VISIÓN GLOBAL: CONEXIÓN ÚNICA Y BLINDADA (V3)
+  // ⚡️ VISIÓN GLOBAL: PROTOCOLO HIGHLANDER (ANTI-DUPLICADOS)
   // ====================================================================
   useEffect(() => {
     if (!isLoaded || !map.current) return;
 
     const fetchServerProperties = async () => {
       try {
-        console.log("📡 RADAR: Sincronizando con Base de Datos...");
+        console.log("📡 RADAR: Iniciando barrido y limpieza de duplicados...");
         
-        // 1. Llamamos a su función arreglada
+        // 1. OBTENER DATOS DEL SERVIDOR (LA VERDAD OFICIAL)
         const response = await getPropertiesAction();
-        
-        if (response.success && response.data) {
-           const source: any = map.current.getSource('properties');
-           
-           // 2. Convertimos los datos al formato del mapa (GeoJSON)
-           const serverFeatures = response.data.map((p: any) => ({
-               type: 'Feature',
-               geometry: { 
-                   type: 'Point', 
-                   // Usamos las coordenadas que ya calculamos (Madrid o Reales)
-                   coordinates: p.coordinates 
-               },
-               properties: {
-                   ...p,
-                   id: p.id,
-                   
-                   // FOTOS: Aseguramos que el mapa reciba el array completo
-                   images: p.images, 
-                   img: p.img, // La portada
-                   
-                   // PRECIOS: Usamos el valor numérico para los colores
-                   priceValue: p.rawPrice, 
-                   
-                   // SERVICIOS: Reconstruimos los iconos
-                   selectedServices: p.selectedServices
-               }
-           }));
+        const serverData = response.success ? response.data : [];
 
-           if (source) {
-               // 🔥 LA ORDEN SUPREMA: "setData"
-               // Esto borra cualquier dato viejo o duplicado y pone SOLO lo nuevo.
-               source.setData({
-                   type: 'FeatureCollection',
-                   features: serverFeatures
-               });
-               
-               console.log(`✅ MAPA ACTUALIZADO: ${serverFeatures.length} activos desplegados.`);
-               
-               // Forzamos que se pinten los marcadores inmediatamente
-               setTimeout(() => {
-                   if(typeof updateMarkers === 'function') updateMarkers(); 
-               }, 100);
-           }
+        // 2. OBTENER DATOS LOCALES (SUS CAMBIOS RECIENTES)
+        let localData = [];
+        try {
+            const saved = localStorage.getItem('stratos_my_properties');
+            if (saved) localData = JSON.parse(saved);
+        } catch (e) {}
+
+        // 3. FUSIÓN INTELIGENTE (EL FILTRO)
+        // Creamos un Mapa usando el ID como clave. Esto elimina duplicados automáticamente.
+        const uniqueProperties = new Map();
+
+        // A. Primero cargamos el servidor
+        serverData.forEach((p: any) => {
+            uniqueProperties.set(String(p.id), { ...p, source: 'SERVER' });
+        });
+
+        // B. Luego cargamos lo local (Si ya existe, SOBREESCRIBE al servidor con los datos nuevos)
+        // Si no existe (es nueva y no se ha subido), se añade.
+        localData.forEach((p: any) => {
+            if (p.id) {
+                // Si ya existe, fusionamos para mantener lo más fresco
+                const existing = uniqueProperties.get(String(p.id)) || {};
+                uniqueProperties.set(String(p.id), { ...existing, ...p, source: 'LOCAL_OVERRIDE' });
+            }
+        });
+
+        // 4. CONVERTIR A FORMATO MAPA (GEOJSON)
+        const finalFeatures = Array.from(uniqueProperties.values()).map((p: any) => ({
+            type: 'Feature',
+            geometry: { 
+                type: 'Point', 
+                // Prioridad a coordenadas explícitas, luego array
+                coordinates: p.coordinates || [Number(p.longitude), Number(p.latitude)] 
+            },
+            properties: {
+                ...p,
+                id: p.id,
+                
+                // Aseguramos formato de fotos
+                images: p.images || [], 
+                img: p.img || (p.images && p.images[0]) || null,
+                
+                // Aseguramos formato de precio
+                priceValue: Number(p.rawPrice || p.priceValue || p.price),
+                
+                // Servicios normalizados
+                selectedServices: p.selectedServices || []
+            }
+        }));
+
+        // 5. INYECCIÓN FINAL EN EL MAPA
+        const source: any = map.current.getSource('properties');
+        if (source) {
+            source.setData({
+                type: 'FeatureCollection',
+                features: finalFeatures
+            });
+            
+            console.log(`✅ RADAR LIMPIO: ${finalFeatures.length} objetivos únicos confirmados.`);
+            
+            // Repintar marcadores visuales
+            setTimeout(() => {
+                if(typeof updateMarkers === 'function') updateMarkers(); 
+            }, 100);
         }
-      } catch (e) { console.error("❌ Fallo de conexión radar:", e); }
+
+      } catch (e) { console.error("❌ Fallo crítico en radar:", e); }
     };
 
     fetchServerProperties();
-  }, [isLoaded]); // Se ejecuta en cuanto el mapa dice "Listo"
+    
+    // Nos suscribimos también a la señal de refresco forzoso
+    window.addEventListener('force-map-refresh', fetchServerProperties);
+    return () => window.removeEventListener('force-map-refresh', fetchServerProperties);
 
+  }, [isLoaded]);
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
   // --------------------------------------------------------------------
