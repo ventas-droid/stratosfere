@@ -868,4 +868,3 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
     </div>
   );
 }
-
