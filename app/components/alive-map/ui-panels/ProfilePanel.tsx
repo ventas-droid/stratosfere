@@ -108,7 +108,11 @@ const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "
                  ].filter(Boolean),
                  // Aseguramos formato numérico
                  mBuilt: Number(p.mBuilt || 0),
-                 price: new Intl.NumberFormat('es-ES').format(p.price),
+                 price: p.rawPrice 
+        ? new Intl.NumberFormat('es-ES').format(p.rawPrice) // 1. Prioridad: Usar el número puro guardado
+        : (typeof p.price === 'number' 
+            ? new Intl.NumberFormat('es-ES').format(p.price) // 2. Si price es número, formatear
+            : p.price), // 3. Si ya es texto ("375.000"), mostrarlo tal cual sin tocar
                  coordinates: [p.longitude, p.latitude]
              }));
              setMyProperties(dbProperties);
