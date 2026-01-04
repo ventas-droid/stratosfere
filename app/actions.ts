@@ -205,11 +205,23 @@ export async function getPropertiesAction() {
           energyEmissions: p.energyEmissions || "N/D",
           energyPending: p.energyPending,
           
-        // Si no hay coordenadas, usamos Sol (Madrid) FIJO. Nada de random.
-          coordinates: [
-              p.longitude || -3.7038, 
-              p.latitude || 40.4168
-          ]
+      // 6. COORDENADAS CON DISPERSIÓN (Para que no se apilen en Madrid)
+          coordinates: (() => {
+              // A. Si tiene coordenadas reales, las usamos
+              if (p.longitude && p.latitude) {
+                  return [Number(p.longitude), Number(p.latitude)];
+              }
+
+              // B. Si no, usamos Madrid con un pequeño desplazamiento basado en su ID
+              // Esto separa los puntos para que se vean todos
+              const baseLng = -3.7038;
+              const baseLat = 40.4168;
+              
+              const magic = p.id ? p.id.charCodeAt(p.id.length - 1) : 0;
+              const offset = (magic % 50) * 0.0005; 
+
+              return [baseLng + offset, baseLat - offset];
+          })()
       };
     });
 
