@@ -149,19 +149,16 @@ export const useMapLogic = () => {
         console.error("Error leyendo radar:", e);
       }
 
-      // 3. UNIFICACIÓN DEL MANDO
-      const combinedData = [...masterFeatures, ...userFeatures];
-
-      // 4. CARGA AL MAPA (Con chequeo ANTI-CRASH)
+      // 4. CARGA AL MAPA
       if (map.current.getSource('properties')) {
         (map.current.getSource('properties') as any).setData({
           type: 'FeatureCollection',
-          features: combinedData
+          features: [] // <--- 🔥 PONGA ESTO VACÍO (features: [])
         });
       } else {
         map.current.addSource('properties', {
           type: 'geojson',
-          data: { type: 'FeatureCollection', features: combinedData },
+          data: { type: 'FeatureCollection', features: [] }, // <--- 🔥 AQUÍ TAMBIÉN VACÍO
           cluster: true,
           clusterMaxZoom: 15,
           clusterRadius: 80
@@ -716,9 +713,9 @@ export const useMapLogic = () => {
             if (saved) localData = JSON.parse(saved);
         } catch (e) {}
 
-        // 2. FUSIÓN ÚNICA (HIGHLANDER)
-        // Usamos un Map para garantizar que NO haya duplicados de ID.
-        // La clave es String(id) para evitar fallos de "123" vs 123.
+        // 2. FUSIÓN ÚNICA (HIGHLANDER - FIX DE IDs)
+        // Usamos un Map donde la CLAVE es el ID como String.
+        // Esto evita que '123' (num) y '123' (txt) se dupliquen.
         const uniqueMap = new Map();
 
         // A. Base Servidor
@@ -726,7 +723,7 @@ export const useMapLogic = () => {
             uniqueMap.set(String(p.id), { ...p, source: 'SERVER' });
         });
 
-        // B. Sobreescritura Local (El dato local MATA al del servidor)
+        // B. Sobreescritura Local (MATA a la del servidor si el ID coincide)
         localData.forEach((p: any) => {
             if (p.id) {
                 const existing = uniqueMap.get(String(p.id)) || {};
@@ -736,52 +733,55 @@ export const useMapLogic = () => {
 
         const unifiedList = Array.from(uniqueMap.values());
 
-        // 3. DISPERSIÓN DE EDIFICIOS (ANTI-SOLAPAMIENTO)
+        // 3. DISPERSIÓN DE EDIFICIOS (SOLUCIÓN AL SOLAPAMIENTO) 
         // Detectamos si varias casas comparten coordenadas exactas y las separamos.
-        const coordTracker = new Map<string, number>(); // "lat,lng" -> cantidad
+        const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
             // Coordenadas base
             let lng = Number(p.coordinates ? p.coordinates[0] : p.longitude);
             let lat = Number(p.coordinates ? p.coordinates[1] : p.latitude);
 
-            // Generamos una "huella digital" de la ubicación
-            const coordKey = `${lng.toFixed(6)},${lat.toFixed(6)}`;
+            // Si falla, fallback a Madrid
+            if (!lng || !lat) { lng = -3.6883; lat = 40.4280; }
+
+            // Generamos una "huella" de la ubicación (con 5 decimales de precisión)
+            const coordKey = `${lng.toFixed(5)},${lat.toFixed(5)}`;
             
-            // Verificamos cuántas casas hay YA en este punto
+            // ¿Cuántas hay ya aquí?
             const count = coordTracker.get(coordKey) || 0;
             
-            // Si hay más de una (count > 0), aplicamos desplazamiento
+            // Si hay más de una, aplicamos la ESPIRAL
             if (count > 0) {
-                // Algoritmo de Espiral: Desplaza cada vecino en un ángulo diferente
-                const angle = count * (Math.PI * 2 / 6); // Cada casa rota 60 grados
-                const radius = 0.00015 * Math.ceil(count / 6); // El radio crece si hay muchas
+                const angle = count * (Math.PI * 2 / 7); // Rotamos en círculo
+                const radius = 0.0002 * Math.ceil(count / 7); // Radio de separación
                 
                 lng += Math.cos(angle) * radius;
                 lat += Math.sin(angle) * radius;
             }
 
-            // Registramos que hay una casa más en este edificio
+            // Registramos +1 en este sitio
             coordTracker.set(coordKey, count + 1);
 
             return {
                 type: 'Feature',
                 geometry: { 
                     type: 'Point', 
-                    coordinates: [lng, lat] // Coordenadas finales (dispersas)
+                    coordinates: [lng, lat] 
                 },
                 properties: {
                     ...p,
-                    id: String(p.id), // ID Blindado
+                    id: String(p.id), // ID BLINDADO COMO STRING
                     images: p.images || [], 
                     img: p.img || (p.images && p.images[0]) || null,
                     priceValue: Number(p.rawPrice || p.priceValue || p.price),
-                    selectedServices: p.selectedServices || []
+                    selectedServices: p.selectedServices || [],
+                    elevator: isYes(p.elevator) || isYes(p.ascensor)
                 }
             };
         });
 
-        // 4. INYECCIÓN EN EL MAPA
+        // 4. INYECCIÓN EN EL MAPA (LIMPIEZA FINAL)
         const source: any = map.current.getSource('properties');
         if (source) {
             source.setData({
@@ -804,6 +804,7 @@ export const useMapLogic = () => {
     return () => window.removeEventListener('force-map-refresh', fetchServerProperties);
 
   }, [isLoaded]);
+  
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
   // --------------------------------------------------------------------
