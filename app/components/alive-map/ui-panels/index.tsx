@@ -435,42 +435,80 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                // 🔥 DATOS INICIALES (Para editar si existen)
                initialData={editingProp} 
                
-               onCloseMode={(success: boolean, payload: any) => { 
-                   // 1. Limpieza de memoria temporal
+              onCloseMode={(success: boolean, payload: any) => { 
+                   // 1. Limpieza de memoria
                    setEditingProp(null); 
                    
-                   if (success) {
-                       console.log("✅ Propiedad publicada con éxito");
+                   if (success && payload) {
+                       console.log("✅ Propiedad guardada. Iniciando protocolos post-edición...");
+
+                       // --- A. PREPARAR DATOS (NORMALIZACIÓN) ---
+                       // Aseguramos que el mapa reciba coordenadas válidas para no irse a Madrid
+                       const safeCoords = payload.coordinates || (payload.longitude && payload.latitude ? [payload.longitude, payload.latitude] : null);
                        
-                       // 2. CAMBIO A MODO EXPLORADOR
-                       setSystemMode('EXPLORER');
-                       
-                       // 🔥 LA CLAVE: EVITAR LA CONSOLA DE BÚSQUEDA
-                       // Al poner esto en true, el sistema asume que ya hemos "aterrizado"
-                       // y muestra directamente el mapa con la propiedad.
-                       setLandingComplete(true); 
-                       
-                       // 3. Evitar tutoriales antiguos
-                       if (typeof setExplorerIntroDone === 'function') {
-                           setExplorerIntroDone(true); 
+                       // Refinamos el paquete para la UI
+                       const refinedPayload = {
+                           ...payload,
+                           price: payload.price,         
+                           formattedPrice: payload.price + ' €', 
+                           coordinates: safeCoords
+                       };
+
+                       // --- B. CAMBIO DE MODO ---
+                       const wasAgency = editingProp?.isAgencyContext || payload.isAgencyContext;
+                       if (wasAgency) {
+                           setSystemMode('AGENCY');
+                           setRightPanel('AGENCY_PORTFOLIO');
+                       } else {
+                           setSystemMode('EXPLORER');
+                           setLandingComplete(true); 
+                           if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true); 
                        }
 
-                       // 4. 📡 LANZAMIENTO DE LA SEÑAL AL MAPA (El Convoy)
-                       if (payload) {
-                           console.log("📡 Enviando datos al mapa...", payload);
-                           setTimeout(() => {
-                               if (typeof window !== 'undefined') {
-                                   window.dispatchEvent(new CustomEvent('add-property-signal', { 
-                                       detail: payload 
+                       // --- C. EMITIR SEÑALES (AQUÍ ESTÁ EL ARREGLO DEL VUELO) ---
+                       setTimeout(() => {
+                           if (typeof window !== 'undefined') {
+                               // 1. Actualizar datos en el mapa
+                               window.dispatchEvent(new CustomEvent(payload.id ? 'update-property-signal' : 'add-property-signal', { 
+                                   detail: refinedPayload 
+                               }));
+                               
+                               // 2. Recargar perfil
+                               window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+
+                               // 3. 🔥 ORDEN DE VUELO: VOLAR AL SITIO EXACTO 🔥
+                               if (safeCoords && safeCoords[0] !== 0) {
+                                   console.log("✈️ VOLANDO A:", safeCoords);
+                                   window.dispatchEvent(new CustomEvent("fly-to-location", { 
+                                       detail: { 
+                                           center: safeCoords, 
+                                           zoom: 18, 
+                                           pitch: 60 
+                                       } 
                                    }));
                                }
-                           }, 100); // Pequeño delay para asegurar que el mapa está atento
-                       }
+                           }
+                           
+                           // 4. Actualizar UI local (Favoritos/Detalles)
+                           try {
+                                if (selectedProp && String(selectedProp.id) === String(refinedPayload.id)) {
+                                    setSelectedProp((prev: any) => ({ ...prev, ...refinedPayload }));
+                                }
+                           } catch (e) {}
+
+                       }, 100); 
+
                    } else {
-                       // SI CANCELA: Volvemos al menú principal
-                       setSystemMode('GATEWAY');
+                       // SI CANCELA
+                       const wasAgency = editingProp?.isAgencyContext;
+                       if (wasAgency) {
+                           setSystemMode('AGENCY');
+                           setRightPanel('AGENCY_PORTFOLIO');
+                       } else {
+                           setSystemMode('GATEWAY');
+                       }
                    }
-               }} 
+               }}
            />
        )}
 
@@ -768,12 +806,13 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
        />
        
        {/* 5. FICHA DE DETALLES (CENTRAL) */}
-       {activePanel === 'DETAILS' && (
+       {/* ⚠️ IMPORTANTE: Si quita la línea de abajo, el panel se quedará pegado siempre */}
+       {activePanel === 'DETAILS' && ( 
            <DetailsPanel 
                selectedProp={selectedProp} 
                onClose={() => setActivePanel('NONE')} 
-               onToggleFavorite={handleToggleFavorite} // <--- GATILLO COMPARTIDO
-               favorites={localFavs}               // <--- MUNICIÓN COMPARTIDA
+               onToggleFavorite={handleToggleFavorite} 
+               favorites={localFavs}               
                soundEnabled={soundEnabled} 
                playSynthSound={playSynthSound} 
                onOpenInspector={() => setActivePanel('INSPECTOR')} 
