@@ -427,34 +427,16 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            </div>
        )}
 
-      {/* BLOQUE 1: MODO ARQUITECTO (VENDER) - CONVOY DE DATOS ACTIVADO 🚚 */}
+      {/* B. MODO ARQUITECTO (EDITOR) */}
        {systemMode === 'ARCHITECT' && (
            <ArchitectHud 
                soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
-               
-               // 🔥 DATOS INICIALES (Para editar si existen)
                initialData={editingProp} 
-               
-              onCloseMode={(success: boolean, payload: any) => { 
-                   // 1. Limpieza de memoria
-                   setEditingProp(null); 
-                   
+               onCloseMode={(success: boolean, payload: any) => { 
+                   setEditingProp(null); // Limpiamos memoria
+
                    if (success && payload) {
-                       console.log("✅ Propiedad guardada. Iniciando protocolos post-edición...");
-
-                       // --- A. PREPARAR DATOS (NORMALIZACIÓN) ---
-                       // Aseguramos que el mapa reciba coordenadas válidas para no irse a Madrid
-                       const safeCoords = payload.coordinates || (payload.longitude && payload.latitude ? [payload.longitude, payload.latitude] : null);
-                       
-                       // Refinamos el paquete para la UI
-                       const refinedPayload = {
-                           ...payload,
-                           price: payload.price,         
-                           formattedPrice: payload.price + ' €', 
-                           coordinates: safeCoords
-                       };
-
-                       // --- B. CAMBIO DE MODO ---
+                       // 1. GESTIÓN DE MODO (Volver a Agencia o Explorer)
                        const wasAgency = editingProp?.isAgencyContext || payload.isAgencyContext;
                        if (wasAgency) {
                            setSystemMode('AGENCY');
@@ -462,26 +444,27 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                        } else {
                            setSystemMode('EXPLORER');
                            setLandingComplete(true); 
-                           if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true); 
+                           if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true);
                        }
 
-                       // --- C. EMITIR SEÑALES (AQUÍ ESTÁ EL ARREGLO DEL VUELO) ---
+                       // 2. ENVIAR DATOS (Retraso de seguridad para que el mapa cargue)
                        setTimeout(() => {
                            if (typeof window !== 'undefined') {
-                               // 1. Actualizar datos en el mapa
+                               // A. Actualizar datos en el mapa
                                window.dispatchEvent(new CustomEvent(payload.id ? 'update-property-signal' : 'add-property-signal', { 
-                                   detail: refinedPayload 
+                                   detail: payload 
                                }));
                                
-                               // 2. Recargar perfil
+                               // B. Recargar perfil
                                window.dispatchEvent(new CustomEvent('reload-profile-assets'));
 
-                               // 3. 🔥 ORDEN DE VUELO: VOLAR AL SITIO EXACTO 🔥
-                               if (safeCoords && safeCoords[0] !== 0) {
-                                   console.log("✈️ VOLANDO A:", safeCoords);
+                               // C. 🔥 VUELO FORZADO (EL ARREGLO) 🔥
+                               // Si hay coordenadas, obligamos al mapa a ir allí
+                               if (payload.coordinates) {
+                                   console.log("✈️ VUELO TÁCTICO A:", payload.coordinates);
                                    window.dispatchEvent(new CustomEvent("fly-to-location", { 
                                        detail: { 
-                                           center: safeCoords, 
+                                           center: payload.coordinates, 
                                            zoom: 18, 
                                            pitch: 60 
                                        } 
@@ -489,17 +472,17 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                                }
                            }
                            
-                           // 4. Actualizar UI local (Favoritos/Detalles)
+                           // 3. ACTUALIZAR UI LOCAL (Para que se vea el precio nuevo al instante)
                            try {
-                                if (selectedProp && String(selectedProp.id) === String(refinedPayload.id)) {
-                                    setSelectedProp((prev: any) => ({ ...prev, ...refinedPayload }));
+                                if (selectedProp && String(selectedProp.id) === String(payload.id)) {
+                                    setSelectedProp((prev: any) => ({ ...prev, ...payload }));
                                 }
                            } catch (e) {}
 
-                       }, 100); 
+                       }, 200); // Damos 200ms al sistema para cambiar de modo antes de volar
 
                    } else {
-                       // SI CANCELA
+                       // SI CANCELA (X)
                        const wasAgency = editingProp?.isAgencyContext;
                        if (wasAgency) {
                            setSystemMode('AGENCY');
@@ -508,7 +491,7 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                            setSystemMode('GATEWAY');
                        }
                    }
-               }}
+               }} 
            />
        )}
 
@@ -805,8 +788,7 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            playSynthSound={playSynthSound} 
        />
        
-       {/* 5. FICHA DE DETALLES (CENTRAL) */}
-       {/* ⚠️ IMPORTANTE: Si quita la línea de abajo, el panel se quedará pegado siempre */}
+      {/* 5. FICHA DE DETALLES (PROTEGIDA) */}
        {activePanel === 'DETAILS' && ( 
            <DetailsPanel 
                selectedProp={selectedProp} 
