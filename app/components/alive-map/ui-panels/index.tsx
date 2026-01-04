@@ -566,44 +566,76 @@ export default function UIPanels({
        )}
 
        {/* B. MODO ARQUITECTO (EDITOR) - LÓGICA DE RETORNO CORREGIDA */}
-       {systemMode === 'ARCHITECT' && (
-           <ArchitectHud 
-               soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
-               initialData={editingProp} 
-               onCloseMode={(success: boolean, payload: any) => { 
-                   // 1. Detectamos si veníamos de Agencia
-                   const wasAgency = editingProp?.isAgencyContext || (payload && payload.isAgencyContext);
-                   
-                   setEditingProp(null); 
+{systemMode === 'ARCHITECT' && (
+  <ArchitectHud
+    soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined}
+    initialData={editingProp}
+    onCloseMode={(success: boolean, payload: any) => {
+      // 1. Detectamos si veníamos de Agencia
+      const wasAgency = editingProp?.isAgencyContext || (payload && payload.isAgencyContext);
 
-                   if (success) {
-                       if (wasAgency) {
-                           // ✅ SI ES AGENCIA: Mantenemos modo AGENCIA y reabrimos el Stock
-                           setSystemMode('AGENCY');
-                           setRightPanel('AGENCY_PORTFOLIO');
-                       } else {
-                           // ✅ SI ES USUARIO: Vamos al modo EXPLORER
-                           setSystemMode('EXPLORER');
-                           setLandingComplete(true); 
-                           if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true); 
-                       }
-                       
-                       // Emitimos señal de nuevo activo
-                       if (payload) {
-                           setTimeout(() => { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('add-property-signal', { detail: payload })); }, 100);
-                       }
-                   } else {
-                       // Si cancela (X)
-                       if (wasAgency) {
-                           setSystemMode('AGENCY');
-                           setRightPanel('AGENCY_PORTFOLIO'); // Volvemos al stock
-                       } else {
-                           setSystemMode('GATEWAY');
-                       }
-                   }
-               }} 
-           />
-       )}
+      // ✅ Detectar si era edición real (si había id al entrar)
+      const isEdit = !!editingProp?.id;
+
+      setEditingProp(null);
+
+      if (success) {
+        if (wasAgency) {
+          // ✅ SI ES AGENCIA: Mantenemos modo AGENCIA y reabrimos el Stock
+          setSystemMode('AGENCY');
+          setRightPanel('AGENCY_PORTFOLIO');
+        } else {
+          // ✅ SI ES USUARIO: Vamos al modo EXPLORER
+          setSystemMode('EXPLORER');
+          setLandingComplete(true);
+          if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true);
+        }
+
+        // ✅ Emitimos señal: add si es nuevo, update si es edición
+        if (payload) {
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent(isEdit ? 'update-property-signal' : 'add-property-signal', {
+                  detail: payload,
+                })
+              );
+
+              // ✅ fuerza refresco del perfil/mis activos
+              window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+            }
+
+            // ✅ Si DETAILS está abierto con esa prop, la actualizamos en vivo
+            try {
+              const pid = String(payload?.id ?? '');
+              if (pid) {
+                setSelectedProp((prev: any) =>
+                  prev && String(prev.id) === pid ? { ...prev, ...payload } : prev
+                );
+
+                // ✅ Si está en favoritos, actualizamos también
+                setLocalFavs((prev: any[]) =>
+                  Array.isArray(prev)
+                    ? prev.map((f: any) => (f && String(f.id) === pid ? { ...f, ...payload } : f))
+                    : prev
+                );
+              }
+            } catch {}
+          }, 100);
+        }
+      } else {
+        // Si cancela (X)
+        if (wasAgency) {
+          setSystemMode('AGENCY');
+          setRightPanel('AGENCY_PORTFOLIO'); // Volvemos al stock
+        } else {
+          setSystemMode('GATEWAY');
+        }
+      }
+    }}
+  />
+)}
+
 
        {/* C. MODO DIFUSOR */}
        {systemMode === 'DIFFUSER' && (
