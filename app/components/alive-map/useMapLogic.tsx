@@ -700,63 +700,67 @@ export const useMapLogic = () => {
     return visibleProps;
   };
 
-  // ====================================================================
-  // ⚡️ VISIÓN GLOBAL: CONEXIÓN CON BASE DE DATOS (NUEVO)
+ // ====================================================================
+  // ⚡️ VISIÓN GLOBAL: CONEXIÓN ÚNICA Y BLINDADA (V3)
   // ====================================================================
   useEffect(() => {
     if (!isLoaded || !map.current) return;
 
     const fetchServerProperties = async () => {
       try {
-        console.log("📡 RADAR: Iniciando escaneo global de Base de Datos...");
-        // Llamamos a la acción del servidor
+        console.log("📡 RADAR: Sincronizando con Base de Datos...");
+        
+        // 1. Llamamos a su función arreglada
         const response = await getPropertiesAction();
         
         if (response.success && response.data) {
            const source: any = map.current.getSource('properties');
-           if (source && source._data) {
-               const currentFeatures = source._data.features;
-               
-               // 1. Convertimos los datos de la DB al formato GeoJSON del Mapa
-               const serverFeatures = response.data.map((p: any) => ({
-                   type: 'Feature',
-                   geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
-                   properties: {
-                       ...p,
-                      id: p.id,
-                       priceValue: p.price,
-                       // Recuperamos la foto principal (LIMPIEZA TOTAL)
-                       // Si hay foto, la ponemos. Si no, NULL.
-                       img: p.mainImage || (p.images && p.images[0]?.url) || null,
-                       elevator: p.elevator,
-                       // Recuperamos los extras como servicios
-                       selectedServices: [
-                          p.pool ? 'pool' : null, p.garage ? 'garage' : null,
-                          p.terrace ? 'terrace' : null, p.garden ? 'garden' : null,
-                          p.storage ? 'storage' : null, p.ac ? 'ac' : null, 
-                          p.security ? 'security' : null
-                       ].filter(Boolean)
-                   }
-               }));
-
-               // 2. Fusionamos evitando duplicados (El servidor manda)
-               const existingIds = new Set(currentFeatures.map((f: any) => String(f.properties.id)));
-               const newUnique = serverFeatures.filter((f: any) => !existingIds.has(String(f.properties.id)));
-
-               if (newUnique.length > 0) {
-                   source.setData({
-                       type: 'FeatureCollection',
-                       features: [...currentFeatures, ...newUnique]
-                   });
-                   console.log(`✅ RADAR: ${newUnique.length} objetivos nuevos detectados en la nube.`);
+           
+           // 2. Convertimos los datos al formato del mapa (GeoJSON)
+           const serverFeatures = response.data.map((p: any) => ({
+               type: 'Feature',
+               geometry: { 
+                   type: 'Point', 
+                   // Usamos las coordenadas que ya calculamos (Madrid o Reales)
+                   coordinates: p.coordinates 
+               },
+               properties: {
+                   ...p,
+                   id: p.id,
+                   
+                   // FOTOS: Aseguramos que el mapa reciba el array completo
+                   images: p.images, 
+                   img: p.img, // La portada
+                   
+                   // PRECIOS: Usamos el valor numérico para los colores
+                   priceValue: p.rawPrice, 
+                   
+                   // SERVICIOS: Reconstruimos los iconos
+                   selectedServices: p.selectedServices
                }
+           }));
+
+           if (source) {
+               // 🔥 LA ORDEN SUPREMA: "setData"
+               // Esto borra cualquier dato viejo o duplicado y pone SOLO lo nuevo.
+               source.setData({
+                   type: 'FeatureCollection',
+                   features: serverFeatures
+               });
+               
+               console.log(`✅ MAPA ACTUALIZADO: ${serverFeatures.length} activos desplegados.`);
+               
+               // Forzamos que se pinten los marcadores inmediatamente
+               setTimeout(() => {
+                   if(typeof updateMarkers === 'function') updateMarkers(); 
+               }, 100);
            }
         }
       } catch (e) { console.error("❌ Fallo de conexión radar:", e); }
     };
 
     fetchServerProperties();
-  }, [isLoaded]); // Se dispara cuando el mapa termina de cargar
+  }, [isLoaded]); // Se ejecuta en cuanto el mapa dice "Listo"
 
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
