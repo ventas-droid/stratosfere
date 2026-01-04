@@ -1,6 +1,5 @@
 "use client";
-import React from 'react';
-import { 
+import React, { useState, useEffect } from 'react';import { 
     X, Heart, Phone, Sparkles, 
     // Iconos Genéricos
     Star, 
@@ -57,13 +56,36 @@ const PHYSICAL_KEYWORDS = [
 ];
 
 export default function DetailsPanel({ 
-  selectedProp, 
+  // 🔥 AQUÍ ESTÁ EL TRUCO: Renombramos la entrada usando los dos puntos (:)
+  // Esto dice: "Recibe 'selectedProp', pero llámalo 'initialProp' aquí dentro"
+  selectedProp: initialProp, 
   onClose, 
   onToggleFavorite, 
   favorites = [], 
   onOpenInspector 
 }: any) {
     
+    // 1. AHORA SÍ PODEMOS CREAR 'selectedProp' SIN QUE CHOQUE
+    const [selectedProp, setSelectedProp] = useState(initialProp);
+
+    // 2. SINCRONIZACIÓN (Si cambia la casa seleccionada desde fuera)
+    useEffect(() => {
+        setSelectedProp(initialProp);
+    }, [initialProp]);
+
+    // 3. RECEPTOR DE SEÑAL (Actualización en vivo)
+    useEffect(() => {
+        const handleLiveUpdate = (e: any) => {
+            const { id, updates } = e.detail;
+            if (selectedProp && String(selectedProp.id) === String(id)) {
+                setSelectedProp((prev: any) => ({ ...prev, ...updates }));
+            }
+        };
+        window.addEventListener('update-property-signal', handleLiveUpdate);
+        return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
+    }, [selectedProp]);
+
+    // Guard de seguridad
     if (!selectedProp) return null;
 
     // ========================================================================
