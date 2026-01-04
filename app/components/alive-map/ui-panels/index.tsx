@@ -570,64 +570,90 @@ export default function UIPanels({
   <ArchitectHud
     soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined}
     initialData={editingProp}
-    onCloseMode={(success: boolean, payload: any) => {
-      // 1. Detectamos si veníamos de Agencia
+   onCloseMode={(success: boolean, payload: any) => {
+      // 1. Detectamos contexto
       const wasAgency = editingProp?.isAgencyContext || (payload && payload.isAgencyContext);
-
-      // ✅ Detectar si era edición real (si había id al entrar)
       const isEdit = !!editingProp?.id;
 
       setEditingProp(null);
 
-      if (success) {
+      if (success && payload) {
+        
+        // --- 🛡️ FASE DE NORMALIZACIÓN (EL ARREGLO ESTÁ AQUÍ) ---
+        // Antes de enviar nada, convertimos los datos al "Estandar Stratos"
+        
+        // A. Precios: Aseguramos formato español (Puntos) y símbolo €
+        const numericPrice = Number(payload.price || 0);
+        const formattedPrice = new Intl.NumberFormat('es-ES').format(numericPrice) + ' €';
+        
+        // B. Coordenadas: Aseguramos que existan para que NO se vaya a Madrid
+        // Si el payload no trae coords nuevas, mantenemos las viejas o usamos las sueltas
+        const safeCoords = payload.coordinates || (payload.longitude && payload.latitude ? [payload.longitude, payload.latitude] : null);
+
+        // C. Paquete Final Blindado
+        const refinedPayload = {
+            ...payload,
+            // Precios corregidos para visualización
+            price: formattedPrice,        // Para la NanoCard (Texto)
+            formattedPrice: formattedPrice, // Para la Bóveda (Texto)
+            rawPrice: numericPrice,       // Para cálculos (Número)
+            priceValue: numericPrice,     // Para el color de la tarjeta
+            
+            // Ubicación corregida para la Bóveda
+            location: (payload.address || payload.city || "Ubicación desconocida").toUpperCase(),
+            
+            // Coordenadas para el mapa
+            coordinates: safeCoords
+        };
+        // -------------------------------------------------------
+
         if (wasAgency) {
-          // ✅ SI ES AGENCIA: Mantenemos modo AGENCIA y reabrimos el Stock
           setSystemMode('AGENCY');
           setRightPanel('AGENCY_PORTFOLIO');
         } else {
-          // ✅ SI ES USUARIO: Vamos al modo EXPLORER
           setSystemMode('EXPLORER');
           setLandingComplete(true);
           if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true);
         }
 
-        // ✅ Emitimos señal: add si es nuevo, update si es edición
-        if (payload) {
-          setTimeout(() => {
+        // 2. EMITIR SEÑAL (Ahora enviamos el paquete refinado)
+        setTimeout(() => {
             if (typeof window !== 'undefined') {
+              // Señal al Mapa
               window.dispatchEvent(
                 new CustomEvent(isEdit ? 'update-property-signal' : 'add-property-signal', {
-                  detail: payload,
+                  detail: refinedPayload, // <--- Usamos el refinado
                 })
               );
 
-              // ✅ fuerza refresco del perfil/mis activos
+              // Señal al Perfil
               window.dispatchEvent(new CustomEvent('reload-profile-assets'));
             }
 
-            // ✅ Si DETAILS está abierto con esa prop, la actualizamos en vivo
+            // 3. ACTUALIZAR ESTADO LOCAL (Details y Vault)
             try {
-              const pid = String(payload?.id ?? '');
+              const pid = String(refinedPayload.id || '');
               if (pid) {
+                // Actualizar Panel de Detalles (DetailsPanel)
                 setSelectedProp((prev: any) =>
-                  prev && String(prev.id) === pid ? { ...prev, ...payload } : prev
+                  prev && String(prev.id) === pid ? { ...prev, ...refinedPayload } : prev
                 );
 
-                // ✅ Si está en favoritos, actualizamos también
+                // Actualizar Favoritos (Vault) - ¡Ahora sí tendrá precio y ubicación!
                 setLocalFavs((prev: any[]) =>
                   Array.isArray(prev)
-                    ? prev.map((f: any) => (f && String(f.id) === pid ? { ...f, ...payload } : f))
+                    ? prev.map((f: any) => (f && String(f.id) === pid ? { ...f, ...refinedPayload } : f))
                     : prev
                 );
               }
-            } catch {}
+            } catch (e) { console.error("Error actualizando UI local:", e); }
           }, 100);
-        }
+          
       } else {
-        // Si cancela (X)
+        // Cancelación (X)
         if (wasAgency) {
           setSystemMode('AGENCY');
-          setRightPanel('AGENCY_PORTFOLIO'); // Volvemos al stock
+          setRightPanel('AGENCY_PORTFOLIO');
         } else {
           setSystemMode('GATEWAY');
         }
