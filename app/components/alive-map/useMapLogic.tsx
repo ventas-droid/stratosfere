@@ -9,7 +9,10 @@ import { parseOmniSearch, CONTEXT_CONFIG } from './smart-search';
 import MapNanoCard from './ui-panels/MapNanoCard';
 
 // 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
-import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
+// import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
+const STRATOS_PROPERTIES : any[] = [];
+const IMAGES : any[] = [];
+
 import { getPropertiesAction } from '@/app/actions';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
@@ -63,13 +66,38 @@ export const useMapLogic = () => {
       console.log("🟢 MAPA 3D: SISTEMAS LISTOS");
       setIsLoaded(true);
 
-    // =================================================================
+      // =================================================================
       // 🔥 FUSIÓN NUCLEAR DE DATOS (Master DB + LocalStorage)
       // =================================================================
 
       // 1. PREPARAR EJÉRCITO REGULAR (Stratos DB)
-      // CORRECCIÓN: Lista vacía para eliminar el fantasma de 375.000 €.
-      const masterFeatures: any[] = [];
+      const masterFeatures = STRATOS_PROPERTIES.map(p => {
+       
+        // Convertir 'specs' {pool:true} -> array ['pool']
+        const servicesFromArray = p.specs
+          ? Object.keys(p.specs).filter((k: any) => (p.specs as any)[k])
+          : [];
+
+        return {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: p.coordinates },
+          properties: {
+            ...p,
+            id: p.id,
+            priceValue: Number(p.price),
+
+            // 🔥 NORMALIZACIONES CLAVE
+            m2: Number(p.mBuilt),
+            mBuilt: Number(p.mBuilt),
+
+            // ✅ ASCENSOR BLINDADO (Master DB)
+            elevator: isYes(p?.specs?.elevator) || isYes((p as any).elevator) || isYes((p as any).ascensor),
+
+            img: p.images?.[0],
+            selectedServices: servicesFromArray
+          }
+        };
+      });
 
       // 2. PREPARAR EJÉRCITO DE RESERVA (Sus propiedades manuales)
       let userFeatures: any[] = [];
@@ -126,22 +154,21 @@ export const useMapLogic = () => {
       }
 
       // 4. CARGA AL MAPA
-      // Iniciamos con features: [] (VACÍO) para que no haya duplicados.
-      // Los datos reales llegarán desde el useEffect de 'fetchServerProperties'.
       if (map.current.getSource('properties')) {
         (map.current.getSource('properties') as any).setData({
           type: 'FeatureCollection',
-          features: [] 
+          features: [] // <--- 🔥 PONGA ESTO VACÍO (features: [])
         });
       } else {
         map.current.addSource('properties', {
           type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }, 
+          data: { type: 'FeatureCollection', features: [] }, // <--- 🔥 AQUÍ TAMBIÉN VACÍO
           cluster: true,
           clusterMaxZoom: 15,
           clusterRadius: 80
         });
       }
+
       // --- CAPAS VISUALES (CLUSTERS Y CONTEO) ---
       if (!map.current.getLayer('clusters')) {
         map.current.addLayer({
