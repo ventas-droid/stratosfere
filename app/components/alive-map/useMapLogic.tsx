@@ -215,8 +215,8 @@ export const useMapLogic = () => {
       map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
       map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
-      map.current.on('move', () => updateMarkers());
-      map.current.on('moveend', () => updateMarkers());
+     map.current.on('moveend', () => updateMarkers());
+
 
       updateMarkers();
     });
@@ -391,84 +391,80 @@ export const useMapLogic = () => {
   // --------------------------------------------------------------------
   // D. PINTOR DE MARCADORES (UPDATE MARKERS)
   // --------------------------------------------------------------------
-  const updateMarkers = () => {
-    const mapInstance = map.current;
-    if (!mapInstance || !mapInstance.getSource('properties')) return;
+ const updateMarkers = () => {
+  const mapInstance = map.current;
+  if (!mapInstance || !mapInstance.getSource("properties")) return;
 
-    const features = mapInstance.querySourceFeatures('properties', {
-      filter: ['!', ['has', 'point_count']]
-    });
+  const features = mapInstance.querySourceFeatures("properties", {
+    filter: ["!", ["has", "point_count"]],
+  });
 
-    // Ordenar visualmente (Sur primero)
-    features.sort((a, b) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
+  // Ordenar visualmente (Sur primero)
+  features.sort((a: any, b: any) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
 
-    const visibleIds = new Set(features.map(f => f.properties.id));
+  // ✅ IDs SIEMPRE como string (clave anti-parpadeo)
+  const visibleIds = new Set(features.map((f: any) => String(f.properties.id)));
 
-    // Limpiar viejos
-    Object.keys(markersRef.current).forEach((id) => {
-      if (!visibleIds.has(Number(id))) {
-        markersRef.current[id].remove();
-        delete markersRef.current[id];
-      }
-    });
+  // Limpiar viejos (comparación string-string)
+  Object.keys(markersRef.current).forEach((id) => {
+    if (!visibleIds.has(id)) {
+      markersRef.current[id].remove();
+      delete markersRef.current[id];
+    }
+  });
 
-    // Pintar nuevos
-    features.forEach((feature) => {
-      const id = feature.properties.id;
-      if (markersRef.current[id]) return;
+  // Pintar nuevos
+  features.forEach((feature: any) => {
+    const id = String(feature.properties.id);
+    if (markersRef.current[id]) return;
 
-      const el = document.createElement('div');
-      el.className = 'nanocard-marker';
+    const el = document.createElement("div");
+    el.className = "nanocard-marker";
 
-      const root = createRoot(el);
-      const p = feature.properties;
+    const root = createRoot(el);
+    const p = feature.properties;
 
-      // Imagen segura
-      const safeImg = p.img || p.image || IMAGES.PENTHOUSE;
+    const safeImg =
+      p.img ||
+      (Array.isArray(p.images) && p.images.length ? p.images[0] : undefined) ||
+      undefined;
 
-      root.render(
-        <MapNanoCard
-          id={id}
-          price={p.price}
-          priceValue={p.priceValue}
-          rawPrice={p.priceValue}
+    root.render(
+      <MapNanoCard
+        id={id}
+        price={p.price}
+        priceValue={p.priceValue}
+        rawPrice={p.priceValue}
+        rooms={p.rooms}
+        baths={p.baths}
+        mBuilt={p.m2}
+        selectedServices={p.selectedServices}
+        elevator={p.elevator}
+        specs={p.specs}
+        type={p.type}
+        img={safeImg}
+        lat={feature.geometry.coordinates[1]}
+        lng={feature.geometry.coordinates[0]}
+        role={p.role}
+        title={p.title}
+        description={p.description}
+        address={p.address || p.location}
+        city={p.city || p.location}
+        location={p.location || p.city || p.address}
+        energyConsumption={p.energyConsumption}
+        energyEmissions={p.energyEmissions}
+        energyPending={p.energyPending}
+      />
+    );
 
-          // DATOS FÍSICOS NORMALIZADOS
-          rooms={p.rooms}
-          baths={p.baths}
-          mBuilt={p.m2}
-          selectedServices={p.selectedServices}
+    const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat(feature.geometry.coordinates)
+      .addTo(mapInstance);
 
-          // ✅ PASAMOS ASCENSOR Y SPECS al NanoCard (y de ahí al Details si lo usas)
-          elevator={p.elevator}
-          specs={p.specs}
+    markersRef.current[id] = marker;
+  });
+};
 
-          type={p.type}
-          img={safeImg}
-          lat={feature.geometry.coordinates[1]}
-          lng={feature.geometry.coordinates[0]}
-
-          role={p.role}
-          title={p.title}
-          description={p.description}
-
-          address={p.address || p.location}
-          city={p.city || p.location}
-          location={p.location || p.city || p.address}
-
-          energyConsumption={p.energyConsumption}
-          energyEmissions={p.energyEmissions}
-          energyPending={p.energyPending}
-        />
-      );
-
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat(feature.geometry.coordinates)
-        .addTo(mapInstance);
-
-      markersRef.current[id] = marker;
-    });
-  };
 
   // --------------------------------------------------------------------
   // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA 🇪🇸
