@@ -746,17 +746,19 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
     </div>
 )}
        
-       {/* 3. BÓVEDA DE FAVORITOS (COLUMNA DERECHA) */}
-       {/* Alterna con Perfil porque ambos usan 'rightPanel' */}
-       <VaultPanel 
-           rightPanel={rightPanel} 
-           toggleRightPanel={toggleRightPanel} 
-           favorites={localFavs}               // <--- MUNICIÓN (Sincronización)
-           onToggleFavorite={handleToggleFavorite} // <--- GATILLO (Sincronización)
-           map={map} 
-           soundEnabled={soundEnabled} 
-           playSynthSound={playSynthSound} 
-       />
+       {/* 3. BÓVEDA DE FAVORITOS (AHORA CON CANDADO) */}
+       {rightPanel === 'VAULT' && (
+           <VaultPanel 
+               rightPanel={rightPanel} 
+               // Esto asegura que al cerrar se ponga en NONE
+               toggleRightPanel={(p: any) => setRightPanel('NONE')} 
+               favorites={localFavs}               
+               onToggleFavorite={handleToggleFavorite} 
+               map={map} 
+               soundEnabled={soundEnabled} 
+               playSynthSound={playSynthSound} 
+           />
+       )}
        
        {/* 4. INSPECTOR HOLOGRÁFICO (FLOTANTE) */}
        <HoloInspector 
