@@ -737,8 +737,7 @@ export const useMapLogic = () => {
 
         const unifiedList = Array.from(uniqueMap.values());
 
-        // 3. DISPERSIÓN DE EDIFICIOS (SOLUCIÓN AL SOLAPAMIENTO) 
-        // Detectamos si varias casas comparten coordenadas exactas y las separamos.
+        // 3. DISPERSIÓN DE EDIFICIOS (SOLUCIÓN MATEMÁTICA) 
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
@@ -746,19 +745,23 @@ export const useMapLogic = () => {
             let lng = Number(p.coordinates ? p.coordinates[0] : p.longitude);
             let lat = Number(p.coordinates ? p.coordinates[1] : p.latitude);
 
-            // Si falla, fallback a Madrid
             if (!lng || !lat) { lng = -3.6883; lat = 40.4280; }
 
-            // Generamos una "huella" de la ubicación (con 5 decimales de precisión)
-            const coordKey = `${lng.toFixed(5)},${lat.toFixed(5)}`;
+            // TRUCO MAESTRO: Redondeamos a 3 decimales. 
+            // Esto agrupa propiedades que están en el mismo edificio O MUY CERCA.
+            const coordKey = `${lng.toFixed(3)},${lat.toFixed(3)}`;
             
-            // ¿Cuántas hay ya aquí?
+            // ¿Cuántas hay ya en este radio?
             const count = coordTracker.get(coordKey) || 0;
             
             // Si hay más de una, aplicamos la ESPIRAL
             if (count > 0) {
-                const angle = count * (Math.PI * 2 / 7); // Rotamos en círculo
-                const radius = 0.0002 * Math.ceil(count / 7); // Radio de separación
+                // Ángulo: Giramos como las agujas del reloj
+                const angle = count * (Math.PI * 2 / 5); // 5 puntos por vuelta
+                
+                // Radio: Cuantas más haya, más lejos las empujamos (0.0004 grados aprox 40 metros)
+                const separation = 0.0004; 
+                const radius = separation * (1 + Math.floor(count / 5)); 
                 
                 lng += Math.cos(angle) * radius;
                 lat += Math.sin(angle) * radius;
@@ -775,12 +778,10 @@ export const useMapLogic = () => {
                 },
                 properties: {
                     ...p,
-                    id: String(p.id), // ID BLINDADO COMO STRING
-                    images: p.images || [], 
-                    img: p.img || (p.images && p.images[0]) || null,
+                    id: String(p.id),
+                    // Asegúrate de pasar el precio numérico correcto
                     priceValue: Number(p.rawPrice || p.priceValue || p.price),
-                    selectedServices: p.selectedServices || [],
-                    elevator: isYes(p.elevator) || isYes(p.ascensor)
+                    img: p.img || (p.images && p.images[0]) || null
                 }
             };
         });
