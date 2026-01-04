@@ -28,6 +28,8 @@ import DualSlider from './DualSlider';
 import DetailsPanel from "./DetailsPanel"; 
 import { playSynthSound } from './audio';
 import StratosConsole from "./StratosConsole";
+import LandingWaitlist from "./LandingWaitlist";
+
 // --- 2. UTILIDADES ---
 export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
@@ -49,7 +51,7 @@ export default function UIPanels({
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
   const [editingProp, setEditingProp] = useState<any>(null);
-  
+  const [showRocket, setShowRocket] = useState(false);
   // 🔥 CAMBIO 1: INTRO YA HECHA (Para saltar el menú blanco aburrido)
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
 
@@ -353,23 +355,37 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
       setLandingComplete(true);
       setShowAdvancedConsole(false);
   };
+// ===========================================================================
+  // 🔒 PROTOCOLO DE SEGURIDAD (CAPAS DE ACCESO)
   // ===========================================================================
-
   if (!gateUnlocked) {
+
+    // 1. CAPA CIVIL: LANDING PAGE (Si no has pulsado el candado aún)
+    if (!showRocket) {
+        return (
+            <LandingWaitlist 
+                onUnlock={() => {
+                    // Al pulsar el candado: Sonido + Activar Cohete
+                    if(typeof playSynthSound === 'function') playSynthSound('click');
+                    setShowRocket(true); 
+                }} 
+            />
+        );
+    }
+
+    // 2. CAPA MILITAR: PANTALLA DEL COHETE (Tu código original)
     return (
       <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none overflow-hidden">
-        {/* =========================================================================
-            ILUSTRACIÓN DE FONDO (COHETE + ESTELA) - ESTILO BOLI NEGRO
-            z-0 para que quede DETRÁS del texto y botón
-           ========================================================================= */}
+        
+        {/* ILUSTRACIÓN DE FONDO (COHETE + ESTELA) */}
         <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none opacity-80" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
-            {/* ESTELA: Líneas finas desde abajo izquierda */}
+            {/* ESTELA */}
             <path 
                 d="M-100,1200 C 400,900 600,1100 1100,700 C 1400,500 1500,450 1650,250" 
                 fill="none" 
                 stroke="black" 
                 strokeWidth="1.5" 
-                strokeDasharray="10 10" // Opcional: si quieres línea discontinua quita esto, si sólida borra esta prop
+                strokeDasharray="10 10" 
                 className="opacity-40"
             />
             <path 
@@ -380,37 +396,34 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
                 strokeLinecap="round"
             />
 
-            {/* COHETE: Dibujo lineal estilo Pilot */}
+            {/* COHETE */}
             <g transform="translate(1680, 250) rotate(40) scale(0.9)">
-                {/* Cuerpo */}
                 <path d="M0,-80 C 25,-50 25,50 20,80 L -20,80 C -25,50 -25,-50 0,-80 Z" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
-                {/* Aletas */}
                 <path d="M-20,60 L -40,90 L -20,80" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
                 <path d="M20,60 L 40,90 L 20,80" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
                 <path d="M0,60 L 0,90" stroke="black" strokeWidth="2" />
-                {/* Ventana */}
                 <circle cx="0" cy="-20" r="10" fill="white" stroke="black" strokeWidth="2" />
-                {/* Punta */}
                 <path d="M0,-80 L 0,-100" stroke="black" strokeWidth="2" />
             </g>
         </svg>
 
-        {/* =========================================================================
-            CONTENIDO PRINCIPAL (Logo y Botón)
-            z-10 para que quede ENCIMA del dibujo
-           ========================================================================= */}
-        
         {/* LOGO GIGANTE */}
         <div className="relative z-10 text-center mb-24 cursor-default">
             <h1 className="text-7xl md:text-9xl font-extrabold tracking-tighter leading-none text-black">
                 Stratosfere OS.
             </h1>
+            <p className="text-xs font-bold text-gray-400 tracking-[0.5em] uppercase mt-4 animate-pulse">
+                SISTEMA DESBLOQUEADO
+            </p>
         </div>
 
-        {/* BOTÓN DE INICIO (Azul Brutalista) */}
+        {/* BOTÓN DE INICIO */}
         <button 
-            onClick={() => { playSynthSound('boot'); setGateUnlocked(true); }} 
-            className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white"
+            onClick={() => { 
+                if(typeof playSynthSound === 'function') playSynthSound('boot'); 
+                setGateUnlocked(true); // <--- ESTO ENTRA AL MAPA FINAL
+            }} 
+            className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white cursor-pointer"
         >
             INITIALIZE SYSTEM
         </button>
