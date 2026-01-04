@@ -12,51 +12,58 @@ export default function VaultPanel({
   playSynthSound 
 }: any) {
   
- // 1. VARIABLE LOCAL (TURBO)
+  // 1. MEMORIA DE COMBATE (Copia local de la lista)
   const [localFavorites, setLocalFavorites] = useState<any[]>(favorites);
 
-  // 2. SINCRONIZACIÓN INICIAL (Carga lo que hay)
+  // 2. REABASTECIMIENTO (Si la lista oficial cambia, actualizamos la local)
   useEffect(() => { setLocalFavorites(favorites); }, [favorites]);
 
-  // 3. 🔥 RECEPTOR BLINDADO (El que faltaba)
+  // 3. 🔥 RADAR DE PRECIOS EN TIEMPO REAL (La pieza que faltaba)
   useEffect(() => {
       const handleInstantUpdate = (e: any) => {
           const { id, updates } = e.detail;
           
-          setLocalFavorites((prev: any[]) => prev.map((item: any) => {
-              // Si encontramos la propiedad por ID
+          setLocalFavorites((prevList: any[]) => prevList.map((item: any) => {
+              // ¿Es esta la propiedad que ha cambiado?
               if (String(item.id) === String(id)) {
-                  console.log("💎 Bóveda actualizando ID:", id);
+                  console.log("💎 Bóveda detectó cambio en:", id);
                   
-                  // FUSIÓN DE DATOS
+                  // FUSIÓN DE DATOS (Lo viejo + Lo nuevo)
                   const merged = { ...item, ...updates };
 
-                  // 🚨 MAGIA: REGENERAR EL PRECIO TEXTUAL SI CAMBIA EL NÚMERO
-                  const val = Number(updates.rawPrice ?? updates.priceValue ?? updates.price?.toString().replace(/\D/g, ''));
+                  // 🛑 EL FIX CRÍTICO: FORMATEO FORZOSO DE PRECIO
+                  // Si llega un precio numérico, lo convertimos a texto "XXX.XXX €" AQUÍ Y AHORA.
+                  const rawVal = updates.rawPrice ?? updates.priceValue ?? updates.price;
                   
-                  if (!isNaN(val) && val > 0) {
-                      const fmt = new Intl.NumberFormat('es-ES', { 
+                  // Limpiamos el valor para asegurarnos que es número
+                  const numVal = Number(String(rawVal).replace(/\D/g, ''));
+
+                  if (!isNaN(numVal) && numVal > 0) {
+                      const prettyPrice = new Intl.NumberFormat('es-ES', { 
                           style: 'currency', 
                           currency: 'EUR', 
                           maximumFractionDigits: 0 
-                      }).format(val);
+                      }).format(numVal);
                       
-                      // Forzamos la actualización de TODAS las variables de precio posibles
-                      merged.formattedPrice = fmt;
-                      merged.price = fmt; 
-                      merged.displayPrice = fmt;
+                      // Forzamos que la tarjeta vea el precio bonito
+                      merged.formattedPrice = prettyPrice;
+                      merged.price = prettyPrice; 
                   }
 
                   return merged;
               }
+              // Si no es la que buscamos, la dejamos igual
               return item;
           }));
       };
       
+      // Abrimos frecuencia de escucha
       window.addEventListener('update-property-signal', handleInstantUpdate);
       return () => window.removeEventListener('update-property-signal', handleInstantUpdate);
   }, []);
-  
+
+  // --- AQUÍ SIGUE SU handleFlyTo Y EL RESTO DEL CÓDIGO ---
+
   // 2. LÓGICA DE VUELO TÁCTICO (MODO MULTITAREA ACTIVO)
   const handleFlyTo = (prop: any) => {
     if (soundEnabled) playSynthSound('click');
