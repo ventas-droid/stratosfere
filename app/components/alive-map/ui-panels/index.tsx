@@ -72,25 +72,16 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
  // Añada el estado para saber qué estamos buscando
 const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
  
- // 1. Cargar memoria (Al inicio) + recarga manual (sin romper nada)
+ // 1. Cargar memoria (Al inicio)
   useEffect(() => {
-      const loadFavs = () => {
-          const saved = localStorage.getItem('stratos_favorites_v1');
-          if (saved) {
-              try { setLocalFavs(JSON.parse(saved)); } 
-              catch(e) { console.error(e); }
-          }
-      };
-
-      loadFavs();
-
-      const onReloadFavs = () => loadFavs();
-      window.addEventListener('reload-favorites', onReloadFavs);
-
-      return () => window.removeEventListener('reload-favorites', onReloadFavs);
+      const saved = localStorage.getItem('stratos_favorites_v1');
+      if (saved) {
+          try { setLocalFavs(JSON.parse(saved)); } 
+          catch(e) { console.error(e); }
+      }
   }, []);
 
-// 2. Guardar memoria (Sincronización General del Array)
+  // 2. Guardar memoria (Sincronización General del Array)
   useEffect(() => {
       localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
   }, [localFavs]);
@@ -427,69 +418,95 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            </div>
        )}
 
-      {/* B. MODO ARQUITECTO (EDITOR) */}
+      {/* BLOQUE 1: MODO ARQUITECTO (VENDER) - CONVOY DE DATOS ACTIVADO 🚚 */}
        {systemMode === 'ARCHITECT' && (
            <ArchitectHud 
                soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
+               
+               // 🔥 DATOS INICIALES (Para editar si existen)
                initialData={editingProp} 
+               
                onCloseMode={(success: boolean, payload: any) => { 
-                   setEditingProp(null); // Limpiamos memoria
+                   // ------------------------------------------------------------
+                   // ✅ RETORNO BLINDADO (NUEVO vs EDITAR)
+                   // - Si editábamos un activo existente -> UPDATE (no duplicar, no geocode, no Madrid)
+                   // - Si es nuevo -> ADD (flujo actual)
+                   // ------------------------------------------------------------
 
-                   if (success && payload) {
-                       // 1. GESTIÓN DE MODO (Volver a Agencia o Explorer)
-                       const wasAgency = editingProp?.isAgencyContext || payload.isAgencyContext;
-                       if (wasAgency) {
-                           setSystemMode('AGENCY');
-                           setRightPanel('AGENCY_PORTFOLIO');
-                       } else {
-                           setSystemMode('EXPLORER');
-                           setLandingComplete(true); 
-                           if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true);
-                       }
+                   // 0) Capturamos contexto ANTES de limpiar memoria
+                   const editingId = editingProp?.id;
+                   const editingSnap = editingProp || null;
 
-                       // 2. ENVIAR DATOS (Retraso de seguridad para que el mapa cargue)
-                       setTimeout(() => {
-                           if (typeof window !== 'undefined') {
-                               // A. Actualizar datos en el mapa
-                               window.dispatchEvent(new CustomEvent(payload.id ? 'update-property-signal' : 'add-property-signal', { 
-                                   detail: payload 
-                               }));
-                               
-                               // B. Recargar perfil
-                               window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+                   // 1) Limpieza de memoria temporal (desmonta ArchitectHud sí o sí)
+                   setEditingProp(null); 
 
-                               // C. 🔥 VUELO FORZADO (EL ARREGLO) 🔥
-                               // Si hay coordenadas, obligamos al mapa a ir allí
-                               if (payload.coordinates) {
-                                   console.log("✈️ VUELO TÁCTICO A:", payload.coordinates);
-                                   window.dispatchEvent(new CustomEvent("fly-to-location", { 
-                                       detail: { 
-                                           center: payload.coordinates, 
-                                           zoom: 18, 
-                                           pitch: 60 
-                                       } 
-                                   }));
-                               }
+                   if (success) {
+                       console.log("✅ Propiedad guardada con éxito");
+
+                       // 2) Volvemos a EXPLORER (mapa)
+                       setSystemMode('EXPLORER');
+                       setLandingComplete(true); 
+                       if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true); 
+
+                       // 3) Cerramos overlays (seguridad)
+                       setActivePanel('NONE');
+                       setRightPanel('NONE');
+
+                       // 4) Sincronización con mapa / perfil / bóveda
+                       if (payload) {
+                           // A) Merge final (mantiene datos previos si el payload no trae todo)
+                           const merged = { ...(editingSnap || {}), ...(payload || {}), id: (payload?.id ?? editingId ?? payload?.propertyId ?? Date.now()) };
+
+                           // B) Si estábamos editando -> UPDATE (no crea nueva feature, no geocode)
+                           if (editingId) {
+                               // 1) Actualiza el source del mapa + localStorage (useMapLogic)
+                               setTimeout(() => {
+                                   if (typeof window !== 'undefined') {
+                                       window.dispatchEvent(new CustomEvent('update-property-signal', {
+                                           detail: { id: editingId, updates: merged }
+                                       }));
+                                       // Live refresh para Details/Market si están abiertos
+                                       window.dispatchEvent(new CustomEvent('update-details-live', { detail: merged }));
+                                   }
+                               }, 50);
+
+                               // 2) Actualiza bóveda en memoria (si existe en favoritos)
+                               setLocalFavs((prev: any[]) => {
+                                   try {
+                                       return prev.map((f: any) => {
+                                           if (String(f?.id) !== String(editingId)) return f;
+                                           const next = { ...f, ...merged };
+                                           // Normaliza precio mostrado
+                                           next.formattedPrice = next.formattedPrice || next.displayPrice || next.price || f.formattedPrice || "Consultar";
+                                           return next;
+                                       });
+                                   } catch {
+                                       return prev;
+                                   }
+                               });
+
+                               // 3) Vuelo cinemático al activo (SIN geocoding)
+                               try {
+                                   const lng = merged?.lng ?? merged?.longitude ?? merged?.coords?.[0] ?? merged?.coordinates?.[0];
+                                   const lat = merged?.lat ?? merged?.latitude ?? merged?.coords?.[1] ?? merged?.coordinates?.[1];
+                                   if (map?.current && Number.isFinite(Number(lng)) && Number.isFinite(Number(lat))) {
+                                       map.current.flyTo({ center: [Number(lng), Number(lat)], zoom: 17, pitch: 60, duration: 2000 });
+                                   }
+                               } catch {}
+                           } 
+                           // C) Si es nueva -> ADD (flujo actual con geocoding en useMapLogic)
+                           else {
+                               console.log("📡 Enviando NUEVA propiedad al mapa...", merged);
+                               setTimeout(() => {
+                                   if (typeof window !== 'undefined') {
+                                       window.dispatchEvent(new CustomEvent('add-property-signal', { detail: merged }));
+                                   }
+                               }, 100);
                            }
-                           
-                           // 3. ACTUALIZAR UI LOCAL (Para que se vea el precio nuevo al instante)
-                           try {
-                                if (selectedProp && String(selectedProp.id) === String(payload.id)) {
-                                    setSelectedProp((prev: any) => ({ ...prev, ...payload }));
-                                }
-                           } catch (e) {}
-
-                       }, 200); // Damos 200ms al sistema para cambiar de modo antes de volar
-
+                       }
                    } else {
                        // SI CANCELA (X)
-                       const wasAgency = editingProp?.isAgencyContext;
-                       if (wasAgency) {
-                           setSystemMode('AGENCY');
-                           setRightPanel('AGENCY_PORTFOLIO');
-                       } else {
-                           setSystemMode('GATEWAY');
-                       }
+                       setSystemMode('GATEWAY');
                    }
                }} 
            />
@@ -788,13 +805,13 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            playSynthSound={playSynthSound} 
        />
        
-      {/* 5. FICHA DE DETALLES (PROTEGIDA) */}
-       {activePanel === 'DETAILS' && ( 
+       {/* 5. FICHA DE DETALLES (CENTRAL) */}
+       {activePanel === 'DETAILS' && (
            <DetailsPanel 
                selectedProp={selectedProp} 
                onClose={() => setActivePanel('NONE')} 
-               onToggleFavorite={handleToggleFavorite} 
-               favorites={localFavs}               
+               onToggleFavorite={handleToggleFavorite} // <--- GATILLO COMPARTIDO
+               favorites={localFavs}               // <--- MUNICIÓN COMPARTIDA
                soundEnabled={soundEnabled} 
                playSynthSound={playSynthSound} 
                onOpenInspector={() => setActivePanel('INSPECTOR')} 
@@ -851,3 +868,4 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
     </div>
   );
 }
+
