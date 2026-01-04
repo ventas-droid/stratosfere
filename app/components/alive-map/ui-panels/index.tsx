@@ -407,15 +407,15 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
             </g>
         </svg>
 
-        {/* LOGO GIGANTE */}
-        <div className="relative z-10 text-center mb-24 cursor-default">
-            <h1 className="text-7xl md:text-9xl font-extrabold tracking-tighter leading-none text-black">
-                Stratosfere OS.
-            </h1>
-            <p className="text-xs font-bold text-gray-400 tracking-[0.5em] uppercase mt-4 animate-pulse">
-                SISTEMA DESBLOQUEADO
-            </p>
-        </div>
+      {/* LOGO GIGANTE */}
+<div className="relative z-10 mb-24 text-center cursor-default">
+    <h1 className="text-7xl font-extrabold leading-none tracking-tighter text-black md:text-9xl">
+        Stratosfere OS.
+    </h1>
+    <p className="mt-4 text-xs font-bold uppercase tracking-[0.5em] text-gray-400 animate-pulse">
+        SISTEMA DESBLOQUEADO
+    </p>
+</div>
 
         {/* BOTÓN DE INICIO */}
         <button 
