@@ -15,23 +15,43 @@ export default function VaultPanel({
  // 1. CREAMOS LA VARIABLE QUE FALTABA (Con tipo explícito para evitar error)
   const [localFavorites, setLocalFavorites] = useState<any[]>(favorites);
 
-  // 2. SINCRONIZACIÓN INICIAL
-  useEffect(() => { setLocalFavorites(favorites); }, [favorites]);
-
-  // 3. RECEPTOR TURBO (Con tipos añadidos en 'prev' e 'item' para silenciar el error rojo)
+  // 3. RECEPTOR TURBO (VERSIÓN BLINDADA V2)
   useEffect(() => {
       const handleInstantUpdate = (e: any) => {
           const { id, updates } = e.detail;
           
-          // AQUÍ ESTABA EL ERROR: Añadimos ': any[]' y ': any'
+          console.log("💎 VaultPanel recibió actualización para:", id);
+
           setLocalFavorites((prev: any[]) => prev.map((item: any) => {
+              // Comparamos IDs como texto para evitar errores de número vs string
               if (String(item.id) === String(id)) {
-                  let newFmt = item.formattedPrice;
-                  if (updates.rawPrice || updates.priceValue) {
-                       const val = updates.rawPrice ?? updates.priceValue;
-                       newFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val);
+                  
+                  // 1. Detectar el nuevo precio numérico (venga como venga)
+                  let newRawPrice = updates.rawPrice ?? updates.priceValue;
+                  if (newRawPrice === undefined && updates.price) {
+                      // Si viene como texto "385.000", lo limpiamos a número
+                      const clean = String(updates.price).replace(/\D/g, '');
+                      if (clean) newRawPrice = Number(clean);
                   }
-                  return { ...item, ...updates, formattedPrice: newFmt || item.formattedPrice };
+
+                  // 2. Si tenemos un precio nuevo válido, formateamos
+                  let newFormatted = item.formattedPrice;
+                  if (newRawPrice !== undefined && newRawPrice !== null) {
+                      newFormatted = new Intl.NumberFormat('es-ES', { 
+                          style: 'currency', 
+                          currency: 'EUR', 
+                          maximumFractionDigits: 0 
+                      }).format(newRawPrice);
+                  }
+
+                  // 3. Devolvemos el objeto fusionado
+                  return { 
+                      ...item, 
+                      ...updates, 
+                      price: newFormatted || updates.price || item.price, // Actualizamos visual
+                      rawPrice: newRawPrice || item.rawPrice,
+                      formattedPrice: newFormatted || item.formattedPrice 
+                  };
               }
               return item;
           }));

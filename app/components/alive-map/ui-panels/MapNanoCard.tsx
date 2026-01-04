@@ -169,28 +169,47 @@ export default function MapNanoCard(props: any) {
       const targetState = action === 'fav' ? !liked : liked;
       const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates || (props.lng && props.lat ? [props.lng, props.lat] : null);
       
-      // 🔥 CORREGIDO: Usamos 'currentPrice' en lugar de 'numericPrice' para enviar el dato actualizado
-      const payload = { id, ...props, ...data, price: currentPrice, formattedPrice: displayLabel, role: style.label, img: img, type: type, location: (city || location || address || "MADRID").toUpperCase(), isFav: targetState, isFavorite: targetState, coordinates: navCoords };
+      // 🔥 CORRECCIÓN CRÍTICA: INYECTAMOS LOS DATOS VIVOS (currentPrice y displayLabel)
+      // En lugar de enviar los datos viejos (props), enviamos lo que la tarjeta está mostrando AHORA.
+      const payload = { 
+          id, 
+          ...props, 
+          ...data, 
+          // AQUI ESTA LA MAGIA: Sobrescribimos el precio viejo con el nuevo
+          price: currentPrice,       
+          rawPrice: currentPrice,
+          priceValue: currentPrice,
+          formattedPrice: displayLabel, // "900.000 €" actualizado
+          
+          role: style.label, 
+          img: img, 
+          type: type, 
+          location: (city || location || address || "MADRID").toUpperCase(), 
+          isFav: targetState, 
+          isFavorite: targetState, 
+          coordinates: navCoords 
+      };
 
       if (action === 'fav') {
           setLiked(targetState); 
           if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: payload }));
+              // Si marcamos fav, actualizamos visualmente
               if (targetState) window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
           }
           if (props.onToggleFavorite) props.onToggleFavorite(payload);
       } else if (action === 'open') {
           if (typeof window !== 'undefined') {
-              // 1. MANTENEMOS LA SEÑAL ORIGINAL (Abre el panel lateral derecho)
+              // 1. AHORA SÍ: Enviamos el payload CON EL PRECIO NUEVO al panel de detalles
               window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
               
-              // 2. 🔥 SEÑAL TÁCTICA (Avisa al HUD, Market y Perfil)
+              // 2. Avisamos al sistema
               window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
           }
           if (props.onSelect) props.onSelect(payload);
       }
   };
-  
+
   useEffect(() => {
     if (cardRef.current) {
         const marker = cardRef.current.closest('.mapboxgl-marker') as HTMLElement;
