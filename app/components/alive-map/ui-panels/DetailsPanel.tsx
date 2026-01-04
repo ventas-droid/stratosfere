@@ -202,9 +202,14 @@ export default function DetailsPanel({
                             {selectedProp?.title || "Detalle del Inmueble"}
                         </h2>
                         <p className="text-xl font-bold text-slate-500">
-                            {typeof selectedProp?.price === 'number' 
-                                ? new Intl.NumberFormat("es-ES").format(selectedProp.price) + " €" 
-                                : selectedProp?.price || "Consultar"}
+                            {(() => {
+                              const raw = (selectedProp as any)?.rawPrice ?? (selectedProp as any)?.priceValue ?? (selectedProp as any)?.price;
+                              const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(String(raw).replace(/[^0-9]/g, '')) : NaN;
+                              if (!Number.isFinite(num) || num <= 0) {
+                                return (selectedProp as any)?.formattedPrice || (selectedProp as any)?.displayPrice || (selectedProp as any)?.price || 'Consultar';
+                              }
+                              return new Intl.NumberFormat('es-ES').format(num) + ' €';
+                            })()}
                         </p>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer">
@@ -374,5 +379,4 @@ export default function DetailsPanel({
         </div>
     );
 }
-
 
