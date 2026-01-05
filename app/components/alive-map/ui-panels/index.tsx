@@ -29,6 +29,10 @@ import DetailsPanel from "./DetailsPanel";
 import { playSynthSound } from './audio';
 import StratosConsole from "./StratosConsole";
 import LandingWaitlist from "./LandingWaitlist";
+import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
+import AgencyProfilePanel from "./AgencyProfilePanel";
+import AgencyMarketPanel from "./AgencyMarketPanel";
+
 
 // --- 2. UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -750,6 +754,59 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            {/* 🔥 AQUÍ ESTÁN LAS LLAVES DE CIERRE QUE FALTABAN: */}
            </>
        )}
+{/* =================================================================
+           BLOQUE 3: MODO AGENCIA (OMNI + PANELES)
+           Pegue esto AL FINAL, justo debajo del cierre del modo EXPLORER
+           ================================================================= */}
+       {systemMode === 'AGENCY' && (
+           <>
+               {/* 1. DOCK DE COMANDO (LA OMNI DE AGENCIA) */}
+               <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
+                   <div className="pointer-events-auto relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/95 backdrop-blur-xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] animate-fade-in-up">
+                        
+                        {/* BOTÓN SALIR (Vuelve al menú) */}
+                        <button onClick={() => setSystemMode('GATEWAY')} className="p-3 rounded-full text-white/50 hover:text-red-500 hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
+                        <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+
+                        {/* BOTÓN STOCK (Cartera) */}
+                        <button onClick={() => setActivePanel(activePanel === 'AGENCY_STOCK' ? 'NONE' : 'AGENCY_STOCK')} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activePanel === 'AGENCY_STOCK' ? 'bg-emerald-600 text-white' : 'text-emerald-400 hover:bg-emerald-600/10'}`}>
+                            <Home size={16} /> <span className="text-[10px] font-bold tracking-widest">STOCK</span>
+                        </button>
+
+                        {/* BOTÓN MARKET (Licencias) */}
+                        <button onClick={() => setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET')} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activePanel === 'AGENCY_MARKET' ? 'bg-blue-600 text-white' : 'text-blue-400 hover:bg-blue-600/10'}`}>
+                            <Shield size={16} /> <span className="text-[10px] font-bold tracking-widest">MARKET</span>
+                        </button>
+
+                        <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+
+                        {/* BOTÓN PERFIL */}
+                        <button onClick={() => toggleRightPanel('AGENCY_PROFILE')} className={`p-3 rounded-full transition-all ${rightPanel === 'AGENCY_PROFILE' ? 'text-white bg-white/20' : 'text-white/50 hover:text-white'}`}>
+                            <User size={18}/>
+                        </button>
+                   </div>
+               </div>
+
+               {/* 2. PANELES LATERALES DE AGENCIA (INVISIBLES HASTA QUE SE LLAMAN) */}
+               <AgencyPortfolioPanel 
+                   isOpen={activePanel === 'AGENCY_STOCK'} 
+                   onClose={() => setActivePanel('NONE')} 
+                   onCreateNew={() => handleEditAsset(null)} 
+                   onEditProperty={(p:any) => handleEditAsset(p)}
+               />
+
+               <AgencyProfilePanel 
+                   isOpen={rightPanel === 'AGENCY_PROFILE'} 
+                   onClose={() => toggleRightPanel('NONE')} 
+               />
+
+               <AgencyMarketPanel 
+                   isOpen={activePanel === 'AGENCY_MARKET'} 
+                   onClose={() => setActivePanel('NONE')} 
+               />
+           </>
+       )}
+
   {/* --- PANELES LATERALES Y FLOTANTES (SISTEMA MULTITAREA) --- */}
        
        {/* 1. PERFIL (COLUMNA DERECHA) */}
