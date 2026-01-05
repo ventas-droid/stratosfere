@@ -1,12 +1,14 @@
 // @ts-nocheck
 "use client";
 
-import React, { useMemo, useState } from "react";
+// ⚠️ CAMBIO TÁCTICO 1: Añadimos 'Suspense' a la importación
+import React, { useMemo, useState, Suspense } from "react";
 import AliveMap from "./components/alive-map/AliveMap";
-// 👇 CORRECCIÓN TÁCTICA: Apuntamos a la carpeta, ya NO repetimos el nombre del archivo
 import UIPanels from "./components/alive-map/ui-panels"; 
 
-export default function Page() {
+// ⚠️ CAMBIO TÁCTICO 2: Le cambiamos el nombre a esta función (de 'Page' a 'PageContent')
+// TODO EL CONTENIDO SIGUE EXACTAMENTE IGUAL, NO HE TOCADO NI UNA COMA DENTRO.
+function PageContent() {
   // 1. ESTADOS PRINCIPALES DEL SISTEMA
   const [systemMode, setSystemMode] = useState("GATEWAY");
   const [mapInstance, setMapInstance] = useState(null);
@@ -74,3 +76,12 @@ export default function Page() {
   );
 }
 
+// ⚠️ CAMBIO TÁCTICO 3: EXPORTAMOS EL BÚNKER
+// Esta es la parte que arregla el error. Envolvemos todo en Suspense.
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white">Cargando Stratosfere...</div>}>
+      <PageContent />
+    </Suspense>
+  )
+}
