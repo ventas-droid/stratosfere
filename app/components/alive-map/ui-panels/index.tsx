@@ -2,17 +2,18 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+// 👇 1. IMPORTANTE: AÑADIMOS ESTO PARA LEER LA URL
+import { useSearchParams } from 'next/navigation';
 
 // 1. IMPORTACIÓN UNIFICADA DE ICONOS (Sin duplicados)
 import { 
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
-  // --- Nuevos Iconos Tácticos Integrados ---
   Briefcase, Home, Map as MapIcon 
 } from 'lucide-react';
 
-// --- 2. EL CEREBRO DE BÚSQUEDA (Ruta corregida: subimos un nivel ../) ---
+// --- 2. EL CEREBRO DE BÚSQUEDA ---
 import { CONTEXT_CONFIG } from '../smart-search'; 
 
 // --- 3. IMPORTACIONES DE SUS PANELES ---
@@ -22,8 +23,9 @@ import VaultPanel from "./VaultPanel";
 import HoloInspector from "./HoloInspector";   
 import ExplorerHud from "./ExplorerHud";       
 import ArchitectHud from "./ArchitectHud";     
-import MarketPanel from './MarketPanel'; // ✅ Correcto: Es su vecinoimport DualGateway from "./DualGateway";       
+import MarketPanel from './MarketPanel';      
 import DualSlider from './DualSlider';
+
 // --- 4. COMPONENTES LÓGICOS ---
 import DetailsPanel from "./DetailsPanel"; 
 import { playSynthSound } from './audio';
@@ -33,7 +35,6 @@ import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
 
-
 // --- 2. UTILIDADES ---
 export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
@@ -42,32 +43,50 @@ export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
 ];
 
-// ⚠️ BUSQUE ESTA LÍNEA Y AÑADA 'searchCity'
 export default function UIPanels({ 
   map, 
-  searchCity, // <--- ¡AÑADIR ESTO! (Es el cable que viene del motor)
+  searchCity, 
   lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
   
-  // --- A. ESTADOS DEL SISTEMA ---
-  const [gateUnlocked, setGateUnlocked] = useState(false); 
+  // 1. LECTURA DE CREDENCIALES
+  const searchParams = useSearchParams();
+  const urlAccess = searchParams.get('access'); // ¿Viene pase en la URL?
+
+  // 2. ESTADO INICIAL CERRADO (Por seguridad)
+  const [gateUnlocked, setGateUnlocked] = useState(false);
+
+  // 3. EFECTO DE MEMORIA PERMANENTE (Este es el truco)
+  useEffect(() => {
+    // A. Miramos si ya tenía el pase guardado de antes en su bolsillo (Local Storage)
+    const storedAccess = localStorage.getItem('stratos_access_granted');
+    
+    // B. Si tiene pase en la URL (acaba de registrarse) O en el bolsillo (ya entró antes)
+    if (urlAccess || storedAccess === 'true') {
+        setGateUnlocked(true); // ¡ABRIR PUERTA!
+        
+        // C. Guardamos el pase en el bolsillo para siempre
+        if (!storedAccess) {
+            localStorage.setItem('stratos_access_granted', 'true');
+        }
+    }
+  }, [urlAccess]); // Se ejecuta al entrar
+
+  // --- A. ESTADOS DEL SISTEMA (RESTO IGUAL) ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
   const [editingProp, setEditingProp] = useState<any>(null);
   const [marketProp, setMarketProp] = useState<any>(null);
   const [showRocket, setShowRocket] = useState(false);
-  // 🔥 CAMBIO 1: INTRO YA HECHA (Para saltar el menú blanco aburrido)
+  
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
-
-  // 🔥 CAMBIO 2: ESTADO DE ATERRIZAJE (Para la nueva pantalla "Target Locked")
-  // Ya solo aparece UNA vez aquí:
   const [landingComplete, setLandingComplete] = useState(false); 
-
-  // 🔥 AÑADA ESTA LÍNEA EXACTA AQUÍ:
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
   
   const [notifications, setNotifications] = useState<any[]>([]);
+  
+  // ... (A PARTIR DE AQUÍ TODO SIGUE IGUAL, NO TOQUE NADA MÁS)
   
 // --- C. VARIABLES DE FILTROS TÁCTICOS (NUEVOS RANGOS) ---
 const [priceRange, setPriceRange] = useState({ min: 100000, max: 2000000 });
@@ -379,24 +398,11 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
       setShowAdvancedConsole(false);
   };
 // ===========================================================================
-  // 🔒 PROTOCOLO DE SEGURIDAD (CAPAS DE ACCESO)
+  // 🔒 PROTOCOLO DE SEGURIDAD (SOLO COHETE - SIN CANDADO)
   // ===========================================================================
   if (!gateUnlocked) {
 
-    // 1. CAPA CIVIL: LANDING PAGE (Si no has pulsado el candado aún)
-    if (!showRocket) {
-        return (
-            <LandingWaitlist 
-                onUnlock={() => {
-                    // Al pulsar el candado: Sonido + Activar Cohete
-                    if(typeof playSynthSound === 'function') playSynthSound('click');
-                    setShowRocket(true); 
-                }} 
-            />
-        );
-    }
-
-    // 2. CAPA MILITAR: PANTALLA DEL COHETE (Tu código original)
+    // YA NO HAY CAPA CIVIL. MOSTRAMOS DIRECTAMENTE LA CAPA MILITAR (COHETE)
     return (
       <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none overflow-hidden">
         
@@ -430,22 +436,23 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
             </g>
         </svg>
 
-   {/* LOGO GIGANTE */}
+        {/* LOGO GIGANTE */}
         <div className="relative z-10 text-center mb-24 cursor-default">
             <h1 className="text-7xl md:text-9xl font-extrabold tracking-tighter leading-none text-black">
                 Stratosfere OS.
             </h1>
         </div>
 
-        {/* BOTÓN DE INICIO */}
+        {/* BOTÓN DE ACCESO DIRECTO AL REGISTRO */}
         <button 
             onClick={() => { 
-                if(typeof playSynthSound === 'function') playSynthSound('boot'); 
-                setGateUnlocked(true); // <--- ESTO ENTRA AL MAPA FINAL
+                if(typeof playSynthSound === 'function') playSynthSound('click'); 
+                // 🚀 SALTO AL HIPERESPACIO -> REGISTRO
+                window.location.href = "/register"; 
             }} 
-            className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white cursor-pointer"
+            className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white cursor-pointer uppercase"
         >
-            INITIALIZE SYSTEM
+            CREAR CUENTA
         </button>
         
       </div>
