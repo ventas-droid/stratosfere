@@ -12,29 +12,40 @@ datasource db {
   directUrl = env("POSTGRES_URL") 
 }
 
-// --------------------------------------------------------
-// 2. RANGOS Y ACCESOS
-// --------------------------------------------------------
+// 1. DEFINICIÓN DE RANGOS
 enum UserRole {
-  PARTICULAR
-  AGENCIA
-  COMPRADOR
-  ADMIN
+  ADMIN        // Usted (Control Total)
+  PARTICULAR   // Civil: Vende su propia casa
+  AGENCIA      // Profesional: Inmobiliaria con CIF y local
+  DIFUSOR      // Táctico: Personal Shopper, Freelance, Influencer
 }
 
+// 2. MODELO DE USUARIO UNIFICADO (Con Datos Profesionales Opcionales)
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  name          String?
-  phone         String?   
-  phoneVerified DateTime? 
+  password      String?   // La "Llave" de acceso
   
-  role          UserRole  @default(PARTICULAR)
+  // Identidad Básica
+  name          String?   // Nombre de pila (Isidro)
+  surname       String?   // Apellidos (Bernabeu)
+  phone         String?   
   avatar        String?   
   
+  // 🔥 RANGO MILITAR
+  role          UserRole  @default(PARTICULAR)
+
+  // 🏢 DATOS DE EMPRESA (Opcionales - Solo para Agencia/Difusor)
+  companyName   String?   // "Inmobiliaria Mar Azul S.L."
+  cif           String?   // Identificación Fiscal
+  website       String?   // Web externa
+  licenseNumber String?   // Nº de Colegiado (si aplica)
+
+  // Auditoría
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Relaciones
   properties    Property[]
   favorites     Favorite[]
 }
