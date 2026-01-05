@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { registerUser } from '@/app/actions/register' 
 import { loginUser } from '@/app/actions/login'
 import { Building2, User, ArrowRight, Loader2, Eye, EyeOff, KeyRound, Mail, ArrowLeft } from 'lucide-react'
 
-export default function AuthPage() {
+// 1. CAMBIAMOS EL NOMBRE DEL COMPONENTE ORIGINAL A "AuthContent"
+function AuthContent() {
   // ESTADOS DE NAVEGACIÓN
   const [isLoginMode, setIsLoginMode] = useState(false)
-  const [isRecoveryMode, setIsRecoveryMode] = useState(false) // <--- NUEVO ESTADO DE RESCATE
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false)
   
   const [selectedRole, setSelectedRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null)
   const [loading, setLoading] = useState(false)
@@ -52,8 +53,7 @@ export default function AuthPage() {
     // CASO 1: RECUPERACIÓN DE CONTRASEÑA
     if (isRecoveryMode) {
         // Aquí conectaremos el servicio de email en el futuro.
-        // Por ahora, simulamos el envío.
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simula espera
+        await new Promise(resolve => setTimeout(resolve, 1500)); 
         setMessage("✅ Hemos enviado un enlace de recuperación a su correo.");
         setLoading(false);
         return;
@@ -86,7 +86,7 @@ export default function AuthPage() {
           </p>
         </div>
 
-        {/* SELECCIÓN DE ROL (SOLO SI ES REGISTRO Y NO RECUPERACIÓN) */}
+        {/* SELECCIÓN DE ROL */}
         {!isLoginMode && !selectedRole && !isRecoveryMode && (
           <div className="grid md:grid-cols-2 gap-6 animate-in fade-in zoom-in duration-500">
             <button onClick={() => setSelectedRole('PARTICULAR')} className="bg-white p-8 rounded-[32px] shadow-sm hover:shadow-2xl transition-all duration-300 border border-transparent hover:border-blue-100 text-left group relative overflow-hidden">
@@ -109,11 +109,10 @@ export default function AuthPage() {
         {(isLoginMode || selectedRole || isRecoveryMode) && (
           <div className="max-w-md mx-auto bg-white p-10 rounded-[40px] shadow-2xl animate-in slide-in-from-bottom-8 duration-500 relative overflow-hidden">
             
-            {/* BOTÓN VOLVER (Atrás) */}
             <button 
                 onClick={() => {
                     if (isRecoveryMode) setIsRecoveryMode(false);
-                    else if (isLoginMode) { /* No hace nada en login, usa el switch de abajo */ }
+                    else if (isLoginMode) { }
                     else setSelectedRole(null);
                     setMessage(null);
                 }} 
@@ -129,7 +128,6 @@ export default function AuthPage() {
                   {isRecoveryMode ? "Restablecer Clave" : (isLoginMode ? "Bienvenido de nuevo" : "Sus credenciales")}
               </h2>
               
-              {/* MENSAJES DE ERROR O ÉXITO */}
               {message && (
                   <div className={`mt-4 p-4 rounded-xl text-sm font-bold ${message.includes('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                       {message}
@@ -139,7 +137,6 @@ export default function AuthPage() {
 
             <form action={handleSubmit} className="space-y-5">
               
-              {/* CAMPOS SOLO REGISTRO */}
               {!isLoginMode && !isRecoveryMode && (
                   <div className="group animate-in fade-in slide-in-from-top-2">
                     <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Nombre Completo</label>
@@ -160,7 +157,6 @@ export default function AuthPage() {
                 </>
               )}
 
-              {/* CAMPO EMAIL (SIEMPRE VISIBLE) */}
               <div className="group">
                 <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Email {isRecoveryMode && "de Recuperación"}</label>
                 <div className="relative">
@@ -169,12 +165,10 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {/* CAMPO CONTRASEÑA (NO VISIBLE EN RECUPERACIÓN) */}
               {!isRecoveryMode && (
                   <div className="group">
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest">Contraseña</label>
-                        {/* 🔥 EL ENLACE DE RESCATE */}
                         {isLoginMode && (
                             <button type="button" onClick={() => { setIsRecoveryMode(true); setMessage(null); }} className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wider hover:underline">
                                 ¿Olvidó la clave?
@@ -195,7 +189,6 @@ export default function AuthPage() {
                       </button>
                     </div>
                     
-                    {/* BARRA FUERZA (SOLO REGISTRO) */}
                     {!isLoginMode && password.length > 0 && (
                         <div className="mt-3 flex items-center gap-3 animate-fade-in">
                             <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
@@ -214,7 +207,6 @@ export default function AuthPage() {
               </div>
             </form>
             
-            {/* SWITCH LOGIN / REGISTRO (NO VISIBLE EN RECUPERACIÓN) */}
             {!isRecoveryMode && (
                 <div className="mt-6 pt-6 border-t border-gray-100 text-center">
                     <p className="text-xs font-medium text-gray-500 mb-2">
@@ -239,3 +231,17 @@ export default function AuthPage() {
     </div>
   )
 }
+
+// 2. EXPORTAMOS POR DEFECTO EL WRAPPER CON SUSPENSE
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">
+        <Loader2 className="animate-spin text-gray-400" size={32} />
+      </div>
+    }>
+      <AuthContent />
+    </Suspense>
+  )
+}
+
