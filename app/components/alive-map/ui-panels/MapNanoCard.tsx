@@ -318,3 +318,4 @@ export default function MapNanoCard(props: any) {
   );
 }
 
+// FUERZA BRUTA V1 - CAMBIO OBLIGATORIO
