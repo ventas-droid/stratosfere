@@ -755,39 +755,76 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
            </>
        )}
 {/* =================================================================
-           BLOQUE 3: MODO AGENCIA (OMNI + PANELES)
-           Pegue esto AL FINAL, justo debajo del cierre del modo EXPLORER
+           BLOQUE 3 MAESTRO: MODO AGENCIA CON OMNI CRISTAL + PANELES
+           (Sustituya su bloque antiguo por este completo)
            ================================================================= */}
        {systemMode === 'AGENCY' && (
            <>
-               {/* 1. DOCK DE COMANDO (LA OMNI DE AGENCIA) */}
+               {/* 1. BARRA OMNI DE CRISTAL (ESTILO EXPLORER PERO PARA AGENCIA) */}
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
-                   <div className="pointer-events-auto relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/95 backdrop-blur-xl border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] animate-fade-in-up">
-                        
-                        {/* BOTÓN SALIR (Vuelve al menú) */}
-                        <button onClick={() => setSystemMode('GATEWAY')} className="p-3 rounded-full text-white/50 hover:text-red-500 hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
-                        <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
+                       <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
 
-                        {/* BOTÓN STOCK (Cartera) */}
-                        <button onClick={() => setActivePanel(activePanel === 'AGENCY_STOCK' ? 'NONE' : 'AGENCY_STOCK')} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activePanel === 'AGENCY_STOCK' ? 'bg-emerald-600 text-white' : 'text-emerald-400 hover:bg-emerald-600/10'}`}>
-                            <Home size={16} /> <span className="text-[10px] font-bold tracking-widest">STOCK</span>
-                        </button>
+                           {/* A. IZQUIERDA: SALIR */}
+                           <div className="flex items-center gap-1">
+                                <button onClick={() => setSystemMode('GATEWAY')} className="p-3 rounded-full text-white/50 hover:text-red-500 hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
+                           </div>
 
-                        {/* BOTÓN MARKET (Licencias) */}
-                        <button onClick={() => setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET')} className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${activePanel === 'AGENCY_MARKET' ? 'bg-blue-600 text-white' : 'text-blue-400 hover:bg-blue-600/10'}`}>
-                            <Shield size={16} /> <span className="text-[10px] font-bold tracking-widest">MARKET</span>
-                        </button>
+                           <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                        <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+                           {/* B. CENTRO: BUSCADOR OMNI (EL QUE FALTABA) */}
+                           <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50 focus-within:bg-blue-500/5 transition-all group">
+                               <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
+                               <input
+                                   value={aiInput}
+                                   onChange={(e) => setAiInput(e.target.value)}
+                                   onKeyDown={(e) => {
+                                       if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleAICommand(e); }
+                                       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); (e.target as HTMLInputElement).blur(); }
+                                   }}
+                                   className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text"
+                                   placeholder="COMANDO DE AGENCIA..."
+                               />
+                               <Mic size={16} className="text-white/30"/>
+                           </div>
 
-                        {/* BOTÓN PERFIL */}
-                        <button onClick={() => toggleRightPanel('AGENCY_PROFILE')} className={`p-3 rounded-full transition-all ${rightPanel === 'AGENCY_PROFILE' ? 'text-white bg-white/20' : 'text-white/50 hover:text-white'}`}>
-                            <User size={18}/>
-                        </button>
+                           <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+
+                           {/* C. DERECHA: BOTONES DE AGENCIA */}
+                           <div className="flex items-center gap-1">
+                               
+                               {/* STOCK / RADAR */}
+                               <button 
+                                   onClick={() => setActivePanel(activePanel === 'AGENCY_STOCK' ? 'NONE' : 'AGENCY_STOCK')} 
+                                   className={`p-3 rounded-full transition-all ${activePanel === 'AGENCY_STOCK' ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white'}`}
+                                   title="Mi Stock"
+                               >
+                                   <Home size={18} />
+                               </button>
+
+                               {/* MARKET / LICENCIAS */}
+                               <button 
+                                   onClick={() => setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET')} 
+                                   className={`p-3 rounded-full transition-all ${activePanel === 'AGENCY_MARKET' ? 'bg-emerald-500 text-white shadow-lg' : 'text-emerald-400 hover:text-white'}`}
+                                   title="Market"
+                               >
+                                   <Shield size={18} />
+                               </button>
+
+                               {/* PERFIL AGENCIA */}
+                               <button 
+                                   onClick={() => toggleRightPanel('AGENCY_PROFILE')} 
+                                   className={`p-3 rounded-full transition-all ${rightPanel === 'AGENCY_PROFILE' ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white'}`}
+                                   title="Perfil Agencia"
+                               >
+                                   <Briefcase size={18}/>
+                               </button>
+                           </div>
+                       </div>
                    </div>
                </div>
 
-               {/* 2. PANELES LATERALES DE AGENCIA (INVISIBLES HASTA QUE SE LLAMAN) */}
+               {/* 2. PANELES LATERALES (NECESARIOS PARA QUE FUNCIONE) */}
                <AgencyPortfolioPanel 
                    isOpen={activePanel === 'AGENCY_STOCK'} 
                    onClose={() => setActivePanel('NONE')} 
