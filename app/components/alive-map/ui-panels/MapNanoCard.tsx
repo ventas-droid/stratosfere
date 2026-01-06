@@ -173,12 +173,22 @@ export default function MapNanoCard(props: any) {
     return () => { if (typeof window !== 'undefined') window.removeEventListener('sync-property-state', handleRemoteCommand as EventListener); };
   }, [id]);
 
- const handleAction = (e: React.MouseEvent, action: string) => {
+// GESTOR DE ACCIONES (ABRIR / FAVORITO)
+  const handleAction = (e: React.MouseEvent, action: string) => {
       e.preventDefault();
       e.stopPropagation(); 
+      
       const targetState = action === 'fav' ? !liked : liked;
       const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates || (props.lng && props.lat ? [props.lng, props.lat] : null);
       
+      // 1. RECOPILAMOS EL ÁLBUM DE FOTOS COMPLETO (Corrección para HoloInspector)
+      // Si hay array de fotos, lo cogemos. Si no, hacemos un array con la foto de portada.
+      const fullAlbum = 
+          (Array.isArray(props.images) && props.images.length > 0) ? props.images :
+          (Array.isArray(data.images) && data.images.length > 0) ? data.images :
+          [img];
+
+      // 2. PREPARAMOS EL PAQUETE DE DATOS
       const payload = { 
           id, 
           ...props, 
@@ -188,13 +198,14 @@ export default function MapNanoCard(props: any) {
           priceValue: currentPrice,
           formattedPrice: displayLabel,
           role: style.label, 
-          img: img, 
+          img: img,           // La foto de portada (String)
+          images: fullAlbum,  // EL ÁLBUM COMPLETO (Array) -> Esto arregla el inspector
           type: type, 
           location: (city || location || address || "MADRID").toUpperCase(), 
           isFav: targetState, 
           isFavorite: targetState, 
           coordinates: navCoords,
-          selectedServices: selectedServices // Pasamos los servicios
+          selectedServices: selectedServices 
       };
 
       if (action === 'fav') {
