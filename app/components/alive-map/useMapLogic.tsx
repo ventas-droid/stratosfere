@@ -425,33 +425,74 @@ export const useMapLogic = () => {
     const root = createRoot(el);
     const p = feature.properties;
 
-    const safeImg =
-      p.img ||
-      (Array.isArray(p.images) && p.images.length ? p.images[0] : undefined) ||
-      undefined;
+    // -------------------------------------------------------------
+    // 🛡️ PROTOCOLO DE RECUPERACIÓN DE IMÁGENES (FIX)
+    // -------------------------------------------------------------
+    let safeImages: any[] = [];
+    
+    // 1. Intentamos leer el array directo
+    if (Array.isArray(p.images)) {
+        safeImages = p.images;
+    } 
+    // 2. Si Mapbox lo ha convertido a texto '["url1", "url2"]', lo parseamos
+    else if (typeof p.images === 'string') {
+        try {
+            const parsed = JSON.parse(p.images);
+            safeImages = Array.isArray(parsed) ? parsed : [p.images];
+        } catch (e) {
+            safeImages = [p.images]; // Si falla, asumimos que es una URL suelta
+        }
+    }
+    // 3. Fallback a la imagen antigua (p.img)
+    if (safeImages.length === 0 && p.img) {
+        safeImages = [p.img];
+    }
 
+    // 4. Calculamos la portada segura
+    const safeImg = safeImages[0] || p.img || undefined;
+
+
+    // -------------------------------------------------------------
+    // 🎨 RENDERIZADO DE LA TARJETA (DATOS COMPLETOS)
+    // -------------------------------------------------------------
     root.render(
       <MapNanoCard
         id={id}
+        // Datos Financieros
         price={p.price}
         priceValue={p.priceValue}
         rawPrice={p.priceValue}
+        
+        // Datos Físicos
         rooms={p.rooms}
         baths={p.baths}
-        mBuilt={p.m2}
+        mBuilt={p.m2} // Mapbox suele usar mBuilt, aquí aseguramos m2
+        
+        // Equipamiento
         selectedServices={p.selectedServices}
         elevator={p.elevator}
         specs={p.specs}
         type={p.type}
-        img={safeImg}
+        
+        // 🔥 IMÁGENES (LA SOLUCIÓN)
+        img={safeImg}        // Portada
+        images={safeImages}  // Álbum completo para el Visor
+        
+        // Coordenadas
         lat={feature.geometry.coordinates[1]}
         lng={feature.geometry.coordinates[0]}
+        
+        // Información General
         role={p.role}
         title={p.title}
         description={p.description}
+        
+        // Dirección (Blindaje triple)
         address={p.address || p.location}
         city={p.city || p.location}
         location={p.location || p.city || p.address}
+        
+        // Energía (No tocamos nada, se mantiene igual)
         energyConsumption={p.energyConsumption}
         energyEmissions={p.energyEmissions}
         energyPending={p.energyPending}
@@ -465,7 +506,6 @@ export const useMapLogic = () => {
     markersRef.current[id] = marker;
   });
 };
-
 
   // --------------------------------------------------------------------
   // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA 🇪🇸
