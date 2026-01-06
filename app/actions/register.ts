@@ -3,6 +3,7 @@
 import { db } from "../lib/db"
 import { hash } from "bcryptjs"
 import { redirect } from "next/navigation"
+import { sendWelcomeEmail } from './send-emails';
 
 export async function registerUser(formData: FormData) {
   console.log("👉 1. INICIO: El botón ha sido pulsado.")
@@ -39,6 +40,7 @@ export async function registerUser(formData: FormData) {
   console.log("👉 5. ENCRIPTADO: Contraseña segura creada.")
 
   try {
+    // Guardamos el usuario
     await db.user.create({
       data: {
         email,
@@ -48,6 +50,11 @@ export async function registerUser(formData: FormData) {
       }
     })
     console.log("👉 6. CREACIÓN: Usuario guardado en la base de datos ✅")
+
+    // 👇 2. AQUÍ ENVIAMOS EL CORREO DE BIENVENIDA
+    // (Sin await, para que no retrase la entrada al mapa)
+    sendWelcomeEmail(email, name);
+
   } catch (e) {
     console.error("❌ ERROR AL GUARDAR:", e)
     return { error: "No se pudo guardar el usuario." }

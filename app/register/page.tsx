@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { registerUser } from '@/app/actions/register' 
 import { loginUser } from '@/app/actions/login'
 import { Building2, User, ArrowRight, Loader2, Eye, EyeOff, KeyRound, Mail, ArrowLeft } from 'lucide-react'
+import { sendRecoveryEmail } from '@/app/actions/send-emails';
 
 // 1. CAMBIAMOS EL NOMBRE DEL COMPONENTE ORIGINAL A "AuthContent"
 function AuthContent() {
@@ -52,13 +53,21 @@ function AuthContent() {
     
     // CASO 1: RECUPERACIÓN DE CONTRASEÑA
     if (isRecoveryMode) {
-        // Aquí conectaremos el servicio de email en el futuro.
-        await new Promise(resolve => setTimeout(resolve, 1500)); 
-        setMessage("✅ Hemos enviado un enlace de recuperación a su correo.");
+        const email = formData.get('email') as string;
+        
+        // 🔥 DISPARAMOS EL EMAIL REAL
+        const result = await sendRecoveryEmail(email);
+        
+        if (result.success) {
+             setMessage("✅ Hemos enviado un enlace de recuperación a su correo.");
+        } else {
+             setMessage("❌ Error al enviar: " + (result.error || "Inténtelo de nuevo"));
+        }
+        
         setLoading(false);
         return;
     }
-
+    
     // CASO 2: LOGIN
     if (isLoginMode) {
       const result = await loginUser(formData)

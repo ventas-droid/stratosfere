@@ -58,27 +58,27 @@ export default function UIPanels({
 
   // 3. EFECTO DE MEMORIA Y LIMPIEZA DE RASTROS
   useEffect(() => {
-    // A. Miramos si ya tenía el pase guardado
+    // A. Miramos si ya tenía el pase guardado en el bolsillo
     const storedAccess = localStorage.getItem('stratos_access_granted');
     
     // B. Si tiene pase en URL o en bolsillo
     if (urlAccess || storedAccess === 'true') {
         setGateUnlocked(true);
         
-        // Guardamos en bolsillo si no estaba
+        // Guardar en bolsillo si no estaba
         if (!storedAccess) {
             localStorage.setItem('stratos_access_granted', 'true');
         }
 
-        // 🔥 CÓDIGO NUEVO: LIMPIEZA DE URL (SIGILO)
-        // Esto borra "?access=granted" de la barra visualmente
+        // 🔥 NUEVO: LIMPIEZA DE URL (MODO SIGILO)
+        // Esto elimina "?access=granted" visualmente de la barra
         if (urlAccess) {
             const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.replaceState({path: newUrl}, '', newUrl);
         }
     }
   }, [urlAccess]);
-  
+
   // --- A. ESTADOS DEL SISTEMA (RESTO IGUAL) ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
