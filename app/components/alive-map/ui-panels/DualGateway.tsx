@@ -2,14 +2,15 @@
 "use client";
 
 import React from 'react';
-import { Search, PenTool, Zap, LayoutDashboard, ArrowRight } from 'lucide-react';
+import { Search, Zap, LayoutDashboard, ArrowRight } from 'lucide-react';
 
-// IMÁGENES TÁCTICAS
-const IMG_EXPLORER = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80";
-const IMG_ARCHITECT = "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80";
-const IMG_PARTNER = "https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1200&q=80";
-// Nueva imagen para Agencia (Estilo Oficina Técnica)
-const IMG_AGENCY = "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1200&q=80";
+// IMÁGENES TÁCTICAS (3 IMÁGENES DEFINITIVAS)
+// 1. MERCADO (Salón Lujoso - Atrae a comprador y vendedor)
+const IMG_MARKET = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80";
+// 2. PARTNERS (Oficina creativa / Gente colaborando)
+const IMG_PARTNER = "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=1200&q=80";
+// 3. COMANDO (Agencia / Tecnología / Control)
+const IMG_COMMAND = "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1200&q=80";
 
 export default function DualGateway({ onSelectMode }: any) {
 
@@ -21,7 +22,7 @@ export default function DualGateway({ onSelectMode }: any) {
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-200/40 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
 
       {/* CABECERA */}
-      <div className="relative z-10 text-center mb-10">
+      <div className="relative z-10 text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter text-black mb-4 select-none">
             Stratosfere OS.
           </h1>
@@ -30,67 +31,56 @@ export default function DualGateway({ onSelectMode }: any) {
           </p>
       </div>
 
-      {/* GRID DE 4 COLUMNAS (QUAD-GATEWAY) */}
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-[1400px] px-6">
+      {/* GRID DE 3 COLUMNAS (TRIAD-GATEWAY) */}
+      {/* 🔥 CAMBIO CLAVE: grid-cols-3 en pantallas grandes */}
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-[1200px] px-6">
         
-        {/* 1. COMPRADOR */}
+        {/* 1. COMPRAR Y VENDER (FUSIÓN) */}
         <CardOption 
-            img={IMG_EXPLORER}
+            img={IMG_MARKET}
             icon={Search}
             color="blue"
-            badge="Búsqueda"
-            title="Comprar."
-            desc="Mapa 3D y activos exclusivos."
-            action="Explorar"
+            badge="Mercado"
+            title="Comprar y Vender."
+            desc="Acceso total al Mapa 3D, activos exclusivos y valoración de suelo."
+            action="Entrar al Mercado"
             onClick={() => onSelectMode('EXPLORER')}
         />
 
-        {/* 2. VENDEDOR */}
-        <CardOption 
-            img={IMG_ARCHITECT}
-            icon={PenTool}
-            color="purple"
-            badge="Gestión"
-            title="Vender."
-            desc="Valoración y venta de suelo."
-            action="Propietario"
-            onClick={() => onSelectMode('ARCHITECT')}
-        />
-
-        {/* 3. DIFUSOR */}
+        {/* 2. DIFUNDIR (PARTNERS) */}
         <CardOption 
             img={IMG_PARTNER}
             icon={Zap}
             color="orange"
             badge="Partners"
             title="Difundir."
-            desc="Monetiza tu audiencia."
-            action="Bloggers"
-            onClick={() => onSelectMode('DIFFUSER')}
+            desc="Monetiza tu audiencia y colabora con la red Stratosfere."
+            action="Acceso Bloggers"
+            onClick={() => onSelectMode('DIFFUSER')} // (Nota: Asegúrese de tener este modo o redirigir)
         />
 
-        {/* 4. AGENCIA (NUEVO) */}
+        {/* 3. OPERAR (COMANDO AGENCIA) */}
         <CardOption 
-            img={IMG_AGENCY}
+            img={IMG_COMMAND}
             icon={LayoutDashboard}
             color="emerald"
             badge="Command"
             title="Operar."
-            desc="Agency OS. Control total."
+            desc="Agency OS. Control total y herramientas de administración."
             action="Sistema OS"
-            onClick={() => onSelectMode('AGENCY')} // <--- ESTA ES LA SEÑAL CLAVE
+            onClick={() => onSelectMode('AGENCY')}
         />
 
       </div>
 
       <div className="absolute bottom-6 text-gray-400 text-[10px] font-bold tracking-widest uppercase">
-        Stratosfere Operating System v2.2
+        Stratosfere Operating System v3.0
       </div>
     </div>
   );
 }
 
-// Subcomponente para limpiar el código
+// Subcomponente de Tarjeta (Limpio)
 function CardOption({ img, icon: Icon, color, badge, title, desc, action, onClick }: any) {
     const colors: any = {
         blue: "bg-blue-100 text-blue-600 group-hover:text-blue-700",
@@ -102,22 +92,25 @@ function CardOption({ img, icon: Icon, color, badge, title, desc, action, onClic
     return (
         <div 
             onClick={onClick}
-            className="group relative bg-white rounded-[32px] shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden transform hover:-translate-y-2 h-[420px]"
+            className="group relative bg-white rounded-[32px] shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer overflow-hidden transform hover:-translate-y-2 h-[450px]"
         >
+            {/* IMAGEN (55% de altura) */}
             <div className="h-[55%] overflow-hidden relative">
                 <img src={img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={title}/>
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
             </div>
-            <div className="h-[45%] p-6 flex flex-col justify-between relative">
+            
+            {/* CONTENIDO (45% de altura) */}
+            <div className="h-[45%] p-8 flex flex-col justify-between relative">
                 <div>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                         <div className={`p-1.5 rounded-full ${colors[color].split(' ')[0]} ${colors[color].split(' ')[1]}`}>
                             <Icon size={14} />
                         </div>
                         <span className={`text-[10px] font-extrabold uppercase tracking-widest ${colors[color].split(' ')[1]}`}>{badge}</span>
                     </div>
-                    <h2 className="text-2xl font-extrabold text-black tracking-tight">{title}</h2>
-                    <p className="text-gray-400 mt-1 font-medium text-xs leading-relaxed">{desc}</p>
+                    <h2 className="text-3xl font-extrabold text-black tracking-tight mb-2">{title}</h2>
+                    <p className="text-gray-400 font-medium text-xs leading-relaxed">{desc}</p>
                 </div>
                 <div className="flex items-center gap-2 text-black font-extrabold text-xs tracking-wide group-hover:opacity-70 transition-opacity">
                     {action} <ArrowRight size={14} />
