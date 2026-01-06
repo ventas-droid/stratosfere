@@ -247,20 +247,51 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
     if (rightPanel === 'PROFILE') loadData();
   }, [rightPanel]);
 
+  // --- ESCUCHA DE EVENTOS DEL SISTEMA ---
   useEffect(() => {
-    // 1. Función para recarga total (desde base de datos)
-    const handleReload = () => loadData();
+    // Cuando el Arquitecto termina, grita 'reload-profile-assets'
+    const handleReload = () => {
+        console.log("🔄 PERFIL: Recibida orden de recarga desde Arquitecto...");
+        loadData(); // <--- ESTO VUELVE A LEER LA BASE DE DATOS
+    };
 
-    // 2. 🔥 NUEVO: Función para inyectar la casa AL INSTANTE (sin esperar)
+    // Cuando el Mapa detecta algo nuevo
     const handleNewProperty = (e: any) => {
-        const newProp = e.detail;
-        if (newProp) {
-            // Añadimos la nueva casa arriba del todo inmediatamente
-            setMyProperties(prev => [newProp, ...prev]);
+        const raw = e.detail;
+        if (raw) {
+            // APLICAMOS LA LÓGICA DE MAPEO PARA QUE EL MARKETPLACE LA ENTIENDA
+            // (Esto es crucial para que al hacer click no falle)
+            const formattedProp = {
+                 ...raw,
+                 img: raw.mainImage || (raw.images && raw.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
+                 selectedServices: [
+                    ...(raw.selectedServices || []),
+                    raw.pool ? 'pool' : null, 
+                    raw.garage ? 'garage' : null,
+                    raw.elevator ? 'elevator' : null,
+                    raw.terrace ? 'terrace' : null,
+                    raw.garden ? 'garden' : null,
+                    raw.storage ? 'storage' : null,
+                    raw.ac ? 'ac' : null,
+                    raw.security ? 'security' : null
+                 ].filter(Boolean),
+                 mBuilt: Number(raw.mBuilt || 0),
+                 price: raw.rawPrice 
+                    ? new Intl.NumberFormat('es-ES').format(raw.rawPrice)
+                    : (typeof raw.price === 'number' 
+                        ? new Intl.NumberFormat('es-ES').format(raw.price) 
+                        : raw.price),
+                 coordinates: [raw.longitude, raw.latitude]
+            };
+
+            // Inyectamos la propiedad "inteligente" en la lista visualmente al instante
+            setMyProperties(prev => [formattedProp, ...prev]);
+            
+            // Y por seguridad, recargamos de la base de datos en segundo plano
+            loadData();
         }
     };
     
-    // Suscripciones
     window.addEventListener('reload-profile-assets', handleReload);
     window.addEventListener('add-property-signal', handleNewProperty); 
 
@@ -269,7 +300,6 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
         window.removeEventListener('add-property-signal', handleNewProperty);
     };
   }, []);
-
   // 2. BORRAR (CONECTADO A BASE DE DATOS)
   const handleDelete = async (e: any, id: any) => {
       e.stopPropagation();
@@ -548,22 +578,25 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
                     <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500"/>
                 </button>
 
-                {/* BOTÓN FAVORITOS (CONECTADO A BD) */}
-            <button 
-                onClick={loadFavorites}
-                className="w-full bg-white p-4 rounded-[24px] shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer"
-            >
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
-                        <Heart size={20} fill="currentColor" className="opacity-20 group-hover:opacity-100 transition-opacity"/>
+               {/* BOTÓN FAVORITOS (REPARADO: ABRE LA BÓVEDA ORIGINAL) */}
+                <button 
+                    onClick={() => {
+                        // EN LUGAR DE setInternalView, LLAMAMOS AL PANEL DERECHO "VAULT"
+                        toggleRightPanel('VAULT'); 
+                    }}
+                    className="w-full bg-white p-4 rounded-[24px] shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                            <Heart size={20} fill="currentColor" className="opacity-20 group-hover:opacity-100 transition-opacity"/>
+                        </div>
+                        <div className="text-left">
+                            <h4 className="font-bold text-slate-900 text-sm">Favoritos</h4>
+                            <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Colección Privada</p>
+                        </div>
                     </div>
-                    <div className="text-left">
-                        <h4 className="font-bold text-slate-900 text-sm">Favoritos</h4>
-                        <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Colección Privada</p>
-                    </div>
-                </div>
-                <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all"/>
-            </button>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all"/>
+                </button>
 
                 {/* BOTÓN: MARKETPLACE */}
                 <button 
