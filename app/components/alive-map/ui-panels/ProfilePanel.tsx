@@ -94,6 +94,54 @@ const router = useRouter();
       website: ""
   });
 
+  // 🔥 ESTADOS PARA EDICIÓN DE PERFIL (INYECCIÓN DE MANDO)
+  const [isEditing, setIsEditing] = useState(false); // Interruptor Visual
+  const [editForm, setEditForm] = useState({ // Memoria Temporal
+      name: "",
+      avatar: ""
+  });
+  const [isSaving, setIsSaving] = useState(false); // Indicador de Carga
+
+  // ⚙️ FUNCIÓN 1: ACTIVAR MODO EDICIÓN
+  // Copia los datos actuales al formulario temporal
+  const startEditing = () => {
+      setEditForm({
+          name: user.name,
+          // Si el avatar es el gris por defecto, lo dejamos vacío para que ponga uno nuevo
+          avatar: user.avatar.includes("unsplash") || !user.avatar ? "" : user.avatar 
+      });
+      setIsEditing(true);
+  };
+
+  // ⚙️ FUNCIÓN 2: GUARDAR CAMBIOS (ENVIAR AL CUARTEL GENERAL)
+  const handleSaveProfile = async () => {
+      setIsSaving(true);
+      try {
+          console.log("💾 Guardando perfil...", editForm);
+          
+          // 1. Llamamos a la acción del servidor
+          const result = await updateUserAction({
+              name: editForm.name,
+              // Aquí en el futuro conectaremos la subida de archivos real.
+              // Por ahora, permite pegar una URL o dejarlo como estaba.
+              avatar: editForm.avatar 
+          });
+
+          if (result.success) {
+              // 2. Si el servidor confirma, actualizamos la vista local
+              setUser(prev => ({ ...prev, name: editForm.name, avatar: editForm.avatar }));
+              setIsEditing(false); // Apagamos modo edición
+              console.log("✅ Perfil actualizado con éxito");
+          } else {
+              alert("Error al guardar: " + result.error);
+          }
+      } catch (error) {
+          console.error("Error crítico al guardar:", error);
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
   // 🔥 2. FUNCIÓN DE CARGA BLINDADA (IDENTIDAD + PROPIEDADES)
   const loadData = async () => {
       if (typeof window === 'undefined') return;
@@ -280,43 +328,99 @@ const router = useRouter();
         {internalView === 'MAIN' && (
           <div className="animate-fade-in space-y-8">
             
-            {/* 1. TARJETA DE IDENTIDAD (DINÁMICA) */}
-            <div className="bg-white p-6 rounded-[32px] shadow-sm flex items-center gap-4 relative overflow-hidden group border border-slate-100">
+          {/* 1. ID CARD: ESTILO CUPERTINO (VISUALIZACIÓN & EDICIÓN) */}
+            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-white/60 relative overflow-hidden transition-all duration-500 hover:shadow-[0_8px_40px_rgba(0,0,0,0.08)]">
                 
-                {/* Avatar Real */}
-                <div className="w-16 h-16 rounded-full bg-slate-200 border-4 border-white shadow-lg overflow-hidden relative z-10 flex items-center justify-center shrink-0">
-                    {user.avatar ? (
-                        <img src={user.avatar} className="w-full h-full object-cover" alt="Avatar"/>
-                    ) : (
-                        <User size={32} className="text-slate-400"/>
-                    )}
-                </div>
-                
-                {/* Datos del Usuario */}
-                <div className="relative z-10 min-w-0 flex-1">
-                    <h3 className="text-xl font-black text-slate-900 truncate">
-                        {user.companyName || user.name}
-                    </h3>
-                    
-                    {/* Lógica de Roles */}
-                    {(user.role === 'AGENCIA' || user.companyName) ? (
-                        <div className="flex flex-col">
-                            <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mb-1">
-                                <ShieldCheck size={12}/> {user.licenseNumber || "Licencia Verificada"}
-                            </span>
-                            <span className="text-[10px] text-slate-400 truncate font-mono">{user.email}</span>
+                {/* A. MODO EDICIÓN (FORMULARIO) */}
+                {isEditing ? (
+                    <div className="animate-fade-in space-y-4 relative z-20">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Editando Perfil</span>
+                            <button onClick={() => setIsEditing(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors cursor-pointer">
+                                <X size={14} className="text-gray-500"/>
+                            </button>
                         </div>
-                    ) : (
-                        <p className="text-xs font-bold text-slate-400 truncate">{user.email}</p>
-                    )}
 
-                    <div className={`mt-2 inline-flex text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${user.role === 'AGENCIA' ? 'bg-emerald-600 shadow-emerald-200 shadow-md' : 'bg-black'}`}>
-                        {user.role === 'AGENCIA' ? 'AGENTE CERTIFICADO' : 'PARTICULAR'}
+                        {/* Input Nombre */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-2">Nombre Visible</label>
+                            <input 
+                                value={editForm.name}
+                                onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                                className="w-full p-4 bg-gray-50 rounded-2xl text-lg font-bold text-gray-900 outline-none border border-transparent focus:bg-white focus:border-blue-500/20 focus:shadow-lg transition-all placeholder:text-gray-300"
+                                placeholder="Tu Nombre o Marca"
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Input Avatar (URL) */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-2">Avatar (URL Imagen)</label>
+                            <input 
+                                value={editForm.avatar}
+                                onChange={(e) => setEditForm({...editForm, avatar: e.target.value})}
+                                className="w-full p-4 bg-gray-50 rounded-2xl text-xs font-medium text-gray-600 outline-none border border-transparent focus:bg-white focus:border-blue-500/20 transition-all font-mono"
+                                placeholder="https://..."
+                            />
+                        </div>
+
+                        {/* Botón Guardar */}
+                        <button 
+                            onClick={handleSaveProfile}
+                            disabled={isSaving}
+                            className="w-full py-4 bg-black text-white rounded-2xl font-bold text-sm shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                            {isSaving ? "Guardando..." : "Aplicar Cambios"}
+                        </button>
                     </div>
-                </div>
+                ) : (
+                    /* B. MODO VISUALIZACIÓN (CLEAN) */
+                    <div className="flex items-center gap-5 relative z-20">
+                        
+                        {/* Avatar con efecto Glass */}
+                        <div className="w-20 h-20 rounded-full p-1 bg-white shadow-2xl relative group cursor-pointer shrink-0" onClick={startEditing}>
+                            <div className="w-full h-full rounded-full overflow-hidden relative">
+                                {user.avatar ? (
+                                    <img src={user.avatar} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt="Avatar"/>
+                                ) : (
+                                    <div className="w-full h-full bg-gray-50 flex items-center justify-center">
+                                        <User size={28} className="text-gray-300"/>
+                                    </div>
+                                )}
+                                {/* Overlay "Editar" al pasar ratón */}
+                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                                    <Edit3 size={16} className="text-white"/>
+                                </div>
+                            </div>
+                        </div>
 
-                {/* Decoración de Fondo (Verde para Agentes, Azul para Particulares) */}
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl rounded-bl-full pointer-events-none opacity-20 ${user.role === 'AGENCIA' ? 'from-emerald-500' : 'from-blue-500'} to-transparent`}></div>
+                        {/* Info Usuario */}
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-2xl font-black text-gray-900 tracking-tight truncate leading-tight">
+                                {user.companyName || user.name}
+                            </h3>
+                            <p className="text-xs font-medium text-gray-400 truncate mb-2 font-mono tracking-tight">
+                                {user.email}
+                            </p>
+                            
+                            {/* Badges de Rol + Botón Editar */}
+                            <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${user.role === 'AGENCIA' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                    {user.role === 'AGENCIA' ? 'Agencia' : 'Particular'}
+                                </span>
+                                <button 
+                                    onClick={startEditing}
+                                    className="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-widest text-gray-400 hover:text-gray-900 hover:bg-gray-50 transition-colors cursor-pointer"
+                                >
+                                    Editar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Fondo Decorativo Sutil (Glow) */}
+                <div className={`absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br rounded-full blur-[60px] opacity-40 pointer-events-none ${user.role === 'AGENCIA' ? 'from-emerald-200 to-cyan-100' : 'from-blue-200 to-purple-100'}`}></div>
             </div>
 
             {/* 2. ESTADÍSTICAS */}
@@ -395,15 +499,26 @@ const router = useRouter();
                 </button>
             </div>
             
-          {/* BOTÓN CERRAR SESIÓN */}
+         {/* BOTÓN CERRAR SESIÓN (VERSIÓN FINAL) */}
             <button 
-                onClick={() => {
-                   console.log("Cerrando sesión...");
-                   router.push('/'); // <--- ESTO LE LLEVA AL INICIO
+                onClick={async () => {
+                   console.log("🛑 INICIANDO SECUENCIA DE SALIDA...");
+                   // 1. (Opcional) Limpiar rastros locales
+                   // localStorage.clear(); 
+                   
+                   // 2. Redirigir al Cohete (Landing)
+                   try {
+                       await router.push('/'); 
+                       console.log("🚀 Volviendo a la base.");
+                   } catch (e) {
+                       console.error("Error en navegación:", e);
+                       // Si falla el router, forzamos recarga a la raíz
+                       window.location.href = '/';
+                   }
                 }}
                 className="w-full py-4 mt-4 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer text-xs tracking-widest uppercase"
             >
-                <LogOut size={14}/> Cerrar Sesión
+                <LogOut size={14}/> Cerrar Sesión / Volver al Cohete
             </button>
           </div>
         )}
