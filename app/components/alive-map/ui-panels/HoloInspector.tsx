@@ -18,7 +18,8 @@ export default function HoloInspector({
 
   useEffect(() => {
       setMounted(true);
-      // 🔥 Efecto de entrada: espera 50ms para que el navegador procese el render y lance la animación
+      // 🔥 RETARDO TÁCTICO: Esperamos 50ms para que el navegador monte la foto
+      // y luego disparamos el movimiento suave hacia usted.
       if (isOpen) setTimeout(() => setIsZooming(true), 50);
       else setIsZooming(false);
   }, [isOpen]);
@@ -27,7 +28,7 @@ export default function HoloInspector({
 
   if (!mounted || !isOpen || !prop) return null;
 
-  // LÓGICA DE ÁLBUM BLINDADA
+  // LÓGICA DE DATOS
   const gallerySource = (images && images.length > 0) ? images : (prop.images || []);
   const rawAlbum = gallerySource.length > 0 ? gallerySource : [prop.img];
   const unique = Array.from(new Set(rawAlbum)).filter(Boolean) as string[];
@@ -40,7 +41,7 @@ export default function HoloInspector({
   const nav = (dir: number) => {
     if (soundEnabled && playSynthSound) playSynthSound("click");
     setIdx((p) => (p + dir + unique.length) % unique.length);
-    // Reinicia el zoom sutilmente al cambiar de foto
+    // Reiniciamos el "viaje" de la foto al cambiar
     setIsZooming(false);
     setTimeout(() => setIsZooming(true), 50);
   };
@@ -60,22 +61,25 @@ export default function HoloInspector({
 
       {/* ÁREA CENTRAL */}
       <div 
-          className="relative w-full h-full flex items-center justify-center p-0 md:p-6" // 👈 SIN PADDING EXCESIVO
+          className="relative w-full h-full flex items-center justify-center p-0 md:p-6"
           onClick={(e) => e.stopPropagation()}
       >
-            {/* CONTENEDOR BLANCO REDONDEADO */}
+            {/* CONTENEDOR BLANCO */}
             <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
                 
-                {/* FOTO A SANGRE (SIN BORDES BLANCOS) */}
+                {/* 🔥 FOTO CON EFECTO "KEN BURNS" (VIAJE HACIA TI) 🔥
+                   - scale-100: Empieza normal.
+                   - scale-110: Termina un poco más grande (se acerca).
+                   - duration-[5000ms]: Tarda 5 segundos en hacer el movimiento (muy suave).
+                */}
                 <img 
                     src={current as string} 
                     alt="Detalle Activo" 
                     className={`
                         w-full h-full object-cover bg-gray-50 relative z-10
-                        transition-all duration-[800ms] cubic-bezier(0.25, 0.46, 0.45, 0.94)
-                        ${isZooming ? 'scale-100 opacity-100' : 'scale-90 opacity-0'} 
+                        transition-transform duration-[5000ms] ease-out
+                        ${isZooming ? 'scale-110' : 'scale-100'} 
                     `}
-                    /* 👆 EFECTO "VIENE HACIA MI": Empieza pequeño (90) y crece a normal (100) */
                 />
 
                 {/* MARCA DE AGUA SUTIL */}
@@ -85,14 +89,14 @@ export default function HoloInspector({
                     </p>
                 </div>
 
-                {/* CONTADOR FUCSIA */}
+                {/* CONTADOR */}
                 {hasMultiplePhotos && (
                     <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-[#d946ef] shadow-lg shadow-fuchsia-500/30 text-white text-[11px] font-bold tracking-widest uppercase z-30">
                         {idx + 1} / {unique.length}
                     </div>
                 )}
 
-                {/* FLECHAS FLOTANDO SOBRE LA FOTO */}
+                {/* FLECHAS FLOTANTES */}
                 {hasMultiplePhotos && (
                     <>
                         <button onClick={(e) => { e.stopPropagation(); nav(-1); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30">
