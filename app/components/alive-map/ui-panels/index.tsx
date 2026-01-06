@@ -212,9 +212,11 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
   const handleEditAsset = (asset: any) => {
       console.log("📝 EDITANDO ACTIVO:", asset);
       if(soundEnabled) playSynthSound('click');
-      setEditingProp(asset);  // Cargamos datos en la memoria
-      setRightPanel('NONE');  // Cerramos perfil
-      setSystemMode('ARCHITECT'); // Activamos modo Arquitecto
+      
+      setEditingProp(asset);      
+      setRightPanel('NONE');      
+      setActivePanel('NONE');     // <--- AÑADE ESTO PARA CERRAR CHATS O DETALLES QUE ESTORBEN
+      setSystemMode('ARCHITECT'); 
   };
   const toggleRequirement = (item: any) => {
       if(soundEnabled) playSynthSound('click');

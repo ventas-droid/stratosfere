@@ -34,7 +34,7 @@ export default function HoloInspector({
           }
       }
   };
-  
+
  useEffect(() => {
       setMounted(true);
   }, []);
@@ -77,10 +77,35 @@ export default function HoloInspector({
         className="fixed inset-0 z-[999999] bg-[#F5F5F7]/98 backdrop-blur-2xl animate-fade-in flex flex-col items-center justify-center overflow-hidden"
         onClick={onClose}
     >
-      {/* BOTÓN CERRAR */}
+      {/* 1. BOTÓN ME GUSTA (NUEVO - IZQUIERDA DEL CERRAR) */}
+      <button 
+          onClick={async (e) => {
+              e.stopPropagation();
+              // Lógica visual inmediata
+              if (typeof setIsFav === 'function') setIsFav(!isFav);
+              
+              // Lógica de Base de Datos
+              if (prop?.id) {
+                   // Import dinámico para asegurar que no falle
+                   const { toggleFavoriteAction } = await import('@/app/actions');
+                   await toggleFavoriteAction(prop.id);
+                   // Avisar a todo el sistema (Bóveda y Mapas)
+                   window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+                   window.dispatchEvent(new CustomEvent('force-map-refresh'));
+              }
+          }}
+          className="absolute top-6 right-24 z-[60000] w-12 h-12 rounded-full bg-white/80 hover:bg-white flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
+      >
+          <Heart 
+              size={22} 
+              className={`transition-colors duration-300 ${isFav ? 'fill-rose-500 text-rose-500' : 'text-black group-hover:text-rose-500'}`}
+          />
+      </button>
+
+      {/* 2. BOTÓN CERRAR (EXISTENTE) */}
       <button 
           onClick={onClose} 
-          className="absolute top-6 right-6 z-50 w-12 h-12 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
+          className="absolute top-6 right-6 z-[60000] w-12 h-12 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
       >
           <X size={22} className="group-hover:rotate-90 transition-transform duration-500 ease-out"/>
       </button>
@@ -95,7 +120,7 @@ export default function HoloInspector({
                 
                {/* FOTO CON EFECTO REINICIABLE (Key única) */}
                 <img 
-                    key={current as string} // 👈 ESTO ES EL SECRETO
+                    key={current as string} 
                     src={current as string} 
                     alt="Detalle Activo" 
                     className={`
@@ -132,7 +157,7 @@ export default function HoloInspector({
                 )}
             </div>
 
-           {/* DATOS (REUBICADOS: Más arriba y a la derecha) */}
+           {/* DATOS (REUBICADOS) */}
             <div className="absolute bottom-20 left-20 md:bottom-32 md:left-32 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
                 <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md mb-4 leading-[0.9] mix-blend-overlay">
                     {prop.title || "Activo Stratosfere"}

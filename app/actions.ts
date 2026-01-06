@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from './lib/prisma'
-
+"use server"; // Esto suele ir en la línea 1
+import { cookies } from "next/headers";
+// ... resto de imports
 // 🔐 IDENTIFICADOR TEMPORAL (Simulamos que usted está logueado)
 // Buscamos su usuario exacto en la base de datos para firmar las acciones.
 async function getCurrentUser() {
@@ -417,5 +419,29 @@ export async function getFavoritesAction() {
   } catch (error) {
     console.error("Error Get Favs:", error);
     return { success: false, data: [] };
+  }
+}
+
+/// ---------------------------------------------------------
+// SUSTITUYA LA FUNCIÓN logoutAction EN app/actions.ts POR ESTA:
+// ---------------------------------------------------------
+
+export async function logoutAction() {
+  "use server";
+  
+  try {
+      // 🔥 FIX PARA NEXT.JS 15: AÑADIMOS 'await'
+      const cookieStore = await cookies(); 
+
+      // Ahora sí podemos borrar usando la variable 'cookieStore'
+      cookieStore.delete("stratos_session");
+      cookieStore.delete("stratos_access_granted");
+      cookieStore.delete("next-auth.session-token");
+      cookieStore.delete("auth-token");
+
+      return { success: true };
+  } catch (error) {
+      console.error("Error en logout server:", error);
+      return { success: false, error: "Fallo al cerrar sesión" };
   }
 }

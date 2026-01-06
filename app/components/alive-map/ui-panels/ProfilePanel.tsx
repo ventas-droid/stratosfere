@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 
 // 👇 AÑADIR ESTO ARRIBA CON LOS OTROS IMPORTS
-import { getPropertiesAction, deletePropertyAction, getUserMeAction, updateUserAction } from '@/app/actions';
+// Busca esta línea arriba del todo y añade logoutAction
+import { getPropertiesAction, deletePropertyAction, getUserMeAction, updateUserAction, logoutAction } from '@/app/actions';
 import { useRouter } from 'next/navigation'; // <--- NUEVO IMPORT
 import { uploadToCloudinary } from '@/app/utils/upload';
 import { getFavoritesAction } from '@/app/actions';
@@ -103,8 +104,9 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
   });
   const [isSaving, setIsSaving] = useState(false); // Indicador de Carga
   const [isUploading, setIsUploading] = useState(false); // <--- NUEVO: Para el spinner de carga
-
-  // ⚙️ FUNCIÓN 1: ACTIVAR MODO EDICIÓN
+const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
+// ⚙️ FUNCIÓN 1: ACTIVAR MODO EDICIÓN
   // Copia los datos actuales al formulario temporal
   const startEditing = () => {
       setEditForm({
@@ -184,12 +186,12 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
       }
   };
 
-  // 🔥 2. FUNCIÓN DE CARGA BLINDADA (IDENTIDAD + PROPIEDADES)
+ // 🔥 2. FUNCIÓN DE CARGA BLINDADA (SOLO BASE DE DATOS)
   const loadData = async () => {
       if (typeof window === 'undefined') return;
       
       try {
-          // A. CARGAR IDENTIDAD (Saber quién soy)
+          // A. CARGAR IDENTIDAD
           const userRes = await getUserMeAction();
           if (userRes.success && userRes.data) {
               console.log("👤 Identidad confirmada:", userRes.data.email);
@@ -205,7 +207,7 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
               });
           }
 
-          // B. CARGAR PROPIEDADES (Ya filtradas por el servidor)
+          // B. CARGAR PROPIEDADES (SOLO DESDE SERVER)
           const response = await getPropertiesAction();
           
           if (response.success && response.data) {
@@ -234,13 +236,13 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
              }));
              setMyProperties(dbProperties);
           } else {
-             const saved = localStorage.getItem('stratos_my_properties');
-             if (saved) setMyProperties(JSON.parse(saved));
+             // ✂️ CORTE AQUÍ: Si falla el server, mostramos VACÍO.
+             // Prohibido leer localStorage antiguo.
+             setMyProperties([]); 
           }
 
       } catch (e) { console.error("Error cargando perfil:", e); }
   };
-
   useEffect(() => {
     if (rightPanel === 'PROFILE') loadData();
   }, [rightPanel]);
@@ -496,7 +498,7 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
                 {/* Fondo Decorativo Sutil (Glow) */}
                 <div className={`absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br rounded-full blur-[60px] opacity-40 pointer-events-none ${user.role === 'AGENCIA' ? 'from-emerald-200 to-cyan-100' : 'from-blue-200 to-purple-100'}`}></div>
             </div>
-            
+
             {/* 2. ESTADÍSTICAS */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white p-5 rounded-[24px] shadow-sm text-center border border-slate-100">
@@ -581,26 +583,36 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
                 </button>
             </div>
             
-         {/* BOTÓN CERRAR SESIÓN (VERSIÓN FINAL) */}
+      {/* BOTÓN CERRAR SESIÓN (REPARADO Y BLINDADO) */}
             <button 
                 onClick={async () => {
-                   console.log("🛑 INICIANDO SECUENCIA DE SALIDA...");
-                   // 1. (Opcional) Limpiar rastros locales
-                   // localStorage.clear(); 
+                   setIsLoggingOut(true); // 1. Activa la cortina visual
                    
-                   // 2. Redirigir al Cohete (Landing)
                    try {
-                       await router.push('/'); 
-                       console.log("🚀 Volviendo a la base.");
-                   } catch (e) {
-                       console.error("Error en navegación:", e);
-                       // Si falla el router, forzamos recarga a la raíz
-                       window.location.href = '/';
+                       // 2. LIMPIEZA NUCLEAR LOCAL
+                       localStorage.clear();
+                       sessionStorage.clear();
+                       
+                       // 3. LIMPIEZA DEL SERVIDOR (MATAR COOKIE)
+                       // Esto es lo que faltaba: avisar al servidor que destruya la sesión
+                       await logoutAction(); 
+
+                   } catch (error) {
+                       console.error("Error al cerrar sesión:", error);
+                       // Fallback: Intentamos borrar cookies manualmente por si acaso
+                       document.cookie.split(";").forEach(function(c) { 
+                         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                       });
                    }
+
+                   // 4. TIEMPO DRAMÁTICO Y SALIDA
+                   setTimeout(() => {
+                       window.location.href = '/'; // Redirección forzosa
+                   }, 1000);
                 }}
                 className="w-full py-4 mt-4 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer text-xs tracking-widest uppercase"
             >
-                <LogOut size={14}/> Cerrar Sesión / Volver al Cohete
+                <LogOut size={14}/> Cerrar Sesión
             </button>
           </div>
         )}
@@ -896,6 +908,17 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
         </div>
     </div>
 )}
+
+      {/* 🛑 CORTINA DE DESCONEXIÓN (Visual) */}
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[999999] bg-white/90 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in cursor-wait">
+            <div className="w-16 h-16 border-4 border-slate-200 border-t-red-500 rounded-full animate-spin mb-6"></div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter">CERRANDO SESIÓN</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-2 animate-pulse">
+                Desconectando de Stratosfere...
+            </p>
+        </div>
+      )}
 
     </div>
   );

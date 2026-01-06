@@ -1256,133 +1256,114 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   // CAMBIO AQUÍ: Si no hay foto, ponemos NULL. Prohibido inventar.
   const previewImage = hasUserPhoto ? formData.images[0] : null;
 
- // --- LÓGICA DE GUARDADO BLINDADA V3 (NUBE + TURBO) ---
-  const handleSafeSave = async () => { // <--- AHORA ES ASYNC
+ // --- LÓGICA DE GUARDADO MAESTRA (DB FIRST + UI INSTANTÁNEA) ---
+  const handleSafeSave = async () => { 
       
-      // 1. CALIBRACIÓN DE DATOS (Su código original)
+      // 1. PREPARACIÓN Y SANITIZACIÓN DE DATOS
       const elevatorBool = formData.elevator === true || String(formData.elevator) === "true" || formData.elevator === 1;
       const finalPrice = rawPrice;
 
+      // ID Temporal (por si falla la red, tener algo)
+      const tempId = formData.id || Date.now().toString();
+
       const basePayload = { 
           ...formData, 
-          // Si es nuevo, usamos un ID temporal por ahora
-          id: formData.id || Date.now().toString(), 
-          
-          // PRECIOS
+          id: tempId, 
           price: visualPrice, 
           rawPrice: finalPrice, 
           priceValue: finalPrice, 
-          
-          // UBICACIÓN
           coordinates: formData.coordinates || [-3.6883, 40.4280], 
           location: (formData.city || formData.location || "MADRID").toUpperCase(), 
-          
-          // DATOS FÍSICOS
           rooms: Number(formData.rooms || 0), 
           baths: Number(formData.baths || 0), 
           mBuilt: Number(formData.mBuilt || 0), 
           m2: Number(formData.mBuilt || 0), 
-          
-          // DATOS DE SERVICIO Y EXTRAS
           elevator: elevatorBool,
           selectedServices: formData.selectedServices || [], 
-          
           isNewEntry: true,
           type: formData.type || "Propiedad"
       };
-// FOTOS (Lógica Limpia)
+
       const mainImage = hasUserPhoto ? formData.images[0] : null;
 
-      // Versión FULL (Payload principal)
       const fullPayload = { 
           ...basePayload, 
-          // CAMBIO AQUÍ: Si no hay foto, array vacío []. Prohibido usar previewImage.
           images: hasUserPhoto ? formData.images : [],
           img: mainImage 
       };
 
-      // Versión LITE (Respaldo)
-      const litePayload = {
-          ...basePayload,
-          img: null,      // <--- AQUI: Quitamos la URL de Unsplash. Ponemos null.
-          images: [],     // <--- AQUI: Quitamos la URL del array. Ponemos vacío.
-          description: basePayload.description + "\n(Lite Mode)"
-      };
-
       // ---------------------------------------------------------
-      // 🚀 FASE 1: INTENTO DE GUARDADO EN NUBE (REAL DATABASE)
+      // 🚀 FASE 1: LA VERDAD (BASE DE DATOS)
       // ---------------------------------------------------------
       try {
-          console.log("📡 Conectando con Base de Datos...");
+          console.log("📡 Conectando con Comando Central (DB)...");
           const serverResult = await savePropertyAction(fullPayload);
           
           if (serverResult && serverResult.success) {
-              console.log("✅ GUARDADO EN NUBE CONFIRMADO. ID:", serverResult.property.id);
-              // ¡IMPORTANTE! Usamos el ID real que nos dio la base de datos
-              fullPayload.id = serverResult.property.id;
+              console.log("✅ GUARDADO CONFIRMADO. ID OFICIAL:", serverResult.property.id);
+              // ¡CRÍTICO! Reemplazamos el ID temporal por el ID real de la base de datos
+              fullPayload.id = serverResult.property.id; 
           } else {
-              console.warn("⚠️ Guardado local solamente (Server error):", serverResult?.error);
+              console.warn("⚠️ Alerta: Guardado en modo local (Error Servidor):", serverResult?.error);
           }
       } catch (err) {
-          console.error("⚠️ Error de conexión (Modo Offline activo):", err);
+          console.error("⚠️ Error de conexión (Offline):", err);
       }
 
-     // ---------------------------------------------------------
-      // 🚀 FASE 2: ACTUALIZACIÓN LOCAL (TURBO MODE) - CORREGIDO
+      // ---------------------------------------------------------
+      // 🚀 FASE 2: ACTUALIZACIÓN TÁCTICA (SEÑALES)
       // ---------------------------------------------------------
       if (typeof window !== "undefined") {
+          
+          // A. ACTUALIZAR CACHÉ LOCAL (Solo para velocidad del Mapa, no para el Perfil)
           try {
-              // INTENTO 1: Guardado Normal en localStorage
               const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
-              
-              // Buscamos por ID (ahora puede ser el ID real de la DB)
-              const idx = saved.findIndex((p: any) => String(p.id) === String(fullPayload.id));
+              // Buscamos si ya existía (usando ID temporal o real)
+              const idx = saved.findIndex((p: any) => String(p.id) === String(fullPayload.id) || String(p.id) === String(tempId));
               
               if (idx >= 0) saved[idx] = fullPayload; 
               else saved.push(fullPayload);
               
               localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
-              console.log("✅ Caché local actualizada.");
-
-          } catch (e: any) {
-              // MANEJO DE ERROR: Memoria llena
-              if (e.name === 'QuotaExceededError' || e.code === 22) {
-                  try {
-                      localStorage.setItem("stratos_my_properties", JSON.stringify([litePayload]));
-                  } catch (e2) { console.error("❌ Fallo crítico de memoria."); }
-              }
+          } catch (e) {
+              console.log("⚠️ Memoria llena, omitiendo caché local.");
           }
 
-          // ⚡️ NOTIFICACIÓN TURBO AL SISTEMA (CORREGIDO) ⚡️
-          if (formData.isEditMode) {
-               // 1. Preparamos el paquete EXACTO que espera el Mapa (id + updates)
-               const updatePackage = {
-                   id: fullPayload.id,
-                   updates: fullPayload
-               };
+          // 🔥 B. DISPARO DE SEÑALES (EL ORDEN IMPORTA) 🔥
+          
+          // 1. Perfil: "¡Descarga los datos nuevos del servidor YA!"
+          // (Esto llenará la lista lateral con el dato real de la BD)
+          window.dispatchEvent(new CustomEvent("reload-profile-assets")); 
 
-               // 2. DISPARAMOS LA SEÑAL CORRECTA "update-property-signal"
-               // (Esto actualiza la NanoCard y el Mapa AL INSTANTE)
-               window.dispatchEvent(new CustomEvent("update-property-signal", { detail: updatePackage }));
-               
-               // 3. Actualizamos también el panel lateral si está abierto
+          // 2. Mapa: "¡Pinta la chincheta nueva!"
+          if (formData.isEditMode) {
+               // Si editamos, actualizamos la tarjeta existente
+               window.dispatchEvent(new CustomEvent("update-property-signal", { 
+                   detail: { id: fullPayload.id, updates: fullPayload } 
+               }));
+               // Y actualizamos el panel de detalles si estaba abierto
                window.dispatchEvent(new CustomEvent("open-details-signal", { detail: fullPayload }));
           } else {
-               // Si es nuevo, usamos la señal de creación
+               // Si es nuevo, añadimos la chincheta al mapa
                window.dispatchEvent(new CustomEvent("add-property-signal", { detail: fullPayload })); 
           }
 
-          // Recarga de seguridad por si acaso (Background)
-          window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-          
+          // 3. Refresco General del Mapa (Limpieza)
+          window.dispatchEvent(new CustomEvent("force-map-refresh"));
+
+          // 4. Vuelo de cámara (Solo si es nuevo y tiene coordenadas)
           if (!formData.isEditMode && fullPayload.coordinates) {
-               window.dispatchEvent(new CustomEvent("map-fly-to", { detail: { center: fullPayload.coordinates, zoom: 18, pitch: 60, duration: 3000 } }));
+               setTimeout(() => {
+                   window.dispatchEvent(new CustomEvent("map-fly-to", { 
+                       detail: { center: fullPayload.coordinates, zoom: 18, pitch: 60, duration: 3000 } 
+                   }));
+               }, 500); // Pequeño delay para dar tiempo al mapa a pintar
           }
       }
       
+      // Cierra el modo Arquitecto y vuelve al mapa
       handleClose(fullPayload);
   };
-
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
       
