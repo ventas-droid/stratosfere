@@ -15,6 +15,7 @@ import {
 
 // 👇 AÑADIR ESTO ARRIBA CON LOS OTROS IMPORTS
 import { getPropertiesAction, deletePropertyAction, getUserMeAction, updateUserAction } from '@/app/actions';
+import { useRouter } from 'next/navigation'; // <--- NUEVO IMPORT
 
 // DICCIONARIO MAESTRO (IDÉNTICO AL DE DETAILSPANEL)
 const ICON_MAP: Record<string, any> = {
@@ -75,6 +76,8 @@ export default function ProfilePanel({
   playSynthSound 
 }: any) {
   
+const router = useRouter();
+
   const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES'>('MAIN');
   const [myProperties, setMyProperties] = useState<any[]>([]);
   const [servicesModalProp, setServicesModalProp] = useState<any | null>(null); // ✅ Modal: ver todos los servicios
@@ -392,8 +395,14 @@ export default function ProfilePanel({
                 </button>
             </div>
             
-            {/* BOTÓN CERRAR SESIÓN */}
-            <button className="w-full py-4 mt-4 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer text-xs tracking-widest uppercase">
+          {/* BOTÓN CERRAR SESIÓN */}
+            <button 
+                onClick={() => {
+                   console.log("Cerrando sesión...");
+                   router.push('/'); // <--- ESTO LE LLEVA AL INICIO
+                }}
+                className="w-full py-4 mt-4 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer text-xs tracking-widest uppercase"
+            >
                 <LogOut size={14}/> Cerrar Sesión
             </button>
           </div>
