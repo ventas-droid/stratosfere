@@ -378,7 +378,11 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
                     <div className="animate-fade-in space-y-4 relative z-20">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Editando Perfil</span>
-                            <button onClick={() => setIsEditing(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors cursor-pointer">
+                            {/* BOTÓN CERRAR CORREGIDO (CON STOP PROPAGATION) */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsEditing(false); }} 
+                                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors cursor-pointer relative z-50"
+                            >
                                 <X size={14} className="text-gray-500"/>
                             </button>
                         </div>
@@ -395,17 +399,45 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
                             />
                         </div>
 
-                        {/* Input Avatar (URL) */}
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-2">Avatar (URL Imagen)</label>
-                            <input 
-                                value={editForm.avatar}
-                                onChange={(e) => setEditForm({...editForm, avatar: e.target.value})}
-                                className="w-full p-4 bg-gray-50 rounded-2xl text-xs font-medium text-gray-600 outline-none border border-transparent focus:bg-white focus:border-blue-500/20 transition-all font-mono"
-                                placeholder="https://..."
-                            />
-                        </div>
+                        {/* ZONA DE CARGA DE AVATAR (DRON ACTIVADO) */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-2">Foto de Perfil</label>
+                            
+                            <div className="flex items-center gap-4">
+                                {/* Previsualización */}
+                                <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden relative shrink-0 border border-gray-200">
+                                    {isUploading ? (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                        </div>
+                                    ) : (
+                                        <img 
+                                            src={editForm.avatar || "https://images.unsplash.com/photo-1560250097-0b93528c311a"} 
+                                            className="w-full h-full object-cover" 
+                                            alt="Preview"
+                                        />
+                                    )}
+                                </div>
 
+                                {/* Botón de Carga (Input Oculto) */}
+                                <div className="flex-1">
+                                    <label className="cursor-pointer flex items-center justify-center gap-2 w-full py-3 bg-gray-50 hover:bg-gray-100 border border-dashed border-gray-300 rounded-xl transition-all group relative overflow-hidden">
+                                        <Camera size={16} className="text-gray-400 group-hover:text-gray-600"/>
+                                        <span className="text-xs font-bold text-gray-500 group-hover:text-gray-700">
+                                            {isUploading ? "Subiendo..." : "Subir Nueva Foto"}
+                                        </span>
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            onChange={handleAvatarUpload}
+                                            disabled={isUploading}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
                         {/* Botón Guardar */}
                         <button 
                             onClick={handleSaveProfile}
@@ -464,7 +496,7 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORI
                 {/* Fondo Decorativo Sutil (Glow) */}
                 <div className={`absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br rounded-full blur-[60px] opacity-40 pointer-events-none ${user.role === 'AGENCIA' ? 'from-emerald-200 to-cyan-100' : 'from-blue-200 to-purple-100'}`}></div>
             </div>
-
+            
             {/* 2. ESTADÍSTICAS */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white p-5 rounded-[24px] shadow-sm text-center border border-slate-100">
