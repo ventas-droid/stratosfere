@@ -247,25 +247,33 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
     if (rightPanel === 'PROFILE') loadData();
   }, [rightPanel]);
 
-  // --- ESCUCHA DE EVENTOS DEL SISTEMA ---
+ // --- ESCUCHA DE EVENTOS DEL SISTEMA (CON MAPEO INTELLIGENTE) ---
   useEffect(() => {
-    // Cuando el Arquitecto termina, grita 'reload-profile-assets'
+    
+    // 1. RECARGA TOTAL (Cuando el servidor ya tiene el dato)
     const handleReload = () => {
-        console.log("🔄 PERFIL: Recibida orden de recarga desde Arquitecto...");
-        loadData(); // <--- ESTO VUELVE A LEER LA BASE DE DATOS
+        console.log("🔄 PERFIL: Recibida orden de recarga...");
+        loadData(); 
     };
 
-    // Cuando el Mapa detecta algo nuevo
+    // 2. INYECCIÓN INSTANTÁNEA (OPTIMISTA)
+    // Aquí es donde traducimos el "idioma raw" del Arquitecto al "idioma visual" del Perfil
     const handleNewProperty = (e: any) => {
         const raw = e.detail;
         if (raw) {
-            // APLICAMOS LA LÓGICA DE MAPEO PARA QUE EL MARKETPLACE LA ENTIENDA
-            // (Esto es crucial para que al hacer click no falle)
+            console.log("⚡️ Inyectando propiedad nueva en caliente:", raw);
+
+            // 🔥 LA LÓGICA DE MAPEO QUE FALTABA
+            // Convertimos los booleans (pool: true) en strings ('pool') para los iconos
             const formattedProp = {
                  ...raw,
-                 img: raw.mainImage || (raw.images && raw.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
+                 // 1. FOTO: Aseguramos que haya una imagen válida
+                 img: raw.mainImage || (raw.images && raw.images[0]) || (raw.images && raw.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
+                 
+                 // 2. SERVICIOS: Fusionamos la lista de servicios con los extras físicos
                  selectedServices: [
                     ...(raw.selectedServices || []),
+                    // Traducimos los campos RAW a etiquetas visuales
                     raw.pool ? 'pool' : null, 
                     raw.garage ? 'garage' : null,
                     raw.elevator ? 'elevator' : null,
@@ -274,20 +282,28 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
                     raw.storage ? 'storage' : null,
                     raw.ac ? 'ac' : null,
                     raw.security ? 'security' : null
-                 ].filter(Boolean),
-                 mBuilt: Number(raw.mBuilt || 0),
+                 ].filter(Boolean), // Eliminamos los nulos
+                 
+                 // 3. NÚMEROS: Aseguramos que no sean texto
+                 mBuilt: Number(raw.mBuilt || raw.m2 || 0),
+                 rooms: Number(raw.rooms || 0),
+                 baths: Number(raw.baths || 0),
+
+                 // 4. PRECIO: Formateamos bonito (1.000 €) si viene en crudo
                  price: raw.rawPrice 
                     ? new Intl.NumberFormat('es-ES').format(raw.rawPrice)
                     : (typeof raw.price === 'number' 
                         ? new Intl.NumberFormat('es-ES').format(raw.price) 
                         : raw.price),
-                 coordinates: [raw.longitude, raw.latitude]
+                 
+                 // 5. COORDENADAS: Aseguramos formato array
+                 coordinates: raw.coordinates || [raw.longitude, raw.latitude]
             };
 
-            // Inyectamos la propiedad "inteligente" en la lista visualmente al instante
+            // Inyectamos la propiedad ya "maquillada" arriba del todo
             setMyProperties(prev => [formattedProp, ...prev]);
             
-            // Y por seguridad, recargamos de la base de datos en segundo plano
+            // Y recargamos de fondo por si acaso
             loadData();
         }
     };
@@ -300,6 +316,7 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
         window.removeEventListener('add-property-signal', handleNewProperty);
     };
   }, []);
+  
   // 2. BORRAR (CONECTADO A BASE DE DATOS)
   const handleDelete = async (e: any, id: any) => {
       e.stopPropagation();

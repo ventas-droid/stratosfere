@@ -77,21 +77,27 @@ export default function HoloInspector({
         className="fixed inset-0 z-[999999] bg-[#F5F5F7]/98 backdrop-blur-2xl animate-fade-in flex flex-col items-center justify-center overflow-hidden"
         onClick={onClose}
     >
-      {/* 1. BOTÓN ME GUSTA (NUEVO - IZQUIERDA DEL CERRAR) */}
+     {/* BOTÓN ME GUSTA (SINCRONIZADO CON EL CEREBRO) */}
       <button 
           onClick={async (e) => {
               e.stopPropagation();
-              // Lógica visual inmediata
-              if (typeof setIsFav === 'function') setIsFav(!isFav);
+              // 1. Cambio visual inmediato
+              setIsFav(!isFav);
               
-              // Lógica de Base de Datos
+              // 2. Guardar en Base de Datos
               if (prop?.id) {
-                   // Import dinámico para asegurar que no falle
                    const { toggleFavoriteAction } = await import('@/app/actions');
                    await toggleFavoriteAction(prop.id);
-                   // Avisar a todo el sistema (Bóveda y Mapas)
+                   
+                   // 🔥 3. EL GRITO A TODO EL SISTEMA (ESTO FALTABA)
+                   // Avisar al Mapa (NanoCard)
+                   window.dispatchEvent(new CustomEvent('sync-property-state', { 
+                       detail: { id: prop.id, isFav: !isFav } 
+                   }));
+                   
+                   // Avisar a la Bóveda y al Perfil
                    window.dispatchEvent(new CustomEvent('reload-profile-assets'));
-                   window.dispatchEvent(new CustomEvent('force-map-refresh'));
+                   window.dispatchEvent(new CustomEvent('reload-favorites'));
               }
           }}
           className="absolute top-6 right-24 z-[60000] w-12 h-12 rounded-full bg-white/80 hover:bg-white flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
