@@ -16,13 +16,20 @@ export default function HoloInspector({
   const [mounted, setMounted] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
       setMounted(true);
-      // 🔥 RETARDO TÁCTICO: Esperamos 50ms para que el navegador monte la foto
-      // y luego disparamos el movimiento suave hacia usted.
-      if (isOpen) setTimeout(() => setIsZooming(true), 50);
-      else setIsZooming(false);
-  }, [isOpen]);
+  }, []);
+
+  // 🔥 MOTOR DE ANIMACIÓN (FIX): Se reinicia al abrir Y al cambiar de foto
+  useEffect(() => {
+      setIsZooming(false); // 1. Apagamos motor (Reset)
+      
+      if (isOpen) {
+          // 2. Encendemos motor de nuevo tras 50ms
+          const timer = setTimeout(() => setIsZooming(true), 50);
+          return () => clearTimeout(timer);
+      }
+  }, [isOpen, idx]); // <--- 'idx' es la clave: detecta cuando cambia la foto
 
   useEffect(() => { if (isOpen) setIdx(0); }, [isOpen]);
 
@@ -67,11 +74,11 @@ export default function HoloInspector({
           {/* CONTENEDOR BLANCO */}
             <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
                 
-                {/* 🔥 FOTO CON EFECTO "KEN BURNS" OPTIMIZADO (VIAJE LENTO HACIA TI) 🔥 */}
+               {/* FOTO CON EFECTO REINICIABLE (Key única) */}
                 <img 
+                    key={current as string} // 👈 ESTO ES EL SECRETO
                     src={current as string} 
                     alt="Detalle Activo" 
-                    // Se añade 'will-change-transform' para máxima suavidad
                     className={`
                         w-full h-full object-cover bg-gray-50 relative z-10
                         transition-transform duration-[5000ms] ease-out will-change-transform
