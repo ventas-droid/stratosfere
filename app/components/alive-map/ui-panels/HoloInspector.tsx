@@ -18,8 +18,8 @@ export default function HoloInspector({
 
   useEffect(() => {
       setMounted(true);
-      // 🔥 Efecto de entrada potenciado (espera 100ms para arrancar la animación)
-      if (isOpen) setTimeout(() => setIsZooming(true), 100);
+      // Arrancamos el efecto de zoom lento
+      if (isOpen) setTimeout(() => setIsZooming(true), 50);
       else setIsZooming(false);
   }, [isOpen]);
 
@@ -40,6 +40,8 @@ export default function HoloInspector({
   const nav = (dir: number) => {
     if (soundEnabled && playSynthSound) playSynthSound("click");
     setIdx((p) => (p + dir + unique.length) % unique.length);
+    setIsZooming(false); // Reinicia el zoom al cambiar de foto
+    setTimeout(() => setIsZooming(true), 50);
   };
 
   const ui = (
@@ -55,27 +57,28 @@ export default function HoloInspector({
           <X size={22} className="group-hover:rotate-90 transition-transform duration-500 ease-out"/>
       </button>
 
-      {/* ÁREA CENTRAL */}
+      {/* ÁREA CENTRAL (INMERSIVA SIN BORDES) */}
       <div 
-          className="relative w-full h-full flex items-center justify-center p-4 md:p-10"
+          className="relative w-full h-full flex items-center justify-center p-0 md:p-4" // Mínimo padding
           onClick={(e) => e.stopPropagation()}
       >
-            <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
+            {/* CONTENEDOR A PANTALLA COMPLETA */}
+            <div className="relative w-full h-full rounded-none md:rounded-[32px] overflow-hidden shadow-2xl bg-black flex items-center justify-center">
                 
-                {/* FOTO PRINCIPAL + ANIMACIÓN DE ENTRADA POTENCIADA */}
+                {/* FOTO: EFECTO ZOOM-IN LENTO (La casa viene hacia ti) */}
                 <img 
                     src={current as string} 
                     alt="Detalle Activo" 
                     className={`
-                        w-full h-full object-contain bg-gray-50 relative z-10
-                        transition-all duration-[1000ms] cubic-bezier(0.25, 0.8, 0.25, 1)
-                        ${isZooming ? 'scale-100 opacity-100 blur-none' : 'scale-125 opacity-0 blur-sm'}
+                        w-full h-full object-contain bg-black relative z-10
+                        transition-transform duration-[4000ms] ease-out
+                        ${isZooming ? 'scale-100' : 'scale-95 opacity-90'}
                     `}
                 />
 
-                {/* 🔥 CAPA DE SEGURIDAD: MARCA DE AGUA SUTIL Y CENTRADA 🔥 */}
+                {/* MARCA DE AGUA SUTIL */}
                 <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center select-none">
-                    <p className="text-black/20 text-3xl md:text-5xl font-bold tracking-tight drop-shadow-sm">
+                    <p className="text-white/30 text-3xl md:text-5xl font-bold tracking-tight drop-shadow-sm">
                         Stratosfere OS
                     </p>
                 </div>
@@ -100,16 +103,16 @@ export default function HoloInspector({
                 )}
             </div>
 
-            {/* DATOS */}
-            <div className="absolute bottom-10 left-10 md:bottom-14 md:left-14 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
-                <h1 className="text-4xl md:text-6xl font-black text-gray-900 tracking-tighter drop-shadow-sm mb-4 leading-[0.9]">
+            {/* DATOS (Texto blanco para resaltar sobre foto oscura) */}
+            <div className="absolute bottom-8 left-8 md:bottom-12 md:left-12 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
+                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-lg mb-4 leading-[0.9]">
                     {prop.title || "Activo Stratosfere"}
                 </h1>
                 <div className="flex items-center gap-3 pl-1">
-                    <div className="p-2 bg-black text-white rounded-full">
+                    <div className="p-2 bg-white text-black rounded-full">
                         <MapPin size={14} fill="currentColor" />
                     </div>
-                    <span className="text-sm md:text-base font-bold uppercase tracking-widest text-gray-500 bg-white/80 px-3 py-1 rounded-lg backdrop-blur-md">
+                    <span className="text-sm md:text-base font-bold uppercase tracking-widest text-white bg-black/50 px-3 py-1 rounded-lg backdrop-blur-md border border-white/10">
                         {prop.location || prop.address || "UBICACIÓN CONFIDENCIAL"}
                     </span>
                 </div>
