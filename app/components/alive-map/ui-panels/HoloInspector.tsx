@@ -18,7 +18,7 @@ export default function HoloInspector({
 
   useEffect(() => {
       setMounted(true);
-      // Arrancamos el efecto de zoom lento
+      // 🔥 Efecto de entrada: espera 50ms para que el navegador procese el render y lance la animación
       if (isOpen) setTimeout(() => setIsZooming(true), 50);
       else setIsZooming(false);
   }, [isOpen]);
@@ -40,7 +40,8 @@ export default function HoloInspector({
   const nav = (dir: number) => {
     if (soundEnabled && playSynthSound) playSynthSound("click");
     setIdx((p) => (p + dir + unique.length) % unique.length);
-    setIsZooming(false); // Reinicia el zoom al cambiar de foto
+    // Reinicia el zoom sutilmente al cambiar de foto
+    setIsZooming(false);
     setTimeout(() => setIsZooming(true), 50);
   };
 
@@ -57,28 +58,29 @@ export default function HoloInspector({
           <X size={22} className="group-hover:rotate-90 transition-transform duration-500 ease-out"/>
       </button>
 
-      {/* ÁREA CENTRAL (INMERSIVA SIN BORDES) */}
+      {/* ÁREA CENTRAL */}
       <div 
-          className="relative w-full h-full flex items-center justify-center p-0 md:p-4" // Mínimo padding
+          className="relative w-full h-full flex items-center justify-center p-0 md:p-6" // 👈 SIN PADDING EXCESIVO
           onClick={(e) => e.stopPropagation()}
       >
-            {/* CONTENEDOR A PANTALLA COMPLETA */}
-            <div className="relative w-full h-full rounded-none md:rounded-[32px] overflow-hidden shadow-2xl bg-black flex items-center justify-center">
+            {/* CONTENEDOR BLANCO REDONDEADO */}
+            <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
                 
-                {/* FOTO: EFECTO ZOOM-IN LENTO (La casa viene hacia ti) */}
+                {/* FOTO A SANGRE (SIN BORDES BLANCOS) */}
                 <img 
                     src={current as string} 
                     alt="Detalle Activo" 
                     className={`
-                        w-full h-full object-contain bg-black relative z-10
-                        transition-transform duration-[4000ms] ease-out
-                        ${isZooming ? 'scale-100' : 'scale-95 opacity-90'}
+                        w-full h-full object-cover bg-gray-50 relative z-10
+                        transition-all duration-[800ms] cubic-bezier(0.25, 0.46, 0.45, 0.94)
+                        ${isZooming ? 'scale-100 opacity-100' : 'scale-90 opacity-0'} 
                     `}
+                    /* 👆 EFECTO "VIENE HACIA MI": Empieza pequeño (90) y crece a normal (100) */
                 />
 
                 {/* MARCA DE AGUA SUTIL */}
                 <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center select-none">
-                    <p className="text-white/30 text-3xl md:text-5xl font-bold tracking-tight drop-shadow-sm">
+                    <p className="text-white/20 text-3xl md:text-5xl font-bold tracking-tight drop-shadow-sm mix-blend-overlay">
                         Stratosfere OS
                     </p>
                 </div>
@@ -90,7 +92,7 @@ export default function HoloInspector({
                     </div>
                 )}
 
-                {/* FLECHAS */}
+                {/* FLECHAS FLOTANDO SOBRE LA FOTO */}
                 {hasMultiplePhotos && (
                     <>
                         <button onClick={(e) => { e.stopPropagation(); nav(-1); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30">
@@ -103,16 +105,16 @@ export default function HoloInspector({
                 )}
             </div>
 
-            {/* DATOS (Texto blanco para resaltar sobre foto oscura) */}
-            <div className="absolute bottom-8 left-8 md:bottom-12 md:left-12 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
-                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-lg mb-4 leading-[0.9]">
+            {/* DATOS */}
+            <div className="absolute bottom-10 left-10 md:bottom-16 md:left-16 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
+                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md mb-4 leading-[0.9] mix-blend-overlay">
                     {prop.title || "Activo Stratosfere"}
                 </h1>
                 <div className="flex items-center gap-3 pl-1">
-                    <div className="p-2 bg-white text-black rounded-full">
+                    <div className="p-2 bg-black/80 text-white rounded-full backdrop-blur-md">
                         <MapPin size={14} fill="currentColor" />
                     </div>
-                    <span className="text-sm md:text-base font-bold uppercase tracking-widest text-white bg-black/50 px-3 py-1 rounded-lg backdrop-blur-md border border-white/10">
+                    <span className="text-sm md:text-base font-bold uppercase tracking-widest text-white/90 bg-black/40 px-3 py-1 rounded-lg backdrop-blur-md border border-white/10">
                         {prop.location || prop.address || "UBICACIÓN CONFIDENCIAL"}
                     </span>
                 </div>
