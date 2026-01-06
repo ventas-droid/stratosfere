@@ -26,12 +26,13 @@ export default function HoloInspector({
 
   if (!mounted || !isOpen || !prop) return null;
 
-  // 1. LÓGICA DE ÁLBUM (Igual que antes, robusta)
+  // 1. LÓGICA DE ÁLBUM BLINDADA
+  // Prioridad: 1. Array pasado por props (desde NanoCard) -> 2. Array dentro de prop -> 3. Foto suelta
   const gallerySource = (images && images.length > 0) ? images : (prop.images || []);
-  const rawAlbum = [prop.img, ...gallerySource].filter(Boolean);
+  const rawAlbum = gallerySource.length > 0 ? gallerySource : [prop.img];
   
-  // Limpiamos duplicados de URLs
-  const unique = Array.from(new Set(rawAlbum));
+  // Limpiamos duplicados y aseguramos que es lista de texto
+  const unique = Array.from(new Set(rawAlbum)).filter(Boolean) as string[];
 
   if (unique.length === 0) return null;
 
@@ -43,74 +44,75 @@ export default function HoloInspector({
     setIdx((p) => (p + dir + unique.length) % unique.length);
   };
 
-  // UI: ESTILO APPLE LIGHTBOX (Limpio, Blanco, Elegante)
   const ui = (
     <div 
-        className="fixed inset-0 z-[999999] bg-[#F5F5F7]/95 backdrop-blur-xl animate-fade-in flex flex-col items-center justify-center overflow-hidden"
+        className="fixed inset-0 z-[999999] bg-[#F5F5F7]/98 backdrop-blur-2xl animate-fade-in flex flex-col items-center justify-center overflow-hidden"
         onClick={onClose}
     >
-      {/* BOTÓN CERRAR (Mantenemos el GIRO que le gusta) */}
+      {/* BOTÓN CERRAR (GIRATORIO) */}
       <button 
           onClick={onClose} 
-          className="absolute top-6 right-6 z-50 w-10 h-10 rounded-full bg-gray-200/50 hover:bg-gray-300 text-gray-900 flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-black/5 group active:scale-90 shadow-sm"
+          className="absolute top-6 right-6 z-50 w-12 h-12 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
       >
-          <X size={20} className="group-hover:rotate-90 transition-transform duration-300"/>
+          <X size={22} className="group-hover:rotate-90 transition-transform duration-500 ease-out"/>
       </button>
 
-      {/* ÁREA CENTRAL (FOTO AMBIENTE) */}
+      {/* ÁREA CENTRAL (WIDE SCREEN & FIT) */}
       <div 
-          className="relative w-full h-full flex items-center justify-center p-2 md:p-6" // Menos padding = Foto más grande
+          className="relative w-full h-full flex items-center justify-center p-4 md:p-10"
           onClick={(e) => e.stopPropagation()}
       >
-            <div className="relative w-full h-full max-w-7xl max-h-[90vh] rounded-[24px] overflow-hidden shadow-2xl bg-white border border-black/5 flex items-center justify-center">
+            {/* CONTENEDOR APAISADO (+4cm visuales) y AJUSTE PERFECTO */}
+            <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
+                
+                {/* FOTO: Solución al error rojo y al recorte */}
                 <img 
-                    src={current} 
-                    alt="Detalle" 
+                    src={current as string} 
+                    alt="Detalle Activo" 
                     className={`
-                        w-full h-full object-contain bg-white
-                        transition-transform duration-[800ms] ease-out
+                        w-full h-full object-contain bg-gray-50
+                        transition-transform duration-[700ms] ease-out
                         ${isZooming ? 'scale-100 opacity-100' : 'scale-105 opacity-0'}
                     `}
                 />
+
+                {/* CONTADOR FUCSIA (MODERNO) */}
+                {hasMultiplePhotos && (
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-[#d946ef] shadow-lg shadow-fuchsia-500/30 text-white text-[11px] font-bold tracking-widest uppercase z-30">
+                        {idx + 1} / {unique.length}
+                    </div>
+                )}
+
+                {/* FLECHAS DE NAVEGACIÓN */}
+                {hasMultiplePhotos && (
+                    <>
+                        <button onClick={(e) => { e.stopPropagation(); nav(-1); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30">
+                            <ChevronLeft size={28} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); nav(1); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30">
+                            <ChevronRight size={28} />
+                        </button>
+                    </>
+                )}
             </div>
 
-            {/* DATOS LIMPIOS (Abajo Izquierda - Estilo Galería) */}
-            <div className="absolute bottom-8 left-8 md:bottom-12 md:left-12 text-left pointer-events-none animate-slide-in-up">
-                <h1 className="text-2xl md:text-4xl font-bold text-gray-900 tracking-tight drop-shadow-sm mb-1">
-                    {prop.title || "Propiedad Exclusiva"}
+            {/* DATOS (SEPARADOS Y GRUESOS) */}
+            <div className="absolute bottom-10 left-10 md:bottom-14 md:left-14 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
+                {/* Título: Tipografía pesada (Black) para evitar efecto pergamino */}
+                <h1 className="text-4xl md:text-6xl font-black text-gray-900 tracking-tighter drop-shadow-sm mb-4 leading-[0.9]">
+                    {prop.title || "Activo Stratosfere"}
                 </h1>
-                <div className="flex items-center gap-2 text-gray-500 font-medium">
-                    <MapPin size={16} />
-                    <span className="text-sm uppercase tracking-wide">
-                        {prop.location || prop.address || "Ubicación Privada"}
+                
+                {/* Ubicación: Separada para que no se chafe */}
+                <div className="flex items-center gap-3 pl-1">
+                    <div className="p-2 bg-black text-white rounded-full">
+                        <MapPin size={14} fill="currentColor" />
+                    </div>
+                    <span className="text-sm md:text-base font-bold uppercase tracking-widest text-gray-500 bg-white/80 px-3 py-1 rounded-lg backdrop-blur-md">
+                        {prop.location || prop.address || "UBICACIÓN CONFIDENCIAL"}
                     </span>
                 </div>
             </div>
-
-            {/* FLECHAS DE NAVEGACIÓN (Solo si hay más de 1 foto) */}
-            {hasMultiplePhotos && (
-                <>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); nav(-1); }} 
-                        className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/80 hover:bg-white text-gray-900 shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-20"
-                    >
-                        <ChevronLeft size={24} />
-                    </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); nav(1); }} 
-                        className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/80 hover:bg-white text-gray-900 shadow-lg backdrop-blur-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-20"
-                    >
-                        <ChevronRight size={24} />
-                    </button>
-                </>
-            )}
-
-            {/* CONTADOR DE FOTOS (Discreto, estilo iOS) */}
-            {hasMultiplePhotos && (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white text-xs font-medium tracking-wide">
-                    {idx + 1} / {unique.length}
-                </div>
-            )}
       </div>
     </div>
   );

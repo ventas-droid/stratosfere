@@ -173,7 +173,7 @@ export default function MapNanoCard(props: any) {
     return () => { if (typeof window !== 'undefined') window.removeEventListener('sync-property-state', handleRemoteCommand as EventListener); };
   }, [id]);
 
-// GESTOR DE ACCIONES (ABRIR / FAVORITO)
+// GESTOR DE ACCIONES (VERSIÓN FIX GALERÍA)
   const handleAction = (e: React.MouseEvent, action: string) => {
       e.preventDefault();
       e.stopPropagation(); 
@@ -181,46 +181,40 @@ export default function MapNanoCard(props: any) {
       const targetState = action === 'fav' ? !liked : liked;
       const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates || (props.lng && props.lat ? [props.lng, props.lat] : null);
       
-      // 1. RECOPILAMOS EL ÁLBUM DE FOTOS COMPLETO (Corrección para HoloInspector)
-      // Si hay array de fotos, lo cogemos. Si no, hacemos un array con la foto de portada.
-      const fullAlbum = 
-          (Array.isArray(props.images) && props.images.length > 0) ? props.images :
-          (Array.isArray(data.images) && data.images.length > 0) ? data.images :
-          [img];
+      // 🔥 RECOPILACIÓN DEL ÁLBUM (CRÍTICO)
+      // Buscamos array en props o data. Si no, creamos array con la foto única.
+      let fullAlbum: string[] = [];
+      
+      if (Array.isArray(props.images) && props.images.length > 0) fullAlbum = props.images;
+      else if (Array.isArray(data.images) && data.images.length > 0) fullAlbum = data.images;
+      else if (img) fullAlbum = [img];
 
-      // 2. PREPARAMOS EL PAQUETE DE DATOS
+      // PAQUETE DE DATOS
       const payload = { 
           id, 
           ...props, 
           ...data, 
           price: currentPrice,       
-          rawPrice: currentPrice,
-          priceValue: currentPrice,
           formattedPrice: displayLabel,
-          role: style.label, 
-          img: img,           // La foto de portada (String)
-          images: fullAlbum,  // EL ÁLBUM COMPLETO (Array) -> Esto arregla el inspector
+          img: img,           // Portada
+          images: fullAlbum,  // ✅ ÁLBUM COMPLETO PARA EL VISOR
           type: type, 
           location: (city || location || address || "MADRID").toUpperCase(), 
           isFav: targetState, 
-          isFavorite: targetState, 
-          coordinates: navCoords,
-          selectedServices: selectedServices 
+          coordinates: navCoords
       };
 
       if (action === 'fav') {
           setLiked(targetState); 
           if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: payload }));
-              if (targetState) window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
           }
-          if (props.onToggleFavorite) props.onToggleFavorite(payload);
       } else if (action === 'open') {
           if (typeof window !== 'undefined') {
+              // 🚀 ENVIAMOS LA SEÑAL CON EL ÁLBUM
               window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
               window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
           }
-          if (props.onSelect) props.onSelect(payload);
       }
   };
 
