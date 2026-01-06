@@ -14,8 +14,7 @@ import {
 } from 'lucide-react';
 
 // 👇 AÑADIR ESTO ARRIBA CON LOS OTROS IMPORTS
-import { getPropertiesAction, deletePropertyAction } from '@/app/actions';
-
+import { getPropertiesAction, deletePropertyAction, getUserMeAction, updateUserAction } from '@/app/actions';
 
 // DICCIONARIO MAESTRO (IDÉNTICO AL DE DETAILSPANEL)
 const ICON_MAP: Record<string, any> = {
@@ -78,25 +77,51 @@ export default function ProfilePanel({
   
   const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES'>('MAIN');
   const [myProperties, setMyProperties] = useState<any[]>([]);
-    const [servicesModalProp, setServicesModalProp] = useState<any | null>(null); // ✅ Modal: ver todos los servicios
-const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "isidro@stratosfere.com" });
+  const [servicesModalProp, setServicesModalProp] = useState<any | null>(null); // ✅ Modal: ver todos los servicios
 
- const loadData = async () => {
+  // 🔥 1. ESTADO DE USUARIO (ACTUALIZADO PARA DATOS REALES)
+  const [user, setUser] = useState({ 
+      name: "Cargando...", 
+      role: "...", 
+      email: "",
+      avatar: "",
+      companyName: "",
+      licenseNumber: "",
+      phone: "",
+      website: ""
+  });
+
+  // 🔥 2. FUNCIÓN DE CARGA BLINDADA (IDENTIDAD + PROPIEDADES)
+  const loadData = async () => {
       if (typeof window === 'undefined') return;
       
       try {
-          // 1. Intentamos leer de la Base de Datos Real
+          // A. CARGAR IDENTIDAD (Saber quién soy)
+          const userRes = await getUserMeAction();
+          if (userRes.success && userRes.data) {
+              console.log("👤 Identidad confirmada:", userRes.data.email);
+              setUser({
+                  name: userRes.data.name || "Usuario Stratos",
+                  role: userRes.data.role || "PARTICULAR",
+                  email: userRes.data.email || "",
+                  avatar: userRes.data.avatar || "",
+                  companyName: userRes.data.companyName || "",
+                  licenseNumber: userRes.data.licenseNumber || "",
+                  phone: userRes.data.phone || "",
+                  website: userRes.data.website || ""
+              });
+          }
+
+          // B. CARGAR PROPIEDADES (Ya filtradas por el servidor)
           const response = await getPropertiesAction();
           
           if (response.success && response.data) {
-             // Mapeamos los datos de la DB al formato de su Panel
+             // Mapeamos los datos de la DB al formato visual
              const dbProperties = response.data.map((p: any) => ({
                  ...p,
-                 // Aseguramos que la imagen se llame 'img' como espera su diseño
                  img: p.mainImage || (p.images && p.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
-                 // Recuperamos los servicios booleanos para que salgan los iconos
                  selectedServices: [
-                    ...(p.selectedServices || []), // Si hubiera guardados
+                    ...(p.selectedServices || []),
                     p.pool ? 'pool' : null, 
                     p.garage ? 'garage' : null,
                     p.elevator ? 'elevator' : null,
@@ -106,23 +131,22 @@ const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "
                     p.ac ? 'ac' : null,
                     p.security ? 'security' : null
                  ].filter(Boolean),
-                 // Aseguramos formato numérico
                  mBuilt: Number(p.mBuilt || 0),
                  price: p.rawPrice 
-        ? new Intl.NumberFormat('es-ES').format(p.rawPrice) // 1. Prioridad: Usar el número puro guardado
-        : (typeof p.price === 'number' 
-            ? new Intl.NumberFormat('es-ES').format(p.price) // 2. Si price es número, formatear
-            : p.price), // 3. Si ya es texto ("375.000"), mostrarlo tal cual sin tocar
+                    ? new Intl.NumberFormat('es-ES').format(p.rawPrice)
+                    : (typeof p.price === 'number' 
+                        ? new Intl.NumberFormat('es-ES').format(p.price) 
+                        : p.price),
                  coordinates: [p.longitude, p.latitude]
              }));
              setMyProperties(dbProperties);
           } else {
-             // Si falla o está vacío, fallback a local (opcional)
              const saved = localStorage.getItem('stratos_my_properties');
              if (saved) setMyProperties(JSON.parse(saved));
           }
+
       } catch (e) { console.error("Error cargando perfil:", e); }
- };
+  };
 
   useEffect(() => {
     if (rightPanel === 'PROFILE') loadData();
@@ -249,65 +273,117 @@ const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "
       {/* CONTENIDO SCROLLABLE */}
       <div className="flex-1 overflow-y-auto px-8 pb-12 custom-scrollbar">
         
-        {/* VISTA PRINCIPAL (MENU) */}
+      {/* VISTA PRINCIPAL (MENU ADAPTATIVO) */}
         {internalView === 'MAIN' && (
           <div className="animate-fade-in space-y-8">
-            {/* TARJETA USUARIO */}
-            <div className="bg-white p-6 rounded-[32px] shadow-sm flex items-center gap-4 relative overflow-hidden">
-                <div className="w-16 h-16 rounded-full bg-slate-200 border-4 border-white shadow-lg overflow-hidden relative z-10 flex items-center justify-center">
-                    <User size={32} className="text-slate-400"/>
-                </div>
-                <div className="relative z-10">
-                    <h3 className="text-xl font-black text-slate-900">{user.name}</h3>
-                    <p className="text-xs font-bold text-slate-400">{user.email}</p>
-                    <div className="mt-2 inline-flex bg-black text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">{user.role}</div>
-                </div>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-500/20 to-transparent rounded-bl-full pointer-events-none"></div>
-            </div>
-
-            {/* STATS */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-5 rounded-[24px] shadow-sm text-center">
-                    <div className="text-3xl font-black text-slate-900">{myProperties.length}</div>
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Activos</div>
-                </div>
-                <div className="bg-white p-5 rounded-[24px] shadow-sm text-center flex flex-col items-center justify-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mb-2"></div>
-                    <div className="text-[9px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-2 py-1 rounded-full">Online</div>
-                </div>
-            </div>
-
-           {/* MENÚ DE ACCESO */}
-            <div className="space-y-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4 mb-2">Sistema</p>
+            
+            {/* 1. TARJETA DE IDENTIDAD (DINÁMICA) */}
+            <div className="bg-white p-6 rounded-[32px] shadow-sm flex items-center gap-4 relative overflow-hidden group border border-slate-100">
                 
-                <button onClick={() => setInternalView('PROPERTIES')} className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-200 cursor-pointer">
+                {/* Avatar Real */}
+                <div className="w-16 h-16 rounded-full bg-slate-200 border-4 border-white shadow-lg overflow-hidden relative z-10 flex items-center justify-center shrink-0">
+                    {user.avatar ? (
+                        <img src={user.avatar} className="w-full h-full object-cover" alt="Avatar"/>
+                    ) : (
+                        <User size={32} className="text-slate-400"/>
+                    )}
+                </div>
+                
+                {/* Datos del Usuario */}
+                <div className="relative z-10 min-w-0 flex-1">
+                    <h3 className="text-xl font-black text-slate-900 truncate">
+                        {user.companyName || user.name}
+                    </h3>
+                    
+                    {/* Lógica de Roles */}
+                    {(user.role === 'AGENCIA' || user.companyName) ? (
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 mb-1">
+                                <ShieldCheck size={12}/> {user.licenseNumber || "Licencia Verificada"}
+                            </span>
+                            <span className="text-[10px] text-slate-400 truncate font-mono">{user.email}</span>
+                        </div>
+                    ) : (
+                        <p className="text-xs font-bold text-slate-400 truncate">{user.email}</p>
+                    )}
+
+                    <div className={`mt-2 inline-flex text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${user.role === 'AGENCIA' ? 'bg-emerald-600 shadow-emerald-200 shadow-md' : 'bg-black'}`}>
+                        {user.role === 'AGENCIA' ? 'AGENTE CERTIFICADO' : 'PARTICULAR'}
+                    </div>
+                </div>
+
+                {/* Decoración de Fondo (Verde para Agentes, Azul para Particulares) */}
+                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl rounded-bl-full pointer-events-none opacity-20 ${user.role === 'AGENCIA' ? 'from-emerald-500' : 'from-blue-500'} to-transparent`}></div>
+            </div>
+
+            {/* 2. ESTADÍSTICAS */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white p-5 rounded-[24px] shadow-sm text-center border border-slate-100">
+                    <div className="text-3xl font-black text-slate-900">{myProperties.length}</div>
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Activos en Cartera</div>
+                </div>
+                <div className="bg-white p-5 rounded-[24px] shadow-sm text-center flex flex-col items-center justify-center border border-slate-100">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mb-2 shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div>
+                    <div className="text-[9px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-2 py-1 rounded-full">Sistema Online</div>
+                </div>
+            </div>
+
+           {/* 3. MENÚ DE ACCESO TÁCTICO */}
+            <div className="space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4 mb-1">Centro de Mando</p>
+                
+                {/* 🔥 BOTÓN ESPECIAL: SOLO PARA AGENCIA */}
+                {(user.role === 'AGENCIA' || user.companyName) && (
+                    <button 
+                        onClick={() => { 
+                            if(soundEnabled && playSynthSound) playSynthSound('click'); 
+                            // Abre el panel táctico negro
+                            if(toggleMainPanel) toggleMainPanel('AGENCY_STOCK'); 
+                        }} 
+                        className="w-full bg-[#1d1d1f] text-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-xl cursor-pointer relative overflow-hidden"
+                    >
+                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="flex items-center gap-4 relative z-10">
+                            <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400 backdrop-blur-sm">
+                                <Briefcase size={18}/>
+                            </div>
+                            <div className="text-left">
+                                <span className="block font-black text-sm tracking-wide">AGENCY HUD</span>
+                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Gestión Profesional</span>
+                            </div>
+                        </div>
+                        <ChevronRight size={16} className="text-white/30 group-hover:text-white relative z-10 transition-colors"/>
+                    </button>
+                )}
+
+                {/* BOTÓN: MIS PROPIEDADES (ESTÁNDAR) */}
+                <button onClick={() => setInternalView('PROPERTIES')} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-100 cursor-pointer">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors"><Building2 size={18}/></div>
+                        <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors"><Building2 size={18}/></div>
                         <span className="font-bold text-slate-900 text-sm">Mis Propiedades</span>
                     </div>
                     <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500"/>
                 </button>
 
-                {/* BOTÓN FAVORITOS */}
-                <button onClick={() => { if(soundEnabled && playSynthSound) playSynthSound('click'); toggleRightPanel('VAULT'); }} className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer">
+                {/* BOTÓN: FAVORITOS */}
+                <button onClick={() => { if(soundEnabled && playSynthSound) playSynthSound('click'); toggleRightPanel('VAULT'); }} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-500 transition-colors"><Heart size={18} /></div>
+                        <div className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-500 transition-colors"><Heart size={18} /></div>
                         <span className="font-bold text-slate-900 text-sm">Favoritos</span>
                     </div>
                     <ChevronRight size={16} className="text-slate-300"/>
                 </button>
 
-              {/* BOTÓN MARKETPLACE */}
+                {/* BOTÓN: MARKETPLACE */}
                 <button 
                     onClick={() => { 
                         if(soundEnabled && playSynthSound) playSynthSound('click'); 
                         if(toggleMainPanel) toggleMainPanel('MARKETPLACE'); 
                     }} 
-                    className="w-full bg-white p-4 rounded-[20px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer border border-transparent hover:border-emerald-200"
+                    className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer border border-transparent hover:border-emerald-100"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors">
+                        <div className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-500 transition-colors">
                             <Store size={18} />
                         </div>
                         <span className="font-bold text-slate-900 text-sm">Marketplace</span>
@@ -317,8 +393,8 @@ const [user, setUser] = useState({ name: "Isidro", role: "PROPIETARIO", email: "
             </div>
             
             {/* BOTÓN CERRAR SESIÓN */}
-            <button className="w-full py-4 mt-8 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer">
-                <LogOut size={16}/> Cerrar Sesión
+            <button className="w-full py-4 mt-4 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer text-xs tracking-widest uppercase">
+                <LogOut size={14}/> Cerrar Sesión
             </button>
           </div>
         )}

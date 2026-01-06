@@ -2,6 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from './lib/prisma'
+
+// 🔐 IDENTIFICADOR TEMPORAL (Simulamos que usted está logueado)
+// Buscamos su usuario exacto en la base de datos para firmar las acciones.
+async function getCurrentUser() {
+  const user = await prisma.user.findUnique({
+    where: { email: "isidroberllorca@gmail.com" } 
+  });
+  return user;
+}
+
 // --- FUNCIÓN 1: GUARDAR EMAILS (LANDING) ---
 export async function createLead(formData: FormData) {
   const email = formData.get('email') as string;
@@ -135,16 +145,30 @@ export async function savePropertyAction(data: any) {
 }
 
 // ---------------------------------------------------------
-// 3. 📡 LEER PROPIEDADES (DATA BRIDGE V3 - FINAL Y BLINDADO)
+// 3. 📡 LEER PROPIEDADES (DATA BRIDGE V3 - FILTRADO POR USUARIO)
 // ---------------------------------------------------------
 export async function getPropertiesAction() {
   try {
+    // 🔥 1. IDENTIFICACIÓN (SEGURIDAD)
+    const user = await getCurrentUser();
+    
+    // Si no le encuentra, devolvemos array vacío por seguridad
+    if (!user) {
+        console.warn("⚠️ Usuario no identificado. Retornando lista vacía.");
+        return { success: false, data: [] };
+    }
+
+    // 🔥 2. FILTRO BLINDADO (where: { userId: user.id })
     const properties = await prisma.property.findMany({
+      where: {
+        userId: user.id // <--- AQUÍ ESTÁ LA CLAVE: Solo trae SU material
+      },
       orderBy: { createdAt: 'desc' },
       include: { images: true }
     });
 
     // PROCESO DE TRADUCCIÓN (DATOS DB -> DATOS FRONTEND)
+    // (Mantenemos toda su lógica original intacta)
     const safeProperties = properties.map((p: any) => {
       
       // A. GESTIÓN DE FOTOS (ARREGLO DEL SLIDER)
@@ -241,6 +265,66 @@ export async function deletePropertyAction(id: string) {
     revalidatePath('/');
     return { success: true };
   } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+// ---------------------------------------------------------
+// 5. 👤 OBTENER MI PERFIL (NOMBRE, AVATAR, ROL)
+// ---------------------------------------------------------
+export async function getUserMeAction() {
+  try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+        return { success: false, error: "Usuario no identificado" };
+    }
+
+    // Devolvemos los datos del soldado
+    return { 
+        success: true, 
+        data: {
+            name: user.name || "",
+            email: user.email,
+            avatar: user.avatar || "",
+            role: user.role || "AGENTE",
+            phone: user.phone || "",
+            website: user.website || "",
+            companyName: user.companyName || "",
+            licenseNumber: user.licenseNumber || ""
+        }
+    };
+  } catch (error) {
+    console.error("Error User Me:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// ---------------------------------------------------------
+// 6. 🖊️ ACTUALIZAR DATOS DEL PERFIL
+// ---------------------------------------------------------
+export async function updateUserAction(data: any) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "No autorizado" };
+
+    // Actualizamos la ficha del soldado
+    await prisma.user.update({
+        where: { id: user.id },
+        data: {
+            name: data.name,
+            phone: data.phone,
+            website: data.website,
+            companyName: data.companyName,
+            // Si nos mandan avatar, lo guardamos (url de cloudinary)
+            avatar: data.avatar ? data.avatar : undefined 
+        }
+    });
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error("Error Update User:", error);
     return { success: false, error: String(error) };
   }
 }
