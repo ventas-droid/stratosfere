@@ -16,6 +16,8 @@ import {
 // 👇 AÑADIR ESTO ARRIBA CON LOS OTROS IMPORTS
 import { getPropertiesAction, deletePropertyAction, getUserMeAction, updateUserAction } from '@/app/actions';
 import { useRouter } from 'next/navigation'; // <--- NUEVO IMPORT
+import { uploadToCloudinary } from '@/app/utils/upload';
+import { getFavoritesAction } from '@/app/actions';
 
 // DICCIONARIO MAESTRO (IDÉNTICO AL DE DETAILSPANEL)
 const ICON_MAP: Record<string, any> = {
@@ -78,8 +80,7 @@ export default function ProfilePanel({
   
 const router = useRouter();
 
-  const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES'>('MAIN');
-  const [myProperties, setMyProperties] = useState<any[]>([]);
+const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'FAVORITES'>('MAIN');  const [myProperties, setMyProperties] = useState<any[]>([]);
   const [servicesModalProp, setServicesModalProp] = useState<any | null>(null); // ✅ Modal: ver todos los servicios
 
   // 🔥 1. ESTADO DE USUARIO (ACTUALIZADO PARA DATOS REALES)
@@ -94,13 +95,14 @@ const router = useRouter();
       website: ""
   });
 
-  // 🔥 ESTADOS PARA EDICIÓN DE PERFIL (INYECCIÓN DE MANDO)
+ // 🔥 ESTADOS PARA EDICIÓN DE PERFIL (INYECCIÓN DE MANDO)
   const [isEditing, setIsEditing] = useState(false); // Interruptor Visual
   const [editForm, setEditForm] = useState({ // Memoria Temporal
       name: "",
       avatar: ""
   });
   const [isSaving, setIsSaving] = useState(false); // Indicador de Carga
+  const [isUploading, setIsUploading] = useState(false); // <--- NUEVO: Para el spinner de carga
 
   // ⚙️ FUNCIÓN 1: ACTIVAR MODO EDICIÓN
   // Copia los datos actuales al formulario temporal
@@ -113,7 +115,27 @@ const router = useRouter();
       setIsEditing(true);
   };
 
-  // ⚙️ FUNCIÓN 2: GUARDAR CAMBIOS (ENVIAR AL CUARTEL GENERAL)
+  // 📸 FUNCIÓN INTERMEDIA: SUBIR AVATAR (NECESARIA PARA EL BOTÓN DE CÁMARA)
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setIsUploading(true); // Encendemos luces
+      try {
+          const url = await uploadToCloudinary(file); // Lanzamos el dron (usa su archivo utils/upload)
+          if (url) {
+              // Si aterriza bien, actualizamos la foto en el formulario
+              setEditForm(prev => ({ ...prev, avatar: url }));
+          }
+      } catch (error) {
+          console.error("Fallo visual:", error);
+          alert("Error al subir la imagen");
+      } finally {
+          setIsUploading(false); // Apagamos luces
+      }
+  };
+
+ // ⚙️ FUNCIÓN 2: GUARDAR CAMBIOS (ENVIAR AL CUARTEL GENERAL)
   const handleSaveProfile = async () => {
       setIsSaving(true);
       try {
@@ -122,8 +144,6 @@ const router = useRouter();
           // 1. Llamamos a la acción del servidor
           const result = await updateUserAction({
               name: editForm.name,
-              // Aquí en el futuro conectaremos la subida de archivos real.
-              // Por ahora, permite pegar una URL o dejarlo como estaba.
               avatar: editForm.avatar 
           });
 
@@ -139,6 +159,28 @@ const router = useRouter();
           console.error("Error crítico al guardar:", error);
       } finally {
           setIsSaving(false);
+      }
+  };
+
+  // ❤️ ESTADO PARA LA BÓVEDA (FAVORITOS)
+  const [myFavorites, setMyFavorites] = useState<any[]>([]);
+  const [loadingFavs, setLoadingFavs] = useState(false);
+
+  // 📡 FUNCIÓN: CARGAR FAVORITOS DESDE LA BASE DE DATOS
+  const loadFavorites = async () => {
+      setLoadingFavs(true);
+      // @ts-ignore - Ignoramos error de tipo temporalmente si no ha actualizado el tipo
+      setInternalView('FAVORITES'); 
+      try {
+          const res = await getFavoritesAction();
+          if (res.success && res.data) {
+              setMyFavorites(res.data);
+              console.log("❤️ Bóveda cargada:", res.data.length);
+          }
+      } catch (error) {
+          console.error("Error cargando favoritos:", error);
+      } finally {
+          setLoadingFavs(false);
       }
   };
 
@@ -472,14 +514,22 @@ const router = useRouter();
                     <ChevronRight size={16} className="text-slate-300 group-hover:text-blue-500"/>
                 </button>
 
-                {/* BOTÓN: FAVORITOS */}
-                <button onClick={() => { if(soundEnabled && playSynthSound) playSynthSound('click'); toggleRightPanel('VAULT'); }} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm cursor-pointer">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-500 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-500 transition-colors"><Heart size={18} /></div>
-                        <span className="font-bold text-slate-900 text-sm">Favoritos</span>
+                {/* BOTÓN FAVORITOS (CONECTADO A BD) */}
+            <button 
+                onClick={loadFavorites}
+                className="w-full bg-white p-4 rounded-[24px] shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer"
+            >
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                        <Heart size={20} fill="currentColor" className="opacity-20 group-hover:opacity-100 transition-opacity"/>
                     </div>
-                    <ChevronRight size={16} className="text-slate-300"/>
-                </button>
+                    <div className="text-left">
+                        <h4 className="font-bold text-slate-900 text-sm">Favoritos</h4>
+                        <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Colección Privada</p>
+                    </div>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-500 group-hover:translate-x-1 transition-all"/>
+            </button>
 
                 {/* BOTÓN: MARKETPLACE */}
                 <button 
@@ -643,7 +693,7 @@ const router = useRouter();
                                     className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center cursor-pointer"
                                     title="Eliminar Activo"
                                 >
-                                    <Trash2 size={14}/>
+                          <Trash2 size={14}/>
                                 </button>
                             </div>
                         </div>
@@ -653,6 +703,77 @@ const router = useRouter();
             )}
           </div>
         )}
+
+        {/* ------------------------------------------------------- */}
+        {/* 🟢 ZONA NUEVA: VISTA DE FAVORITOS (BÓVEDA) 🟢 */}
+        {/* ------------------------------------------------------- */}
+        
+        {internalView === 'FAVORITES' && (
+            <div className="animate-fade-in-right space-y-6">
+                {/* CABECERA */}
+                <div className="flex items-center gap-4">
+                    <button onClick={() => setInternalView('MAIN')} className="w-10 h-10 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer">
+                        <ArrowLeft size={18} className="text-slate-700"/>
+                    </button>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Mis Favoritos</h2>
+                        <p className="text-xs text-slate-400 font-medium">
+                            {loadingFavs ? "Sincronizando..." : `${myFavorites.length} Activos Guardados`}
+                        </p>
+                    </div>
+                </div>
+
+                {/* LISTA FAVORITOS */}
+                <div className="space-y-3 pb-20">
+                    {loadingFavs ? (
+                        <div className="py-10 text-center text-slate-400 text-xs uppercase tracking-widest animate-pulse">
+                            Abriendo Bóveda...
+                        </div>
+                    ) : myFavorites.length > 0 ? (
+                        myFavorites.map((prop: any) => (
+                            <div key={prop.id} className="bg-white p-3 rounded-[24px] shadow-sm border border-slate-100 flex gap-4 group hover:shadow-md transition-all cursor-pointer relative"
+                                 onClick={(e) => handleFlyTo(e, prop)}
+                            >
+                                <div className="w-20 h-20 rounded-2xl bg-slate-100 overflow-hidden relative shrink-0">
+                                    <img src={prop.img || prop.images?.[0]} className="w-full h-full object-cover" alt="Cover"/>
+                                </div>
+                                
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                    <h4 className="font-bold text-slate-900 truncate text-sm mb-1">{prop.title}</h4>
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">{prop.price} €</p>
+                                    <div className="flex gap-2">
+                                        <span className="px-2 py-0.5 bg-slate-50 rounded-md text-[9px] font-bold text-slate-500 border border-slate-100">
+                                            {prop.type || "Propiedad"}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={async (e) => {
+                                        e.stopPropagation();
+                                        setMyFavorites(prev => prev.filter(p => p.id !== prop.id));
+                                        const { toggleFavoriteAction } = await import('@/app/actions');
+                                        await toggleFavoriteAction(prop.id);
+                                        window.dispatchEvent(new CustomEvent('force-map-refresh'));
+                                    }}
+                                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-50 shadow-sm border border-slate-100"
+                                >
+                                    <Trash2 size={14}/>
+                                </button>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="py-10 text-center space-y-4">
+                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                                <Heart size={24}/>
+                            </div>
+                            <p className="text-slate-400 text-xs font-medium">La bóveda está vacía.<br/>Explora el mapa para añadir activos.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
       </div>
 
 

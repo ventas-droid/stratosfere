@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { toggleFavoriteAction } from '@/app/actions'; // <--- LA ORDEN DE GUARDAR
+import { Heart } from 'lucide-react'; // <--- EL ICONO
 
 export default function HoloInspector({
   isOpen,
@@ -16,6 +18,23 @@ export default function HoloInspector({
   const [mounted, setMounted] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
 
+  // ❤️ ESTADO Y FUNCIÓN PARA EL CORAZÓN (NUEVO)
+  const [isFav, setIsFav] = useState(false); 
+
+  const toggleFav = async (e: any) => {
+      e.stopPropagation();
+      setIsFav(!isFav); // Cambio visual inmediato
+      if (prop?.id) {
+          try {
+            await toggleFavoriteAction(prop.id); // Guardar en BD
+            // Avisar al perfil para que recargue la lista si está abierto
+            window.dispatchEvent(new CustomEvent('reload-profile-assets')); 
+          } catch (err) {
+            console.error(err);
+          }
+      }
+  };
+  
  useEffect(() => {
       setMounted(true);
   }, []);

@@ -328,3 +328,94 @@ export async function updateUserAction(data: any) {
     return { success: false, error: String(error) };
   }
 }
+// ---------------------------------------------------------
+// 7. ❤️ GESTIÓN DE FAVORITOS (BÓVEDA SEGURA)
+// ---------------------------------------------------------
+
+// A. INTERRUPTOR (GUARDAR / BORRAR)
+export async function toggleFavoriteAction(propertyId: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "Identifíquese primero" };
+
+    // 1. Buscamos si ya existe
+    const existing = await prisma.favorite.findUnique({
+      where: {
+        userId_propertyId: {
+          userId: user.id,
+          propertyId: propertyId
+        }
+      }
+    });
+
+    if (existing) {
+      // 2. Si existe, lo BORRAMOS (Quitar de la bóveda)
+      await prisma.favorite.delete({
+        where: { id: existing.id }
+      });
+      revalidatePath('/');
+      return { success: true, isFavorite: false };
+    } else {
+      // 3. Si no existe, lo CREAMOS (Meter en la bóveda)
+      await prisma.favorite.create({
+        data: {
+          userId: user.id,
+          propertyId: propertyId
+        }
+      });
+      revalidatePath('/');
+      return { success: true, isFavorite: true };
+    }
+
+  } catch (error) {
+    console.error("Error Toggle Fav:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// B. RADAR (LEER MIS FAVORITOS)
+export async function getFavoritesAction() {
+  try {
+    const user = await getCurrentUser();
+    // Si no hay usuario, la bóveda está cerrada (lista vacía)
+    if (!user) return { success: false, data: [] };
+
+    // 1. Obtenemos SOLO los favoritos de este soldado
+    const favs = await prisma.favorite.findMany({
+      where: { userId: user.id },
+      include: {
+        property: {
+          include: { images: true }
+        }
+      },
+      orderBy: { id: 'desc' }
+    });
+
+    // 2. Traducimos los datos para el frontend
+    const safeFavs = favs.map((f: any) => {
+        const p = f.property;
+        if (!p) return null;
+
+        // Recuperación de Fotos
+        let allImages = p.images.map((i: any) => i.url);
+        if (allImages.length === 0 && p.mainImage && p.mainImage.startsWith("http")) {
+            allImages.push(p.mainImage);
+        }
+        
+        return {
+            ...p,
+            id: p.id,
+            img: allImages[0] || null,
+            images: allImages,
+            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
+            favId: f.id 
+        };
+    }).filter(Boolean);
+
+    return { success: true, data: safeFavs };
+
+  } catch (error) {
+    console.error("Error Get Favs:", error);
+    return { success: false, data: [] };
+  }
+}
