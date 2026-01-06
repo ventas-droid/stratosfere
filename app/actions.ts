@@ -1,21 +1,52 @@
-"use server"; // <--- ⚠️ ESTO DEBE SER LA LÍNEA 1 OBLIGATORIAMENTE
+"use server";
 
 import { revalidatePath } from 'next/cache';
-import { prisma } from './lib/prisma'; // o tus imports actuales
+import { prisma } from './lib/prisma';
 import { cookies } from "next/headers";
 
-// ... resto de tu código (getPropertiesAction, etc)...
-// ... resto de imports
-// 🔐 IDENTIFICADOR TEMPORAL (Simulamos que usted está logueado)
-// Buscamos su usuario exacto en la base de datos para firmar las acciones.
+// ==============================================================================
+// 1. SISTEMA DE SEGURIDAD E IDENTIDAD (CEREBRO CENTRAL)
+// ==============================================================================
+
+// A. OBTENER USUARIO ACTUAL (Lee la cookie blindada)
 async function getCurrentUser() {
+  const cookieStore = await cookies();
+  const sessionEmail = cookieStore.get('stratos_session_email')?.value;
+
+  if (!sessionEmail) return null;
+
   const user = await prisma.user.findUnique({
-    where: { email: "isidroberllorca@gmail.com" } 
+    where: { email: sessionEmail } 
   });
   return user;
 }
 
-// --- FUNCIÓN 1: GUARDAR EMAILS (LANDING) ---
+// B. LOGIN DE EMERGENCIA (Para pruebas rápidas con botón)
+export async function loginWithEmail(email: string) {
+    if (!email) return { success: false, error: "Email requerido" };
+    
+    try {
+        // 1. Buscamos o creamos
+        let user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            user = await prisma.user.create({
+                data: { email, name: email.split('@')[0], role: 'AGENCIA', avatar: "" }
+            });
+        }
+
+        // 2. 🔥 ACTIVAMOS LA SESIÓN (COOKIE)
+        const cookieStore = await cookies();
+        cookieStore.set('stratos_session_email', email, { 
+            secure: true, httpOnly: true, path: '/', maxAge: 60 * 60 * 24 * 7 
+        });
+
+        return { success: true, user };
+    } catch (error) {
+        return { success: false, error: String(error) };
+    }
+}
+
+// C. REGISTRO DESDE LANDING (LOGIN AUTOMÁTICO)
 export async function createLead(formData: FormData) {
   const email = formData.get('email') as string;
   
@@ -24,67 +55,104 @@ export async function createLead(formData: FormData) {
   }
 
   try {
-    // Intentamos guardar en la base de datos
-    await prisma.user.create({
-      data: {
-        email: email,
-        name: "Lead Landing",
-        avatar: "",
-      }
+    let user = await prisma.user.findUnique({ where: { email } });
+    
+    // Si no existe, lo creamos
+    if (!user) {
+        user = await prisma.user.create({
+            data: {
+                email: email,
+                name: email.split('@')[0], // Nombre temporal
+                role: 'AGENCIA', // Rol por defecto
+                avatar: ""
+            }
+        });
+    }
+
+    // 🔥 ESTO FALTABA: INICIO DE SESIÓN AUTOMÁTICO
+    const cookieStore = await cookies();
+    cookieStore.set('stratos_session_email', email, { 
+        secure: true, 
+        httpOnly: true, 
+        path: '/', 
+        maxAge: 60 * 60 * 24 * 7 
     });
     
     revalidatePath('/'); 
-    return { success: true };
+    return { success: true, user };
 
   } catch (error) {
-    console.error("Error servidor:", error);
-    // Si el email ya existe, decimos que OK para no asustar
-    if (String(error).includes("Unique constraint")) {
-        return { success: true };
-    }
+    console.error("Error Login:", error);
+    if (String(error).includes("Unique constraint")) return { success: true };
     return { success: false, error: "Error de conexión" }; 
   }
 }
 
-// ---------------------------------------------------------
-// 2. 🏠 GUARDAR PROPIEDAD (SAVE) - BLINDADO
-// ---------------------------------------------------------
-export async function savePropertyAction(data: any) {
-  console.log("💾 GUARDANDO DATOS:", data.address);
-
+// D. CERRAR SESIÓN (BOMBA NUCLEAR DE COOKIES)
+export async function logoutAction() {
   try {
-    // A. LIMPIEZA DE NÚMEROS
+    const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll();
+    
+    // Borrado Masivo
+    if (allCookies.length > 0) {
+        allCookies.forEach((cookie) => {
+          cookieStore.delete(cookie.name);
+        });
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+// ==============================================================================
+// 2. GESTIÓN DE PROPIEDADES (EL NEGOCIO)
+// ==============================================================================
+
+// A. GUARDAR PROPIEDAD (CON VINCULACIÓN DE USUARIO Y PACKS)
+export async function savePropertyAction(data: any) {
+  try {
+    // 1. VERIFICAMOS IDENTIDAD
+    const user = await getCurrentUser();
+    
+    // 🛑 CANDADO DE ACERO
+    if (!user || !user.id) {
+        console.error("⛔ INTENTO DE GUARDADO SIN USUARIO.");
+        return { success: false, error: "ERROR CRÍTICO: No estás logueado." };
+    }
+
+    console.log(`💾 GUARDANDO PARA: ${user.email}`);
+
+    // 2. LIMPIEZA DE DATOS
     const cleanPrice = typeof data.rawPrice === 'number' ? data.rawPrice : parseFloat(String(data.price).replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.]/g, '') || '0');
     const cleanM2 = typeof data.mBuilt === 'number' ? data.mBuilt : parseFloat(String(data.mBuilt).replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.]/g, '') || '0');
     
-    // Limpieza comunidad
-    let cleanCommunity = null;
-    if (data.communityFees) {
-        cleanCommunity = parseFloat(String(data.communityFees).replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.]/g, ''));
+    // 3. GESTIÓN DE PACKS (REGLA DE HIERRO)
+    let finalServices = Array.isArray(data.selectedServices) ? [...data.selectedServices] : [];
+    if (!finalServices.some((s: string) => s.startsWith('pack_'))) {
+        finalServices.push('pack_basic');
     }
 
-    // B. MAPEO DE SERVICIOS (Detectar si piscina/garaje están marcados)
-    // Esto asegura que si marca el checkbox, se guarde en la lista
-    const services = data.selectedServices || [];
-    const hasService = (id: string) => services.includes(id) || data[id] === true;
+    // 4. PREPARACIÓN DEL PAQUETE DB
+    const hasService = (id: string) => finalServices.includes(id) || data[id] === true;
 
-    // C. PREPARAR EL PAQUETE DE DATOS
     const payload = {
+        userId: user.id, // VINCULACIÓN
+        
+        title: data.title || null,
+        description: data.description || null,
         address: data.address || "Dirección desconocida",
         city: data.city || data.location,
         region: data.region || null,
         postcode: data.postcode || null,
         
-        // Coordenadas (Evitar ceros)
         latitude: data.coordinates ? data.coordinates[1] : 40.4168,
         longitude: data.coordinates ? data.coordinates[0] : -3.7038,
         
         type: data.type || 'Piso',
-        title: data.title || null,
-        description: data.description || null,
-        
         price: cleanPrice,
-        communityFees: cleanCommunity,
+        communityFees: data.communityFees ? parseFloat(String(data.communityFees)) : null,
         
         mBuilt: cleanM2,
         rooms: Number(data.rooms || 0),
@@ -93,14 +161,7 @@ export async function savePropertyAction(data: any) {
         door: data.door ? String(data.door) : null,
         state: data.state || "Buen estado",
 
-        // Energía
-        energyConsumption: data.energyConsumption || null,
-        energyEmissions: data.energyEmissions || null,
-        energyPending: data.energyPending === true,
-
-        // Extras (Booleanos para filtros rápidos)
         elevator: Boolean(data.elevator),
-        exterior: data.exterior !== false,
         pool: hasService('pool'),
         garage: hasService('garage'),
         terrace: hasService('terrace'),
@@ -108,32 +169,30 @@ export async function savePropertyAction(data: any) {
         storage: hasService('storage'),
         ac: hasService('ac'),
         security: hasService('security'),
+        exterior: data.exterior !== false,
 
-        // Servicios contratados (Array de texto para el perfil)
-        selectedServices: services,
-
-        // Imagen principal
-        mainImage: data.images?.[0] || null,
-        
+        selectedServices: finalServices, 
+        mainImage: data.images?.[0] || data.img || null,
         status: 'PUBLICADO',
     };
 
-    // D. EJECUTAR
     let result;
-    if (data.id && data.id.length > 20) {
-        // Actualizar
-        result = await prisma.property.update({
-            where: { id: data.id },
-            data: payload
-        });
+    
+    // 5. EJECUCIÓN
+    if (data.id && data.id.length > 20) { 
+        const existing = await prisma.property.findUnique({ where: { id: data.id }});
+        if (existing) {
+             result = await prisma.property.update({ where: { id: data.id }, data: payload });
+        } else {
+             result = await prisma.property.create({
+                data: { ...payload, images: { create: (data.images || []).map((url: string) => ({ url })) } }
+            });
+        }
     } else {
-        // Crear (con imágenes)
         result = await prisma.property.create({
             data: {
                 ...payload,
-                images: {
-                    create: (data.images || []).map((url: string) => ({ url }))
-                }
+                images: { create: (data.images || []).map((url: string) => ({ url })) }
             }
         });
     }
@@ -147,298 +206,157 @@ export async function savePropertyAction(data: any) {
   }
 }
 
-// ---------------------------------------------------------
-// 3. 📡 LEER PROPIEDADES (DATA BRIDGE V3 - FILTRADO POR USUARIO)
-// ---------------------------------------------------------
+// B. LEER PROPIEDADES (SOLO LAS DEL USUARIO)
 export async function getPropertiesAction() {
   try {
-    // 🔥 1. IDENTIFICACIÓN (SEGURIDAD)
     const user = await getCurrentUser();
-    
-    // Si no le encuentra, devolvemos array vacío por seguridad
-    if (!user) {
-        console.warn("⚠️ Usuario no identificado. Retornando lista vacía.");
-        return { success: false, data: [] };
-    }
+    if (!user) return { success: false, data: [] };
 
-    // 🔥 2. FILTRO BLINDADO (where: { userId: user.id })
     const properties = await prisma.property.findMany({
-      where: {
-        userId: user.id // <--- AQUÍ ESTÁ LA CLAVE: Solo trae SU material
-      },
+      where: { userId: user.id }, 
       orderBy: { createdAt: 'desc' },
       include: { images: true }
     });
 
-    // PROCESO DE TRADUCCIÓN (DATOS DB -> DATOS FRONTEND)
-    // (Mantenemos toda su lógica original intacta)
     const safeProperties = properties.map((p: any) => {
-      
-      // A. GESTIÓN DE FOTOS (ARREGLO DEL SLIDER)
-      // 1. Sacamos todas las URLs de la tabla de imagenes
       let allImages = p.images.map((i: any) => i.url);
+      if (allImages.length === 0 && p.mainImage) allImages.push(p.mainImage);
       
-      // 2. Si la lista está vacía, intentamos rescatar la mainImage antigua
-      if (allImages.length === 0 && p.mainImage && !p.mainImage.includes("{") && p.mainImage.startsWith("http")) {
-          allImages.push(p.mainImage);
-      }
-      
-      // 3. Definimos la imagen de portada (la primera de la lista)
-      const coverImg = allImages.length > 0 ? allImages[0] : null;
-
-      // B. RECUPERACIÓN DE SERVICIOS (CRÍTICO - NO TOCAR)
-      // Esto asegura que los iconos de la tarjeta se vean bien
-      const reconstructedServices = [
+      const combinedServices = [
           ...(p.selectedServices || []),
-          p.pool ? 'pool' : null,
-          p.garage ? 'garage' : null,
-          p.elevator ? 'elevator' : null,
-          p.terrace ? 'terrace' : null,
-          p.garden ? 'garden' : null,
-          p.storage ? 'storage' : null,
-          p.ac ? 'ac' : null,
-          p.security ? 'security' : null,
-          // Si tiene foto, asumimos servicio de foto
-          coverImg ? 'foto' : null
+          p.pool ? 'pool' : null, p.garage ? 'garage' : null,
+          p.elevator ? 'elevator' : null, p.terrace ? 'terrace' : null,
+          p.garden ? 'garden' : null, p.storage ? 'storage' : null,
+          p.ac ? 'ac' : null, p.security ? 'security' : null
       ].filter(Boolean);
 
-      // C. COORDENADAS DE RESCATE (OPERACIÓN MADRID)
       let finalCoords = [Number(p.longitude), Number(p.latitude)];
-      
-      // Si las coordenadas son 0 o nulas, aplicamos la dispersión en Madrid
       if (!p.longitude || !p.latitude || (p.longitude === 0 && p.latitude === 0)) {
-          const baseLng = -3.7038;
-          const baseLat = 40.4168;
-          const magic = p.id ? p.id.charCodeAt(p.id.length - 1) : 0;
-          const offset = (magic % 50) * 0.0005; 
-          finalCoords = [baseLng + offset, baseLat - offset];
+           const offset = (p.id.charCodeAt(0) % 50) * 0.0005; 
+           finalCoords = [-3.7038 + offset, 40.4168 - offset];
       }
 
-      // D. RETORNO DEL OBJETO (CON TODO EL EQUIPAMIENTO)
       return {
-          ...p, // Mantiene cualquier dato extra de la DB
-          id: p.id,
-          
-          // 1. FOTOS ARREGLADAS
-          images: allImages,  // <--- Array completo para el Slider (HoloInspector)
-          img: coverImg,      // <--- Solo una para la Tarjeta (MapNanoCard)
-          
-          // 2. PRECIOS
+          ...p,
+          images: allImages,
+          img: allImages[0] || null,
           price: new Intl.NumberFormat('es-ES').format(p.price || 0),
           rawPrice: p.price,
-          priceValue: p.price,
-
-          // 3. SERVICIOS (Para los iconos)
-          selectedServices: reconstructedServices,
-          
-          // 4. BOOLEANOS EXPLÍCITOS (Para que el panel de detalles no falle)
-          pool: p.pool,
-          garage: p.garage,
-          elevator: p.elevator,
-          terrace: p.terrace,
-          garden: p.garden,
-          storage: p.storage,
-          ac: p.ac,
-          security: p.security,
-          
-          // 5. ENERGÍA
-          energyConsumption: p.energyConsumption || "N/D",
-          energyEmissions: p.energyEmissions || "N/D",
-          energyPending: p.energyPending,
-          
-          // 6. COORDENADAS CALCULADAS
+          selectedServices: Array.from(new Set(combinedServices)),
           coordinates: finalCoords
       };
     });
 
     return { success: true, data: safeProperties };
-
   } catch (error) {
-    console.error("❌ ERROR READ:", error);
-    return { success: false, data: [] };
+    return { success: false, data: [], error: String(error) };
   }
 }
 
-// ---------------------------------------------------------
-// 4. BORRAR PROPIEDAD (LA PIEZA PERDIDA)
-// ---------------------------------------------------------
+// C. BORRAR PROPIEDAD
 export async function deletePropertyAction(id: string) {
-  try {
-    await prisma.property.delete({ where: { id } });
-    revalidatePath('/');
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: String(error) };
-  }
-}
-
-// ---------------------------------------------------------
-// 5. 👤 OBTENER MI PERFIL (NOMBRE, AVATAR, ROL)
-// ---------------------------------------------------------
-export async function getUserMeAction() {
-  try {
-    const user = await getCurrentUser();
-    
-    if (!user) {
-        return { success: false, error: "Usuario no identificado" };
-    }
-
-    // Devolvemos los datos del soldado
-    return { 
-        success: true, 
-        data: {
-            name: user.name || "",
-            email: user.email,
-            avatar: user.avatar || "",
-            role: user.role || "AGENTE",
-            phone: user.phone || "",
-            website: user.website || "",
-            companyName: user.companyName || "",
-            licenseNumber: user.licenseNumber || ""
-        }
-    };
-  } catch (error) {
-    console.error("Error User Me:", error);
-    return { success: false, error: String(error) };
-  }
-}
-
-// ---------------------------------------------------------
-// 6. 🖊️ ACTUALIZAR DATOS DEL PERFIL
-// ---------------------------------------------------------
-export async function updateUserAction(data: any) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
 
-    // Actualizamos la ficha del soldado
-    await prisma.user.update({
-        where: { id: user.id },
-        data: {
-            name: data.name,
-            phone: data.phone,
-            website: data.website,
-            companyName: data.companyName,
-            // Si nos mandan avatar, lo guardamos (url de cloudinary)
-            avatar: data.avatar ? data.avatar : undefined 
-        }
+    await prisma.property.deleteMany({ 
+        where: { id: id, userId: user.id } 
     });
-
+    
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    console.error("Error Update User:", error);
     return { success: false, error: String(error) };
   }
 }
-// ---------------------------------------------------------
-// 7. ❤️ GESTIÓN DE FAVORITOS (BÓVEDA SEGURA)
-// ---------------------------------------------------------
 
-// A. INTERRUPTOR (GUARDAR / BORRAR)
-export async function toggleFavoriteAction(propertyId: string) {
+// ==============================================================================
+// 3. PERFIL Y FAVORITOS (EXTRAS)
+// ==============================================================================
+
+export async function getUserMeAction() {
   try {
     const user = await getCurrentUser();
-    if (!user) return { success: false, error: "Identifíquese primero" };
+    if (!user) return { success: false, error: "Usuario no logueado" };
 
-    // 1. Buscamos si ya existe
-    const existing = await prisma.favorite.findUnique({
-      where: {
-        userId_propertyId: {
-          userId: user.id,
-          propertyId: propertyId
-        }
-      }
-    });
-
-    if (existing) {
-      // 2. Si existe, lo BORRAMOS (Quitar de la bóveda)
-      await prisma.favorite.delete({
-        where: { id: existing.id }
-      });
-      revalidatePath('/');
-      return { success: true, isFavorite: false };
-    } else {
-      // 3. Si no existe, lo CREAMOS (Meter en la bóveda)
-      await prisma.favorite.create({
+    return { 
+        success: true, 
         data: {
-          userId: user.id,
-          propertyId: propertyId
+            id: user.id,
+            name: user.name || "",
+            email: user.email,
+            avatar: user.avatar || "",
+            role: user.role || "AGENCIA",
+            phone: user.phone || "",
+            companyName: user.companyName || "",
+            licenseNumber: user.licenseNumber || "",
+            website: user.website || ""
         }
-      });
-      revalidatePath('/');
-      return { success: true, isFavorite: true };
-    }
-
-  } catch (error) {
-    console.error("Error Toggle Fav:", error);
-    return { success: false, error: String(error) };
-  }
+    };
+  } catch (error) { return { success: false, error: String(error) }; }
 }
 
-// B. RADAR (LEER MIS FAVORITOS)
-export async function getFavoritesAction() {
+export async function updateUserAction(data: any) {
   try {
     const user = await getCurrentUser();
-    // Si no hay usuario, la bóveda está cerrada (lista vacía)
-    if (!user) return { success: false, data: [] };
-
-    // 1. Obtenemos SOLO los favoritos de este soldado
-    const favs = await prisma.favorite.findMany({
-      where: { userId: user.id },
-      include: {
-        property: {
-          include: { images: true }
+    if (!user) return { success: false, error: "No autorizado" };
+    
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+            name: data.name, 
+            avatar: data.avatar
+            // Agregue más campos aquí si lo necesita
         }
-      },
-      orderBy: { id: 'desc' }
     });
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) { 
+    // 🔥 AQUÍ ESTÁ EL ARREGLO PARA PROFILEPANEL.TSX
+    return { success: false, error: String(error) }; 
+  }
+}
 
-    // 2. Traducimos los datos para el frontend
-    const safeFavs = favs.map((f: any) => {
-        const p = f.property;
-        if (!p) return null;
-
-        // Recuperación de Fotos
-        let allImages = p.images.map((i: any) => i.url);
-        if (allImages.length === 0 && p.mainImage && p.mainImage.startsWith("http")) {
-            allImages.push(p.mainImage);
-        }
+export async function toggleFavoriteAction(propertyId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, error: "Login requerido" };
         
-        return {
-            ...p,
-            id: p.id,
-            img: allImages[0] || null,
-            images: allImages,
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            favId: f.id 
-        };
-    }).filter(Boolean);
+        const existing = await prisma.favorite.findUnique({
+            where: { userId_propertyId: { userId: user.id, propertyId } }
+        });
 
-    return { success: true, data: safeFavs };
-
-  } catch (error) {
-    console.error("Error Get Favs:", error);
-    return { success: false, data: [] };
-  }
+        if (existing) {
+            await prisma.favorite.delete({ where: { id: existing.id } });
+            return { success: true, isFavorite: false };
+        } else {
+            await prisma.favorite.create({ data: { userId: user.id, propertyId } });
+            return { success: true, isFavorite: true };
+        }
+    } catch (error) {
+        return { success: false, error: String(error) };
+    }
 }
 
-export async function logoutAction() {
-  // Nota: Ya no hace falta poner "use server" aquí dentro si ya está en la línea 1 del archivo
-  
-  try {
-      // 🔥 CORRECCIÓN PARA NEXT.JS 15: USAR AWAIT
-      const cookieStore = await cookies(); 
-
-      // Ahora borramos usando la variable ya cargada
-      cookieStore.delete("stratos_session");
-      cookieStore.delete("stratos_access_granted");
-      cookieStore.delete("next-auth.session-token");
-      cookieStore.delete("auth-token");
-
-      return { success: true };
-  } catch (error) {
-      console.error("Error en logout server:", error);
-      return { success: false, error: "Fallo al cerrar sesión" };
-  }
+export async function getFavoritesAction() {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, data: [] };
+        
+        const favs = await prisma.favorite.findMany({
+            where: { userId: user.id },
+            include: { property: { include: { images: true } } }
+        });
+        
+        const data = favs.map((f: any) => ({
+            ...f.property,
+            img: f.property.images[0]?.url || f.property.mainImage,
+            price: new Intl.NumberFormat('es-ES').format(f.property.price || 0),
+            id: f.property.id
+        }));
+        return { success: true, data };
+    } catch (error) {
+        return { success: false, data: [], error: String(error) };
+    }
 }
+

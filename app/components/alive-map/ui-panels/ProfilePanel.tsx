@@ -316,7 +316,7 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
         window.removeEventListener('add-property-signal', handleNewProperty);
     };
   }, []);
-  
+
   // 2. BORRAR (CONECTADO A BASE DE DATOS)
   const handleDelete = async (e: any, id: any) => {
       e.stopPropagation();
@@ -453,18 +453,22 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide ml-2">Foto de Perfil</label>
                             
                             <div className="flex items-center gap-4">
-                                {/* Previsualización */}
-                                <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden relative shrink-0 border border-gray-200">
+                              
+                              {/* Previsualización (CORREGIDA: SIN FOTO DE STOCK) */}
+                                <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden relative shrink-0 border border-gray-200 flex items-center justify-center">
                                     {isUploading ? (
                                         <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
                                             <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                         </div>
-                                    ) : (
+                                    ) : editForm.avatar ? (
                                         <img 
-                                            src={editForm.avatar || "https://images.unsplash.com/photo-1560250097-0b93528c311a"} 
+                                            src={editForm.avatar} 
                                             className="w-full h-full object-cover" 
                                             alt="Preview"
                                         />
+                                    ) : (
+                                        /* 🟢 AQUÍ ESTÁ EL CAMBIO: ICONO GRIS EN VEZ DEL SEÑOR */
+                                        <User size={24} className="text-gray-300"/>
                                     )}
                                 </div>
 
@@ -633,36 +637,30 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
                 </button>
             </div>
             
-      {/* BOTÓN CERRAR SESIÓN (REPARADO Y BLINDADO) */}
+      {/* BOTÓN CERRAR SESIÓN (MOTOR BLINDADO + CARROCERÍA APPLE) */}
             <button 
                 onClick={async () => {
-                   setIsLoggingOut(true); // 1. Activa la cortina visual
+                   setIsLoggingOut(true); // Activa la cortina
                    
                    try {
-                       // 2. LIMPIEZA NUCLEAR LOCAL
+                       // 1. LIMPIEZA TOTAL (Seguridad Cibercafé)
                        localStorage.clear();
                        sessionStorage.clear();
                        
-                       // 3. LIMPIEZA DEL SERVIDOR (MATAR COOKIE)
-                       // Esto es lo que faltaba: avisar al servidor que destruya la sesión
+                       // Llama al servidor para destruir todas las cookies
                        await logoutAction(); 
 
                    } catch (error) {
-                       console.error("Error al cerrar sesión:", error);
-                       // Fallback: Intentamos borrar cookies manualmente por si acaso
-                       document.cookie.split(";").forEach(function(c) { 
-                         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-                       });
+                       console.error("Error al salir:", error);
+                   } finally {
+                       // 2. EXPULSIÓN (Redirección forzosa)
+                       window.location.href = '/'; 
                    }
-
-                   // 4. TIEMPO DRAMÁTICO Y SALIDA
-                   setTimeout(() => {
-                       window.location.href = '/'; // Redirección forzosa
-                   }, 1000);
                 }}
-                className="w-full py-4 mt-4 bg-red-50 text-red-500 font-bold rounded-[20px] flex items-center justify-center gap-2 hover:bg-red-100 transition-colors cursor-pointer text-xs tracking-widest uppercase"
+                className="w-full mt-6 py-4 bg-white border border-slate-100 rounded-[24px] shadow-sm flex items-center justify-center gap-3 text-slate-400 font-bold text-xs tracking-widest uppercase hover:bg-white hover:text-rose-500 hover:shadow-md hover:border-rose-100 transition-all duration-300 group cursor-pointer"
             >
-                <LogOut size={14}/> Cerrar Sesión
+                <LogOut size={16} className="group-hover:scale-110 transition-transform"/>
+                <span>Cerrar Sesión</span>
             </button>
           </div>
         )}
@@ -959,17 +957,18 @@ const [isLoggingOut, setIsLoggingOut] = useState(false);
     </div>
 )}
 
-      {/* 🛑 CORTINA DE DESCONEXIÓN (Visual) */}
+     {/* 🟢 CORTINA DE SALIDA (ESTILO APPLE / GLASS) - SUSTITUYE A LA ROJA */}
       {isLoggingOut && (
-        <div className="fixed inset-0 z-[999999] bg-white/90 backdrop-blur-xl flex flex-col items-center justify-center animate-fade-in cursor-wait">
-            <div className="w-16 h-16 border-4 border-slate-200 border-t-red-500 rounded-full animate-spin mb-6"></div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tighter">CERRANDO SESIÓN</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-2 animate-pulse">
-                Desconectando de Stratosfere...
+        <div className="fixed inset-0 z-[999999] bg-white/60 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in cursor-wait">
+            {/* Spinner Apple Style (Gris sutil) */}
+            <div className="w-10 h-10 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin mb-4"></div>
+            
+            <p className="text-[10px] font-black text-slate-800 uppercase tracking-[0.3em]">
+                Cerrando Sesión...
             </p>
         </div>
       )}
 
-    </div>
-  );
-}
+    </div> 
+  ); 
+} 

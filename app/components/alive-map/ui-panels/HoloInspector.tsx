@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
-import { toggleFavoriteAction } from '@/app/actions'; // <--- LA ORDEN DE GUARDAR
-import { Heart } from 'lucide-react'; // <--- EL ICONO
 
 export default function HoloInspector({
   isOpen,
@@ -18,37 +16,20 @@ export default function HoloInspector({
   const [mounted, setMounted] = useState(false);
   const [isZooming, setIsZooming] = useState(false);
 
-  // ❤️ ESTADO Y FUNCIÓN PARA EL CORAZÓN (NUEVO)
-  const [isFav, setIsFav] = useState(false); 
-
-  const toggleFav = async (e: any) => {
-      e.stopPropagation();
-      setIsFav(!isFav); // Cambio visual inmediato
-      if (prop?.id) {
-          try {
-            await toggleFavoriteAction(prop.id); // Guardar en BD
-            // Avisar al perfil para que recargue la lista si está abierto
-            window.dispatchEvent(new CustomEvent('reload-profile-assets')); 
-          } catch (err) {
-            console.error(err);
-          }
-      }
-  };
-
- useEffect(() => {
+  useEffect(() => {
       setMounted(true);
   }, []);
 
-  // 🔥 MOTOR DE ANIMACIÓN (FIX): Se reinicia al abrir Y al cambiar de foto
+  // 🔥 MOTOR DE ANIMACIÓN: Se reinicia al abrir Y al cambiar de foto
   useEffect(() => {
-      setIsZooming(false); // 1. Apagamos motor (Reset)
+      setIsZooming(false); // 1. Reset
       
       if (isOpen) {
-          // 2. Encendemos motor de nuevo tras 50ms
+          // 2. Acción tras 50ms
           const timer = setTimeout(() => setIsZooming(true), 50);
           return () => clearTimeout(timer);
       }
-  }, [isOpen, idx]); // <--- 'idx' es la clave: detecta cuando cambia la foto
+  }, [isOpen, idx]); 
 
   useEffect(() => { if (isOpen) setIdx(0); }, [isOpen]);
 
@@ -57,6 +38,7 @@ export default function HoloInspector({
   // LÓGICA DE DATOS
   const gallerySource = (images && images.length > 0) ? images : (prop.images || []);
   const rawAlbum = gallerySource.length > 0 ? gallerySource : [prop.img];
+  // Filtramos duplicados y nulos
   const unique = Array.from(new Set(rawAlbum)).filter(Boolean) as string[];
 
   if (unique.length === 0) return null;
@@ -67,7 +49,6 @@ export default function HoloInspector({
   const nav = (dir: number) => {
     if (soundEnabled && playSynthSound) playSynthSound("click");
     setIdx((p) => (p + dir + unique.length) % unique.length);
-    // Reiniciamos el "viaje" de la foto al cambiar
     setIsZooming(false);
     setTimeout(() => setIsZooming(true), 50);
   };
@@ -77,38 +58,7 @@ export default function HoloInspector({
         className="fixed inset-0 z-[999999] bg-[#F5F5F7]/98 backdrop-blur-2xl animate-fade-in flex flex-col items-center justify-center overflow-hidden"
         onClick={onClose}
     >
-     {/* BOTÓN ME GUSTA (SINCRONIZADO CON EL CEREBRO) */}
-      <button 
-          onClick={async (e) => {
-              e.stopPropagation();
-              // 1. Cambio visual inmediato
-              setIsFav(!isFav);
-              
-              // 2. Guardar en Base de Datos
-              if (prop?.id) {
-                   const { toggleFavoriteAction } = await import('@/app/actions');
-                   await toggleFavoriteAction(prop.id);
-                   
-                   // 🔥 3. EL GRITO A TODO EL SISTEMA (ESTO FALTABA)
-                   // Avisar al Mapa (NanoCard)
-                   window.dispatchEvent(new CustomEvent('sync-property-state', { 
-                       detail: { id: prop.id, isFav: !isFav } 
-                   }));
-                   
-                   // Avisar a la Bóveda y al Perfil
-                   window.dispatchEvent(new CustomEvent('reload-profile-assets'));
-                   window.dispatchEvent(new CustomEvent('reload-favorites'));
-              }
-          }}
-          className="absolute top-6 right-24 z-[60000] w-12 h-12 rounded-full bg-white/80 hover:bg-white flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
-      >
-          <Heart 
-              size={22} 
-              className={`transition-colors duration-300 ${isFav ? 'fill-rose-500 text-rose-500' : 'text-black group-hover:text-rose-500'}`}
-          />
-      </button>
-
-      {/* 2. BOTÓN CERRAR (EXISTENTE) */}
+      {/* 1. BOTÓN CERRAR */}
       <button 
           onClick={onClose} 
           className="absolute top-6 right-6 z-[60000] w-12 h-12 rounded-full bg-white/80 hover:bg-white text-black flex items-center justify-center transition-all cursor-pointer shadow-sm border border-black/5 group active:scale-90"
@@ -124,7 +74,7 @@ export default function HoloInspector({
           {/* CONTENEDOR BLANCO */}
             <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
                 
-               {/* FOTO CON EFECTO REINICIABLE (Key única) */}
+               {/* FOTO CON EFECTO CINEMÁTICO */}
                 <img 
                     key={current as string} 
                     src={current as string} 
@@ -153,17 +103,17 @@ export default function HoloInspector({
                 {/* FLECHAS FLOTANTES */}
                 {hasMultiplePhotos && (
                     <>
-                        <button onClick={(e) => { e.stopPropagation(); nav(-1); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30">
+                        <button onClick={(e) => { e.stopPropagation(); nav(-1); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30 cursor-pointer">
                             <ChevronLeft size={28} />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); nav(1); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30">
+                        <button onClick={(e) => { e.stopPropagation(); nav(1); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/90 hover:bg-white text-black shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-black/5 z-30 cursor-pointer">
                             <ChevronRight size={28} />
                         </button>
                     </>
                 )}
             </div>
 
-           {/* DATOS (REUBICADOS) */}
+           {/* DATOS DE UBICACIÓN */}
             <div className="absolute bottom-20 left-20 md:bottom-32 md:left-32 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
                 <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md mb-4 leading-[0.9] mix-blend-overlay">
                     {prop.title || "Activo Stratosfere"}

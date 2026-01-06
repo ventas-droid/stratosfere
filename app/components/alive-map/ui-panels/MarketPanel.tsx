@@ -6,7 +6,7 @@ import {
     Camera, Video, Globe, Box, Ruler, Megaphone, FileText, ArrowUp,
     FileCheck, Activity, LayoutGrid, MapPin, Droplets, Paintbrush, Truck, ShieldCheck
 } from 'lucide-react';
-
+import { savePropertyAction } from '@/app/actions';
 // ==================================================================================
 // 1. CATÁLOGO EXACTO (PRECIOS REALES DEL SISTEMA)
 // ==================================================================================
@@ -178,50 +178,52 @@ export default function MarketPanel({ onClose, initialData, activeProperty }: an
   };
 
   // ==============================================================================
-  // 💾 3. GUARDADO TURBO (ACTUALIZACIÓN INSTANTÁNEA)
+  // 💾 3. GUARDADO TURBO (ACTUALIZACIÓN INSTANTÁNEA + SERVIDOR)
   // ==============================================================================
-  const handleConfirm = () => {
+  const handleConfirm = async () => { // <--- AHORA ES ASYNC
       if (!currentProp) return;
 
       try {
           const saved = localStorage.getItem('stratos_my_properties');
+          
+          // 1. Preparamos los datos nuevos
+          const finalServicesList = [...preservedExtras.current, ...selectedServices];
+          const newRole = getRoleLabel(authorityLevel);
+          
+          // 2. Construimos el objeto actualizado EN MEMORIA
+          const updatedProp = { 
+              ...currentProp, 
+              selectedServices: finalServicesList, 
+              role: newRole, 
+              impactLevel: authorityLevel,
+              strategyValue: total 
+          };
+
+          console.log("📡 Conectando con Base de Datos...", updatedProp);
+
+          // 🔥 3. GUARDADO REAL EN BASE DE DATOS (LA PIEZA QUE FALTABA)
+          // Esto asegura que si recarga o cambia de PC, los servicios siguen ahí.
+          await savePropertyAction(updatedProp);
+
+          // 4. Guardamos en disco local (Respaldo de velocidad)
           if (saved) {
               const allProps = JSON.parse(saved);
-              
-              // 1. Preparamos los datos nuevos
-              const finalServicesList = [...preservedExtras.current, ...selectedServices];
-              const newRole = getRoleLabel(authorityLevel);
-              
-              // 2. Construimos el objeto actualizado EN MEMORIA
-              const updatedProp = { 
-                  ...currentProp, 
-                  selectedServices: finalServicesList, 
-                  role: newRole, 
-                  impactLevel: authorityLevel,
-                  strategyValue: total 
-              };
-
-              // 3. Guardamos en disco (Lento pero seguro)
               const updatedPropsList = allProps.map((p: any) => 
                   String(p.id) === String(currentProp.id) ? updatedProp : p
               );
               localStorage.setItem('stratos_my_properties', JSON.stringify(updatedPropsList));
-              
-              // ⚡️ 4. DISPARO INMEDIATO (TURBO)
-              // Enviamos el objeto YA actualizado directamente a la interfaz.
-              console.log("⚡️ Enviando actualización en caliente:", updatedProp);
-              
-              // Actualiza la ficha de detalles (Si está abierta)
-              window.dispatchEvent(new CustomEvent('update-details-live', { detail: updatedProp }));
-              
-              // Actualiza la NanoCard en el mapa (Precio/Iconos)
-              window.dispatchEvent(new CustomEvent('update-marker-signal', { detail: updatedProp }));
-              
-              // Fuerza recarga general por seguridad
-              window.dispatchEvent(new CustomEvent('reload-profile-assets'));
-
-              if(onClose) onClose();
           }
+          
+          // ⚡️ 5. DISPARO VISUAL (Para que el usuario lo vea al instante)
+          // Actualiza la ficha de detalles
+          window.dispatchEvent(new CustomEvent('update-details-live', { detail: updatedProp }));
+          // Actualiza la NanoCard en el mapa
+          window.dispatchEvent(new CustomEvent('update-marker-signal', { detail: updatedProp }));
+          // Fuerza recarga del perfil lateral
+          window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+
+          if(onClose) onClose();
+
       } catch(e) { console.error("Error guardando:", e); }
   };
   
