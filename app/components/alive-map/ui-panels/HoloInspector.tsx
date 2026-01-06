@@ -64,20 +64,17 @@ export default function HoloInspector({
           className="relative w-full h-full flex items-center justify-center p-0 md:p-6"
           onClick={(e) => e.stopPropagation()}
       >
-            {/* CONTENEDOR BLANCO */}
+          {/* CONTENEDOR BLANCO */}
             <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
                 
-                {/* 🔥 FOTO CON EFECTO "KEN BURNS" (VIAJE HACIA TI) 🔥
-                   - scale-100: Empieza normal.
-                   - scale-110: Termina un poco más grande (se acerca).
-                   - duration-[5000ms]: Tarda 5 segundos en hacer el movimiento (muy suave).
-                */}
+                {/* 🔥 FOTO CON EFECTO "KEN BURNS" OPTIMIZADO (VIAJE LENTO HACIA TI) 🔥 */}
                 <img 
                     src={current as string} 
                     alt="Detalle Activo" 
+                    // Se añade 'will-change-transform' para máxima suavidad
                     className={`
                         w-full h-full object-cover bg-gray-50 relative z-10
-                        transition-transform duration-[5000ms] ease-out
+                        transition-transform duration-[5000ms] ease-out will-change-transform
                         ${isZooming ? 'scale-110' : 'scale-100'} 
                     `}
                 />
@@ -109,8 +106,8 @@ export default function HoloInspector({
                 )}
             </div>
 
-            {/* DATOS */}
-            <div className="absolute bottom-10 left-10 md:bottom-16 md:left-16 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
+           {/* DATOS (REUBICADOS: Más arriba y a la derecha) */}
+            <div className="absolute bottom-20 left-20 md:bottom-32 md:left-32 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
                 <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md mb-4 leading-[0.9] mix-blend-overlay">
                     {prop.title || "Activo Stratosfere"}
                 </h1>
