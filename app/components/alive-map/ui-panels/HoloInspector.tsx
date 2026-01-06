@@ -27,7 +27,6 @@ export default function HoloInspector({
   if (!mounted || !isOpen || !prop) return null;
 
   // 1. LÓGICA DE ÁLBUM BLINDADA
-  // Prioridad: 1. Array pasado por props (desde NanoCard) -> 2. Array dentro de prop -> 3. Foto suelta
   const gallerySource = (images && images.length > 0) ? images : (prop.images || []);
   const rawAlbum = gallerySource.length > 0 ? gallerySource : [prop.img];
   
@@ -65,16 +64,23 @@ export default function HoloInspector({
             {/* CONTENEDOR APAISADO (+4cm visuales) y AJUSTE PERFECTO */}
             <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
                 
-                {/* FOTO: Solución al error rojo y al recorte */}
+                {/* FOTO PRINCIPAL */}
                 <img 
                     src={current as string} 
                     alt="Detalle Activo" 
                     className={`
-                        w-full h-full object-contain bg-gray-50
+                        w-full h-full object-contain bg-gray-50 relative z-10
                         transition-transform duration-[700ms] ease-out
                         ${isZooming ? 'scale-100 opacity-100' : 'scale-105 opacity-0'}
                     `}
                 />
+
+                {/* 🔥 CAPA DE SEGURIDAD: MARCA DE AGUA 🔥 */}
+                <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center overflow-hidden select-none mix-blend-overlay opacity-50">
+                    <p className="text-white text-[10vw] font-black uppercase -rotate-12 whitespace-nowrap tracking-tighter leading-none drop-shadow-lg filter blur-[1px]">
+                        STRATOSFERE OS
+                    </p>
+                </div>
 
                 {/* CONTADOR FUCSIA (MODERNO) */}
                 {hasMultiplePhotos && (
@@ -98,12 +104,10 @@ export default function HoloInspector({
 
             {/* DATOS (SEPARADOS Y GRUESOS) */}
             <div className="absolute bottom-10 left-10 md:bottom-14 md:left-14 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
-                {/* Título: Tipografía pesada (Black) para evitar efecto pergamino */}
                 <h1 className="text-4xl md:text-6xl font-black text-gray-900 tracking-tighter drop-shadow-sm mb-4 leading-[0.9]">
                     {prop.title || "Activo Stratosfere"}
                 </h1>
                 
-                {/* Ubicación: Separada para que no se chafe */}
                 <div className="flex items-center gap-3 pl-1">
                     <div className="p-2 bg-black text-white rounded-full">
                         <MapPin size={14} fill="currentColor" />
