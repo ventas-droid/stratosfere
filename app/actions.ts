@@ -1,9 +1,10 @@
-'use server'
+"use server"; // <--- ⚠️ ESTO DEBE SER LA LÍNEA 1 OBLIGATORIAMENTE
 
-import { revalidatePath } from 'next/cache'
-import { prisma } from './lib/prisma'
-"use server"; // Esto suele ir en la línea 1
+import { revalidatePath } from 'next/cache';
+import { prisma } from './lib/prisma'; // o tus imports actuales
 import { cookies } from "next/headers";
+
+// ... resto de tu código (getPropertiesAction, etc)...
 // ... resto de imports
 // 🔐 IDENTIFICADOR TEMPORAL (Simulamos que usted está logueado)
 // Buscamos su usuario exacto en la base de datos para firmar las acciones.
@@ -422,18 +423,14 @@ export async function getFavoritesAction() {
   }
 }
 
-/// ---------------------------------------------------------
-// SUSTITUYA LA FUNCIÓN logoutAction EN app/actions.ts POR ESTA:
-// ---------------------------------------------------------
-
 export async function logoutAction() {
-  "use server";
+  // Nota: Ya no hace falta poner "use server" aquí dentro si ya está en la línea 1 del archivo
   
   try {
-      // 🔥 FIX PARA NEXT.JS 15: AÑADIMOS 'await'
+      // 🔥 CORRECCIÓN PARA NEXT.JS 15: USAR AWAIT
       const cookieStore = await cookies(); 
 
-      // Ahora sí podemos borrar usando la variable 'cookieStore'
+      // Ahora borramos usando la variable ya cargada
       cookieStore.delete("stratos_session");
       cookieStore.delete("stratos_access_granted");
       cookieStore.delete("next-auth.session-token");
