@@ -662,51 +662,68 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
     <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 0});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Square size={16}/></button>
     <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 60});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Box size={16}/></button>
 </div>
-       {/* BOTÓN GPS INTELIGENTE (AUTO-GEOLOCALIZACIÓN) */}
+       {/* BOTÓN GPS TÁCTICO (PROGRAMABLE) */}
         <button 
             className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto p-4 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all shadow-2xl group animate-fade-in-down"
+            
+            // 1. CLICK DERECHO: DEFINIR NUEVA BASE AQUÍ
+            onContextMenu={(e) => {
+                e.preventDefault(); // Evita el menú del navegador
+                if(soundEnabled) playSynthSound('click');
+                
+                if (map?.current) {
+                    const center = map.current.getCenter();
+                    const zoom = map.current.getZoom();
+                    const pitch = map.current.getPitch();
+                    
+                    // Guardamos las coordenadas exactas donde está mirando ahora
+                    const baseData = { center: [center.lng, center.lat], zoom, pitch };
+                    localStorage.setItem('stratos_home_base', JSON.stringify(baseData));
+                    
+                    addNotification("BASE DE OPERACIONES ESTABLECIDA");
+                }
+            }}
+
+            // 2. CLICK IZQUIERDO: VOLAR A LA BASE
             onClick={() => { 
                 if(soundEnabled) playSynthSound('click');
                 
-                if ("geolocation" in navigator) {
-                    addNotification("CALIBRANDO SATÉLITE...");
+                // A. Intentamos leer si ya tiene una base guardada
+                const savedBase = localStorage.getItem('stratos_home_base');
+                
+                if (savedBase) {
+                    // SI TIENE BASE, VAMOS ALLÍ DIRECTO
+                    const view = JSON.parse(savedBase);
+                    addNotification("VOLVIENDO A BASE...");
                     
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            // 1. ÉXITO: Tenemos coordenadas reales
-                            const { latitude, longitude } = position.coords;
-                            console.log("📍 GPS LOCALIZADO:", latitude, longitude);
-                            
-                            addNotification("UBICACIÓN CONFIRMADA");
-                            
-                            map?.current?.flyTo({
-                                center: [longitude, latitude],
-                                zoom: 16.5,
-                                pitch: 60,
-                                bearing: -20,
-                                duration: 3000,
-                                essential: true
-                            });
-                        },
-                        (error) => {
-                            // 2. ERROR: El usuario denegó permiso o falló
-                            console.warn("GPS DENEGADO:", error);
-                            addNotification("SEÑAL GPS DÉBIL - VUELTA A BASE");
-                            
-                            // Fallback a Madrid (Base Central)
-                            map?.current?.flyTo({
-                                center: [-3.6905, 40.4250],
-                                zoom: 14,
-                                pitch: 60,
-                                duration: 2000
-                            });
-                        },
-                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                    );
+                    map?.current?.flyTo({
+                        center: view.center,
+                        zoom: view.zoom,
+                        pitch: view.pitch,
+                        bearing: -20,
+                        duration: 3000,
+                        essential: true
+                    });
                 } else {
-                    addNotification("GPS NO DISPONIBLE");
+                    // B. SI NO TIENE BASE, USAMOS GPS SATÉLITE (COMO ANTES)
+                    if ("geolocation" in navigator) {
+                        addNotification("BUSCANDO SEÑAL GPS...");
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                const { latitude, longitude } = position.coords;
+                                map?.current?.flyTo({
+                                    center: [longitude, latitude],
+                                    zoom: 16.5,
+                                    pitch: 60,
+                                    duration: 3000
+                                });
+                            },
+                            () => addNotification("GPS NO DISPONIBLE")
+                        );
+                    }
                 }
             }}
+            title="Click Izq: Ir a Base | Click Dcho: Definir Base Aquí"
         >
             <Crosshair className="w-5 h-5 text-white/80 group-hover:rotate-90 transition-transform duration-700" />
         </button>
