@@ -73,11 +73,19 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
 
  // 🔥🔥🔥 SISTEMA DE SEÑALES MAESTRO (CORREGIDO) 🔥🔥🔥
   useEffect(() => {
-    // 1. ABRIR Y ESCANEAR (Engranaje o Botón Nuevo)
+    
+    // 1. INTERRUPTOR INTELIGENTE (TOGGLE)
     const scanSignal = () => {
-        console.log("📡 RADAR: Iniciando barrido...");
-        setShowRadar(true); 
-        handleScanClick(); // <--- IMPORTANTE: ACTIVA EL ESCÁNER
+        setShowRadar(prev => {
+            const newState = !prev; // Si estaba abierto se cierra, si cerrado se abre
+            if (newState) {
+                console.log("📡 RADAR: Iniciando barrido...");
+                handleScanClick();
+            } else {
+                console.log("📡 RADAR: Replegando...");
+            }
+            return newState;
+        });
     };
 
     // 2. CERRAR (Omni, Chat, etc.)
@@ -113,14 +121,15 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
 
         
 
-       {showRadar && (
-    <div className="absolute top-0 right-0 h-full w-[600px] max-w-full z-[60000] pointer-events-auto animate-slide-in-right">
-        <TacticalRadarController 
-            targets={radarTargets} 
-            onClose={() => setShowRadar(false)} 
-        />
-    </div>
-)}
+    {showRadar && (
+            // 🔥 FIX: Z-Index bajado a 40 para que NO tape la Bóveda ni la Omni
+            <div className="absolute top-0 right-0 h-full w-[600px] max-w-full z-[40] pointer-events-auto animate-slide-in-right shadow-[-20px_0_40px_rgba(0,0,0,0.1)]">
+                <TacticalRadarController 
+                    targets={radarTargets} 
+                    onClose={() => setShowRadar(false)} 
+                />
+            </div>
+       )}
         
         {/* PANTALLA DE CARGA */}
         {!isMapLoaded && (
