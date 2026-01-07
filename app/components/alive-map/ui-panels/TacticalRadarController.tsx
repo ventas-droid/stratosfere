@@ -4,6 +4,10 @@ import {
   Zap, CheckCircle2, X, Navigation, ChevronLeft, Search, 
   Check, ShieldCheck, Plus, MessageSquare, Bell, User, Loader2, Send
 } from "lucide-react";
+import { runAgencyOSSmoke } from '../agency-os/agencyos.smoke';
+import { labelForService } from '../agency-os/agencyos.catalog';
+import { playSynthSound } from './audio';
+// Si 'audio.ts' está en la misma carpeta ui-panels:
 
 // Servicios base
 const AVAILABLE_SERVICES = [
@@ -136,35 +140,65 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       setNewServicePrice("");
   };
 
-  // Enviar Propuesta (Guarda en LocalStorage)
+  // --- 5. ACCIONES TÁCTICAS (VERSIÓN CORREGIDA - SIN ERRORES) ---
+
+  // A. ENVIAR PROPUESTA
   const sendProposal = () => {
     if (!selectedTarget) return;
     setMsgStatus("SENDING");
     
-    setTimeout(() => {
-        setMsgStatus("SENT");
-        
-        // GUARDAMOS EN MEMORIA PERMANENTE
-        const newProcessed = [...processedIds, String(selectedTarget.id)];
-        setProcessedIds(newProcessed);
-        localStorage.setItem('stratos_processed_leads', JSON.stringify(newProcessed));
+    // Ejecutamos el motor (AgencyOS)
+    const result = runAgencyOSSmoke({
+        scope: { ownerId: 'demo_owner', agencyId: 'alpha_corp' },
+        target: { 
+            propertyId: String(selectedTarget.id), 
+            title: selectedTarget.type || "Propiedad"
+        }
+    });
 
-        // Iniciamos chat
-        setChatHistory([
-            { sender: 'system', text: `Propuesta enviada con ${activeServices.length} servicios.` }
-        ]);
+    setTimeout(() => {
+        if (result && result.ok) {
+            setMsgStatus("SENT");
+            
+            // Sonido de éxito (Si existe la función)
+            try { playSynthSound('success'); } catch(e) {}
+
+            // Guardamos en memoria visual
+            const newProcessed = [...processedIds, String(selectedTarget.id)];
+            setProcessedIds(newProcessed);
+            localStorage.setItem('stratos_processed_leads', JSON.stringify(newProcessed));
+
+            // Cambiamos a pestaña Chat
+            setActiveTab('COMMS');
+
+            // Historial del caso
+            setChatHistory([
+                { sender: 'system', text: `CASE #${result.case.id.substring(0,8).toUpperCase()}: Expediente abierto.` },
+                { sender: 'system', text: `Oferta enviada con ${activeServices.length} servicios tácticos incluidos.` },
+                { sender: 'me', text: 'Quedo a la espera de su validación.' }
+            ]);
+        } else {
+            setMsgStatus("IDLE");
+            try { playSynthSound('error'); } catch(e) {}
+        }
     }, 1500);
   };
 
-  // Enviar Mensaje Chat
+  // B. ENVIAR MENSAJE
   const sendMessage = () => {
       if(!inputMsg.trim()) return;
-      setChatHistory([...chatHistory, { sender: 'me', text: inputMsg }]);
+      
+      // Sonido de envío
+      try { playSynthSound('click'); } catch(e) {}
+
+      const newMsg = { sender: 'me', text: inputMsg };
+      setChatHistory(prev => [...prev, newMsg]);
       setInputMsg("");
       
-      // Simulación de respuesta automática
+      // Respuesta automática
       setTimeout(() => {
-          setChatHistory(prev => [...prev, { sender: 'owner', text: 'Gracias, lo revisaré.' }]);
+          setChatHistory(prev => [...prev, { sender: 'owner', text: 'Recibido. Estudiaré la propuesta.' }]);
+          try { playSynthSound('ping'); } catch(e) {}
       }, 3000);
   };
 

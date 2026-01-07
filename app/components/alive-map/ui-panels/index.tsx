@@ -106,7 +106,7 @@ export default function UIPanels({
     }
   }, [urlAccess]);
 
-  // --- ESTADOS DEL SISTEMA ---
+ // --- ESTADOS DEL SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
@@ -124,6 +124,15 @@ export default function UIPanels({
   // --- FAVORITOS ---
   const [localFavs, setLocalFavs] = useState<any[]>([]);
   const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
+
+  // --- 🔥 SOLUCIÓN 1: PROTOCOLO DE LIMPIEZA AL CAMBIAR DE MODO ---
+  // Esto detecta cuando usted pulsa "Salir" o entra en "Agencia" y cierra las ventanas viejas.
+  useEffect(() => {
+    setActivePanel('NONE');
+    setRightPanel('NONE');
+    setEditingProp(null);
+    setMarketProp(null);
+  }, [systemMode]);
  
   useEffect(() => {
       const loadFavs = async () => {
