@@ -59,17 +59,7 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
     }
   }, [isMapLoaded, onMapLoad, map]);
 
-  useEffect(() => {
-    if (!map || !map.current) return;
-    if (systemMode === 'GATEWAY') {
-       map.current.flyTo({ center: [0, 20], zoom: 1.5, pitch: 0, duration: 3000 });
-    } else if (systemMode === 'EXPLORER') {
-       map.current.flyTo({ center: [-3.6905, 40.4250], zoom: 16.5, pitch: 65, bearing: -15, duration: 4000 });
-    }
-  }, [systemMode, map]);
-
-  
-
+ 
 
  // 🔥🔥🔥 SISTEMA DE SEÑALES MAESTRO (CORREGIDO) 🔥🔥🔥
   useEffect(() => {
