@@ -90,18 +90,7 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
           style={{ opacity: 1, zIndex: 1 }} 
         />
 
-        {/* --- GATILLO: BOTÓN ESCANEAR ZONA --- */}
-        {isMapLoaded && !showRadar && (
-           <div className="absolute top-24 left-1/2 -translate-x-1/2 z-30 animate-fade-in-down pointer-events-auto">
-              <button 
-                onClick={handleScanClick}
-                className="bg-black/90 backdrop-blur-md text-white border border-white/20 hover:bg-emerald-600 hover:border-emerald-400 hover:scale-105 transition-all px-6 py-2.5 rounded-full shadow-[0_10px_20px_rgba(0,0,0,0.5)] flex items-center gap-2 font-bold text-xs tracking-widest group uppercase"
-              >
-                <Radar size={14} className="group-hover:animate-spin" />
-                BUSQUEDA EN SECTOR
-              </button>
-           </div>
-        )}
+        
 
        {showRadar && (
     <div className="absolute top-0 right-0 h-full w-[600px] max-w-full z-[60000] pointer-events-auto animate-slide-in-right">
