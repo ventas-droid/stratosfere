@@ -317,17 +317,17 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
   };
 
 
-// --- C. ESCUCHA DE EVENTOS (SISTEMA NERVIOSO) ---
+// --- C. ESCUCHA DE EVENTOS (SISTEMA NERVIOSO CENTRAL) ---
   useEffect(() => {
     const handleOpenDetails = (e: any) => {
-        const propData = e.detail;
-        const finalProp = { 
-            ...propData, 
-            id: propData.id || Date.now(), 
-            img: propData.img || LUXURY_IMAGES[0], 
-            formattedPrice: propData.formattedPrice || propData.displayPrice || "Consultar" 
-        };
-        setSelectedProp(finalProp);
+        // 🔥 AQUI ESTÁ EL TRUCO: SANITIZAMOS LO QUE LLEGA
+        // Si viene de un Favorito antiguo con datos rotos, esto lo arregla al vuelo.
+        const rawData = e.detail;
+        
+        // Usamos la herramienta de reparación que pusimos fuera
+        const cleanProp = sanitizePropertyData(rawData);
+
+        setSelectedProp(cleanProp);
         setActivePanel('DETAILS');
         if(soundEnabled) playSynthSound('click');
     };
@@ -339,11 +339,19 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
     window.addEventListener('open-details-signal', handleOpenDetails);
     window.addEventListener('toggle-fav-signal', handleToggleFavSignal);
     
+    // Nueva escucha para editar desde mercado (opcional si ya la tiene)
+    const handleEditMarket = (e: any) => {
+        setMarketProp(e.detail);
+        setActivePanel('MARKETPLACE');
+    };
+    window.addEventListener('edit-market-signal', handleEditMarket);
+    
    return () => {
         window.removeEventListener('open-details-signal', handleOpenDetails);
         window.removeEventListener('toggle-fav-signal', handleToggleFavSignal);
+        window.removeEventListener('edit-market-signal', handleEditMarket);
     };
-  }, [soundEnabled, localFavs]); 
+  }, [soundEnabled, localFavs]);
 
   // -----------------------------------------------------------------
   // 🔥 NUEVO RECEPTOR DE MERCADO (PEGAR ESTO JUSTO DEBAJO)
