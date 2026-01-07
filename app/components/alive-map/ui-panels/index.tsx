@@ -966,24 +966,25 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
            </>
        )}
 {/* =================================================================
-    BLOQUE 3 MAESTRO: MODO AGENCIA (OMNI CLONADA + BOTONES TÁCTICOS)
+    BLOQUE 3 MAESTRO: MODO AGENCIA (OMNI COMPLETA CON BÓVEDA)
    ================================================================= */}
        {systemMode === 'AGENCY' && (
            <>
-               {/* 1. BARRA OMNI DE CRISTAL (DISEÑO CONSUMER - LÓGICA AGENCIA) */}
+               {/* 1. BARRA OMNI DE CRISTAL (DISEÑO 100% PREMIUM) */}
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                    <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
+                       
                        <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
 
-                           {/* A. IZQUIERDA: SALIR AL GATEWAY */}
+                           {/* A. IZQUIERDA: SALIR */}
                            <div className="flex items-center gap-1">
                                 <button 
                                     onClick={() => { 
                                         if(typeof playSynthSound === 'function') playSynthSound('click'); 
                                         setSystemMode('GATEWAY'); 
                                     }} 
-                                    className="p-3 rounded-full text-white/50 hover:text-red-500 hover:bg-white/10 transition-all"
-                                    title="Cerrar Sesión Agencia"
+                                    className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                                    title="Salir de Agencia"
                                 >
                                     <LayoutGrid size={18}/>
                                 </button>
@@ -991,7 +992,7 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
 
                            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                           {/* B. CENTRO: BUSCADOR OMNI (IA TÁCTICA) */}
+                           {/* B. CENTRO: BUSCADOR (IA TÁCTICA) */}
                            <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-emerald-500/50 focus-within:bg-emerald-500/5 transition-all group">
                                <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
                                <input
@@ -1009,43 +1010,52 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
 
                            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                           {/* C. DERECHA: BOTONES DE COMANDO (EL CLON QUE PEDÍA) */}
+                           {/* C. DERECHA: HERRAMIENTAS (AHORA CON BÓVEDA) */}
                            <div className="flex items-center gap-1">
                                
-                               {/* 1. RADAR (ACTIVAR ESCÁNER) - 🔥 CONECTADO AL MAPA */}
+                               {/* 1. RADAR (Mira Táctica) */}
                                <button 
                                    onClick={() => { 
                                        if(typeof playSynthSound === 'function') playSynthSound('ping'); 
-                                       // Enviamos la señal para despertar al Radar en AliveMap
                                        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-radar-signal'));
                                    }} 
-                                   className="p-3 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-500/20 transition-all relative group"
-                                   title="Activar Radar Táctico"
+                                   className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+                                   title="Activar Escáner"
                                >
-                                   <Activity size={18} />
-                                   {/* Pequeño punto de estado */}
-                                   <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                                   <Crosshair size={18} />
                                </button>
 
-                               {/* 2. MARKET / LICENCIAS */}
+                               {/* 2. MERCADO (Licencias) */}
                                <button 
                                    onClick={() => { 
                                        if(typeof playSynthSound === 'function') playSynthSound('click'); 
                                        setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET'); 
                                    }} 
-                                   className={`p-3 rounded-full transition-all ${activePanel === 'AGENCY_MARKET' ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white'}`}
+                                   className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel === 'AGENCY_MARKET' ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}
                                    title="Mercado de Servicios"
                                >
                                    <Shield size={18} />
                                </button>
 
-                               {/* 3. PERFIL AGENCIA */}
+                               {/* 3. BÓVEDA / FAVORITOS (¡AÑADIDO!) */}
+                               <button 
+                                   onClick={() => { 
+                                       if(typeof playSynthSound === 'function') playSynthSound('click'); 
+                                       toggleRightPanel('VAULT'); 
+                                   }} 
+                                   className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel === 'VAULT' ? 'text-red-500 bg-white/10' : 'text-white/50 hover:text-white'}`}
+                                   title="Bóveda de Referencias"
+                               >
+                                   <Heart size={18}/>
+                               </button>
+
+                               {/* 4. PERFIL AGENCIA */}
                                <button 
                                    onClick={() => { 
                                        if(typeof playSynthSound === 'function') playSynthSound('click'); 
                                        toggleRightPanel('AGENCY_PROFILE'); 
                                    }} 
-                                   className={`p-3 rounded-full transition-all ${rightPanel === 'AGENCY_PROFILE' ? 'bg-white text-black shadow-lg' : 'text-white/50 hover:text-white'}`}
+                                   className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel === 'AGENCY_PROFILE' ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}
                                    title="Perfil Corporativo"
                                >
                                    <Briefcase size={18}/>
@@ -1055,26 +1065,25 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
                    </div>
                </div>
 
-               {/* 2. PANELES LATERALES DE AGENCIA (Lógica recuperada) */}
-               
-               {/* Panel de Perfil */}
+               {/* 2. PANELES LATERALES DE AGENCIA */}
                <AgencyProfilePanel 
                    isOpen={rightPanel === 'AGENCY_PROFILE'} 
                    onClose={() => toggleRightPanel('NONE')} 
                />
-               
-               {/* Panel de Mercado */}
                <AgencyMarketPanel 
                    isOpen={activePanel === 'AGENCY_MARKET'} 
                    onClose={() => setActivePanel('NONE')} 
                />
-               
-               {/* ⚠️ NOTA: El Panel del Radar (TacticalRadarController) NO se renderiza aquí.
-                   Se renderiza dentro de AliveMap.tsx cuando recibe la señal 'open-radar-signal'.
-                   Esto mantiene el rendimiento alto. */}
+               {/* Cartera (si la usa) */}
+               <AgencyPortfolioPanel 
+                   isOpen={rightPanel === 'AGENCY_PORTFOLIO'} 
+                   onClose={() => setRightPanel('NONE')} 
+                   onCreateNew={() => handleEditAsset(null)} 
+                   onEditProperty={(p:any) => handleEditAsset(p)}
+               />
            </>
        )}
-       
+
   {/* --- PANELES LATERALES Y FLOTANTES (SISTEMA MULTITAREA) --- */}
        
        {/* 1. PERFIL (COLUMNA DERECHA) */}
