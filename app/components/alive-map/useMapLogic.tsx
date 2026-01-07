@@ -742,17 +742,17 @@ export const useMapLogic = () => {
   };
 
 // ====================================================================
-  // ⚡️ VISIÓN GLOBAL: PROTOCOLO "DESPERTADOR" (ANTI-RACE CONDITION)
+  // ⚡️ VISIÓN GLOBAL: PROTOCOLO ANTI-FALLO (AUTOCURACIÓN)
   // ====================================================================
   useEffect(() => {
-    // Si el mapa no está listo, no hacemos nada AÚN.
+    // 1. Si el mapa no existe físicamente, abortamos.
     if (!map.current) return;
 
-    const fetchAndPaint = async () => {
+    const executeRadar = async () => {
       try {
-        console.log("📡 RADAR: Iniciando barrido de superficie...");
+        console.log("📡 RADAR: Iniciando barrido táctico...");
         
-        // 1. CARGA DE DATOS (Servidor + Local)
+        // --- FASE 1: OBTENCIÓN DE DATOS ---
         const response = await getGlobalPropertiesAction();
         const serverData = response.success ? response.data : [];
 
@@ -762,7 +762,7 @@ export const useMapLogic = () => {
             if (saved) localData = JSON.parse(saved);
         } catch (e) {}
 
-        // 2. FUSIÓN INTELIGENTE (SOLUCIÓN 2 + ANTI-AMNESIA)
+        // --- FASE 2: FUSIÓN INTELIGENTE (Smart Merge) ---
         const uniqueMap = new Map();
 
         // A. Base Servidor
@@ -770,19 +770,20 @@ export const useMapLogic = () => {
             uniqueMap.set(String(p.id), { ...p, source: 'SERVER' });
         });
 
-        // B. Sobreescritura Local (Con protección de fotos)
+        // B. Sobreescritura Local (Respetando fotos del servidor)
         localData.forEach((localProp: any) => {
             if (localProp.id) {
                 const serverProp = uniqueMap.get(String(localProp.id));
                 
                 if (serverProp) {
-                    // Fusión: Local manda, pero si le falta foto, usa la del servidor
                     uniqueMap.set(String(localProp.id), { 
                         ...serverProp,      
                         ...localProp,       
+                        // Si local no tiene foto, usa la del servidor
                         images: (localProp.images && localProp.images.length > 0) ? localProp.images : serverProp.images,
                         img: localProp.img || serverProp.img,
-                        // 🔥 PROTECCIÓN DE DATOS
+                        // Si local no tiene precio/comunidad, usa servidor
+                        priceValue: localProp.priceValue || serverProp.priceValue,
                         communityFees: localProp.communityFees || serverProp.communityFees,
                         mBuilt: localProp.mBuilt || serverProp.mBuilt || serverProp.m2,
                         source: 'MERGED_SMART' 
@@ -795,7 +796,7 @@ export const useMapLogic = () => {
 
         const unifiedList = Array.from(uniqueMap.values());
 
-        // 3. DISPERSIÓN MATEMÁTICA (ESPIRAL DE EDIFICIOS)
+        // --- FASE 3: GEOMETRÍA (Espirales para edificios) ---
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
@@ -824,7 +825,7 @@ export const useMapLogic = () => {
                     priceValue: Number(p.rawPrice || p.priceValue || p.price),
                     img: p.img || (p.images && p.images[0]) || null,
                     
-                    // 🔥 DATOS CRÍTICOS PARA NANOCARD
+                    // 🔥 DATOS COMPLETOS
                     m2: Number(p.m2 || p.mBuilt || 0),       
                     mBuilt: Number(p.m2 || p.mBuilt || 0),   
                     communityFees: p.communityFees,
@@ -835,41 +836,52 @@ export const useMapLogic = () => {
             };
         });
 
-        // 4. INYECCIÓN SEGURA (Esperamos a que el estilo cargue)
-        const tryPainting = () => {
-            if (map.current && map.current.getSource('properties')) {
-                (map.current.getSource('properties') as any).setData({
+        // --- FASE 4: INYECCIÓN SEGURA (Bucle de reintento) ---
+        const injectSafely = (attempts = 0) => {
+            if (!map.current) return;
+
+            // Verificamos si la capa existe. Si no, esperamos.
+            const source = map.current.getSource('properties');
+            
+            if (source) {
+                // ¡ÉXITO! El mapa está listo. Pintamos.
+                (source as any).setData({
                     type: 'FeatureCollection',
                     features: features
                 });
-                console.log(`✅ RADAR: ${features.length} activos desplegados.`);
-                setTimeout(() => updateMarkers(), 100); // Pintar marcadores
+                console.log(`✅ RADAR: Despliegue exitoso (${features.length} activos).`);
+                
+                // Forzamos actualización visual de marcadores
+                setTimeout(() => { if(typeof updateMarkers === 'function') updateMarkers(); }, 50);
             } else {
-                // Si el mapa aún no tiene el "Source", esperamos un poco y reintentamos
-                console.log("⏳ RADAR: Mapa no listo, reintentando en 500ms...");
-                setTimeout(tryPainting, 500);
+                // FALLO: El mapa aún no ha creado la capa 'properties'.
+                if (attempts < 10) {
+                    console.warn(`⏳ RADAR: Mapa ocupado. Reintentando (${attempts + 1}/10)...`);
+                    setTimeout(() => injectSafely(attempts + 1), 500); // Espera 0.5s y reintenta
+                } else {
+                    console.error("🚨 RADAR: Tiempo de espera agotado.");
+                }
             }
         };
 
-        tryPainting();
+        // Iniciamos el intento de inyección
+        injectSafely();
 
-      } catch (e) { console.error("❌ Fallo en radar:", e); }
+      } catch (e) { console.error("❌ Fallo crítico en radar:", e); }
     };
 
-    // EJECUTAMOS AL CARGAR EL MAPA
+    // DISPARADORES
     if (isLoaded) {
-        fetchAndPaint();
+        executeRadar();
     } else {
-        // O si el mapa tarda, esperamos al evento load
-        map.current.once('load', fetchAndPaint);
-        // 🔥 DOBLE SEGURIDAD: Por si el evento load ya pasó
-        setTimeout(fetchAndPaint, 2000); 
+        // Red de seguridad por si isLoaded tarda
+        map.current.once('load', executeRadar);
     }
 
-    window.addEventListener('force-map-refresh', fetchAndPaint);
-    return () => window.removeEventListener('force-map-refresh', fetchAndPaint);
+    window.addEventListener('force-map-refresh', executeRadar);
+    return () => window.removeEventListener('force-map-refresh', executeRadar);
 
-  }, [isLoaded]); // Se dispara cuando el mapa avisa "Estoy listo"
+  }, [isLoaded]); // Fin del useEffect
   
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
