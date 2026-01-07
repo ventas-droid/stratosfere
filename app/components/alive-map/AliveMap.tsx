@@ -31,10 +31,31 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
     }
   }, [isMapLoaded, onRegisterSearch]);
 
+ // --- FIX VISUAL: EL DEFIBRILADOR ---
   useEffect(() => {
     if (isMapLoaded && map && map.current) {
+      // 1. Ajuste inicial inmediato
       map.current.resize();
       if (onMapLoad) onMapLoad(map.current);
+
+      // 2. 🔥 GOLPE DE SEGURIDAD (500ms):
+      // Obliga al mapa a repintar el lienzo por si las Nanocards quedaron ocultas
+      // durante la animación de entrada de la página.
+      setTimeout(() => {
+          if(map.current) {
+             map.current.resize();
+             map.current.triggerRepaint();
+             console.log("⚡️ MAPA: Repintado de seguridad ejecutado.");
+          }
+      }, 500);
+
+      // 3. 🔥 GOLPE FINAL (1500ms):
+      // Asegura que si la red iba lenta, aparezcan ahora.
+      setTimeout(() => {
+          if(map.current) {
+             map.current.triggerRepaint();
+          }
+      }, 1500);
     }
   }, [isMapLoaded, onMapLoad, map]);
 
