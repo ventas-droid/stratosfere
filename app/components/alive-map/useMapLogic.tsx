@@ -63,114 +63,39 @@ export const useMapLogic = () => {
       'bottom-left'
     );
 
-    map.current.on('load', () => {
+  map.current.on('load', () => {
       console.log("🟢 MAPA 3D: SISTEMAS LISTOS");
       setIsLoaded(true);
 
       // =================================================================
-      // 🔥 FUSIÓN NUCLEAR DE DATOS (Master DB + LocalStorage)
+      // 🛑 ESTRATEGIA CERO PARPADEOS (ESTRUCTURA VISUAL)
       // =================================================================
+      // Iniciamos el mapa VACÍO.
+      // La lógica de "Blindaje de Datos" (Ascensor, Precios, Servicios)
+      // se ejecuta EXCLUSIVAMENTE en el 'executeRadar' (más abajo)
+      // para asegurar una única fuente de verdad y evitar conflictos.
 
-      // 1. PREPARAR EJÉRCITO REGULAR (Stratos DB)
-      const masterFeatures = STRATOS_PROPERTIES.map(p => {
-       
-        // Convertir 'specs' {pool:true} -> array ['pool']
-        const servicesFromArray = p.specs
-          ? Object.keys(p.specs).filter((k: any) => (p.specs as any)[k])
-          : [];
-
-        return {
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: p.coordinates },
-          properties: {
-            ...p,
-            id: p.id,
-            priceValue: Number(p.price),
-
-            // 🔥 NORMALIZACIONES CLAVE
-            m2: Number(p.mBuilt),
-            mBuilt: Number(p.mBuilt),
-
-            // ✅ ASCENSOR BLINDADO (Master DB)
-            elevator: isYes(p?.specs?.elevator) || isYes((p as any).elevator) || isYes((p as any).ascensor),
-
-            img: p.images?.[0],
-            selectedServices: servicesFromArray
-          }
-        };
-      });
-
-      // 2. PREPARAR EJÉRCITO DE RESERVA (Sus propiedades manuales)
-      let userFeatures: any[] = [];
-      try {
-        const saved = localStorage.getItem('stratos_my_properties');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-
-          userFeatures = parsed.map((p: any) => ({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: p.coordinates || [-3.6883, 40.4280]
-            },
-            properties: {
-              // 1. PASAMOS TODO EL EQUIPO BASE
-              ...p,
-
-              // 2. NORMALIZACIÓN DE IDENTIDAD
-              id: p.id || Date.now(),
-              role: p.role || 'PROPIETARIO',
-              type: p.type || 'Propiedad',
-
-              // 3. BLINDAJE DE PRECIO (Asegura número)
-              priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
-
-              // 4. BLINDAJE DE METROS (Doble llave: m2 y mBuilt)
-              m2: Number(p.mBuilt || p.m2 || 0),
-              mBuilt: Number(p.mBuilt || p.m2 || 0),
-
-              // ✅ 5. BLINDAJE ASCENSOR (acepta "Sí/Si/true/1")
-              elevator: (
-                isYes(p.elevator) ||
-                isYes(p.ascensor) ||
-                isYes(p.hasElevator) ||
-                isYes(p?.specs?.elevator)
-              ),
-
-              // 6. BLINDAJE DE SERVICIOS
-              selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
-
-             // 7. IMAGEN SEGURA (VERSIÓN REALISTA)
-              // Si hay foto, la usamos. Si no, NULL.
-              img: (p.images && p.images.length > 0)
-                ? p.images[0]
-                : null
-            }
-          }));
-
-          console.log(`📡 RADAR: Detectados ${userFeatures.length} activos propios.`);
-        }
-      } catch (e) {
-        console.error("Error leyendo radar:", e);
-      }
-
-      // 4. CARGA AL MAPA
+      // 1. FUENTE DE DATOS (INICIALIZACIÓN ESTRUCTURAL)
       if (map.current.getSource('properties')) {
         (map.current.getSource('properties') as any).setData({
           type: 'FeatureCollection',
-          features: [] // <--- 🔥 PONGA ESTO VACÍO (features: [])
+          features: [] // 🔥 VACÍO: Esperando inyección segura del Radar
         });
       } else {
         map.current.addSource('properties', {
           type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }, // <--- 🔥 AQUÍ TAMBIÉN VACÍO
+          data: { type: 'FeatureCollection', features: [] }, // 🔥 VACÍO: Esperando inyección segura del Radar
           cluster: true,
           clusterMaxZoom: 15,
           clusterRadius: 80
         });
       }
 
-      // --- CAPAS VISUALES (CLUSTERS Y CONTEO) ---
+      // =================================================================
+      // 🎨 DISEÑO VISUAL Y CAPAS (MANTENIDO AL 100%)
+      // =================================================================
+
+      // Capa: Círculos Azules (Agrupaciones)
       if (!map.current.getLayer('clusters')) {
         map.current.addLayer({
           id: 'clusters',
@@ -178,7 +103,7 @@ export const useMapLogic = () => {
           source: 'properties',
           filter: ['has', 'point_count'],
           paint: {
-            'circle-color': '#0071e3',
+            'circle-color': '#0071e3', // Azul Corporativo Stratos
             'circle-radius': ['step', ['get', 'point_count'], 25, 100, 35, 750, 45],
             'circle-stroke-width': 2,
             'circle-stroke-color': '#ffffff',
@@ -188,6 +113,7 @@ export const useMapLogic = () => {
         });
       }
 
+      // Capa: Contador de Propiedades (Números Blancos)
       if (!map.current.getLayer('cluster-count')) {
         map.current.addLayer({
           id: 'cluster-count',
@@ -200,30 +126,48 @@ export const useMapLogic = () => {
             'text-size': 16,
             'text-offset': [0, 0]
           },
-          paint: { 'text-color': '#ffffff', 'text-emissive-strength': 1 }
+          paint: { 
+            'text-color': '#ffffff', 
+            'text-emissive-strength': 1 
+          }
         });
       }
 
-      // Eventos de Cluster
+      // =================================================================
+      // 🖱️ INTERACTIVIDAD (CLICS Y MOVIMIENTO)
+      // =================================================================
+      
+      // Evento: Click en Cluster -> Zoom Suave (Cinemática)
       map.current.on('click', 'clusters', (e) => {
         const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         const clusterId = features[0].properties.cluster_id;
         map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err) return;
-          map.current.flyTo({ center: features[0].geometry.coordinates, zoom: zoom + 1, speed: 0.5 });
+          map.current.flyTo({ 
+              center: features[0].geometry.coordinates, 
+              zoom: zoom + 1, 
+              speed: 0.5 
+          });
         });
       });
 
-      map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
-      map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
+      // Cursor Pointer (Mano) al pasar por encima
+      map.current.on('mouseenter', 'clusters', () => { 
+          map.current.getCanvas().style.cursor = 'pointer'; 
+      });
+      
+      map.current.on('mouseleave', 'clusters', () => { 
+          map.current.getCanvas().style.cursor = ''; 
+      });
 
-     map.current.on('moveend', () => updateMarkers());
+      // Sincronización de Nanocards al mover el mapa
+      map.current.on('moveend', () => updateMarkers());
 
-
+      // Primera llamada (Prepara el terreno para el Radar)
       updateMarkers();
-    });
-  }, []);
-
+      
+    }); // <--- CIERRE DEL .on('load')
+  }, []); // <--- CIERRE DEL useEffect (ESTO ES LO QUE FALTABA)
   // ----------------------------------------------------------------------
   // 3. LÓGICA DE FILTRADO INTELIGENTE V2
   // ----------------------------------------------------------------------

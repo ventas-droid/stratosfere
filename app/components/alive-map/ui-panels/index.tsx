@@ -43,11 +43,11 @@ export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
   "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
 ];
-// --- 🔧 HERRAMIENTA DE REPARACIÓN DE DATOS (SANITIZER) ---
+// --- 🔧 HERRAMIENTA DE REPARACIÓN DE DATOS (SANITIZER V3 - HONESTA Y SINCRONIZADA) ---
 const sanitizePropertyData = (p: any) => {
   if (!p) return null;
 
-  // 1. REPARACIÓN DE IMÁGENES
+  // 1. REPARACIÓN DE IMÁGENES (SIN FOTOS FALSAS)
   let safeImages: string[] = [];
   if (Array.isArray(p.images) && p.images.length > 0) {
       safeImages = p.images.map((i: any) => typeof i === 'string' ? i : i.url);
@@ -55,23 +55,27 @@ const sanitizePropertyData = (p: any) => {
       safeImages = [p.img];
   } else if (p.mainImage) {
       safeImages = [p.mainImage];
-  } else {
-      // Imagen de emergencia si todo falla
-      safeImages = ["https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"];
   }
+  // 🛑 ELIMINADA LA IMAGEN DE EMERGENCIA. 
+  // Si no hay foto, safeImages se queda vacío [].
 
-  // 2. REPARACIÓN DE PRECIO
+  // 2. REPARACIÓN DE PRECIO (Núcleo Financiero)
   const safePrice = Number(p.priceValue || p.rawPrice || String(p.price).replace(/\D/g, '') || 0);
 
   return {
       ...p,
-      id: String(p.id), // Aseguramos ID como texto
-      price: safePrice,
-      formattedPrice: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(safePrice),
-      images: safeImages,
-      img: safeImages[0], // Portada blindada
+      id: String(p.id),
       
-      // Aseguramos que los datos técnicos viajen
+      // 🔥 LA CLAVE DEL ÉXITO: Sincronización total de precios
+      price: safePrice, 
+      priceValue: safePrice, // ESTO ACTUALIZA FAVORITOS
+      rawPrice: safePrice,   // ESTO TAMBIÉN
+      
+      formattedPrice: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(safePrice),
+      
+      images: safeImages,
+      img: safeImages[0] || null, // Si no hay foto, es NULL (Gris honesto)
+      
       communityFees: p.communityFees || 0,
       mBuilt: Number(p.mBuilt || p.m2 || 0)
   };
