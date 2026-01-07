@@ -1242,128 +1242,86 @@ const StepSecurity = ({ setStep, setLoading }: any) => {
 };
 
 // ==================================================================================
-// 🏆 STEP SUCCESS: EL LANZAMIENTO FINAL (CON PROTOCOLO ANTI-CRASH 🛡️ & CALIBRADO)
+// 🏆 STEP SUCCESS: EL LANZAMIENTO FINAL (CONECTADO A BASE DE DATOS)
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
   
-  // Preparación de datos visuales
+  // Preparación visual
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
   
-  // Imagen para mostrar en pantalla (Preview)
+  // Imagen Preview
   const hasUserPhoto = formData.images && formData.images.length > 0;
-  
-  // CAMBIO AQUÍ: Si no hay foto, ponemos NULL. Prohibido inventar.
-  const previewImage = hasUserPhoto ? formData.images[0] : null;
+  const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
- // --- LÓGICA DE GUARDADO MAESTRA (DB FIRST + UI INSTANTÁNEA) ---
+  // --- 🔥 FUNCIÓN DE GUARDADO REAL (DB) ---
   const handleSafeSave = async () => { 
       
-      // 1. PREPARACIÓN Y SANITIZACIÓN DE DATOS
-      const elevatorBool = formData.elevator === true || String(formData.elevator) === "true" || formData.elevator === 1;
-      const finalPrice = rawPrice;
-
-      // ID Temporal (por si falla la red, tener algo)
-      const tempId = formData.id || Date.now().toString();
-
-      const basePayload = { 
-          ...formData, 
-          id: tempId, 
-          price: visualPrice, 
-          rawPrice: finalPrice, 
-          priceValue: finalPrice, 
-          coordinates: formData.coordinates || [-3.6883, 40.4280], 
-          location: (formData.city || formData.location || "MADRID").toUpperCase(), 
-          rooms: Number(formData.rooms || 0), 
-          baths: Number(formData.baths || 0), 
-          mBuilt: Number(formData.mBuilt || 0), 
-          m2: Number(formData.mBuilt || 0), 
-          elevator: elevatorBool,
-          selectedServices: formData.selectedServices || [], 
-          isNewEntry: true,
-          type: formData.type || "Propiedad"
+      // 1. LIMPIEZA DE DATOS
+      const cleanPayload = {
+          ...formData,
+          // Aseguramos números para evitar errores en Prisma
+          rooms: Number(formData.rooms || 0),
+          baths: Number(formData.baths || 0),
+          mBuilt: Number(formData.mBuilt || 0),
+          price: formData.price, // Se limpia en el servidor
+          // Coordenadas o Madrid por defecto
+          coordinates: formData.coordinates || [-3.6883, 40.4280],
       };
 
-      const mainImage = hasUserPhoto ? formData.images[0] : null;
+      console.log("📡 CONECTANDO CON SERVIDOR...", cleanPayload);
 
-      const fullPayload = { 
-          ...basePayload, 
-          images: hasUserPhoto ? formData.images : [],
-          img: mainImage 
-      };
-
-      // ---------------------------------------------------------
-      // 🚀 FASE 1: LA VERDAD (BASE DE DATOS)
-      // ---------------------------------------------------------
       try {
-          console.log("📡 Conectando con Comando Central (DB)...");
-          const serverResult = await savePropertyAction(fullPayload);
-          
-          if (serverResult && serverResult.success) {
-              console.log("✅ GUARDADO CONFIRMADO. ID OFICIAL:", serverResult.property.id);
-              // ¡CRÍTICO! Reemplazamos el ID temporal por el ID real de la base de datos
-              fullPayload.id = serverResult.property.id; 
+          // 2. DISPARO AL SERVIDOR (actions.ts)
+          const response = await savePropertyAction(cleanPayload);
+
+          if (response.success && response.property) {
+              console.log("✅ PROPIEDAD GUARDADA EN NUBE. ID:", response.property.id);
+              
+              // 3. RECIBIMOS EL OBJETO REAL DE LA DB
+              const serverProp = response.property;
+              
+              // 4. PREPARAMOS EL FORMATO PARA EL MAPA
+              const mapFormat = {
+                  ...serverProp,
+                  // Reconstruimos coordenadas y precio para el frontend
+                  coordinates: [serverProp.longitude, serverProp.latitude],
+                  img: serverProp.mainImage || (serverProp.images && serverProp.images[0]?.url),
+                  price: new Intl.NumberFormat('es-ES').format(serverProp.price || 0),
+                  selectedServices: serverProp.selectedServices
+              };
+
+              // 5. ACTUALIZACIÓN EN TIEMPO REAL (SIN RECARGAR)
+              if (typeof window !== "undefined") {
+                  // A. Pinta la chincheta en el mapa
+                  window.dispatchEvent(new CustomEvent("add-property-signal", { 
+                      detail: mapFormat 
+                  }));
+                  
+                  // B. Avisa al Perfil para que recargue la lista de la DB
+                  window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+                  
+                  // C. Vuelo de cámara
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("map-fly-to", { 
+                        detail: { center: mapFormat.coordinates, zoom: 18, pitch: 60, duration: 3000 } 
+                    }));
+                  }, 500);
+              }
+
+              // 6. MISIÓN CUMPLIDA: CERRAMOS EL HUD
+              handleClose(mapFormat);
+
           } else {
-              console.warn("⚠️ Alerta: Guardado en modo local (Error Servidor):", serverResult?.error);
+              console.error("❌ Error Servidor:", response.error);
+              alert("Error al guardar: " + response.error);
           }
       } catch (err) {
-          console.error("⚠️ Error de conexión (Offline):", err);
+          console.error("❌ Fallo de red:", err);
+          alert("Error de conexión. Verifica tu internet.");
       }
-
-      // ---------------------------------------------------------
-      // 🚀 FASE 2: ACTUALIZACIÓN TÁCTICA (SEÑALES)
-      // ---------------------------------------------------------
-      if (typeof window !== "undefined") {
-          
-          // A. ACTUALIZAR CACHÉ LOCAL (Solo para velocidad del Mapa, no para el Perfil)
-          try {
-              const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
-              // Buscamos si ya existía (usando ID temporal o real)
-              const idx = saved.findIndex((p: any) => String(p.id) === String(fullPayload.id) || String(p.id) === String(tempId));
-              
-              if (idx >= 0) saved[idx] = fullPayload; 
-              else saved.push(fullPayload);
-              
-              localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
-          } catch (e) {
-              console.log("⚠️ Memoria llena, omitiendo caché local.");
-          }
-
-          // 🔥 B. DISPARO DE SEÑALES (EL ORDEN IMPORTA) 🔥
-          
-          // 1. Perfil: "¡Descarga los datos nuevos del servidor YA!"
-          // (Esto llenará la lista lateral con el dato real de la BD)
-          window.dispatchEvent(new CustomEvent("reload-profile-assets")); 
-
-          // 2. Mapa: "¡Pinta la chincheta nueva!"
-          if (formData.isEditMode) {
-               // Si editamos, actualizamos la tarjeta existente
-               window.dispatchEvent(new CustomEvent("update-property-signal", { 
-                   detail: { id: fullPayload.id, updates: fullPayload } 
-               }));
-               // Y actualizamos el panel de detalles si estaba abierto
-               window.dispatchEvent(new CustomEvent("open-details-signal", { detail: fullPayload }));
-          } else {
-               // Si es nuevo, añadimos la chincheta al mapa
-               window.dispatchEvent(new CustomEvent("add-property-signal", { detail: fullPayload })); 
-          }
-
-          // 3. Refresco General del Mapa (Limpieza)
-          window.dispatchEvent(new CustomEvent("force-map-refresh"));
-
-          // 4. Vuelo de cámara (Solo si es nuevo y tiene coordenadas)
-          if (!formData.isEditMode && fullPayload.coordinates) {
-               setTimeout(() => {
-                   window.dispatchEvent(new CustomEvent("map-fly-to", { 
-                       detail: { center: fullPayload.coordinates, zoom: 18, pitch: 60, duration: 3000 } 
-                   }));
-               }, 500); // Pequeño delay para dar tiempo al mapa a pintar
-          }
-      }
-      
-      // Cierra el modo Arquitecto y vuelve al mapa
-      handleClose(fullPayload);
   };
+
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
       
@@ -1371,7 +1329,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-green-400/20 rounded-full blur-3xl -z-10 animate-pulse" />
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl -z-10 animate-pulse delay-700" />
 
-      {/* Icono */}
+      {/* Icono Éxito */}
       <div className="mb-8 relative">
         <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-[0_10px_40px_rgba(34,197,94,0.4)] animate-bounce-small z-10 relative">
             <CheckCircle2 size={48} className="text-white" strokeWidth={3} />
@@ -1379,47 +1337,35 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20 duration-[2000ms]" />
       </div>
 
-      <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight text-center">¡Propiedad Lista!</h2>
+      <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight text-center">¡Propiedad Listada!</h2>
       <p className="text-gray-500 mb-10 text-center font-medium max-w-sm text-lg">
-        Tu activo ha sido validado. Confirmamos la publicación en la red Stratos.
+        Activo registrado en la base de datos de Stratos. Visible en la red global.
       </p>
 
       {/* Tarjeta Preview */}
       <div className="w-full max-w-xs bg-white rounded-[24px] border border-gray-100 shadow-xl p-4 mb-10 transform rotate-1 hover:rotate-0 transition-transform duration-500">
           <div className="aspect-video bg-gray-100 rounded-xl mb-4 relative overflow-hidden group">
              <img src={previewImage} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
-             {!hasUserPhoto && (
-                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
-                     <span className="text-[10px] font-black text-white uppercase tracking-widest border border-white/50 px-2 py-1 rounded">Sin Foto</span>
-                 </div>
-             )}
              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-900 shadow-sm">Nuevo</div>
           </div>
           <div className="px-2 pb-2">
-             <div className="flex justify-between items-start mb-1">
-                 <h3 className="text-sm font-black text-gray-900 line-clamp-1">{formData.title || "Nueva Propiedad"}</h3>
-             </div>
+             <h3 className="text-sm font-black text-gray-900 line-clamp-1">{formData.title || "Nueva Propiedad"}</h3>
              <p className="text-xs text-gray-500 font-medium mb-3 line-clamp-1">{formData.address}</p>
              <div className="flex items-center justify-between border-t border-gray-50 pt-3">
                 <span className="text-lg font-black text-gray-900">{visualPrice}€</span>
-                <div className="flex gap-1">
-                    {formData.selectedServices?.includes('pack_pro') && <span className="w-2 h-2 rounded-full bg-purple-500" title="Pro"></span>}
-                    {formData.selectedServices?.includes('pack_elite') && <span className="w-2 h-2 rounded-full bg-yellow-500" title="Elite"></span>}
-                    <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded-md uppercase">{formData.type}</span>
-                </div>
+                <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded-md uppercase">{formData.type}</span>
              </div>
           </div>
       </div>
 
-      {/* Botón de Acción con Handler Blindado */}
+      {/* BOTÓN CON LÓGICA DE SERVIDOR */}
       <button 
         onClick={handleSafeSave} 
-        className="px-10 py-5 bg-[#1d1d1f] hover:bg-black text-white font-bold rounded-[24px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] active:scale-95 transition-all flex items-center gap-3 text-lg"
+        className="px-10 py-5 bg-[#1d1d1f] hover:bg-black text-white font-bold rounded-[24px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] active:scale-95 transition-all flex items-center gap-3 text-lg cursor-pointer"
       >
-        <span>Ir al Mapa</span>
+        <span>Publicar en el Mapa</span>
         <ArrowRight size={20} />
       </button>
     </div>
   );
 };
-

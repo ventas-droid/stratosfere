@@ -1,11 +1,13 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_URL")
-  directUrl = env("POSTGRES_URL")
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+  // directUrl eliminado para evitar error en local
 }
 
 enum UserRole {
@@ -38,12 +40,16 @@ model Property {
   id                String    @id @default(cuid())
   userId            String?
   user              User?     @relation(fields: [userId], references: [id])
+  
+  // Ubicación
   address           String
   city              String?
   region            String?
   postcode          String?
   latitude          Float?
   longitude         Float?
+  
+  // Detalles Básicos
   type              String    @default("Piso")
   floor             String?
   door              String?
@@ -52,6 +58,8 @@ model Property {
   mBuilt            Float
   rooms             Int
   baths             Int
+  
+  // Amenities
   pool              Boolean   @default(false)
   garage            Boolean   @default(false)
   terrace           Boolean   @default(false)
@@ -60,21 +68,30 @@ model Property {
   ac                Boolean   @default(false)
   security          Boolean   @default(false)
   exterior          Boolean   @default(true)
+  
+  // Datos Comerciales
   title             String?
   description       String?   @db.Text
+  price             Float?
+  communityFees     Float?
+  
+  // Energía
   energyConsumption String?
   energyEmissions   String?
   energyPending     Boolean   @default(false)
+  
+  // Multimedia y Servicios
   mainImage         String?
   images            Image[]
-  price             Float?
-  communityFees     Float?
   selectedServices  String[]
   serviceOrders     ServiceOrder[]
+  
+  // Estado Sistema
   status            String    @default("BORRADOR")
   views             Int       @default(0)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  
   favoritedBy       Favorite[]
 }
 
@@ -104,3 +121,4 @@ model Favorite {
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   @@unique([userId, propertyId])
 }
+
