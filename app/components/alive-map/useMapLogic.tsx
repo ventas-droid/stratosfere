@@ -742,17 +742,18 @@ export const useMapLogic = () => {
   };
 
 // ====================================================================
-  // ⚡️ VISIÓN GLOBAL: HIGHLANDER + DISPERSIÓN DE EDIFICIOS (ANTI-STACKING)
+  // ⚡️ VISIÓN GLOBAL: PROTOCOLO "DESPERTADOR" (ANTI-RACE CONDITION)
   // ====================================================================
   useEffect(() => {
-    if (!isLoaded || !map.current) return;
+    // Si el mapa no está listo, no hacemos nada AÚN.
+    if (!map.current) return;
 
-    const fetchServerProperties = async () => {
+    const fetchAndPaint = async () => {
       try {
-        console.log("📡 RADAR: Iniciando protocolo de limpieza y dispersión...");
+        console.log("📡 RADAR: Iniciando barrido de superficie...");
         
-        // 1. CARGA DE DATOS
-       const response = await getGlobalPropertiesAction();
+        // 1. CARGA DE DATOS (Servidor + Local)
+        const response = await getGlobalPropertiesAction();
         const serverData = response.success ? response.data : [];
 
         let localData = [];
@@ -761,9 +762,7 @@ export const useMapLogic = () => {
             if (saved) localData = JSON.parse(saved);
         } catch (e) {}
 
-        // 2. FUSIÓN ÚNICA (HIGHLANDER - FIX DE IDs)
-        // Usamos un Map donde la CLAVE es el ID como String.
-        // Esto evita que '123' (num) y '123' (txt) se dupliquen.
+        // 2. FUSIÓN INTELIGENTE (SOLUCIÓN 2 + ANTI-AMNESIA)
         const uniqueMap = new Map();
 
         // A. Base Servidor
@@ -771,32 +770,24 @@ export const useMapLogic = () => {
             uniqueMap.set(String(p.id), { ...p, source: 'SERVER' });
         });
 
-      // B. Sobreescritura Local INTELIGENTE (Mezcla lo mejor de los dos mundos)
+        // B. Sobreescritura Local (Con protección de fotos)
         localData.forEach((localProp: any) => {
             if (localProp.id) {
                 const serverProp = uniqueMap.get(String(localProp.id));
                 
-                // Si existe en el servidor, fusionamos con cuidado
                 if (serverProp) {
+                    // Fusión: Local manda, pero si le falta foto, usa la del servidor
                     uniqueMap.set(String(localProp.id), { 
-                        ...serverProp,      // 1. Usamos la base sólida del servidor
-                        ...localProp,       // 2. Aplicamos cambios locales (edición en vivo)
-                        
-                        // 🔥 PROTECCIÓN DE FOTOS: 
-                        // Si el local no tiene imagen, RESCATAMOS la del servidor
-                        images: (localProp.images && localProp.images.length > 0) 
-                                ? localProp.images 
-                                : serverProp.images,
+                        ...serverProp,      
+                        ...localProp,       
+                        images: (localProp.images && localProp.images.length > 0) ? localProp.images : serverProp.images,
                         img: localProp.img || serverProp.img,
-
-                        // 🔥 PROTECCIÓN DE DATOS CRÍTICOS:
+                        // 🔥 PROTECCIÓN DE DATOS
                         communityFees: localProp.communityFees || serverProp.communityFees,
                         mBuilt: localProp.mBuilt || serverProp.mBuilt || serverProp.m2,
-                        
                         source: 'MERGED_SMART' 
                     });
                 } else {
-                    // Si es nueva (solo existe en local), la metemos tal cual
                     uniqueMap.set(String(localProp.id), { ...localProp, source: 'LOCAL_ONLY' });
                 }
             }
@@ -804,58 +795,38 @@ export const useMapLogic = () => {
 
         const unifiedList = Array.from(uniqueMap.values());
 
-      // 3. DISPERSIÓN DE EDIFICIOS (SOLUCIÓN MATEMÁTICA) 
+        // 3. DISPERSIÓN MATEMÁTICA (ESPIRAL DE EDIFICIOS)
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
-            // Coordenadas base
             let lng = Number(p.coordinates ? p.coordinates[0] : p.longitude);
             let lat = Number(p.coordinates ? p.coordinates[1] : p.latitude);
-
             if (!lng || !lat) { lng = -3.6883; lat = 40.4280; }
 
-            // TRUCO MAESTRO: Redondeamos a 3 decimales. 
-            // Esto agrupa propiedades que están en el mismo edificio O MUY CERCA.
             const coordKey = `${lng.toFixed(3)},${lat.toFixed(3)}`;
-            
-            // ¿Cuántas hay ya en este radio?
             const count = coordTracker.get(coordKey) || 0;
             
-            // Si hay más de una, aplicamos la ESPIRAL
             if (count > 0) {
-                // Ángulo: Giramos como las agujas del reloj
-                const angle = count * (Math.PI * 2 / 5); // 5 puntos por vuelta
-                
-                // Radio: Cuantas más haya, más lejos las empujamos (0.0004 grados aprox 40 metros)
+                const angle = count * (Math.PI * 2 / 5); 
                 const separation = 0.0004; 
                 const radius = separation * (1 + Math.floor(count / 5)); 
-                
                 lng += Math.cos(angle) * radius;
                 lat += Math.sin(angle) * radius;
             }
-
-            // Registramos +1 en este sitio
             coordTracker.set(coordKey, count + 1);
 
             return {
                 type: 'Feature',
-                geometry: { 
-                    type: 'Point', 
-                    coordinates: [lng, lat] 
-                },
+                geometry: { type: 'Point', coordinates: [lng, lat] },
                 properties: {
-                    ...p, // Mantiene todos los datos originales
+                    ...p,
                     id: String(p.id),
-                    // Asegúrate de pasar el precio numérico correcto
                     priceValue: Number(p.rawPrice || p.priceValue || p.price),
                     img: p.img || (p.images && p.images[0]) || null,
-
-                    // 🔥🔥 CORRECCIÓN CRÍTICA: PUENTE AÉREO DE DATOS 🔥🔥
-                    // Esto arregla el "0 m²" en la NanoCard forzando la lectura:
+                    
+                    // 🔥 DATOS CRÍTICOS PARA NANOCARD
                     m2: Number(p.m2 || p.mBuilt || 0),       
                     mBuilt: Number(p.m2 || p.mBuilt || 0),   
-
-                    // Esto asegura que al abrir el panel, tenga estos datos:
                     communityFees: p.communityFees,
                     energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions,
@@ -864,29 +835,41 @@ export const useMapLogic = () => {
             };
         });
 
-        // 4. INYECCIÓN EN EL MAPA (LIMPIEZA FINAL)
-        const source: any = map.current.getSource('properties');
-        if (source) {
-            source.setData({
-                type: 'FeatureCollection',
-                features: features
-            });
-            
-            console.log(`✅ RADAR ACTUALIZADO: ${features.length} activos desplegados.`);
-            
-            setTimeout(() => {
-                if(typeof updateMarkers === 'function') updateMarkers(); 
-            }, 100);
-        }
+        // 4. INYECCIÓN SEGURA (Esperamos a que el estilo cargue)
+        const tryPainting = () => {
+            if (map.current && map.current.getSource('properties')) {
+                (map.current.getSource('properties') as any).setData({
+                    type: 'FeatureCollection',
+                    features: features
+                });
+                console.log(`✅ RADAR: ${features.length} activos desplegados.`);
+                setTimeout(() => updateMarkers(), 100); // Pintar marcadores
+            } else {
+                // Si el mapa aún no tiene el "Source", esperamos un poco y reintentamos
+                console.log("⏳ RADAR: Mapa no listo, reintentando en 500ms...");
+                setTimeout(tryPainting, 500);
+            }
+        };
+
+        tryPainting();
 
       } catch (e) { console.error("❌ Fallo en radar:", e); }
     };
 
-    fetchServerProperties();
-    window.addEventListener('force-map-refresh', fetchServerProperties);
-    return () => window.removeEventListener('force-map-refresh', fetchServerProperties);
+    // EJECUTAMOS AL CARGAR EL MAPA
+    if (isLoaded) {
+        fetchAndPaint();
+    } else {
+        // O si el mapa tarda, esperamos al evento load
+        map.current.once('load', fetchAndPaint);
+        // 🔥 DOBLE SEGURIDAD: Por si el evento load ya pasó
+        setTimeout(fetchAndPaint, 2000); 
+    }
 
-  }, [isLoaded]);
+    window.addEventListener('force-map-refresh', fetchAndPaint);
+    return () => window.removeEventListener('force-map-refresh', fetchAndPaint);
+
+  }, [isLoaded]); // Se dispara cuando el mapa avisa "Estoy listo"
   
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
