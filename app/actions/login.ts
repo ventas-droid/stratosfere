@@ -3,6 +3,7 @@
 import { db } from "../lib/db"
 import { compare } from "bcryptjs"
 import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 
 export async function loginUser(formData: FormData) {
   const email = formData.get("email") as string
@@ -10,28 +11,32 @@ export async function loginUser(formData: FormData) {
 
   if (!email || !password) return { error: "Faltan datos" }
 
-  // 1. Buscar al soldado en la base de datos
   const user = await db.user.findUnique({
     where: { email }
   })
 
-  // 2. Si no existe o no tiene contraseña
   if (!user || !user.password) {
     return { error: "Credenciales inválidas" }
   }
 
-  // 3. Comparar la contraseña (Desencriptar)
   const isValid = await compare(password, user.password)
 
   if (!isValid) {
     return { error: "Contraseña incorrecta" }
   }
 
-  // 4. PREPARAR LOS PAPELES DEL SALVOCONDUCTO
-  // Si es Agencia, le damos pase de Agencia. Si no, de Particular.
+  // 🔥 CORRECCIÓN AQUÍ: Añadido (await cookies())
+  const cookieStore = await cookies();
+  
+  cookieStore.set('stratos_session_email', email, {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    path: '/',
+    maxAge: 60 * 60 * 24 * 30 
+  });
+
   const roleParam = user.role === 'AGENCIA' ? 'AGENCIA' : 'PARTICULAR'
   
-  // 5. REDIRIGIR AL MAPA
-  console.log(`🔓 ACCESO CONCEDIDO: ${email} (${roleParam})`)
+  console.log(`🔓 ACCESO CONCEDIDO: ${email}`)
   redirect(`/?access=granted&role=${roleParam}`)
 }
