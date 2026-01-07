@@ -43,6 +43,40 @@ export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
   "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
 ];
+// --- 🔧 HERRAMIENTA DE REPARACIÓN DE DATOS (SANITIZER) ---
+const sanitizePropertyData = (p: any) => {
+  if (!p) return null;
+
+  // 1. REPARACIÓN DE IMÁGENES
+  let safeImages: string[] = [];
+  if (Array.isArray(p.images) && p.images.length > 0) {
+      safeImages = p.images.map((i: any) => typeof i === 'string' ? i : i.url);
+  } else if (p.img) {
+      safeImages = [p.img];
+  } else if (p.mainImage) {
+      safeImages = [p.mainImage];
+  } else {
+      // Imagen de emergencia si todo falla
+      safeImages = ["https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"];
+  }
+
+  // 2. REPARACIÓN DE PRECIO
+  const safePrice = Number(p.priceValue || p.rawPrice || String(p.price).replace(/\D/g, '') || 0);
+
+  return {
+      ...p,
+      id: String(p.id), // Aseguramos ID como texto
+      price: safePrice,
+      formattedPrice: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(safePrice),
+      images: safeImages,
+      img: safeImages[0], // Portada blindada
+      
+      // Aseguramos que los datos técnicos viajen
+      communityFees: p.communityFees || 0,
+      mBuilt: Number(p.mBuilt || p.m2 || 0)
+  };
+};
+
 
 export default function UIPanels({ 
   map, 
@@ -501,7 +535,7 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
            </div>
        )}
 
-      {/* BLOQUE 1: MODO ARQUITECTO (VENDER) - CONVOY DE DATOS ACTIVADO 🚚 */}
+     {/* BLOQUE 1: MODO ARQUITECTO (EDICIÓN BLINDADA Y SINCRONIZADA) 🚚 */}
        {systemMode === 'ARCHITECT' && (
            <ArchitectHud 
                soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
@@ -513,33 +547,47 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
                    // 1. Limpieza de memoria temporal
                    setEditingProp(null); 
                    
-                   if (success) {
-                       console.log("✅ Propiedad publicada con éxito");
+                   if (success && payload) {
+                       console.log("✅ EDICIÓN COMPLETADA. Sincronizando sistemas...", payload);
                        
-                       // 2. CAMBIO A MODO EXPLORADOR
+                       // 2. SANITIZAMOS LOS DATOS NUEVOS (Usando la herramienta que puso fuera)
+                       const freshData = sanitizePropertyData(payload);
+
+                       // 3. ACTUALIZAMOS FAVORITOS EN TIEMPO REAL 
+                       // (Esto evita que al abrir favoritos salga el precio viejo)
+                       setLocalFavs(currentFavs => {
+                           return currentFavs.map(fav => {
+                               if (String(fav.id) === String(freshData.id)) {
+                                   console.log("🔄 Actualizando precio en Favoritos:", freshData.price);
+                                   return { ...fav, ...freshData }; 
+                               }
+                               return fav;
+                           });
+                       });
+
+                       // 4. ACTUALIZAMOS EL MAPA (Señal doble para asegurar)
+                       if (typeof window !== 'undefined') {
+                           // A. Si ya existía, actualizamos el marcador en vivo
+                           window.dispatchEvent(new CustomEvent('update-property-signal', { 
+                               detail: { id: freshData.id, updates: freshData } 
+                           }));
+                           
+                           // B. Si era nueva, la añadimos al mapa
+                           setTimeout(() => {
+                               window.dispatchEvent(new CustomEvent('add-property-signal', { 
+                                   detail: freshData 
+                               }));
+                           }, 100);
+                       }
+                       
+                       // 5. TRANSICIÓN A MODO EXPLORADOR
                        setSystemMode('EXPLORER');
-                       
-                       // 🔥 LA CLAVE: EVITAR LA CONSOLA DE BÚSQUEDA
-                       // Al poner esto en true, el sistema asume que ya hemos "aterrizado"
-                       // y muestra directamente el mapa con la propiedad.
                        setLandingComplete(true); 
                        
-                       // 3. Evitar tutoriales antiguos
                        if (typeof setExplorerIntroDone === 'function') {
                            setExplorerIntroDone(true); 
                        }
 
-                       // 4. 📡 LANZAMIENTO DE LA SEÑAL AL MAPA (El Convoy)
-                       if (payload) {
-                           console.log("📡 Enviando datos al mapa...", payload);
-                           setTimeout(() => {
-                               if (typeof window !== 'undefined') {
-                                   window.dispatchEvent(new CustomEvent('add-property-signal', { 
-                                       detail: payload 
-                                   }));
-                               }
-                           }, 100); // Pequeño delay para asegurar que el mapa está atento
-                       }
                    } else {
                        // SI CANCELA: Volvemos al menú principal
                        setSystemMode('GATEWAY');
