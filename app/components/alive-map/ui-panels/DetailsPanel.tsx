@@ -289,6 +289,17 @@ export default function DetailsPanel({
                                 <span className="font-bold text-sm text-slate-800">{m2} m²</span>
                             </div>
 
+                           {/* 🔥 PEGAR ESTO AQUÍ DEBAJO (GASTOS DE COMUNIDAD) 🔥 */}
+                            {(selectedProp?.communityFees > 0 || selectedProp?.communityCosts > 0) && (
+                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <span className="text-[9px] text-slate-400 font-bold uppercase block">Comunidad</span>
+                                    <span className="font-bold text-sm text-slate-800">
+                                        {selectedProp?.communityFees || selectedProp?.communityCosts} €/mes
+                                    </span>
+                                </div>
+                            )}
+                            {/* -------------------------------------------------- */}
+                           
                             {/* EL ASCENSOR (Arreglado para "Sí") */}
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center group">
                                 <div>

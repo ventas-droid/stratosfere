@@ -13,7 +13,8 @@ import MapNanoCard from './ui-panels/MapNanoCard';
 const STRATOS_PROPERTIES : any[] = [];
 const IMAGES : any[] = [];
 
-import { getPropertiesAction } from '@/app/actions';
+// AHORA:
+import { getGlobalPropertiesAction } from '@/app/actions';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 
@@ -748,7 +749,7 @@ export const useMapLogic = () => {
         console.log("📡 RADAR: Iniciando protocolo de limpieza y dispersión...");
         
         // 1. CARGA DE DATOS
-        const response = await getPropertiesAction();
+       const response = await getGlobalPropertiesAction();
         const serverData = response.success ? response.data : [];
 
         let localData = [];
