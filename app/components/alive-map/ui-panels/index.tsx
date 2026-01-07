@@ -34,6 +34,7 @@ import LandingWaitlist from "./LandingWaitlist";
 import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
+import { getFavoritesAction, toggleFavoriteAction } from '@/app/actions';
 
 // --- 2. UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -99,37 +100,58 @@ export default function UIPanels({
 const [priceRange, setPriceRange] = useState({ min: 100000, max: 2000000 });
 const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
 
-// --- B. MEMORIA BLINDADA (FAVORITOS) ---
+// --- B. MEMORIA BLINDADA (FAVORITOS - CONEXIÓN SERVIDOR + LOCAL) ---
   const [localFavs, setLocalFavs] = useState<any[]>([]);
 
- // Añada el estado para saber qué estamos buscando
-const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
+  // Añada el estado para saber qué estamos buscando
+  const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
  
- // 1. Cargar memoria (Al inicio) + recarga manual (sin romper nada)
+  // 1. CARGA DE MEMORIA (PROTOCOLO HÍBRIDO: SERVIDOR PRIMERO, LUEGO LOCAL)
   useEffect(() => {
-      const loadFavs = () => {
+      const loadFavs = async () => {
+          // A. INTENTO PRIMARIO: Leer del Servidor (La Verdad Absoluta)
+          try {
+              // Si el usuario está logueado, esto traerá sus favoritos reales
+              const serverResponse = await getFavoritesAction();
+              
+              if (serverResponse && serverResponse.success && Array.isArray(serverResponse.data)) {
+                  console.log("📥 VAULT: Sincronizado con Cuartel General. Activos:", serverResponse.data.length);
+                  setLocalFavs(serverResponse.data);
+                  
+                  // Actualizamos la caché local para velocidad futura
+                  localStorage.setItem('stratos_favorites_v1', JSON.stringify(serverResponse.data));
+                  return; // Misión cumplida, no necesitamos mirar el bolsillo
+              }
+          } catch (e) {
+              console.error("⚠️ Fallo de conexión con Vault Server (Usando modo offline):", e);
+          }
+
+          // B. PLAN DE CONTINGENCIA: Si falla el servidor, miramos el bolsillo (LocalStorage)
           const saved = localStorage.getItem('stratos_favorites_v1');
           if (saved) {
               try { setLocalFavs(JSON.parse(saved)); } 
-              catch(e) { console.error(e); }
+              catch(e) { console.error("Error lectura local:", e); }
           }
       };
 
       loadFavs();
 
+      // Escucha de eventos para recargas forzadas
       const onReloadFavs = () => loadFavs();
       window.addEventListener('reload-favorites', onReloadFavs);
 
       return () => window.removeEventListener('reload-favorites', onReloadFavs);
   }, []);
 
-// 2. Guardar memoria (Sincronización General del Array)
+  // 2. REFLEJO EN LOCALSTORAGE (Para persistencia offline)
   useEffect(() => {
-      localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
+      if (localFavs.length > 0) {
+          localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
+      }
   }, [localFavs]);
 
-  // 3. FUNCIÓN DE GUARDADO BLINDADA (CON RADIO DE SINCRONIZACIÓN)
-  const handleToggleFavorite = (prop: any) => {
+  // 3. FUNCIÓN DE GUARDADO BLINDADA (CONEXIÓN BIDIRECCIONAL)
+  const handleToggleFavorite = async (prop: any) => {
       if (!prop) return;
       if (soundEnabled) playSynthSound('click');
 
@@ -141,41 +163,44 @@ const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TER
           formattedPrice: prop.formattedPrice || prop.price || "Consultar"
       };
 
-      const exists = localFavs.some(f => f.id === safeProp.id);
+      const exists = localFavs.some(f => String(f.id) === String(safeProp.id));
       let newFavs;
-      let newStatus; // <--- VARIABLE TÁCTICA: ¿Cómo queda al final?
+      let newStatus; 
 
+      // --- FASE 1: ACTUALIZACIÓN VISUAL INMEDIATA (OPTIMISTIC UI) ---
       if (exists) {
-          // A. SI YA EXISTE: BORRAMOS
-          newFavs = localFavs.filter(f => f.id !== safeProp.id);
+          // A. BORRAR
+          newFavs = localFavs.filter(f => String(f.id) !== String(safeProp.id));
           addNotification("Eliminado de colección");
-          
-          // Borrado físico INMEDIATO
           localStorage.removeItem(`fav-${safeProp.id}`); 
-          newStatus = false; // El estado final es APAGADO
+          newStatus = false;
       } else {
-          // B. SI NO EXISTE: AÑADIMOS
+          // B. AÑADIR
           newFavs = [...localFavs, { ...safeProp, savedAt: Date.now() }];
           addNotification("Guardado en Favoritos");
-          
-          // Guardado físico INMEDIATO
           localStorage.setItem(`fav-${safeProp.id}`, 'true');
           setRightPanel('VAULT'); 
-          newStatus = true; // El estado final es ENCENDIDO
+          newStatus = true;
       }
       
-      // Actualizamos la lista oficial
+      // Actualizamos estado visual ya
       setLocalFavs(newFavs);
 
-      // 🔥 EL GRITO DE SINCRONIZACIÓN (LA CORRECCIÓN FINAL)
-      // Enviamos a la NanoCard la orden EXACTA: "Ponte True" o "Ponte False"
+      // --- FASE 2: SINCRONIZACIÓN CON NANOCARDS ---
       if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sync-property-state', { 
-              detail: { 
-                  id: safeProp.id, 
-                  isFav: newStatus 
-              } 
+              detail: { id: safeProp.id, isFav: newStatus } 
           }));
+      }
+
+      // --- FASE 3: GUARDADO REAL EN BASE DE DATOS (EL CABLE QUE FALTABA) ---
+      try {
+          // Esto asegura que si borra caché, el dato siga vivo en la nube
+          await toggleFavoriteAction(String(safeProp.id));
+          console.log(`☁️ SYNC: Estado de favorito actualizado en servidor: ${newStatus}`);
+      } catch (error) {
+          console.error("❌ Error sincronizando favorito con servidor:", error);
+          // Opcional: Podríamos revertir el cambio visual aquí si falla
       }
   };
     // Estados Mercado e IA
