@@ -199,9 +199,18 @@ export default function UIPanels({
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiTyping, setIsAiTyping] = useState(false);
 
-  const toggleRightPanel = (p: string) => { 
+ const toggleRightPanel = (p: string) => { 
       if(soundEnabled) playSynthSound('click'); 
-      setRightPanel(rightPanel === p ? 'NONE' : p); 
+      
+      const nextState = rightPanel === p ? 'NONE' : p;
+      setRightPanel(nextState); 
+
+      // 🔥 FIX: SI ABRIMOS UN PANEL, MANDAMOS ORDEN DE CERRAR EL RADAR
+      if (nextState !== 'NONE') {
+          if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('close-radar-signal'));
+          }
+      }
   };
 
   const toggleMainPanel = (p: string) => { 
@@ -545,30 +554,77 @@ export default function UIPanels({
            </>
        )}
 
-       {/* PANELES COMPARTIDOS (SE RENDERIZAN SIEMPRE QUE SE ACTIVEN) */}
-       <ProfilePanel rightPanel={rightPanel} toggleRightPanel={toggleRightPanel} toggleMainPanel={toggleMainPanel} onEdit={handleEditAsset} selectedReqs={selectedReqs} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
-       {activePanel === 'MARKETPLACE' && (
-            <div className="absolute inset-y-0 left-0 w-[420px] z-[50] shadow-2xl animate-slide-in-left bg-white pointer-events-auto">
-                <MarketPanel onClose={() => setActivePanel('NONE')} activeProperty={marketProp} />
-            </div>
-       )}
-       {rightPanel === 'VAULT' && <VaultPanel rightPanel={rightPanel} toggleRightPanel={(p: any) => setRightPanel('NONE')} favorites={localFavs} onToggleFavorite={handleToggleFavorite} map={map} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />}
-       <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
-       {activePanel === 'DETAILS' && <DetailsPanel selectedProp={selectedProp} onClose={() => setActivePanel('NONE')} onToggleFavorite={handleToggleFavorite} favorites={localFavs} soundEnabled={soundEnabled} playSynthSound={playSynthSound} onOpenInspector={() => setActivePanel('INSPECTOR')} />}
+      {/* =================================================================
+           CAPA ESTRATOSFERA (Z-80) - TODOS LOS PANELES (USUARIO Y AGENCIA)
+           Esta capa vive POR ENCIMA del Radar (Z-60) y del Mapa.
+       ================================================================= */}
+       <div className="relative z-[80] pointer-events-none">
+           
+           {/* 1. PERFIL DE USUARIO */}
+           <ProfilePanel 
+               rightPanel={rightPanel} 
+               toggleRightPanel={toggleRightPanel} 
+               toggleMainPanel={toggleMainPanel} 
+               onEdit={handleEditAsset} 
+               selectedReqs={selectedReqs} 
+               soundEnabled={soundEnabled} 
+               playSynthSound={playSynthSound} 
+           />
+           
+           {/* 2. MERCADO DE USUARIO (Izquierda) */}
+           {activePanel === 'MARKETPLACE' && (
+                <div className="absolute inset-y-0 left-0 w-[420px] shadow-2xl animate-slide-in-left bg-white pointer-events-auto">
+                    <MarketPanel onClose={() => setActivePanel('NONE')} activeProperty={marketProp} />
+                </div>
+           )}
+           
+           {/* 3. BÓVEDA / FAVORITOS (Derecha) */}
+           {rightPanel === 'VAULT' && (
+               <VaultPanel 
+                   rightPanel={rightPanel} 
+                   toggleRightPanel={(p: any) => setRightPanel('NONE')} 
+                   favorites={localFavs} 
+                   onToggleFavorite={handleToggleFavorite} 
+                   map={map} 
+                   soundEnabled={soundEnabled} 
+                   playSynthSound={playSynthSound} 
+               />
+           )}
+           
+           {/* 4. PANELES DE AGENCIA (¡IMPORTANTE: ESTABAN PERDIDOS, AQUI SE RECUPERAN!) */}
+           <AgencyProfilePanel isOpen={rightPanel === 'AGENCY_PROFILE'} onClose={() => toggleRightPanel('NONE')} />
+           <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
+           <AgencyPortfolioPanel isOpen={rightPanel === 'AGENCY_PORTFOLIO'} onClose={() => setRightPanel('NONE')} onCreateNew={() => handleEditAsset(null)} onEditProperty={(p:any) => handleEditAsset(p)} />
+
+           {/* 5. INSPECTOR Y DETALLES */}
+           <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
+           {activePanel === 'DETAILS' && <DetailsPanel selectedProp={selectedProp} onClose={() => setActivePanel('NONE')} onToggleFavorite={handleToggleFavorite} favorites={localFavs} soundEnabled={soundEnabled} playSynthSound={playSynthSound} onOpenInspector={() => setActivePanel('INSPECTOR')} />}
+       </div>
+
+       {/* =================================================================
+           CAPA ORBITAL (Z-20000) - CHAT E INTELIGENCIA ARTIFICIAL
+           Siempre flotando sobre todo lo demás.
+       ================================================================= */}
        
+       {/* CHAT TÁCTICO */}
        {activePanel === 'CHAT' && (
            <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
                <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
                    <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-                       <div className="flex items-center gap-3"><div className="w-2 h-2 rounded-full bg-blue-500"></div><span className="text-xs font-bold tracking-widest text-white">ASISTENTE</span></div>
+                       <div className="flex items-center gap-3">
+                           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                           <span className="text-xs font-bold tracking-widest text-white">COMMS LINK</span>
+                       </div>
                        <button onClick={() => setActivePanel('NONE')} className="text-white/30 hover:text-white transition-colors p-2"><X size={16}/></button>
                    </div>
-                   <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-                       <div className="bg-white/10 p-3 rounded-2xl rounded-tl-none text-xs text-white/80 max-w-[90%] border border-white/5">Hola. ¿En qué puedo ayudarte?</div>
+                   <div className="flex-grow p-4 space-y-4 overflow-y-auto custom-scrollbar">
+                       <div className="bg-white/10 p-3 rounded-2xl rounded-tl-none text-xs text-white/80 max-w-[90%] border border-white/5">
+                           Sistema listo. ¿En qué puedo ayudarle, Agente?
+                       </div>
                    </div>
                    <div className="p-3 border-t border-white/5 bg-black/20">
                        <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/5">
-                           <input placeholder="Escribir mensaje..." className="bg-transparent w-full text-xs text-white outline-none placeholder-white/20"/>
+                           <input placeholder="Transmitir mensaje..." className="bg-transparent w-full text-xs text-white outline-none placeholder-white/20"/>
                            <button className="text-blue-400 hover:text-blue-300"><Send size={14}/></button>
                        </div>
                    </div>
@@ -576,20 +632,27 @@ export default function UIPanels({
            </div>
        )}
 
+       {/* IA / OMNI INTELLIGENCE */}
        {activePanel === 'AI' && (
            <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-[20000] pointer-events-auto">
               <div className="animate-fade-in rounded-[2.5rem] p-8 bg-[#050505]/95 backdrop-blur-2xl border border-blue-500/30 shadow-[0_0_100px_rgba(59,130,246,0.2)]">
                   <div className="flex justify-between items-center mb-8 text-white">
-                      <span className="text-xs font-bold tracking-[0.3em] flex items-center gap-2"><Sparkles size={14} className="text-blue-500 animate-pulse"/> OMNI INTELLIGENCE</span>
+                      <span className="text-xs font-bold tracking-[0.3em] flex items-center gap-2">
+                          <Sparkles size={14} className="text-blue-500 animate-spin-slow"/> STRATOS AI
+                      </span>
                       <button onClick={() => setActivePanel('NONE')} className="hover:text-red-500 transition-colors p-2"><X size={18}/></button>
                   </div>
                   <div className="h-48 flex flex-col items-center justify-center text-center gap-4 relative">
-                      <p className="text-white/30 text-xs tracking-widest font-mono">{aiResponse ? aiResponse : "SISTEMAS A LA ESPERA DE COMANDO..."}</p>
+                      <div className="w-16 h-16 rounded-full border border-blue-500/30 flex items-center justify-center animate-pulse">
+                          <div className="w-8 h-8 bg-blue-500 rounded-full blur-md"></div>
+                      </div>
+                      <p className="text-white/50 text-xs tracking-widest font-mono">
+                          {aiResponse ? aiResponse : "ESCUCHANDO FRECUENCIA..."}
+                      </p>
                   </div>
               </div>
           </div>
        )}
-
     </div>
   );
 }

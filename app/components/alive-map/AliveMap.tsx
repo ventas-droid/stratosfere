@@ -111,9 +111,9 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
 
         
 
-    {showRadar && (
-            // 🔥 FIX: Z-Index bajado a 40 para que NO tape la Bóveda ni la Omni
-            <div className="absolute top-0 right-0 h-full w-[600px] max-w-full z-[40] pointer-events-auto animate-slide-in-right shadow-[-20px_0_40px_rgba(0,0,0,0.1)]">
+   {showRadar && (
+            // 🔥 FIX: Subimos a Z-60 para tapar las notificaciones (que están en 50)
+            <div className="absolute top-0 right-0 h-full w-[600px] max-w-full z-[60] pointer-events-auto animate-slide-in-right shadow-[-20px_0_40px_rgba(0,0,0,0.1)]">
                 <TacticalRadarController 
                     targets={radarTargets} 
                     onClose={() => setShowRadar(false)} 
