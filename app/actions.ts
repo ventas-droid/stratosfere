@@ -8,7 +8,6 @@ import { cookies } from "next/headers";
 // 🔐 1. IDENTIFICACIÓN Y SESIÓN
 // =========================================================
 
-// Obtener usuario actual desde la cookie
 async function getCurrentUser() {
   const cookieStore = await cookies();
   const sessionEmail = cookieStore.get('stratos_session_email')?.value;
@@ -23,14 +22,13 @@ async function getCurrentUser() {
   }
 }
 
-// Cerrar sesión
 export async function logoutAction() {
   const cookieStore = await cookies();
   cookieStore.getAll().forEach((cookie) => cookieStore.delete(cookie.name));
   return { success: true };
 }
 
-// Helper de login (por compatibilidad, la lógica real está en login.ts)
+// Helper de login (necesario para compatibilidad si usa login.ts)
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
@@ -39,14 +37,13 @@ export async function loginUser(formData: FormData) {
 // 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
 // =========================================================
 
-// A. MAPA GLOBAL (TODOS LOS USUARIOS - FOTOS REALES)
-// Esta es la función que usará el mapa para ver propiedades de OTROS usuarios
+// A. MAPA GLOBAL (SOLUCIÓN DEFINITIVA A LOS 0 m² Y DATOS FALTANTES)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
     const currentUserId = user?.id;
 
-    // Traer TODAS las publicadas (sin filtrar por usuario)
+    // Traemos TODAS las publicadas
     const properties = await prisma.property.findMany({
       where: { status: 'PUBLICADO' },
       orderBy: { createdAt: 'desc' },
@@ -57,13 +54,12 @@ export async function getGlobalPropertiesAction() {
     });
 
     const mappedProps = properties.map((p: any) => {
-        // Foto Real (Sin fakes)
+        // Gestión de fotos (Prioridad: Galería -> Portada -> Null)
         const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
         let allImages = p.images.map((img: any) => img.url);
-        // Si no hay galería pero hay portada, la usamos para el detalle
         if (allImages.length === 0 && realImg) allImages = [realImg];
 
-        // ¿Le di like yo?
+        // Verificar si yo le di like
         const isFavoritedByMe = currentUserId
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
@@ -73,14 +69,28 @@ export async function getGlobalPropertiesAction() {
             id: p.id,
             coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
             images: allImages,
-            img: realImg || null, // null si no hay foto
+            img: realImg || null,
+            
+            // PRECIO
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
             rawPrice: p.price,
             priceValue: p.price,
+            
+            // ESTADO
             isFavorited: isFavoritedByMe,
+
+            // EXTRAS BÁSICOS
             pool: p.pool,
             garage: p.garage,
-            elevator: p.elevator
+            elevator: p.elevator,
+
+            // 🔥 DATOS CRÍTICOS RECUPERADOS (Aquí estaba el fallo de los 0m2 y N/D)
+            m2: Number(p.mBuilt || 0),             // Esto arregla la NanoCard vacía
+            mBuilt: Number(p.mBuilt || 0),         // Doble seguridad
+            communityFees: p.communityFees || 0,   // Esto arregla el Panel de Detalles
+            energyConsumption: p.energyConsumption,// Esto arregla la letra de consumo
+            energyEmissions: p.energyEmissions,    // Esto arregla la letra de emisiones
+            energyPending: p.energyPending         // Esto marca "En trámite" correctamente
         };
     });
 
@@ -91,14 +101,14 @@ export async function getGlobalPropertiesAction() {
   }
 }
 
-// B. MIS PROPIEDADES (PERFIL - SOLO LAS MÍAS)
+// B. MIS PROPIEDADES (PERFIL)
 export async function getPropertiesAction() {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, data: [] };
 
     const properties = await prisma.property.findMany({
-      where: { userId: user.id }, // SOLO LAS MÍAS
+      where: { userId: user.id }, 
       orderBy: { createdAt: 'desc' },
       include: { images: true } 
     });
@@ -118,7 +128,15 @@ export async function getPropertiesAction() {
             rawPrice: p.price,
             pool: p.pool,
             garage: p.garage,
-            elevator: p.elevator
+            elevator: p.elevator,
+
+            // 🔥 ASEGURAMOS CONSISTENCIA EN EL PERFIL TAMBIÉN
+            m2: Number(p.mBuilt || 0),
+            mBuilt: Number(p.mBuilt || 0),
+            communityFees: p.communityFees || 0,
+            energyConsumption: p.energyConsumption,
+            energyEmissions: p.energyEmissions,
+            energyPending: p.energyPending
         };
     });
 
@@ -128,29 +146,36 @@ export async function getPropertiesAction() {
   }
 }
 
-// C. GUARDAR PROPIEDAD
+// C. GUARDAR PROPIEDAD (ESCRITURA BLINDADA)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Debes iniciar sesión." };
 
+    // Limpieza de Precio
     const cleanPrice = parseFloat(String(data.price).replace(/\D/g, '') || '0');
-    const cleanM2 = parseFloat(String(data.mBuilt).replace(/\D/g, '') || '0');
     
+    // 🔥 LIMPIEZA DE M2 "AGRESIVA": Busca en mBuilt, m2 o surface
+    const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
+    const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
+    
+    // Servicios
     let finalServices = Array.isArray(data.selectedServices) ? [...data.selectedServices] : [];
     if (!finalServices.some((s: string) => s.startsWith('pack_'))) finalServices.push('pack_basic');
 
+    // Imágenes
     const imagesList = Array.isArray(data.images) ? data.images : [];
     if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
+    // Construcción del objeto para la BD
     const payload = {
         userId: user.id,
         type: data.type || 'Piso',
         title: data.title || `Propiedad en ${data.city}`,
         description: data.description || "",
         price: cleanPrice,
-        mBuilt: cleanM2,
+        mBuilt: cleanM2, // Aquí guardamos el valor limpio
         address: data.address || "Dirección desconocida",
         city: data.city || "Madrid",
         latitude: data.coordinates ? data.coordinates[1] : 40.4168,
@@ -167,11 +192,8 @@ export async function savePropertyAction(data: any) {
         mainImage: mainImage,
         status: 'PUBLICADO', 
 
-        // 🔥 CORRECCIÓN DE PRECISIÓN:
-        // En el esquema se llama 'communityFees', así que usamos ese nombre exacto.
-        communityFees: Number(data.communityCosts || 0), 
-        
-        // Energía (Coinciden perfectamente con el esquema)
+        // 🔥 MAPEO EXACTO AL ESQUEMA DE PRISMA (CORREGIDO communityFees)
+        communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
         energyEmissions: data.energyEmissions || null,     
         energyPending: Boolean(data.energyPending),        
@@ -181,6 +203,7 @@ export async function savePropertyAction(data: any) {
     let result;
 
     if (data.id && data.id.length > 20) { 
+        // EDICIÓN
         const existing = await prisma.property.findUnique({ where: { id: data.id }});
         if (existing && existing.userId === user.id) {
             await prisma.image.deleteMany({ where: { propertyId: data.id } });
@@ -190,12 +213,14 @@ export async function savePropertyAction(data: any) {
                 include: { images: true }
             });
         } else {
+             // Si el ID es raro, creamos nueva por seguridad
              result = await prisma.property.create({ 
                  data: { ...payload, images: imageCreateLogic },
                  include: { images: true }
              });
         }
     } else {
+        // CREACIÓN
         result = await prisma.property.create({ 
             data: { ...payload, images: imageCreateLogic },
             include: { images: true }
@@ -223,17 +248,17 @@ export async function deletePropertyAction(id: string) {
 }
 
 // =========================================================
-// ❤️ 3. USUARIO Y FAVORITOS (LO QUE FALTABA)
+// ❤️ 3. USUARIO Y FAVORITOS (FUNCIONES QUE FALTABAN)
 // =========================================================
 
-// E. OBTENER PERFIL
+// E. OBTENER PERFIL (Necesaria para ProfilePanel)
 export async function getUserMeAction() {
   const user = await getCurrentUser();
   if (!user) return { success: false };
   return { success: true, data: user };
 }
 
-// F. ACTUALIZAR PERFIL
+// F. ACTUALIZAR PERFIL (Necesaria para ProfilePanel)
 export async function updateUserAction(data: any) {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "No autorizado" };
@@ -249,7 +274,7 @@ export async function updateUserAction(data: any) {
   }
 }
 
-// G. TOGGLE LIKE (DAR/QUITAR CORAZÓN)
+// G. TOGGLE LIKE (Necesaria para los corazones)
 export async function toggleFavoriteAction(propertyId: string) {
     const user = await getCurrentUser();
     if (!user) return { success: false };
@@ -267,7 +292,7 @@ export async function toggleFavoriteAction(propertyId: string) {
     }
 }
 
-// H. LEER FAVORITOS (VAULT - BÓVEDA)
+// H. LEER FAVORITOS (BÓVEDA)
 export async function getFavoritesAction() {
     const user = await getCurrentUser();
     if (!user) return { success: false, data: [] };
@@ -280,17 +305,22 @@ export async function getFavoritesAction() {
     const cleanFavs = favs.map(f => {
         const p: any = f.property;
         if(!p) return null;
-        
-        // FOTOS REALES
         const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
 
         return {
             ...p,
             id: p.id,
             img: realImg || null, 
-            isFavorited: true, // Si está en la bóveda, ES favorito
+            isFavorited: true, // Siempre true aquí
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
             rawPrice: p.price,
+            
+            // 🔥 DATOS COMPLETOS TAMBIÉN EN FAVORITOS
+            m2: Number(p.mBuilt || 0),
+            communityFees: p.communityFees || 0,
+            energyConsumption: p.energyConsumption,
+            energyEmissions: p.energyEmissions,
+            energyPending: p.energyPending
         }
     }).filter(Boolean);
 
