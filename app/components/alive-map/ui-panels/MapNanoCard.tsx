@@ -173,37 +173,59 @@ export default function MapNanoCard(props: any) {
     return () => { if (typeof window !== 'undefined') window.removeEventListener('sync-property-state', handleRemoteCommand as EventListener); };
   }, [id]);
 
-// GESTOR DE ACCIONES (VERSIÓN FIX GALERÍA)
+// GESTOR DE ACCIONES (VERSIÓN DEFINITIVA: 100% SEGURA)
   const handleAction = (e: React.MouseEvent, action: string) => {
       e.preventDefault();
       e.stopPropagation(); 
       
       const targetState = action === 'fav' ? !liked : liked;
+      
+      // 1. CÁLCULO DE COORDENADAS (MANTENIDO EXACTAMENTE IGUAL)
       const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates || (props.lng && props.lat ? [props.lng, props.lat] : null);
       
-      // 🔥 RECOPILACIÓN DEL ÁLBUM (CRÍTICO)
-      // Buscamos array en props o data. Si no, creamos array con la foto única.
-      let fullAlbum: string[] = [];
+      // 2. RECUPERACIÓN DE FOTOS (MEJORADA)
+      let finalAlbum: string[] = [];
       
-      if (Array.isArray(props.images) && props.images.length > 0) fullAlbum = props.images;
-      else if (Array.isArray(data.images) && data.images.length > 0) fullAlbum = data.images;
-      else if (img) fullAlbum = [img];
+      // Buscamos en todas partes
+      if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images;
+      else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images;
+      else if (img) finalAlbum = [img];
+      
+      // Buscamos en mainImage (para propiedades nuevas)
+      if (finalAlbum.length === 0) {
+          if (props.mainImage) finalAlbum = [props.mainImage];
+          else if (data.mainImage) finalAlbum = [data.mainImage];
+      }
+      
+      // Limpiamos URLs
+      finalAlbum = finalAlbum.map((i: any) => typeof i === 'string' ? i : i.url || i);
+      
+      // 🛑 SIN FOTOS FALSAS: Si no hay, null (saldrá gris/vacío, pero honesto)
+      const finalImg = finalAlbum[0] || img || null;
 
-      // PAQUETE DE DATOS
+      // 3. PAQUETE DE DATOS (AQUÍ ESTÁ EL ARREGLO DEL PRECIO)
       const payload = { 
           id, 
-          ...props, 
-          ...data, 
+          ...props, // Datos originales (incluye basura vieja)
+          ...data,  
+          
+          // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
           price: currentPrice,       
           formattedPrice: displayLabel,
-          img: img,           // Portada
-          images: fullAlbum,  // ✅ ÁLBUM COMPLETO PARA EL VISOR
+          priceValue: currentPrice, // ESTO ARREGLA EL PRECIO EN DETAILS
+          rawPrice: currentPrice,   // ESTO TAMBIÉN
+
+          // FOTOS LIMPIAS
+          img: finalImg,      
+          images: finalAlbum,
+          
           type: type, 
           location: (city || location || address || "MADRID").toUpperCase(), 
           isFav: targetState, 
           coordinates: navCoords
       };
 
+      // 4. DISPARO DE SEÑALES (MANTENIDAS EXACTAMENTE IGUAL)
       if (action === 'fav') {
           setLiked(targetState); 
           if (typeof window !== 'undefined') {
@@ -211,8 +233,9 @@ export default function MapNanoCard(props: any) {
           }
       } else if (action === 'open') {
           if (typeof window !== 'undefined') {
-              // 🚀 ENVIAMOS LA SEÑAL CON EL ÁLBUM
+              // Señal 1: Abrir panel lateral
               window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
+              // Señal 2: Marcar activo en el sistema
               window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
           }
       }
