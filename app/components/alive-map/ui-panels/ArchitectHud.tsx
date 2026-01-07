@@ -294,6 +294,13 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
         selectedServices: normalizedServices,
         price: normalizedPrice,
         
+        // 🔥 RECUPERACIÓN DE MEMORIA (AQUÍ ESTABA EL FALLO)
+        // Forzamos a leer estos campos de la base de datos:
+        communityFees: initialData.communityFees || "",       
+        energyConsumption: initialData.energyConsumption || "", 
+        energyEmissions: initialData.energyEmissions || "",     
+        energyPending: initialData.energyPending === true,      
+        
         // ⚡️ CORRECCIÓN: Solo es modo edición si tiene ID real
         isEditMode: !!initialData.id, 
         // ⚡️ CORRECCIÓN: Capturamos la credencial de agencia
@@ -302,8 +309,6 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
       }));
 
       // 🔥 LÓGICA DE SALTO: ¿NUEVO O EXISTENTE?
-      // Si hay dirección o ID, es edición -> Vamos al paso 2 (BASICS)
-      // Si no hay dirección (Nueva propiedad) -> Empezamos en LOCATION
       if (initialData.address || initialData.id) {
           setStep("BASICS");
       } else {
