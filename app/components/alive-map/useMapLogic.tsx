@@ -454,7 +454,7 @@ export const useMapLogic = () => {
 
 
     // -------------------------------------------------------------
-    // 🎨 RENDERIZADO DE LA TARJETA (DATOS COMPLETOS)
+    // 🎨 RENDERIZADO DE LA TARJETA (DATOS COMPLETOS Y BLINDADOS)
     // -------------------------------------------------------------
     root.render(
       <MapNanoCard
@@ -464,10 +464,10 @@ export const useMapLogic = () => {
         priceValue={p.priceValue}
         rawPrice={p.priceValue}
         
-        // Datos Físicos
+        // Datos Físicos (Aquí conectamos con el fix de los 0m2)
         rooms={p.rooms}
         baths={p.baths}
-        mBuilt={p.m2} // Mapbox suele usar mBuilt, aquí aseguramos m2
+        mBuilt={p.m2} 
         
         // Equipamiento
         selectedServices={p.selectedServices}
@@ -475,9 +475,9 @@ export const useMapLogic = () => {
         specs={p.specs}
         type={p.type}
         
-        // 🔥 IMÁGENES (LA SOLUCIÓN)
-        img={safeImg}        // Portada
-        images={safeImages}  // Álbum completo para el Visor
+        // Imágenes (Versión segura para evitar parpadeos)
+        img={safeImg}        
+        images={safeImages}  
         
         // Coordenadas
         lat={feature.geometry.coordinates[1]}
@@ -488,12 +488,15 @@ export const useMapLogic = () => {
         title={p.title}
         description={p.description}
         
-        // Dirección (Blindaje triple)
+        // Dirección (Blindaje triple anti-fallos)
         address={p.address || p.location}
         city={p.city || p.location}
         location={p.location || p.city || p.address}
         
-        // Energía (No tocamos nada, se mantiene igual)
+        // 🔥 EL CABLE QUE FALTABA (Conecta la base de datos con el panel lateral)
+        communityFees={p.communityFees}
+
+        // Energía
         energyConsumption={p.energyConsumption}
         energyEmissions={p.energyEmissions}
         energyPending={p.energyPending}
@@ -768,17 +771,40 @@ export const useMapLogic = () => {
             uniqueMap.set(String(p.id), { ...p, source: 'SERVER' });
         });
 
-        // B. Sobreescritura Local (MATA a la del servidor si el ID coincide)
-        localData.forEach((p: any) => {
-            if (p.id) {
-                const existing = uniqueMap.get(String(p.id)) || {};
-                uniqueMap.set(String(p.id), { ...existing, ...p, source: 'LOCAL_OVERRIDE' });
+      // B. Sobreescritura Local INTELIGENTE (Mezcla lo mejor de los dos mundos)
+        localData.forEach((localProp: any) => {
+            if (localProp.id) {
+                const serverProp = uniqueMap.get(String(localProp.id));
+                
+                // Si existe en el servidor, fusionamos con cuidado
+                if (serverProp) {
+                    uniqueMap.set(String(localProp.id), { 
+                        ...serverProp,      // 1. Usamos la base sólida del servidor
+                        ...localProp,       // 2. Aplicamos cambios locales (edición en vivo)
+                        
+                        // 🔥 PROTECCIÓN DE FOTOS: 
+                        // Si el local no tiene imagen, RESCATAMOS la del servidor
+                        images: (localProp.images && localProp.images.length > 0) 
+                                ? localProp.images 
+                                : serverProp.images,
+                        img: localProp.img || serverProp.img,
+
+                        // 🔥 PROTECCIÓN DE DATOS CRÍTICOS:
+                        communityFees: localProp.communityFees || serverProp.communityFees,
+                        mBuilt: localProp.mBuilt || serverProp.mBuilt || serverProp.m2,
+                        
+                        source: 'MERGED_SMART' 
+                    });
+                } else {
+                    // Si es nueva (solo existe en local), la metemos tal cual
+                    uniqueMap.set(String(localProp.id), { ...localProp, source: 'LOCAL_ONLY' });
+                }
             }
         });
 
         const unifiedList = Array.from(uniqueMap.values());
 
-        // 3. DISPERSIÓN DE EDIFICIOS (SOLUCIÓN MATEMÁTICA) 
+      // 3. DISPERSIÓN DE EDIFICIOS (SOLUCIÓN MATEMÁTICA) 
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
@@ -818,11 +844,22 @@ export const useMapLogic = () => {
                     coordinates: [lng, lat] 
                 },
                 properties: {
-                    ...p,
+                    ...p, // Mantiene todos los datos originales
                     id: String(p.id),
                     // Asegúrate de pasar el precio numérico correcto
                     priceValue: Number(p.rawPrice || p.priceValue || p.price),
-                    img: p.img || (p.images && p.images[0]) || null
+                    img: p.img || (p.images && p.images[0]) || null,
+
+                    // 🔥🔥 CORRECCIÓN CRÍTICA: PUENTE AÉREO DE DATOS 🔥🔥
+                    // Esto arregla el "0 m²" en la NanoCard forzando la lectura:
+                    m2: Number(p.m2 || p.mBuilt || 0),       
+                    mBuilt: Number(p.m2 || p.mBuilt || 0),   
+
+                    // Esto asegura que al abrir el panel, tenga estos datos:
+                    communityFees: p.communityFees,
+                    energyConsumption: p.energyConsumption,
+                    energyEmissions: p.energyEmissions,
+                    energyPending: p.energyPending
                 }
             };
         });
