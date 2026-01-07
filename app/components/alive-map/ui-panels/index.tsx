@@ -10,7 +10,9 @@ import {
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
-  Briefcase, Home, Map as MapIcon 
+  Briefcase, Home, Map as MapIcon,
+  // 👇 NUEVOS AÑADIDOS (Para el sistema de Ubicación Personal)
+  Lock, Unlock, Edit2
 } from 'lucide-react';
 
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
@@ -88,7 +90,24 @@ export default function UIPanels({
   lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
   
-  // 1. LECTURA DE CREDENCIALES
+ // --- 🏠 MEMORIA DE UBICACIÓN PERSONAL (CASA) ---
+  const [homeBase, setHomeBase] = useState<any>(null);
+
+  // Cargar la casa guardada al iniciar (Solo en el cliente)
+  useEffect(() => {
+      if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('stratos_home_base');
+          if (saved) {
+              try {
+                  setHomeBase(JSON.parse(saved));
+              } catch (e) {
+                  console.error("Error leyendo casa:", e);
+              }
+          }
+      }
+  }, []);
+ 
+    // 1. LECTURA DE CREDENCIALES
   const searchParams = useSearchParams();
   const urlAccess = searchParams.get('access'); // ¿Viene pase en la URL?
 
@@ -662,71 +681,101 @@ const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
     <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 0});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Square size={16}/></button>
     <button onClick={() => {playSynthSound('click'); map?.current?.flyTo({pitch: 60});}} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/80 border border-white/20 text-white hover:bg-white hover:text-black transition-all"><Box size={16}/></button>
 </div>
-       {/* BOTÓN GPS TÁCTICO (PROGRAMABLE) */}
-        <button 
-            className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto p-4 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10 transition-all shadow-2xl group animate-fade-in-down"
+      {/* --- WIDGET DE UBICACIÓN PERSONAL (CASA / GPS / EDICIÓN) --- */}
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-2 group animate-fade-in-down z-[100]">
             
-            // 1. CLICK DERECHO: DEFINIR NUEVA BASE AQUÍ
-            onContextMenu={(e) => {
-                e.preventDefault(); // Evita el menú del navegador
-                if(soundEnabled) playSynthSound('click');
-                
-                if (map?.current) {
-                    const center = map.current.getCenter();
-                    const zoom = map.current.getZoom();
-                    const pitch = map.current.getPitch();
+            {/* A. BOTÓN PRINCIPAL (IR A CASA O BUSCAR GPS) */}
+            <button 
+                className={`
+                    p-4 rounded-full backdrop-blur-xl border transition-all duration-500 shadow-2xl relative
+                    ${homeBase 
+                        ? 'bg-white text-black border-white shadow-[0_0_25px_rgba(255,255,255,0.4)] scale-105' 
+                        : 'bg-black/40 text-white border-white/10 hover:bg-white/10 hover:scale-105'}
+                `}
+                onClick={() => {
+                    if(soundEnabled) playSynthSound('click');
                     
-                    // Guardamos las coordenadas exactas donde está mirando ahora
-                    const baseData = { center: [center.lng, center.lat], zoom, pitch };
-                    localStorage.setItem('stratos_home_base', JSON.stringify(baseData));
-                    
-                    addNotification("BASE DE OPERACIONES ESTABLECIDA");
-                }
-            }}
+                    if (homeBase) {
+                        // --> CASO 1: TIENE CASA (Vuelo Directo a Base)
+                        addNotification("Volviendo a Ubicación Personal");
+                        map?.current?.flyTo({
+                            center: homeBase.center,
+                            zoom: homeBase.zoom,
+                            pitch: homeBase.pitch,
+                            bearing: -20,
+                            duration: 2500,
+                            essential: true
+                        });
+                    } else {
+                        // --> CASO 2: NO TIENE CASA (Buscar Satélites y Guardar)
+                        if ("geolocation" in navigator) {
+                            addNotification("Configurando Ubicación...");
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                    const { latitude, longitude } = position.coords;
+                                    
+                                    // 1. Volar al sitio
+                                    map?.current?.flyTo({
+                                        center: [longitude, latitude],
+                                        zoom: 16.5,
+                                        pitch: 60,
+                                        duration: 3000
+                                    });
 
-            // 2. CLICK IZQUIERDO: VOLAR A LA BASE
-            onClick={() => { 
-                if(soundEnabled) playSynthSound('click');
-                
-                // A. Intentamos leer si ya tiene una base guardada
-                const savedBase = localStorage.getItem('stratos_home_base');
-                
-                if (savedBase) {
-                    // SI TIENE BASE, VAMOS ALLÍ DIRECTO
-                    const view = JSON.parse(savedBase);
-                    addNotification("VOLVIENDO A BASE...");
-                    
-                    map?.current?.flyTo({
-                        center: view.center,
-                        zoom: view.zoom,
-                        pitch: view.pitch,
-                        bearing: -20,
-                        duration: 3000,
-                        essential: true
-                    });
-                } else {
-                    // B. SI NO TIENE BASE, USAMOS GPS SATÉLITE (COMO ANTES)
-                    if ("geolocation" in navigator) {
-                        addNotification("BUSCANDO SEÑAL GPS...");
-                        navigator.geolocation.getCurrentPosition(
-                            (position) => {
-                                const { latitude, longitude } = position.coords;
-                                map?.current?.flyTo({
-                                    center: [longitude, latitude],
-                                    zoom: 16.5,
-                                    pitch: 60,
-                                    duration: 3000
-                                });
-                            },
-                            () => addNotification("GPS NO DISPONIBLE")
-                        );
+                                    // 2. Guardar en memoria y actualizar icono
+                                    const newData = { center: [longitude, latitude], zoom: 16.5, pitch: 60 };
+                                    localStorage.setItem('stratos_home_base', JSON.stringify(newData));
+                                    setHomeBase(newData); // <--- ESTO CAMBIA EL ICONO A 'CASA'
+                                    
+                                    addNotification("Ubicación guardada con Candado");
+                                },
+                                () => addNotification("Ubicación no disponible")
+                            );
+                        }
                     }
-                }
-            }}
-            title="Click Izq: Ir a Base | Click Dcho: Definir Base Aquí"
-        >
-            <Crosshair className="w-5 h-5 text-white/80 group-hover:rotate-90 transition-transform duration-700" />
-        </button>
+                }}
+                title={homeBase ? "Ir a mi ubicación guardada" : "Localizar y guardar ubicación"}
+            >
+                {/* ICONOGRAFÍA DINÁMICA */}
+                {homeBase ? (
+                    <Home className="w-5 h-5" strokeWidth={2.5} />
+                ) : (
+                    <Crosshair className="w-5 h-5 opacity-80" />
+                )}
+                
+                {/* CANDADO DE SEGURIDAD (Indicador de "Fijado") */}
+                {homeBase && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-black text-white rounded-full flex items-center justify-center border border-white shadow-sm animate-bounce-small">
+                        <Lock size={8} />
+                    </div>
+                )}
+            </button>
+
+            {/* B. BOTÓN EDICIÓN (LÁPIZ) - Solo aparece si ya tienes casa y pasas el ratón */}
+            {homeBase && (
+                <button
+                    onClick={() => {
+                        if(soundEnabled) playSynthSound('click');
+                        if (map?.current) {
+                            // SOBRESCRIBIR LA CASA CON LA VISTA ACTUAL DEL MAPA
+                            const center = map.current.getCenter();
+                            const zoom = map.current.getZoom();
+                            const pitch = map.current.getPitch();
+                            
+                            const newData = { center: [center.lng, center.lat], zoom, pitch };
+                            localStorage.setItem('stratos_home_base', JSON.stringify(newData));
+                            setHomeBase(newData); // Actualizar estado visual
+                            
+                            addNotification("Nueva ubicación fijada aquí");
+                        }
+                    }}
+                    className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all shadow-lg opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 duration-300 cursor-pointer"
+                    title="Actualizar mi ubicación a lo que veo ahora"
+                >
+                    <Edit2 size={14} />
+                </button>
+            )}
+        </div>
                </div> 
                
               {/* DOCK BARRA INFERIOR (SONIDO ACTIVADO) */}
