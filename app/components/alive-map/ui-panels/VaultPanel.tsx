@@ -64,56 +64,66 @@ export default function VaultPanel({
 
   // --- AQUÍ SIGUE SU handleFlyTo Y EL RESTO DEL CÓDIGO ---
 
-  // 2. LÓGICA DE VUELO TÁCTICO (MODO MULTITAREA ACTIVO)
+  // 2. LÓGICA DE VUELO TÁCTICO (BLINDADA CON SISTEMA DE RADIO) ✈️
   const handleFlyTo = (prop: any) => {
-    if (soundEnabled) playSynthSound('click');
-    
-    // ❌ COMENTADO: No cerramos el panel. Queremos ver la lista y el mapa a la vez.
-    // toggleRightPanel('NONE'); 
+    if (soundEnabled && typeof playSynthSound === 'function') playSynthSound('click');
     
     // A. ABRIR FICHA DE DETALLES (A la izquierda)
+    // Esto asegura que al volar, también se abra la ficha con la info.
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('open-details-signal', { detail: prop }));
     }
 
-    // B. RECUPERAR EL MOTOR DEL MAPA
-    const mapInstance = map?.current || map;
-    if (!mapInstance || !mapInstance.flyTo) {
-        console.error("🚨 MOTOR DE MAPA NO RESPONDE");
-        return;
-    }
-
-    // C. RASTREO DE COORDENADAS
+    // B. RASTREO DE COORDENADAS (BUSCANDO EN TODOS LOS BOLSILLOS)
     let finalCoords = null;
-    if (prop.coordinates && Array.isArray(prop.coordinates)) {
+
+    // Prioridad 1: Coordenadas directas [lng, lat]
+    if (prop.coordinates && Array.isArray(prop.coordinates) && prop.coordinates.length === 2) {
         finalCoords = prop.coordinates;
-    } else if (prop.geometry?.coordinates) {
+    }
+    // Prioridad 2: GeoJSON standard
+    else if (prop.geometry?.coordinates) {
         finalCoords = prop.geometry.coordinates;
-    } else if (prop.lat && prop.lng) {
+    }
+    // Prioridad 3: Objetos lat/lng sueltos
+    else if (prop.lat && prop.lng) {
         finalCoords = [prop.lng, prop.lat]; 
-    } else if (prop.location && Array.isArray(prop.location)) {
+    }
+    // Prioridad 4: Fallback de ubicación antigua
+    else if (prop.location && Array.isArray(prop.location)) {
         finalCoords = prop.location; 
     }
 
-    // D. EJECUCIÓN DEL VUELO
+    // C. EJECUCIÓN DEL VUELO (VIA SEÑAL DE RADIO OFICIAL)
     if (finalCoords) {
+        // Saneamiento de números (por si vienen como strings)
         const c1 = parseFloat(finalCoords[0]);
         const c2 = parseFloat(finalCoords[1]);
         
-        // Corrección de coordenadas (Madrid)
+        // 🔥 CORRECCIÓN AUTOMÁTICA DE LATITUD/LONGITUD (ESPAÑA)
+        // Mapbox necesita [LNG, LAT] -> Ej: [-3.68, 40.42]
+        // Si el primer número es positivo grande (>30) y el segundo negativo, están al revés [Lat, Lng].
+        // Los giramos para que el mapa no se vaya al océano.
         let target = [c1, c2];
-        if (c1 > 30 && c2 < 0) target = [c2, c1]; 
+        if (c1 > 30 && c2 < 0) {
+            target = [c2, c1]; 
+        }
 
-        console.log(`✈️ VUELO TÁCTICO A: ${prop.title}`, target);
+        console.log(`✈️ VUELO TÁCTICO INICIADO A: ${prop.title || 'Destino'}`, target);
 
-        mapInstance.flyTo({
-            center: target,
-            zoom: 18.5,      
-            pitch: 60,       
-            bearing: -45,    
-            duration: 2500,  
-            essential: true
-        });
+        // 🔥 DISPARO DEL EVENTO (ESTO ES LO QUE ARREGLA EL PROBLEMA)
+        // Ya no dependemos de si "mapInstance" existe o no. Usamos la antena global.
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                detail: { 
+                    center: target,
+                    zoom: 18.5,      
+                    pitch: 60
+                } 
+            }));
+        }
+    } else {
+        console.error("🚨 ERROR TÁCTICO: Propiedad sin coordenadas válidas", prop);
     }
   };
 
