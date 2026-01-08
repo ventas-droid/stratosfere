@@ -207,147 +207,165 @@ export default function UIPanels({
   const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
 
   // --- FAVORITOS ---
-const [localFavs, setLocalFavs] = useState<any[]>([]);
 const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
-
 // 🔐 Multiusuario: clave activa para NO mezclar favoritos entre users
-const [activeUserKey, setActiveUserKey] = useState<string>(() => {
-  try { return localStorage.getItem('stratos_active_user_key') || 'anon'; } catch { return 'anon'; }
-});
+const [localFavs, setLocalFavs] = useState<any[]>([]);
+const [activeUserKey, setActiveUserKey] = useState<string>("anon");
+
 
 useEffect(() => {
   let alive = true;
   (async () => {
     try {
       const me = await getUserMeAction();
-      const key = me?.success && me?.data?.id ? String(me.data.id) : 'anon';
+      const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
       if (alive) setActiveUserKey(key);
-      try { localStorage.setItem('stratos_active_user_key', key); } catch {}
+      try {
+        if (key === "anon") localStorage.removeItem("stratos_active_user_key");
+        else localStorage.setItem("stratos_active_user_key", key);
+      } catch {}
     } catch {
-      if (alive) setActiveUserKey('anon');
-      try { localStorage.setItem('stratos_active_user_key', 'anon'); } catch {}
+      if (alive) setActiveUserKey("anon");
+      try { localStorage.removeItem("stratos_active_user_key"); } catch {}
     }
   })();
   return () => { alive = false; };
 }, []);
 
- useEffect(() => {
+// Normaliza cualquier formato (servidor / localStorage / Prisma include)
+const normalizeFavList = (arr: any[]) => {
+  if (!Array.isArray(arr)) return [];
+
+  return arr
+    .map((item: any) => {
+      if (!item) return null;
+
+      // Si viene como Favorite + property (include), el inmueble real está en item.property
+      const base = item?.property ? { ...item.property, propertyId: item.propertyId } : item;
+
+      // En Prisma Favorite, item.id puede ser el ID del favorito -> usamos propertyId si existe
+      const propId = base.propertyId || item.propertyId || base.id || item.id;
+      if (!propId) return null;
+
+      const merged = { ...base, id: String(propId), isFavorited: true };
+
+      // Reutilizamos tu saneador (precio, images, mBuilt, etc.)
+      const safe = sanitizePropertyData(merged) || merged;
+
+      // Coordenadas robustas (para que SIEMPRE vuele)
+      const lng =
+        (Array.isArray(safe.coordinates) ? safe.coordinates[0] : undefined) ??
+        safe.longitude ??
+        safe.lng ??
+        safe?.geometry?.coordinates?.[0];
+
+      const lat =
+        (Array.isArray(safe.coordinates) ? safe.coordinates[1] : undefined) ??
+        safe.latitude ??
+        safe.lat ??
+        safe?.geometry?.coordinates?.[1];
+
+      const nLng = Number(lng);
+      const nLat = Number(lat);
+
+      const coords = Number.isFinite(nLng) && Number.isFinite(nLat) ? [nLng, nLat] : safe.coordinates;
+
+      return { ...safe, id: String(propId), coordinates: coords, isFavorited: true };
+    })
+    .filter(Boolean);
+};
+
+// ✅ Mirror GLOBAL para NanoCard (legacy):
+// - stratos_favorites_v1 (lista visible por MapNanoCard)
+// - fav-${id} (flag legacy que MapNanoCard lee)
+const mirrorGlobalFavsForNanoCard = (list: any[]) => {
+  try {
+    // ids previos del mirror global
+    let prevIds: string[] = [];
+    try {
+      const prevRaw = localStorage.getItem("stratos_favorites_v1");
+      const prevParsed = prevRaw ? JSON.parse(prevRaw) : [];
+      if (Array.isArray(prevParsed)) prevIds = prevParsed.map((x: any) => String(x?.id)).filter(Boolean);
+    } catch {}
+
+    const nextIds = new Set((Array.isArray(list) ? list : []).map((x: any) => String(x?.id)).filter(Boolean));
+
+    // 1) guardar mirror global
+    localStorage.setItem("stratos_favorites_v1", JSON.stringify(Array.isArray(list) ? list : []));
+
+    // 2) limpiar flags legacy que ya no están
+    prevIds.forEach((id) => {
+      if (!nextIds.has(id)) {
+        localStorage.removeItem(`fav-${id}`);
+        window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id, isFav: false } }));
+      }
+    });
+
+    // 3) set flags legacy actuales
+    (Array.isArray(list) ? list : []).forEach((x: any) => {
+      const id = String(x?.id);
+      if (!id) return;
+      localStorage.setItem(`fav-${id}`, "true");
+      window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id, isFav: true } }));
+    });
+  } catch {}
+};
+
+// Persistencia por usuario (SIN mezclar) + mirror global para NanoCard
+const persistFavsForUser = (userKey: string, list: any[]) => {
+  try {
+    const LIST_KEY = `stratos_favorites_v1:${userKey || "anon"}`;
+
+    // Guardar por usuario (si hay sesión real)
+    if (userKey && userKey !== "anon") {
+      localStorage.setItem(LIST_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+
+      // flags por usuario (opcionales, por si algún panel los usa)
+      const nextIds = new Set((Array.isArray(list) ? list : []).map((x: any) => String(x?.id)).filter(Boolean));
+      // no hacemos limpieza masiva aquí para no tocar cosas raras; solo seteamos los actuales:
+      (Array.isArray(list) ? list : []).forEach((x: any) => {
+        const id = String(x?.id);
+        if (!id) return;
+        localStorage.setItem(`fav-${userKey}-${id}`, "true");
+      });
+      // (si quieres limpieza completa de fav-${userKey}-${id}, se puede añadir, pero no es necesario para funcionar)
+    }
+
+    // ✅ siempre mantenemos el mirror global para NanoCard
+    mirrorGlobalFavsForNanoCard(list);
+  } catch {}
+};
+
+useEffect(() => {
   let isMounted = true;
 
   const userKey = activeUserKey || "anon";
   const LIST_KEY = `stratos_favorites_v1:${userKey}`;
 
-  // Normaliza cualquier formato  (servidor / localStorage / Prisma include)
-  const normalizeFavList = (arr: any[]) => {
-    if (!Array.isArray(arr)) return [];
-
-    return arr
-      .map((item: any) => {
-        if (!item) return null;
-
-        // Si viene como Favorite + property (include), el inmueble real está en item.property
-        const base = item?.property ? { ...item.property, propertyId: item.propertyId } : item;
-
-        // En Prisma Favorite, item.id puede ser el ID del favorito -> usamos propertyId si existe
-        const propId = base.propertyId || item.propertyId || base.id || item.id;
-        if (!propId) return null;
-
-        const merged = { ...base, id: String(propId), isFavorited: true };
-
-        // Reutilizamos tu saneador (precio, images, mBuilt, requirements)
-        const safe = sanitizePropertyData(merged) || merged;
-
-        // Coordenadas robustas (para que SIEMPRE vuele)
-        const lng =
-          (Array.isArray(safe.coordinates) ? safe.coordinates[0] : undefined) ??
-          safe.longitude ??
-          safe.lng ??
-          safe?.geometry?.coordinates?.[0];
-
-        const lat =
-          (Array.isArray(safe.coordinates) ? safe.coordinates[1] : undefined) ??
-          safe.latitude ??
-          safe.lat ??
-          safe?.geometry?.coordinates?.[1];
-
-        const nLng = Number(lng);
-        const nLat = Number(lat);
-
-        const coords =
-          Number.isFinite(nLng) && Number.isFinite(nLat) ? [nLng, nLat] : safe.coordinates;
-
-        return { ...safe, id: String(propId), coordinates: coords, isFavorited: true };
-      })
-      .filter(Boolean);
-  };
-
-  // Persistencia + limpieza de “fav-*” (por usuario)
-  const persistFavs = (list: any[]) => {
-    try {
-      // 1) IDs previos (antes de sobrescribir) SOLO de este userKey
-      let prevIds: string[] = [];
-      try {
-        const prevRaw = localStorage.getItem(LIST_KEY);
-        const prevParsed = prevRaw ? JSON.parse(prevRaw) : [];
-        if (Array.isArray(prevParsed)) {
-          prevIds = prevParsed.map((x: any) => String(x?.id)).filter(Boolean);
-        }
-      } catch (e) {}
-
-      const nextIds = new Set(
-        (Array.isArray(list) ? list : []).map((x: any) => String(x?.id)).filter(Boolean)
-      );
-
-      // 2) Guardar master list (SIEMPRE) SOLO de este userKey
-      localStorage.setItem(LIST_KEY, JSON.stringify(Array.isArray(list) ? list : []));
-
-      // 3) Quitar flags viejos SOLO de este userKey y notificar a las nanocards
-      prevIds.forEach((id) => {
-        if (!nextIds.has(id)) {
-          localStorage.removeItem(`fav-${userKey}-${id}`);
-          window.dispatchEvent(
-            new CustomEvent("sync-property-state", { detail: { id, isFav: false } })
-          );
-        }
-      });
-
-      // 4) Poner flags nuevos SOLO de este userKey y notificar a las nanocards
-      (Array.isArray(list) ? list : []).forEach((x: any) => {
-        const id = String(x?.id);
-        if (!id) return;
-        localStorage.setItem(`fav-${userKey}-${id}`, "true");
-        window.dispatchEvent(
-          new CustomEvent("sync-property-state", { detail: { id, isFav: true } })
-        );
-      });
-    } catch (e) {}
-  };
-
   const loadFavs = async () => {
+    // ✅ SIN SESIÓN: UI vacía + limpiar MIRROR GLOBAL (para que AGENCIA/anon no vea los favs de otro user)
+    // ⚠️ NO borramos la lista del usuario real porque está en stratos_favorites_v1:${userId}
+    if (!userKey || userKey === "anon") {
+      if (isMounted) setLocalFavs([]);
+      mirrorGlobalFavsForNanoCard([]); // solo limpia el mirror/flags legacy visibles
+      return;
+    }
+
     // 1) Intento servidor
     try {
       const serverResponse = await getFavoritesAction();
 
-      // ✅ OK: si viene lista (aunque esté vacía), la usamos como fuente de verdad
       if (serverResponse?.success && Array.isArray(serverResponse.data)) {
         const normalized = normalizeFavList(serverResponse.data);
         if (isMounted) setLocalFavs(normalized);
-        persistFavs(normalized);
-        return;
-      }
-
-      // ✅ Sin sesión / no autorizado:
-      // - Vacía UI (no hay user)
-      // - NO usamos storage de otro user
-      if (serverResponse && serverResponse.success === false) {
-        if (isMounted) setLocalFavs([]);
+        persistFavsForUser(userKey, normalized);
         return;
       }
     } catch (e) {
       console.error("Modo offline:", e);
     }
 
-    // 2) Fallback localStorage (SOLO de este userKey)
+    // 2) Fallback localStorage (POR USUARIO, NO global)
     try {
       const saved = localStorage.getItem(LIST_KEY);
       if (saved) {
@@ -355,14 +373,15 @@ useEffect(() => {
         if (Array.isArray(parsed)) {
           const normalized = normalizeFavList(parsed);
           if (isMounted) setLocalFavs(normalized);
-          persistFavs(normalized); // re-guardamos limpio
+          persistFavsForUser(userKey, normalized);
           return;
         }
       }
-    } catch (e) {}
+    } catch {}
 
-    // 3) Si no hay nada, vacío seguro
+    // 3) Si no hay nada: vacío UI + mirror global vacío
     if (isMounted) setLocalFavs([]);
+    mirrorGlobalFavsForNanoCard([]);
   };
 
   loadFavs();
@@ -376,62 +395,65 @@ useEffect(() => {
   };
 }, [activeUserKey]);
 
-useEffect(() => {
-  try {
-    const userKey = activeUserKey || "anon";
-    const LIST_KEY = `stratos_favorites_v1:${userKey}`;
-    localStorage.setItem(
-      LIST_KEY,
-      JSON.stringify(Array.isArray(localFavs) ? localFavs : [])
-    );
-  } catch (e) {}
-}, [localFavs, activeUserKey]);
-
 const handleToggleFavorite = async (prop: any) => {
   if (!prop) return;
   if (soundEnabled) playSynthSound("click");
 
+  const userKey = activeUserKey || "anon";
+
+  // ✅ IMPORTANTÍSIMO: saneamos para no guardar IDs raros (Favorite.id vs Property.id)
+  const cleaned = sanitizePropertyData(prop) || prop;
+
+  const safeId = String(cleaned?.id || prop?.id || Date.now());
+
   const safeProp = {
-    ...prop,
-    id: prop.id || Date.now(),
-    title: prop.title || "Propiedad",
-    formattedPrice: prop.formattedPrice || prop.price || "Consultar",
+    ...cleaned,
+    id: safeId,
+    title: cleaned?.title || prop?.title || "Propiedad",
+    formattedPrice: cleaned?.formattedPrice || cleaned?.price || prop?.formattedPrice || prop?.price || "Consultar"
   };
 
-  const userKey = activeUserKey || "anon";
-  const FLAG_KEY = `fav-${userKey}-${safeProp.id}`;
+  const exists = localFavs.some((f) => String(f.id) === safeId);
 
-  const exists = localFavs.some((f) => String(f.id) === String(safeProp.id));
-  let newFavs;
-  let newStatus;
+  let newFavs: any[] = [];
+  let newStatus = false;
 
   if (exists) {
-    newFavs = localFavs.filter((f) => String(f.id) !== String(safeProp.id));
+    newFavs = localFavs.filter((f) => String(f.id) !== safeId);
     addNotification("Eliminado de colección");
-    localStorage.removeItem(FLAG_KEY);
+
+    // flags legacy + por usuario
+    try { localStorage.removeItem(`fav-${safeId}`); } catch {}
+    if (userKey !== "anon") { try { localStorage.removeItem(`fav-${userKey}-${safeId}`); } catch {} }
+
     newStatus = false;
   } else {
-    newFavs = [...localFavs, { ...safeProp, savedAt: Date.now() }];
+    newFavs = [...localFavs, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
     addNotification("Guardado en Favoritos");
-    localStorage.setItem(FLAG_KEY, "true");
+
+    // flags legacy + por usuario
+    try { localStorage.setItem(`fav-${safeId}`, "true"); } catch {}
+    if (userKey !== "anon") { try { localStorage.setItem(`fav-${userKey}-${safeId}`, "true"); } catch {} }
+
     setRightPanel("VAULT");
     newStatus = true;
   }
 
   setLocalFavs(newFavs);
 
+  // ✅ Persistimos por usuario + mirror global (NanoCard)
+  persistFavsForUser(userKey, newFavs);
+
+  // ✅ sincronía NanoCard / Details / Vault
   if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("sync-property-state", { detail: { id: safeProp.id, isFav: newStatus } })
-    );
+    window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
   }
 
-  try {
-    await toggleFavoriteAction(String(safeProp.id));
-  } catch (error) {
-    console.error(error);
-  }
+  // ✅ servidor
+  try { await toggleFavoriteAction(String(safeId)); } catch (error) { console.error(error); }
 };
+
+
 
 
   const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
