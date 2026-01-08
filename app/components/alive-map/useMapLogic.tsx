@@ -604,14 +604,15 @@ if (allData.length === 0) {
         }
       };
 
-      // 3. INYECCIÓN EN EL MAPA
-      const source: any = map.current.getSource('properties');
-      if (source && source._data) {
-        const currentFeatures = source._data.features;
-        source.setData({ type: 'FeatureCollection', features: [...currentFeatures, newFeature] });
+     // 3. INYECCIÓN EN EL MAPA
+const src: any = map.current.getSource('properties');
+if (src && (src as any)._data) {
+  const currentFeatures = (src as any)._data.features || [];
+  src.setData({ type: 'FeatureCollection', features: [...currentFeatures, newFeature] });
 
-        map.current.flyTo({ center: finalCoords, zoom: 17, pitch: 60 });
-      }
+  map.current.flyTo({ center: finalCoords, zoom: 17, pitch: 60 });
+}
+
     };
 
     window.addEventListener('add-property-signal', handleNewProperty);
