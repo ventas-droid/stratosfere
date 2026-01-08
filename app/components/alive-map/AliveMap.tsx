@@ -61,40 +61,41 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
 
  
 
- // 🔥🔥🔥 SISTEMA DE SEÑALES MAESTRO (CORREGIDO) 🔥🔥🔥
+ // 🔥🔥🔥 SISTEMA DE SEÑALES MAESTRO (CORREGIDO Y BLINDADO) 🔥🔥🔥
   useEffect(() => {
     
-    // 1. INTERRUPTOR INTELIGENTE (TOGGLE)
-    const scanSignal = () => {
+    // 1. FUNCIÓN TOGGLE (Solo para el botón del menú)
+    // Esta sí abre y cierra, como un interruptor.
+    const toggleRadar = () => {
         setShowRadar(prev => {
-            const newState = !prev; // Si estaba abierto se cierra, si cerrado se abre
-            if (newState) {
-                console.log("📡 RADAR: Iniciando barrido...");
-                handleScanClick();
-            } else {
-                console.log("📡 RADAR: Replegando...");
-            }
+            const newState = !prev;
+            if (newState) handleScanClick(); // Si se abre, escaneamos
             return newState;
         });
     };
 
-    // 2. CERRAR (Omni, Chat, etc.)
-    const closeSignal = () => {
-        console.log("📡 RADAR: Silencio (KILL SWITCH)");
-        setShowRadar(false);
+    // 2. FUNCIÓN DE RECARGA (Para el buscador)
+    // ESTA ES LA CLAVE: Nunca cierra. Fuerza que se mantenga ABIERTO (true).
+    const forceRefresh = () => {
+        console.log("📡 RADAR: Actualizando objetivos...");
+        handleScanClick(); // 1. Actualiza los datos
+        setShowRadar(true); // 2. ¡MANTENER ABIERTO POR LA FUERZA!
     };
+
+    // 3. FUNCIÓN CERRAR
+    const closeSignal = () => setShowRadar(false);
     
-    // Escuchamos Engranaje Y el Botón Nuevo
-    window.addEventListener('open-radar-signal', scanSignal);
-    window.addEventListener('trigger-scan-signal', scanSignal);
+    // Asignamos las funciones correctas a cada señal
+    window.addEventListener('open-radar-signal', toggleRadar);   // Botón del menú -> Toggle
+    window.addEventListener('trigger-scan-signal', forceRefresh); // Buscador -> Force Refresh
     window.addEventListener('close-radar-signal', closeSignal);
     
     return () => {
-        window.removeEventListener('open-radar-signal', scanSignal);
-        window.removeEventListener('trigger-scan-signal', scanSignal);
+        window.removeEventListener('open-radar-signal', toggleRadar);
+        window.removeEventListener('trigger-scan-signal', forceRefresh);
         window.removeEventListener('close-radar-signal', closeSignal);
     };
-  }, []); // <--- CORCHETES VACÍOS: ESTO ARREGLA EL ERROR ROJO
+  }, []);
 
   return (
     <>

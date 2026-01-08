@@ -43,9 +43,11 @@ export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
 ];
 
-// HERRAMIENTA DE REPARACIÓN DE DATOS
+// HERRAMIENTA DE REPARACIÓN DE DATOS E INYECCIÓN DE NANO CARDS
 const sanitizePropertyData = (p: any) => {
   if (!p) return null;
+  
+  // 1. Limpieza de imágenes y precios
   let safeImages: string[] = [];
   if (Array.isArray(p.images) && p.images.length > 0) {
       safeImages = p.images.map((i: any) => typeof i === 'string' ? i : i.url);
@@ -55,6 +57,23 @@ const sanitizePropertyData = (p: any) => {
       safeImages = [p.mainImage];
   }
   const safePrice = Number(p.priceValue || p.rawPrice || String(p.price).replace(/\D/g, '') || 0);
+
+  // 2. GENERADOR AUTOMÁTICO DE NANO CARD (Si no trae requisitos, los creamos según el tipo)
+  let nanoRequirements = p.requirements || [];
+  
+  if (nanoRequirements.length === 0) {
+      // Lógica de Inteligencia de Mercado
+      if (safePrice > 1000000) {
+          nanoRequirements = ["Acuerdo de Confidencialidad (NDA)", "Video Drone 4K", "Filtrado Financiero"];
+      } else if (p.type === 'land' || p.type === 'suelo') {
+          nanoRequirements = ["Levantamiento Topográfico", "Informe Urbanístico", "Cédula"];
+      } else if (p.type === 'commercial' || p.type === 'local') {
+          nanoRequirements = ["Licencia de Apertura", "Plano de Instalaciones", "Estudio de Mercado"];
+      } else {
+          // Residencial estándar
+          nanoRequirements = ["Reportaje Fotográfico", "Certificado Energético", "Nota Simple"];
+      }
+  }
 
   return {
       ...p,
@@ -66,7 +85,9 @@ const sanitizePropertyData = (p: any) => {
       images: safeImages,
       img: safeImages[0] || null,
       communityFees: p.communityFees || 0,
-      mBuilt: Number(p.mBuilt || p.m2 || 0)
+      mBuilt: Number(p.mBuilt || p.m2 || 0),
+      // INYECTAMOS LA NANO CARD AQUÍ
+      requirements: nanoRequirements 
   };
 };
 
