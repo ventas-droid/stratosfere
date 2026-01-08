@@ -1,16 +1,15 @@
 // @ts-nocheck
 
 // =============================================================================
-// 1. CATÁLOGO HÍBRIDO (EL ALGORITMO DEL ÉXITO)
+// 1. CATÁLOGO DE SERVICIOS PROFESIONALES
 // =============================================================================
-// Define qué pide la "Doncella" (Propietario) y qué gasta el "Caballero" (Agencia)
 
 export const SERVICE_CATALOG: Record<string, any> = {
-  // --- VISUALES (ARMAS DE SEDUCCIÓN) ---
+  // --- MARKETING VISUAL ---
   PHOTO_PRO: { 
-      id: "PHOTO_PRO", label: "Fotografía Premium", 
-      priceEUR: 150, // Lo que valora el propietario
-      costCredits: 2 // Lo que le cuesta al agente (Munición)
+      id: "PHOTO_PRO", label: "Fotografía Profesional", 
+      priceEUR: 150, 
+      costCredits: 2 
   },
   TOUR_MATTERPORT: { 
       id: "TOUR_MATTERPORT", label: "Tour Virtual 3D", 
@@ -23,48 +22,48 @@ export const SERVICE_CATALOG: Record<string, any> = {
       costCredits: 3 
   },
 
-  // --- TÉCNICOS (ESCUDOS) ---
+  // --- DOCUMENTACIÓN TÉCNICA ---
   LEGAL_CHECK: { 
-      id: "LEGAL_CHECK", label: "Nota Simple / Legal", 
+      id: "LEGAL_CHECK", label: "Verificación Registral", 
       priceEUR: 50, 
       costCredits: 1 
   },
   ENERGY_CERT: { 
-      id: "ENERGY_CERT", label: "Cert. Energético", 
+      id: "ENERGY_CERT", label: "Certificado Energético", 
       priceEUR: 120, 
       costCredits: 2 
   },
   PLANO_TEC: { 
-      id: "PLANO_TEC", label: "Plano Técnico", 
+      id: "PLANO_TEC", label: "Plano Acotado", 
       priceEUR: 80, 
       costCredits: 1 
   }
 };
 
 // =============================================================================
-// 2. NIVELES DE AGENCIA (LA ARMERÍA)
+// 2. LICENCIAS DE AGENCIA (MODELO SAAS)
 // =============================================================================
 export const AGENCY_SUBSCRIPTIONS = [
   {
     id: "sub_starter",
-    name: "AGENTE NOVATO",
+    name: "LICENCIA ESSENTIAL",
     price: 29.90, // €/mes
-    credits: 10,  // Munición mensual
-    perks: ["Radar Básico", "5 Leads/mes"]
+    credits: 10,  // Créditos mensuales
+    perks: ["Acceso Radar", "5 Leads/mes"]
   },
   {
-    id: "sub_tactical",
-    name: "OPERADOR TÁCTICO",
+    id: "sub_pro",
+    name: "LICENCIA PROFESSIONAL",
     price: 89.90,
-    credits: 50, // Munición estándar
-    perks: ["Radar 3D", "Leads Ilimitados"]
+    credits: 50,
+    perks: ["Radar Avanzado", "Leads Ilimitados"]
   },
   {
-    id: "sub_dominator",
-    name: "STRATOS DOMINATOR",
+    id: "sub_corp",
+    name: "LICENCIA CORPORATE",
     price: 199.90,
-    credits: 200, // Munición pesada
-    perks: ["God Mode", "Exclusividad", "Prioridad Algorítmica"]
+    credits: 200,
+    perks: ["Prioridad Alta", "API Access"]
   }
 ];
 
