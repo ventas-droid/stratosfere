@@ -1,384 +1,198 @@
 "use client";
-import React, { useState, useEffect } from "react";
-// CORRECCIÓN: Lista de iconos completa para que no falle nada
-import { 
-  Zap, CheckCircle2, X, Navigation, ChevronLeft, Search, 
-  Check, ShieldCheck, Plus, MessageSquare, Bell, User, Loader2, Send
-} from "lucide-react";
 
-// Motor de Agencia (Sin gamificación, solo funcionalidad)
-import { runAgencyOSSmoke } from '../agency-os/agencyos.smoke';
-// Audio (Opcional, con try/catch para que no rompa si falta)
-import { playSynthSound } from './audio';
+import React, { useState } from 'react';
+import { X, ArrowRight, Check, ShieldCheck, CreditCard, Building2, Zap } from 'lucide-react';
 
-// SERVICIOS (Configuración original local)
-const AVAILABLE_SERVICES = [
-  { id: 'foto', label: 'Fotografía Premium', price: 150 },
-  { id: 'tour', label: 'Tour Virtual 3D', price: 200 },
-  { id: 'plano', label: 'Plano Técnico', price: 80 },
-  { id: 'cert', label: 'Certificado Energ.', price: 120 },
+// Definimos los planes aquí mismo para evitar errores de importación y asegurar los nombres correctos
+const SUBSCRIPTION_PLANS = [
+  {
+    id: "sub_starter",
+    name: "ESSENTIAL",
+    price: "29",
+    period: "€/mes",
+    credits: 10,
+    badge: "🔹",
+    desc: "Para agentes independientes que inician su actividad.",
+    features: ["Acceso Radar 2D", "5 Leads mensuales", "Soporte Básico"]
+  },
+  {
+    id: "sub_pro",
+    name: "PROFESSIONAL",
+    price: "89",
+    period: "€/mes",
+    credits: 50,
+    badge: "💠",
+    desc: "La herramienta estándar para agencias de alto rendimiento.",
+    features: ["Radar 3D + Vuelos", "Leads Ilimitados", "Prioridad de Red", "API Access"]
+  },
+  {
+    id: "sub_corp",
+    name: "CORPORATE",
+    price: "199",
+    period: "€/mes",
+    credits: 200,
+    badge: "💎",
+    desc: "Infraestructura dedicada para grandes franquicias.",
+    features: ["Marca Blanca", "Multi-usuario", "Gestor Dedicado", "Auditoría Legal"]
+  }
 ];
 
-export default function TacticalRadarController({ targets = [], onClose }: any) {
+export default function AgencyMarketPanel({ isOpen, onClose }: any) {
   
-  // --- 1. ESTADOS ---
-  const [selectedTarget, setSelectedTarget] = useState<any>(null);
-  const [activeServices, setActiveServices] = useState<string[]>([]);
-  const [customServices, setCustomServices] = useState<any[]>([]); 
-  const [showAddService, setShowAddService] = useState(false);
-  const [newServiceName, setNewServiceName] = useState("");
-  const [newServicePrice, setNewServicePrice] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
-  const [msgStatus, setMsgStatus] = useState<"IDLE" | "SENDING" | "SENT">("IDLE");
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
-  const [inputMsg, setInputMsg] = useState("");
-  
-  const [processedIds, setProcessedIds] = useState<string[]>([]); 
+  // Si está cerrado, no renderizamos nada
+  if (!isOpen) return null;
 
-  // Búsqueda
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState<'RADAR' | 'COMMS'>('RADAR');
-
-  // --- 2. MEMORIA ---
-  useEffect(() => {
-    const saved = localStorage.getItem('stratos_processed_leads');
-    if (saved) {
-        setProcessedIds(JSON.parse(saved));
-    }
-  }, []);
-
-  // --- 3. BÚSQUEDA Y NAVEGACIÓN REAL (OPENSTREETMAP) ---
-  const filteredTargets = targets.filter((t: any) => {
-      if (!searchTerm) return true;
-      const searchLower = searchTerm.toLowerCase();
-      return (
-          (t.address && t.address.toLowerCase().includes(searchLower)) ||
-          (t.type && t.type.toLowerCase().includes(searchLower)) ||
-          (t.price && t.price.toString().includes(searchLower))
-      );
-  });
-
-  const performGlobalSearch = async () => {
-    if (!searchTerm) {
-        // Si borra, reseteamos
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('trigger-scan-signal'));
-        return;
-    }
-    setIsSearching(true);
-    try {
-        // Conexión real a API de Mapas
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}`);
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-            const location = data[0];
-            const lat = parseFloat(location.lat);
-            const lon = parseFloat(location.lon);
-            
-            if (typeof window !== "undefined") {
-                // Volamos el mapa a la zona encontrada
-                window.dispatchEvent(new CustomEvent("fly-to-location", { 
-                    detail: { center: [lon, lat], zoom: 14, pitch: 45 } 
-                }));
-                // Esperamos un segundo y escaneamos esa zona
-                setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('trigger-scan-signal'));
-                    setIsSearching(false);
-                }, 1500);
-            }
-        } else {
-            setIsSearching(false);
-        }
-    } catch (error) {
-        console.error("Error en búsqueda:", error);
-        setIsSearching(false);
-    }
+  const handleSelect = (id: string) => {
+      setSelectedPlanId(id === selectedPlanId ? null : id);
   };
 
-  // --- 4. OPERATIVA ---
-  const handleTrabajar = (target: any) => {
-    setSelectedTarget(target);
-    const isProcessed = processedIds.includes(String(target.id));
-    
-    if (isProcessed) {
-        setMsgStatus("SENT");
-        setActiveTab("COMMS");
-        setChatHistory([
-            { sender: 'system', text: 'Conexión recuperada.' },
-            { sender: 'me', text: 'Propuesta enviada anteriormente.' }
-        ]);
-    } else {
-        setMsgStatus("IDLE");    
-        setActiveTab("RADAR");
-        setChatHistory([]);
-        setActiveServices([]);
-    }
-  };
-
-  const handleVolar = (e: any, target: any) => {
-    e.stopPropagation(); 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("fly-to-location", { 
-        detail: { center: [target.lng, target.lat], zoom: 18, pitch: 60 } 
-      }));
-    }
-  };
-
-  const toggleService = (id: string) => {
-    setActiveServices(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
-  };
-
-  const handleAddCustomService = () => {
-      if (!newServiceName || !newServicePrice) return;
-      const newId = `custom-${Date.now()}`;
-      const newSrv = { id: newId, label: newServiceName, price: Number(newServicePrice) };
-      setCustomServices([...customServices, newSrv]);
-      setActiveServices([...activeServices, newId]); 
-      setShowAddService(false);
-      setNewServiceName("");
-      setNewServicePrice("");
-  };
-
-  const sendProposal = () => {
-    if (!selectedTarget) return;
-    setMsgStatus("SENDING");
-    
-    // Guardado real en AgencyOS
-    const result = runAgencyOSSmoke({
-        scope: { ownerId: 'demo_owner', agencyId: 'alpha_corp' },
-        target: { propertyId: String(selectedTarget.id), title: selectedTarget.type || "Propiedad" }
-    });
-
-    setTimeout(() => {
-        if (result && result.ok) {
-            setMsgStatus("SENT");
-            try { playSynthSound('success'); } catch(e) {}
-
-            const newProcessed = [...processedIds, String(selectedTarget.id)];
-            setProcessedIds(newProcessed);
-            localStorage.setItem('stratos_processed_leads', JSON.stringify(newProcessed));
-
-            setActiveTab('COMMS');
-            setChatHistory([
-                { sender: 'system', text: `CASE #${result.case.id.substring(0,8).toUpperCase()}: Abierto.` },
-                { sender: 'me', text: 'Propuesta y servicios enviados.' }
-            ]);
-        } else {
-            setMsgStatus("IDLE");
-        }
-    }, 1500);
-  };
-
-  const sendMessage = () => {
-      if(!inputMsg.trim()) return;
-      try { playSynthSound('click'); } catch(e) {}
-      const newMsg = { sender: 'me', text: inputMsg };
-      setChatHistory(prev => [...prev, newMsg]);
-      setInputMsg("");
-      setTimeout(() => {
-          setChatHistory(prev => [...prev, { sender: 'owner', text: 'Recibido.' }]);
-          try { playSynthSound('ping'); } catch(e) {}
-      }, 3000);
-  };
-
-  // --- RENDERIZADO (DISEÑO ORIGINAL ROBUSTO) ---
-  return (
-    <div className="flex flex-col h-full w-full bg-[#F2F2F7]/95 backdrop-blur-3xl text-slate-900 shadow-xl font-sans border-l border-white/20 pointer-events-auto">
+  const handlePurchase = () => {
+      if (!selectedPlanId) return;
       
-      {/* CABECERA */}
-      <div className="shrink-0 p-6 pb-4 border-b border-black/5 z-20 space-y-4">
-         <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-               {selectedTarget && (
-                   <button onClick={() => setSelectedTarget(null)} className="w-8 h-8 rounded-full bg-white hover:bg-slate-200 flex items-center justify-center shadow-sm border border-black/5">
-                       <ChevronLeft size={20} />
-                   </button>
-               )}
-               <div>
-                   <h2 className="text-3xl font-black tracking-tighter text-slate-900 mb-0.5">Radar.</h2>
-                   <div className="flex items-center gap-2 mt-1">
-                      <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></span>
-                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Stratos OS v2.1</p>
-                   </div>
-               </div>
+      const plan = SUBSCRIPTION_PLANS.find(s => s.id === selectedPlanId);
+      
+      // 📡 ENVIAMOS LA SEÑAL AL RADAR (Actualiza saldo y nombre de licencia)
+      if(typeof window !== 'undefined') {
+          console.log("💳 Procesando licencia:", plan?.name);
+          window.dispatchEvent(new CustomEvent('agency-upgrade-signal', { 
+              detail: { 
+                  name: `LICENCIA ${plan?.name}`, 
+                  credits: plan?.credits,
+                  badge: plan?.badge 
+              } 
+          }));
+      }
+      onClose();
+  };
+
+  const activePlan = SUBSCRIPTION_PLANS.find(s => s.id === selectedPlanId);
+
+  return (
+    <div className="fixed inset-y-0 left-0 w-full md:w-[460px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
+      
+      {/* FONDO CRYSTAL / CUPERTINO */}
+      <div className="absolute inset-0 bg-[#F5F5F7]/95 backdrop-blur-2xl shadow-2xl border-r border-white/50"></div>
+
+      <div className="relative z-10 flex flex-col h-full font-sans text-slate-900">
+        
+        {/* CABECERA */}
+        <div className="px-8 pt-10 pb-6 shrink-0 bg-white/40 backdrop-blur-md border-b border-white/50">
+            <div className="flex justify-between items-center mb-2">
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Suscripciones.
+                </h1>
+                <button 
+                    onClick={onClose} 
+                    className="w-8 h-8 bg-black/5 hover:bg-black/10 rounded-full flex items-center justify-center transition-all"
+                >
+                    <X size={16} className="text-slate-500"/>
+                </button>
             </div>
-            <button onClick={onClose} className="w-10 h-10 rounded-full bg-white hover:bg-slate-200 text-slate-500 flex items-center justify-center shadow-sm border border-black/5">
-               <X size={20} />
-            </button>
-         </div>
+            <div className="flex items-center gap-2">
+                <span className="bg-[#0071e3]/10 text-[#0071e3] px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                    Stratos Business
+                </span>
+                <p className="text-xs font-medium text-slate-400">
+                    Seleccione su nivel operativo.
+                </p>
+            </div>
+        </div>
 
-         {!selectedTarget && (
-             <div className="flex gap-2 animate-fade-in">
-                 <div className="flex-1 bg-white flex items-center px-3 py-2.5 rounded-xl border border-slate-200 shadow-sm focus-within:border-blue-500 transition-all">
-                     <Search size={14} className="text-slate-400 mr-2" />
-                     <input 
-                        type="text" 
-                        placeholder="Buscar ciudad o zona..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && performGlobalSearch()}
-                        className="bg-transparent border-none outline-none text-xs font-bold text-slate-700 w-full"
-                     />
-                 </div>
-                 <button onClick={performGlobalSearch} className="px-4 bg-[#1c1c1e] text-white rounded-xl flex items-center justify-center hover:bg-black transition-colors">
-                     {isSearching ? <Loader2 size={14} className="animate-spin"/> : <Search size={14} />}
-                 </button>
-             </div>
-         )}
-      </div>
-
-      {/* BODY */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
-         
-         {selectedTarget ? (
-            /* VISTA DETALLE CON CAJA VERDE */
-            <div className="bg-white rounded-[24px] shadow-sm border border-white/60 overflow-hidden animate-fade-in-up">
-                <div className="p-6 pb-0">
-                    <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-1 rounded-md uppercase">Oportunidad</span>
-                    <h3 className="font-black text-2xl text-slate-900 leading-tight mt-2">{selectedTarget.type}</h3>
-                    <div className="text-lg font-bold text-emerald-600 mb-4">{selectedTarget.price}</div>
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl mb-5">
-                        <Navigation size={14} className="text-blue-500"/> 
-                        <span className="truncate">{selectedTarget.address}</span>
-                    </div>
+        {/* LISTA DE PLANES (SCROLL) */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar space-y-4 pb-32">
+            
+            {/* ESTADO ACTUAL */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/60 shadow-sm flex items-center gap-4 mb-8">
+                <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
+                    <ShieldCheck size={20}/>
                 </div>
-
-                <div className="px-6 pb-4">
-                    <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
-                        <button onClick={() => setActiveTab('RADAR')} className={`flex-1 py-1.5 text-[9px] font-black uppercase rounded-md transition-all ${activeTab === 'RADAR' ? 'bg-white shadow-sm' : 'text-slate-400'}`}>Servicios</button>
-                        <button onClick={() => setActiveTab('COMMS')} className={`flex-1 py-1.5 text-[9px] font-black uppercase rounded-md transition-all ${activeTab === 'COMMS' ? 'bg-white shadow-sm' : 'text-slate-400'}`}>Comms</button>
-                    </div>
-
-                    {activeTab === 'RADAR' && (
-                        <div className="animate-fade-in">
-                            {msgStatus === 'SENT' ? (
-                                <div className="text-center py-6">
-                                    <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-100">
-                                        <CheckCircle2 size={32} />
-                                    </div>
-                                    <h3 className="font-bold text-slate-900">Propuesta Enviada</h3>
-                                    <button onClick={() => setActiveTab('COMMS')} className="mt-4 px-6 py-2 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase hover:bg-slate-200">Ver Chat</button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* CAJA VERDE DEL PACK BASE */}
-                                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 pb-6 mb-[-12px] relative z-0">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <ShieldCheck size={12} className="text-emerald-600" />
-                                            <span className="text-[10px] font-black text-emerald-800 uppercase">Pack Base</span>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {['Nota Simple', 'Validación'].map((s, i) => (
-                                                <span key={i} className="text-[9px] px-2 py-1 bg-white text-emerald-700 rounded-md font-bold shadow-sm border border-emerald-100">{s}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* BOTÓN + */}
-                                    <div className="relative z-10 flex justify-center">
-                                        <button 
-                                            onClick={() => setShowAddService(!showAddService)}
-                                            className="bg-white border border-slate-200 text-slate-400 hover:text-blue-500 hover:border-blue-500 p-1.5 rounded-full shadow-sm transition-all active:scale-90"
-                                        >
-                                            <Plus size={14} strokeWidth={4} />
-                                        </button>
-                                    </div>
-
-                                    {showAddService && (
-                                        <div className="mt-2 bg-white border border-blue-100 p-3 rounded-xl shadow-lg animate-fade-in-down mb-4 relative z-20">
-                                            <div className="flex gap-2 mb-2">
-                                                <input value={newServiceName} onChange={e=>setNewServiceName(e.target.value)} placeholder="Servicio..." className="flex-1 bg-slate-50 text-xs p-2 rounded-lg outline-none"/>
-                                                <input value={newServicePrice} onChange={e=>setNewServicePrice(e.target.value)} placeholder="€" type="number" className="w-16 bg-slate-50 text-xs p-2 rounded-lg outline-none"/>
-                                            </div>
-                                            <button onClick={handleAddCustomService} className="w-full bg-blue-600 text-white text-[10px] font-bold py-2 rounded-lg">Añadir</button>
-                                        </div>
-                                    )}
-
-                                    <div className="bg-transparent mt-[-12px] pt-6 pb-2 relative z-0">
-                                        <div className="space-y-2 mb-6">
-                                            {[...AVAILABLE_SERVICES, ...customServices].map(service => {
-                                                const isSelected = activeServices.includes(service.id);
-                                                return (
-                                                    <div key={service.id} onClick={() => toggleService(service.id)} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-blue-50 border-blue-200 shadow-sm translate-x-1' : 'bg-white border-slate-100'}`}>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
-                                                                {isSelected && <Check size={10} className="text-white" strokeWidth={3}/>}
-                                                            </div>
-                                                            <span className="text-xs font-medium text-slate-700">{service.label}</span>
-                                                        </div>
-                                                        <span className="text-[10px] font-bold text-slate-400">{service.price}€</span>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                        <button onClick={sendProposal} disabled={msgStatus === "SENDING"} className="w-full bg-[#1c1c1e] text-white font-bold text-xs tracking-widest py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 hover:bg-black uppercase transition-all">
-                                            {msgStatus === "SENDING" ? "Enviando..." : "Enviar Propuesta"}
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'COMMS' && (
-                        <div className="flex flex-col h-[400px]">
-                            <div className="flex-1 overflow-y-auto space-y-3 p-2 custom-scrollbar">
-                                {chatHistory.map((msg, i) => (
-                                    <div key={i} className={`flex gap-2 ${msg.sender === 'me' ? 'flex-row-reverse' : ''}`}>
-                                        <div className={`p-2 rounded-xl text-[10px] max-w-[80%] ${msg.sender === 'me' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-100 text-slate-700'}`}>
-                                            {msg.text}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="mt-2 flex gap-2">
-                                <input value={inputMsg} onChange={e => setInputMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()} type="text" placeholder="Escribir..." className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none"/>
-                                <button onClick={sendMessage} className="p-2 bg-[#1c1c1e] text-white rounded-lg"><Send size={12}/></button>
-                            </div>
-                        </div>
-                    )}
+                <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estado Actual</p>
+                    <p className="text-sm font-bold text-slate-900">Cuenta Gratuita</p>
                 </div>
             </div>
-         ) : (
-             /* LISTA DE RESULTADOS */
-             <div className="space-y-3 pb-10">
-                <div className="flex justify-between items-end px-1">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Objetivos ({filteredTargets.length})</p>
-                </div>
+
+            {/* TARJETAS DE SUSCRIPCIÓN */}
+            {SUBSCRIPTION_PLANS.map((plan: any) => {
+                const isSelected = selectedPlanId === plan.id;
                 
-                {filteredTargets.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-slate-300 opacity-60">
-                        <Search size={40} strokeWidth={1.5} className="mb-3"/>
-                        <p className="text-xs font-bold uppercase tracking-wider text-center max-w-[200px]">
-                            {/* Mensaje de estado vacío amigable */}
-                            {searchTerm ? "Sin resultados en esta zona" : "Inicie búsqueda"}
-                        </p>
-                    </div>
-                ) : (
-                    filteredTargets.map((t: any) => {
-                        const isProcessed = processedIds.includes(String(t.id));
-                        return (
-                            <div key={t.id} onClick={() => handleTrabajar(t)} className={`bg-white p-4 rounded-[20px] shadow-sm border cursor-pointer hover:shadow-lg transition-all flex justify-between items-center group relative overflow-hidden ${isProcessed ? 'border-emerald-200 bg-emerald-50/10' : 'border-slate-100 hover:border-blue-300'}`}>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-black text-slate-900 text-sm">{t.type}</span>
-                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{t.price}</span>
-                                        {isProcessed && <span className="bg-emerald-100 text-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Contactado</span>}
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 font-bold truncate max-w-[180px] flex items-center gap-1 uppercase">
-                                        <Navigation size={10} /> {t.address}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2 z-10">
-                                    <button onClick={(e) => handleVolar(e, t)} className="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-all shadow-sm border border-slate-100"><Navigation size={14} /></button>
-                                </div>
+                return (
+                    <div 
+                        key={plan.id}
+                        onClick={() => handleSelect(plan.id)}
+                        className={`relative p-6 rounded-[28px] cursor-pointer transition-all duration-300 border group
+                            ${isSelected 
+                                ? 'bg-[#1c1c1e] text-white border-black/10 shadow-2xl scale-[1.02] z-10' 
+                                : 'bg-white text-slate-900 border-slate-200/60 shadow-sm hover:border-slate-300 hover:shadow-md'
+                            }`}
+                    >
+                        {/* Header Tarjeta */}
+                        <div className="flex justify-between items-start mb-4">
+                            <div className={`text-2xl transition-transform duration-300 ${isSelected ? 'scale-110' : 'grayscale opacity-70'}`}>
+                                {plan.badge}
                             </div>
-                        )
-                    })
-                )}
-             </div>
-         )}
+                            <div className="text-right">
+                                <span className="text-2xl font-black tracking-tight block">
+                                    {plan.price}
+                                </span>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest ${isSelected ? 'text-gray-400' : 'text-slate-400'}`}>
+                                    {plan.period}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Título */}
+                        <h3 className="font-bold text-sm tracking-wide mb-1 uppercase">
+                            {plan.name}
+                        </h3>
+                        <p className={`text-xs font-medium mb-6 leading-relaxed ${isSelected ? 'text-gray-300' : 'text-slate-500'}`}>
+                            {plan.desc}
+                        </p>
+                        
+                        {/* Línea divisoria */}
+                        <div className={`h-px w-full mb-5 ${isSelected ? 'bg-white/10' : 'bg-slate-100'}`}></div>
+
+                        {/* Perks (Lista) */}
+                        <div className="space-y-3">
+                            {plan.features.map((perk:string, i:number) => (
+                                <div key={i} className="flex items-center gap-3">
+                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 
+                                        ${isSelected ? 'bg-[#2997ff] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Check size={10} strokeWidth={3}/>
+                                    </div>
+                                    <span className={`text-[11px] font-bold uppercase tracking-wide ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                                        {perk}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+
+        {/* FOOTER FLOTANTE (CONFIRMACIÓN) */}
+        {selectedPlanId && activePlan && (
+            <div className="absolute bottom-8 left-6 right-6 z-50 animate-fade-in-up">
+                 <div className="bg-white/90 backdrop-blur-xl p-2 pr-2 pl-6 rounded-full shadow-[0_20px_60px_rgba(0,0,0,0.2)] flex items-center justify-between border border-white/50">
+                    <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total a pagar</span>
+                        <span className="text-lg font-black text-slate-900 tracking-tight">
+                            {activePlan.price}€
+                        </span>
+                    </div>
+                    <button 
+                        onClick={handlePurchase}
+                        className="bg-[#000000] text-white px-8 py-4 rounded-full font-bold text-[10px] hover:bg-[#333] active:scale-95 transition-all flex items-center gap-2 uppercase tracking-widest shadow-lg"
+                    >
+                        Confirmar <ArrowRight size={14} strokeWidth={2.5}/>
+                    </button>
+                 </div>
+            </div>
+        )}
+
       </div>
     </div>
   );
