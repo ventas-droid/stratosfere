@@ -183,11 +183,12 @@ export const useMapLogic = () => {
 
       // 1. RECONSTRUIR EJÉRCITO (MAPA + LOCAL) PARA FILTRAR
 // ✅ FIX: ya NO usamos STRATOS_PROPERTIES (está vacío). Usamos la fuente real del mapa.
-const baseSource: any = map.current.getSource('properties');
+const source: any = map.current.getSource('properties');
 
 // Features actuales reales (server + local ya inyectado por RADAR)
-const sourceFeaturesRaw = source?._data?.features;
+const sourceFeaturesRaw = (source as any)?._data?.features;
 let masterFeatures: any[] = Array.isArray(sourceFeaturesRaw) ? sourceFeaturesRaw : [];
+
 
 // Normalizamos (sin perder elevator/specs/selectedServices)
 masterFeatures = masterFeatures.map((f: any) => {
@@ -405,10 +406,13 @@ if (src) {
     // -------------------------------------------------------------
     let safeImages: any[] = [];
     
-    // 1. Intentamos leer el array directo
-    if (Array.isArray(p.images)) {
-        safeImages = p.images;
-    } 
+    // 1. Intentamos leer el array directo (soporta strings o {url})
+if (Array.isArray(p.images)) {
+  safeImages = p.images
+    .map((i: any) => (typeof i === "string" ? i : i?.url))
+    .filter(Boolean);
+}
+
     // 2. Si Mapbox lo ha convertido a texto '["url1", "url2"]', lo parseamos
     else if (typeof p.images === 'string') {
         try {
@@ -645,32 +649,35 @@ if (src && (src as any)._data) {
         }
       } catch (e) { console.error(e); }
 
-      // 2. ACTUALIZAR EN EL MAPA
+    // 2. ACTUALIZAR EN EL MAPA
 const updateSource: any = map.current.getSource('properties');
-      if (source && source._data) {
-        const currentFeatures = source._data.features;
-        const updatedFeatures = currentFeatures.map((f: any) => {
-          if (String(f.properties.id) === String(id)) {
-            const newPriceValue = updates.price ? Number(updates.price) : f.properties.priceValue;
-            
-            return {
-              ...f,
-              properties: {
-                ...f.properties,
-                ...updates,
-                price: updates.price ? `${updates.price}€` : f.properties.price,
-                priceValue: newPriceValue, // 👈 Esto cambia el color de la NanoCard
-              }
-            };
-          }
-          return f;
-        });
 
-        source.setData({ type: 'FeatureCollection', features: updatedFeatures });
-        
-        // Forzamos repintado visual inmediato
-map.current.once('idle', () => updateMarkers());
-      }
+if (updateSource && (updateSource as any)._data) {
+  const currentFeatures = (updateSource as any)._data.features || [];
+
+  const updatedFeatures = currentFeatures.map((f: any) => {
+    if (String(f.properties.id) === String(id)) {
+      const newPriceValue = updates.price ? Number(updates.price) : f.properties.priceValue;
+
+      return {
+        ...f,
+        properties: {
+          ...f.properties,
+          ...updates,
+          price: updates.price ? `${updates.price}€` : f.properties.price,
+          priceValue: newPriceValue,
+        },
+      };
+    }
+    return f;
+  });
+
+  updateSource.setData({ type: 'FeatureCollection', features: updatedFeatures });
+
+  // Forzamos repintado visual inmediato
+  map.current.once('idle', () => updateMarkers());
+}
+
     };
 
    window.addEventListener('update-property-signal', handleUpdateProperty);
@@ -688,32 +695,29 @@ map.current.once('idle', () => updateMarkers());
     // 1. Obtener límites visuales actuales
     const bounds = map.current.getBounds();
 
-    // 2. Acceder a los datos crudos del mapa
-const radarSource: any = map.current.getSource('properties');
-    
-    // Si el mapa aún no ha cargado datos, abortamos misión
-    if (!source || !source._data || !source._data.features) return [];
+   const radarSource: any = map.current.getSource('properties');
 
-    // 3. Filtrar y Formatear para la Consola
-    const visibleProps = source._data.features
-      .filter((f: any) => {
-         const [lng, lat] = f.geometry.coordinates;
-         return bounds.contains([lng, lat]);
-      })
-      .map((f: any) => ({
-         id: f.properties.id,
-         address: f.properties.address || f.properties.location || "Ubicación Privada",
-         price: f.properties.price || "Consultar",
-         type: f.properties.type || "Propiedad",
-         lat: f.geometry.coordinates[1],
-         lng: f.geometry.coordinates[0],
-         
-         gap: (f.properties.selectedServices && f.properties.selectedServices.length > 0) 
-              ? [] 
-              : ["Foto Pro", "Plano 3D"] 
-      }));
+// Si el mapa aún no ha cargado datos, abortamos misión
+if (!radarSource || !(radarSource as any)._data || !(radarSource as any)._data.features) return [];
 
-    return visibleProps;
+// 3. Filtrar y Formatear para la Consola
+const visibleProps = (radarSource as any)._data.features
+  .filter((f: any) => {
+    const [lng, lat] = f.geometry.coordinates;
+    return bounds.contains([lng, lat]);
+  })
+  .map((f: any) => ({
+    id: f.properties.id,
+    address: f.properties.address || f.properties.location || "Ubicación Privada",
+    price: f.properties.price || "Consultar",
+    type: f.properties.type || "Propiedad",
+    lat: f.geometry.coordinates[1],
+    lng: f.geometry.coordinates[0],
+    gap: (f.properties.selectedServices && f.properties.selectedServices.length > 0) ? [] : ["Foto Pro", "Plano 3D"],
+  }));
+
+return visibleProps;
+
   };
 
 // ====================================================================
@@ -817,36 +821,34 @@ const radarSource: any = map.current.getSource('properties');
 
             // Verificamos si la capa existe. Si no, esperamos.
 const addSource: any = map.current.getSource('properties');
-            
-            if (source) {
-                // ¡ÉXITO! El mapa está listo. Pintamos.
-                (source as any).setData({
-                    type: 'FeatureCollection',
-                    features: features
-                });
-                console.log(`✅ RADAR: Despliegue exitoso (${features.length} activos).`);
-                
-               // ✅ Forzamos actualización visual de marcadores, pero esperamos a que Mapbox termine tiles/render
-if (map.current) {
-  map.current.once('idle', () => {
-    try { updateMarkers(); } catch (e) { console.error(e); }
+
+if (addSource) {
+  (addSource as any).setData({
+    type: 'FeatureCollection',
+    features: features
   });
+
+  console.log(`✅ RADAR: Despliegue exitoso (${features.length} activos).`);
+
+  if (map.current) {
+    map.current.once('idle', () => {
+      try { updateMarkers(); } catch (e) { console.error(e); }
+    });
+  }
+
+  setTimeout(() => {
+    try { updateMarkers(); } catch (e) {}
+  }, 350);
+
+} else {
+  if (attempts < 10) {
+    console.warn(`⏳ RADAR: Mapa ocupado. Reintentando (${attempts + 1}/10)...`);
+    setTimeout(() => injectSafely(attempts + 1), 500);
+  } else {
+    console.error("🚨 RADAR: Tiempo de espera agotado.");
+  }
 }
 
-// Red de seguridad (por si en algún dispositivo "idle" no dispara)
-setTimeout(() => {
-  try { updateMarkers(); } catch (e) {}
-}, 350);
-
-            } else {
-                // FALLO: El mapa aún no ha creado la capa 'properties'.
-                if (attempts < 10) {
-                    console.warn(`⏳ RADAR: Mapa ocupado. Reintentando (${attempts + 1}/10)...`);
-                    setTimeout(() => injectSafely(attempts + 1), 500); // Espera 0.5s y reintenta
-                } else {
-                    console.error("🚨 RADAR: Tiempo de espera agotado.");
-                }
-            }
         };
 
         // Iniciamos el intento de inyección

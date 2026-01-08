@@ -33,7 +33,7 @@ import LandingWaitlist from "./LandingWaitlist";
 import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
-import { getFavoritesAction, toggleFavoriteAction } from '@/app/actions';
+import { getFavoritesAction, toggleFavoriteAction, getUserMeAction } from '@/app/actions';
 
 // --- UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -207,22 +207,37 @@ export default function UIPanels({
   const [surfaceRange, setSurfaceRange] = useState({ min: 50, max: 500 });
 
   // --- FAVORITOS ---
-  const [localFavs, setLocalFavs] = useState<any[]>([]);
-  const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
+const [localFavs, setLocalFavs] = useState<any[]>([]);
+const [searchContext, setSearchContext] = useState<'VIVIENDA' | 'NEGOCIO' | 'TERRENO'>('VIVIENDA');
 
-  // --- 🔥 SOLUCIÓN 1: PROTOCOLO DE LIMPIEZA AL CAMBIAR DE MODO ---
-  // Esto detecta cuando usted pulsa "Salir" o entra en "Agencia" y cierra las ventanas viejas.
-  useEffect(() => {
-    setActivePanel('NONE');
-    setRightPanel('NONE');
-    setEditingProp(null);
-    setMarketProp(null);
-  }, [systemMode]);
- 
+// 🔐 Multiusuario: clave activa para NO mezclar favoritos entre users
+const [activeUserKey, setActiveUserKey] = useState<string>(() => {
+  try { return localStorage.getItem('stratos_active_user_key') || 'anon'; } catch { return 'anon'; }
+});
+
+useEffect(() => {
+  let alive = true;
+  (async () => {
+    try {
+      const me = await getUserMeAction();
+      const key = me?.success && me?.data?.id ? String(me.data.id) : 'anon';
+      if (alive) setActiveUserKey(key);
+      try { localStorage.setItem('stratos_active_user_key', key); } catch {}
+    } catch {
+      if (alive) setActiveUserKey('anon');
+      try { localStorage.setItem('stratos_active_user_key', 'anon'); } catch {}
+    }
+  })();
+  return () => { alive = false; };
+}, []);
+
  useEffect(() => {
   let isMounted = true;
 
-  // Normaliza cualquier formato (servidor / localStorage / Prisma include)
+  const userKey = activeUserKey || "anon";
+  const LIST_KEY = `stratos_favorites_v1:${userKey}`;
+
+  // Normaliza cualquier formato  (servidor / localStorage / Prisma include)
   const normalizeFavList = (arr: any[]) => {
     if (!Array.isArray(arr)) return [];
 
@@ -266,13 +281,13 @@ export default function UIPanels({
       .filter(Boolean);
   };
 
-  // Persistencia + limpieza de “fav-*” para evitar mezcla entre users
+  // Persistencia + limpieza de “fav-*” (por usuario)
   const persistFavs = (list: any[]) => {
     try {
-      // 1) IDs previos (antes de sobrescribir)
+      // 1) IDs previos (antes de sobrescribir) SOLO de este userKey
       let prevIds: string[] = [];
       try {
-        const prevRaw = localStorage.getItem("stratos_favorites_v1");
+        const prevRaw = localStorage.getItem(LIST_KEY);
         const prevParsed = prevRaw ? JSON.parse(prevRaw) : [];
         if (Array.isArray(prevParsed)) {
           prevIds = prevParsed.map((x: any) => String(x?.id)).filter(Boolean);
@@ -283,24 +298,24 @@ export default function UIPanels({
         (Array.isArray(list) ? list : []).map((x: any) => String(x?.id)).filter(Boolean)
       );
 
-      // 2) Guardar master list (SIEMPRE)
-      localStorage.setItem("stratos_favorites_v1", JSON.stringify(Array.isArray(list) ? list : []));
+      // 2) Guardar master list (SIEMPRE) SOLO de este userKey
+      localStorage.setItem(LIST_KEY, JSON.stringify(Array.isArray(list) ? list : []));
 
-      // 3) Quitar flags viejos y notificar a las nanocards
+      // 3) Quitar flags viejos SOLO de este userKey y notificar a las nanocards
       prevIds.forEach((id) => {
         if (!nextIds.has(id)) {
-          localStorage.removeItem(`fav-${id}`);
+          localStorage.removeItem(`fav-${userKey}-${id}`);
           window.dispatchEvent(
             new CustomEvent("sync-property-state", { detail: { id, isFav: false } })
           );
         }
       });
 
-      // 4) Poner flags nuevos y notificar a las nanocards
+      // 4) Poner flags nuevos SOLO de este userKey y notificar a las nanocards
       (Array.isArray(list) ? list : []).forEach((x: any) => {
         const id = String(x?.id);
         if (!id) return;
-        localStorage.setItem(`fav-${id}`, "true");
+        localStorage.setItem(`fav-${userKey}-${id}`, "true");
         window.dispatchEvent(
           new CustomEvent("sync-property-state", { detail: { id, isFav: true } })
         );
@@ -313,43 +328,41 @@ export default function UIPanels({
     try {
       const serverResponse = await getFavoritesAction();
 
-      // ✅ Sin sesión / no autorizado: NO borramos localStorage (evita rotura total de favoritos)
-if (serverResponse && serverResponse.success === false) {
-  if (isMounted) setLocalFavs([]);  // UI vacía si no hay sesión
-  return;                            // pero NO persistFavs([]) => no destruyas favoritos guardados
-}
+      // ✅ OK: si viene lista (aunque esté vacía), la usamos como fuente de verdad
+      if (serverResponse?.success && Array.isArray(serverResponse.data)) {
+        const normalized = normalizeFavList(serverResponse.data);
+        if (isMounted) setLocalFavs(normalized);
+        persistFavs(normalized);
+        return;
+      }
 
+      // ✅ Sin sesión / no autorizado:
+      // - Vacía UI (no hay user)
+      // - NO usamos storage de otro user
+      if (serverResponse && serverResponse.success === false) {
+        if (isMounted) setLocalFavs([]);
+        return;
+      }
+    } catch (e) {
+      console.error("Modo offline:", e);
+    }
 
-      // ✅ Sin sesión / no autorizado: NO borramos (evita perder favoritos por un "false" momentáneo)
-// Dejamos que continúe al fallback de localStorage.
-if (serverResponse && serverResponse.success === false) {
-  console.warn("⚠️ getFavoritesAction success:false -> usando fallback localStorage (NO se limpia).");
-  // NO hacemos: setLocalFavs([]), persistFavs([]), ni return.
-}
-} catch (e) {
-  console.error("Modo offline:", e);
-}
-
-
-    // 2) Fallback localStorage SOLO si hubo excepción (offline real)
+    // 2) Fallback localStorage (SOLO de este userKey)
     try {
-      const saved = localStorage.getItem("stratos_favorites_v1");
+      const saved = localStorage.getItem(LIST_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           const normalized = normalizeFavList(parsed);
           if (isMounted) setLocalFavs(normalized);
-          persistFavs(normalized);
+          persistFavs(normalized); // re-guardamos limpio
           return;
         }
       }
     } catch (e) {}
 
     // 3) Si no hay nada, vacío seguro
-    if (isMounted) {
-      setLocalFavs([]);
-      persistFavs([]);
-    }
+    if (isMounted) setLocalFavs([]);
   };
 
   loadFavs();
@@ -361,54 +374,65 @@ if (serverResponse && serverResponse.success === false) {
     isMounted = false;
     window.removeEventListener("reload-favorites", onReloadFavs);
   };
-}, []);
+}, [activeUserKey]);
 
-
-
- useEffect(() => {
+useEffect(() => {
   try {
-    // ✅ Guardar SIEMPRE, incluso si está vacío (clave para multiusuario)
-    localStorage.setItem("stratos_favorites_v1", JSON.stringify(Array.isArray(localFavs) ? localFavs : []));
+    const userKey = activeUserKey || "anon";
+    const LIST_KEY = `stratos_favorites_v1:${userKey}`;
+    localStorage.setItem(
+      LIST_KEY,
+      JSON.stringify(Array.isArray(localFavs) ? localFavs : [])
+    );
   } catch (e) {}
-}, [localFavs]);
+}, [localFavs, activeUserKey]);
 
+const handleToggleFavorite = async (prop: any) => {
+  if (!prop) return;
+  if (soundEnabled) playSynthSound("click");
 
-
-  const handleToggleFavorite = async (prop: any) => {
-      if (!prop) return;
-      if (soundEnabled) playSynthSound('click');
-
-      const safeProp = {
-          ...prop,
-          id: prop.id || Date.now(),
-          title: prop.title || "Propiedad",
-          formattedPrice: prop.formattedPrice || prop.price || "Consultar"
-      };
-
-      const exists = localFavs.some(f => String(f.id) === String(safeProp.id));
-      let newFavs;
-      let newStatus; 
-
-      if (exists) {
-          newFavs = localFavs.filter(f => String(f.id) !== String(safeProp.id));
-          addNotification("Eliminado de colección");
-          localStorage.removeItem(`fav-${safeProp.id}`); 
-          newStatus = false;
-      } else {
-          newFavs = [...localFavs, { ...safeProp, savedAt: Date.now() }];
-          addNotification("Guardado en Favoritos");
-          localStorage.setItem(`fav-${safeProp.id}`, 'true');
-          setRightPanel('VAULT'); 
-          newStatus = true;
-      }
-      setLocalFavs(newFavs);
-
-      if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('sync-property-state', { detail: { id: safeProp.id, isFav: newStatus } }));
-      }
-
-      try { await toggleFavoriteAction(String(safeProp.id)); } catch (error) { console.error(error); }
+  const safeProp = {
+    ...prop,
+    id: prop.id || Date.now(),
+    title: prop.title || "Propiedad",
+    formattedPrice: prop.formattedPrice || prop.price || "Consultar",
   };
+
+  const userKey = activeUserKey || "anon";
+  const FLAG_KEY = `fav-${userKey}-${safeProp.id}`;
+
+  const exists = localFavs.some((f) => String(f.id) === String(safeProp.id));
+  let newFavs;
+  let newStatus;
+
+  if (exists) {
+    newFavs = localFavs.filter((f) => String(f.id) !== String(safeProp.id));
+    addNotification("Eliminado de colección");
+    localStorage.removeItem(FLAG_KEY);
+    newStatus = false;
+  } else {
+    newFavs = [...localFavs, { ...safeProp, savedAt: Date.now() }];
+    addNotification("Guardado en Favoritos");
+    localStorage.setItem(FLAG_KEY, "true");
+    setRightPanel("VAULT");
+    newStatus = true;
+  }
+
+  setLocalFavs(newFavs);
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("sync-property-state", { detail: { id: safeProp.id, isFav: newStatus } })
+    );
+  }
+
+  try {
+    await toggleFavoriteAction(String(safeProp.id));
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 
   const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
   const [aiInput, setAiInput] = useState("");

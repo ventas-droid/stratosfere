@@ -155,23 +155,36 @@ export default function MapNanoCard(props: any) {
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-        let isSaved = localStorage.getItem(`fav-${id}`) === 'true';
-        if (!isSaved) {
-            try {
-                const masterList = JSON.parse(localStorage.getItem('stratos_favorites_v1') || '[]');
-                isSaved = masterList.some((item: any) => item.id == id);
-                if (isSaved) localStorage.setItem(`fav-${id}`, 'true');
-            } catch (e) { console.error(e); }
-        }
-        setLiked(isSaved);
+  if (typeof window !== "undefined") {
+    const userKey = localStorage.getItem("stratos_active_user_key") || "anon";
+    const LIST_KEY = `stratos_favorites_v1:${userKey}`;
+    const FLAG_KEY = `fav-${userKey}-${id}`;
+
+    let isSaved = localStorage.getItem(FLAG_KEY) === "true";
+
+    if (!isSaved) {
+      try {
+        const masterList = JSON.parse(localStorage.getItem(LIST_KEY) || "[]");
+        isSaved =
+          Array.isArray(masterList) &&
+          masterList.some((item: any) => String(item?.id) === String(id));
+
+        if (isSaved) localStorage.setItem(FLAG_KEY, "true");
+      } catch (e) {}
     }
-    const handleRemoteCommand = (e: CustomEvent) => {
-        if (e.detail && (e.detail.id == id)) setLiked(!!e.detail.isFav);
-    };
-    if (typeof window !== 'undefined') window.addEventListener('sync-property-state', handleRemoteCommand as EventListener);
-    return () => { if (typeof window !== 'undefined') window.removeEventListener('sync-property-state', handleRemoteCommand as EventListener); };
-  }, [id]);
+
+    setLiked(isSaved);
+  }
+
+  const handleRemoteCommand = (e: any) => {
+    if (e?.detail && String(e.detail.id) === String(id)) {
+      setLiked(!!e.detail.isFav);
+    }
+  };
+
+  window.addEventListener("sync-property-state", handleRemoteCommand as EventListener);
+  return () => window.removeEventListener("sync-property-state", handleRemoteCommand as EventListener);
+}, [id]);
 
 // GESTOR DE ACCIONES (VERSIÓN DEFINITIVA: 100% SEGURA)
   const handleAction = (e: React.MouseEvent, action: string) => {
