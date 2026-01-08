@@ -1,96 +1,152 @@
 // @ts-nocheck
-export const SERVICE_CATALOG: Record<string, { label: string }> = {
-  // --- MULTIMEDIA TÁCTICA ---
-  PHOTO_PRO: { label: "Fotografía Pro (HDR)" },
-  VIDEO_CINEMA: { label: "Video Cinemático 4K" },
-  DRONE_AERIAL: { label: "Drone Aéreo" },
-  TOUR_MATTERPORT: { label: "Tour Virtual 3D" },
-  FLOORPLAN_2D: { label: "Plano Acotado 2D" },
-  FLOORPLAN_3D: { label: "Plano Volumétrico 3D" },
-  
-  // --- MARKETING DE GUERRA ---
-  PORTAL_PREMIUM: { label: "Destacado Premium" },
-  SOCIAL_ADS: { label: "Campaña Social Ads" },
-  EMAIL_BLAST: { label: "Email Marketing VIP" },
-  COPYWRITING: { label: "Storytelling Venta" },
-  OPEN_HOUSE: { label: "Evento Open House" },
-  BROCHURE: { label: "Dossier Impreso" },
-  
-  // --- LEGAL & TÉCNICO ---
-  LEGAL_CHECK: { label: "Nota Simple / Cargas" },
-  ENERGY_CERT: { label: "Cert. Energético" },
-  CEDULA: { label: "Cédula Habitabilidad" },
-  APPRAISAL: { label: "Tasación Oficial" },
-  NOTARY_PREP: { label: "Gestión Notaría" },
-  ARCHITECT_CONSULT: { label: "Consulta Arquitecto" },
-  
-  // --- OPERACIONES DE CAMPO ---
-  HOME_STAGING: { label: "Home Staging Físico" },
-  VIRTUAL_STAGING: { label: "Home Staging Virtual" },
-  DEEP_CLEANING: { label: "Limpieza Integral" },
-  MAINTENANCE: { label: "Reparaciones Express" },
-  KEY_CUSTODY: { label: "Custodia de Llaves" },
-  MOVING: { label: "Servicio Mudanza" },
-  INSURANCE: { label: "Seguro Impago" }
-};
 
-export const SERVICE_ALIAS: Record<string, string> = {
-  // ALIAS PARA MAPEO INTELIGENTE (Detecta variaciones)
-  "FOTO": "PHOTO_PRO", "FOTOGRAFIA": "PHOTO_PRO", "PHOTO": "PHOTO_PRO",
-  "VIDEO": "VIDEO_CINEMA", "CINE": "VIDEO_CINEMA",
-  "DRON": "DRONE_AERIAL", "DRONE": "DRONE_AERIAL",
-  "TOUR": "TOUR_MATTERPORT", "MATTERPORT": "TOUR_MATTERPORT", "3D": "TOUR_MATTERPORT",
-  "PLANO": "FLOORPLAN_2D", "PLANO 2D": "FLOORPLAN_2D",
-  "RENDER": "FLOORPLAN_3D", "PLANO 3D": "FLOORPLAN_3D",
+// =============================================================================
+// 1. CATÁLOGO MAESTRO DE SERVICIOS (ECOSISTEMA STRATOS)
+// =============================================================================
+export const SERVICE_CATALOG: Record<string, any> = {
   
-  "DESTACADO": "PORTAL_PREMIUM", "PORTALES": "PORTAL_PREMIUM",
-  "ADS": "SOCIAL_ADS", "FACEBOOK": "SOCIAL_ADS", "INSTAGRAM": "SOCIAL_ADS",
-  "EMAIL": "EMAIL_BLAST", "NEWSLETTER": "EMAIL_BLAST",
-  "OPEN HOUSE": "OPEN_HOUSE", "VISITA": "OPEN_HOUSE",
-  
-  "NOTA SIMPLE": "LEGAL_CHECK", "LEGAL": "LEGAL_CHECK", "REGISTRO": "LEGAL_CHECK",
-  "CEE": "ENERGY_CERT", "ENERGETICO": "ENERGY_CERT",
-  "CEDULA": "CEDULA",
-  "TASACION": "APPRAISAL", "VALORACION": "APPRAISAL",
-  "NOTARIA": "NOTARY_PREP",
-  
-  "STAGING": "HOME_STAGING", "DECORACION": "HOME_STAGING",
-  "STAGING VIRTUAL": "VIRTUAL_STAGING",
-  "LIMPIEZA": "DEEP_CLEANING",
-  "LLAVES": "KEY_CUSTODY",
-  "MUDANZA": "MOVING"
-};
+  // --- PRODUCCIÓN AUDIOVISUAL (IMAGEN DE MARCA) ---
+  PHOTO_PRO: { 
+      id: "PHOTO_PRO", 
+      label: "Fotografía Editorial HDR", 
+      desc: "Estándar de revista. 20 tomas tratadas.",
+      priceEUR: 89,    
+      costCredits: 2,  
+      category: "VISUAL", 
+      icon: "Camera"
+  },
+  VIDEO_CINEMA: { 
+      id: "VIDEO_CINEMA", 
+      label: "Producción Cinema 4K", 
+      desc: "Storytelling emocional y edición pro.",
+      priceEUR: 199, 
+      costCredits: 5, 
+      category: "VISUAL", 
+      icon: "Video"
+  },
+  DRONE_AERIAL: { 
+      id: "DRONE_AERIAL", 
+      label: "Perspectiva Aérea", 
+      desc: "Contexto y entorno vía Drone.",
+      priceEUR: 120, 
+      costCredits: 3, 
+      category: "VISUAL", 
+      icon: "Globe"
+  },
+  TOUR_MATTERPORT: { 
+      id: "TOUR_MATTERPORT", 
+      label: "Gemelo Digital 3D", 
+      desc: "Experiencia inmersiva Matterport.",
+      priceEUR: 150, 
+      costCredits: 4, 
+      category: "VISUAL", 
+      icon: "Box"
+  },
 
-export function normalizeServiceId(raw: any): string | null {
-  if (!raw) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
+  // --- CONSULTORÍA TÉCNICA & LEGAL (GARANTÍAS) ---
+  LEGAL_CHECK: { 
+      id: "LEGAL_CHECK", 
+      label: "Verificación Registral", 
+      desc: "Auditoría jurídica de la propiedad.",
+      priceEUR: 20, 
+      costCredits: 1, 
+      category: "LEGAL", 
+      icon: "FileCheck"
+  },
+  ENERGY_CERT: { 
+      id: "ENERGY_CERT", 
+      label: "Certificación Energética", 
+      desc: "Cumplimiento normativo EU.",
+      priceEUR: 90, 
+      costCredits: 2, 
+      category: "LEGAL", 
+      icon: "Zap"
+  },
+  APPRAISAL: { 
+      id: "APPRAISAL", 
+      label: "Valoración de Mercado", 
+      desc: "Informe de tasación certificado.",
+      priceEUR: 250, 
+      costCredits: 6, 
+      category: "LEGAL", 
+      icon: "Activity"
+  },
 
-  // Ignorar packs genéricos si llegan
-  if (s.toLowerCase().startsWith("pack_")) return null;
-
-  const key = s.replace(/\s+/g, "_").toUpperCase();
-  // 1. Intentar alias directo
-  let mapped = SERVICE_ALIAS[key];
-  // 2. Si no, intentar key directa
-  if (!mapped && SERVICE_CATALOG[key]) mapped = key;
-  // 3. Fallback inteligente (Búsqueda parcial)
-  if (!mapped) {
-     const found = Object.keys(SERVICE_ALIAS).find(k => key.includes(k));
-     if (found) mapped = SERVICE_ALIAS[found];
+  // --- ESTRATEGIA DE DIFUSIÓN (ALCANCE) ---
+  PORTAL_PREMIUM: { 
+      id: "PORTAL_PREMIUM", 
+      label: "Posicionamiento Prime", 
+      desc: "Visibilidad prioritaria en listados.",
+      priceEUR: 49, 
+      costCredits: 1, 
+      category: "ADS", 
+      icon: "ArrowUp"
+  },
+  SOCIAL_ADS: { 
+      id: "SOCIAL_ADS", 
+      label: "Social Media Ads", 
+      desc: "Segmentación algorítmica en Meta/IG.",
+      priceEUR: 79, 
+      costCredits: 2, 
+      category: "ADS", 
+      icon: "Megaphone"
+  },
+  OPEN_HOUSE: { 
+      id: "OPEN_HOUSE", 
+      label: "Evento Open House", 
+      desc: "Jornada de puertas abiertas gestionada.",
+      priceEUR: 299, 
+      costCredits: 8, 
+      category: "EVENT", 
+      icon: "Star"
+  },
+  HOME_STAGING: { 
+      id: "HOME_STAGING", 
+      label: "Home Staging", 
+      desc: "Valorización estética del activo.",
+      priceEUR: 350, 
+      costCredits: 10, 
+      category: "EVENT", 
+      icon: "Paintbrush"
   }
+};
 
-  return mapped || null;
-}
+// =============================================================================
+// 2. LICENCIAS CORPORATIVAS (PLANES DE AGENCIA)
+// =============================================================================
+// Aquí definimos los niveles de acceso. Todo muy limpio y jerárquico.
+export const AGENCY_SUBSCRIPTIONS = [
+  {
+    id: "sub_starter",
+    name: "LICENSE: ESSENTIAL",
+    price: 29.90, // Mensual
+    credits: 10,  // Capacidad operativa
+    perks: ["Acceso Mapa Base", "5 Activos en Cartera"],
+    badge: "🔹", 
+    desc: "Para agencias en fase de inicio."
+  },
+  {
+    id: "sub_professional", // Antes "Tactical"
+    name: "LICENSE: PROFESSIONAL",
+    price: 89.90,
+    credits: 35, 
+    perks: ["Radar 3D Tiempo Real", "Cartera Ilimitada"],
+    badge: "💠", 
+    desc: "El estándar para alto rendimiento."
+  },
+  {
+    id: "sub_authority", // Antes "Dominator"
+    name: "LICENSE: AUTHORITY",
+    price: 199.90,
+    credits: 100, 
+    perks: ["Market Intelligence", "Exclusividad de Zona", "Prioridad Algorítmica"],
+    badge: "💎", // Diamante (Premium, no Corona)
+    desc: "Infraestructura total para líderes de zona."
+  }
+];
 
+// Función Helper para obtener etiqueta de forma segura
 export function labelForService(serviceId: string): string {
-  // Si tenemos el ID oficial, devolvemos etiqueta bonita
   if (SERVICE_CATALOG[serviceId]) return SERVICE_CATALOG[serviceId].label;
-  
-  // Si nos llega algo raro, intentamos normalizarlo primero
-  const norm = normalizeServiceId(serviceId);
-  if (norm && SERVICE_CATALOG[norm]) return SERVICE_CATALOG[norm].label;
-
-  // Si todo falla, devolvemos el texto original limpio
   return serviceId.replace(/_/g, " ");
 }
