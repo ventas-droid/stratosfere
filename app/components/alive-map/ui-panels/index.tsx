@@ -313,13 +313,12 @@ export default function UIPanels({
     try {
       const serverResponse = await getFavoritesAction();
 
-      // ✅ OK: lista del servidor (aunque venga vacía)
-      if (serverResponse?.success && Array.isArray(serverResponse.data)) {
-        const normalized = normalizeFavList(serverResponse.data);
-        if (isMounted) setLocalFavs(normalized);
-        persistFavs(normalized);
-        return;
-      }
+      // ✅ Sin sesión / no autorizado: NO borramos localStorage (evita rotura total de favoritos)
+if (serverResponse && serverResponse.success === false) {
+  if (isMounted) setLocalFavs([]);  // UI vacía si no hay sesión
+  return;                            // pero NO persistFavs([]) => no destruyas favoritos guardados
+}
+
 
       // ✅ Sin sesión / no autorizado: NO borramos (evita perder favoritos por un "false" momentáneo)
 // Dejamos que continúe al fallback de localStorage.
