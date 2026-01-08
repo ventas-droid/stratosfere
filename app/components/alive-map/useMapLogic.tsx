@@ -795,8 +795,18 @@ export const useMapLogic = () => {
                 });
                 console.log(`✅ RADAR: Despliegue exitoso (${features.length} activos).`);
                 
-                // Forzamos actualización visual de marcadores
-                setTimeout(() => { if(typeof updateMarkers === 'function') updateMarkers(); }, 50);
+               // ✅ Forzamos actualización visual de marcadores, pero esperamos a que Mapbox termine tiles/render
+if (map.current) {
+  map.current.once('idle', () => {
+    try { updateMarkers(); } catch (e) { console.error(e); }
+  });
+}
+
+// Red de seguridad (por si en algún dispositivo "idle" no dispara)
+setTimeout(() => {
+  try { updateMarkers(); } catch (e) {}
+}, 350);
+
             } else {
                 // FALLO: El mapa aún no ha creado la capa 'properties'.
                 if (attempts < 10) {

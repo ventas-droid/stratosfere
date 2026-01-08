@@ -85,14 +85,19 @@ export default function VaultPanel({
     else if (prop.geometry?.coordinates) {
         finalCoords = prop.geometry.coordinates;
     }
-    // Prioridad 3: Objetos lat/lng sueltos
-    else if (prop.lat && prop.lng) {
-        finalCoords = [prop.lng, prop.lat]; 
-    }
-    // Prioridad 4: Fallback de ubicación antigua
-    else if (prop.location && Array.isArray(prop.location)) {
-        finalCoords = prop.location; 
-    }
+   // Prioridad 3: Objetos lat/lng sueltos
+else if (prop.lat != null && prop.lng != null) {
+  finalCoords = [prop.lng, prop.lat]; 
+}
+// ✅ Prioridad 3.5: Prisma standard (latitude/longitude)
+else if (prop.latitude != null && prop.longitude != null) {
+  finalCoords = [prop.longitude, prop.latitude];
+}
+// Prioridad 4: Fallback de ubicación antigua
+else if (prop.location && Array.isArray(prop.location)) {
+  finalCoords = prop.location; 
+}
+
 
     // C. EJECUCIÓN DEL VUELO (VIA SEÑAL DE RADIO OFICIAL)
     if (finalCoords) {

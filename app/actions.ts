@@ -276,54 +276,85 @@ export async function updateUserAction(data: any) {
 
 // G. TOGGLE LIKE (Necesaria para los corazones)
 export async function toggleFavoriteAction(propertyId: string) {
-    const user = await getCurrentUser();
-    if (!user) return { success: false };
+  const user = await getCurrentUser();
+  if (!user) return { success: false };
 
-    const existing = await prisma.favorite.findUnique({
-        where: { userId_propertyId: { userId: user.id, propertyId } }
-    });
+  const existing = await prisma.favorite.findUnique({
+    where: { userId_propertyId: { userId: user.id, propertyId } }
+  });
 
-    if (existing) {
-        await prisma.favorite.delete({ where: { id: existing.id } });
-        return { success: true, isFavorite: false };
-    } else {
-        await prisma.favorite.create({ data: { userId: user.id, propertyId } });
-        return { success: true, isFavorite: true };
-    }
+  if (existing) {
+    await prisma.favorite.delete({ where: { id: existing.id } });
+    revalidatePath('/');
+    return { success: true, isFavorite: false };
+  } else {
+    await prisma.favorite.create({ data: { userId: user.id, propertyId } });
+    revalidatePath('/');
+    return { success: true, isFavorite: true };
+  }
 }
 
-// H. LEER FAVORITOS (BÓVEDA)
+// H. LEER FAVORITOS (BÓVEDA) ✅ UNIFICADO CON GLOBAL/PERFIL
 export async function getFavoritesAction() {
-    const user = await getCurrentUser();
-    if (!user) return { success: false, data: [] };
+  const user = await getCurrentUser();
+  if (!user) return { success: false, data: [] };
 
-    const favs = await prisma.favorite.findMany({
-        where: { userId: user.id },
-        include: { property: { include: { images: true } } }
-    });
+  const favs = await prisma.favorite.findMany({
+    where: { userId: user.id },
+    include: { property: { include: { images: true } } }
+  });
 
-    const cleanFavs = favs.map(f => {
-        const p: any = f.property;
-        if(!p) return null;
-        const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
+  const cleanFavs = favs
+    .map((f) => {
+      const p: any = f.property;
+      if (!p) return null;
 
-        return {
-            ...p,
-            id: p.id,
-            img: realImg || null, 
-            isFavorited: true, // Siempre true aquí
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            rawPrice: p.price,
-            
-            // 🔥 DATOS COMPLETOS TAMBIÉN EN FAVORITOS
-            m2: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0,
-            energyConsumption: p.energyConsumption,
-            energyEmissions: p.energyEmissions,
-            energyPending: p.energyPending
-        }
-    }).filter(Boolean);
+      // ✅ IMÁGENES (MISMO FORMATO QUE GLOBAL/PERFIL: string[])
+      const realImg =
+        p.images && p.images.length > 0 ? p.images[0].url : p.mainImage || null;
 
-    return { success: true, data: cleanFavs };
+      let allImages = (p.images || []).map((img: any) => img.url);
+      if (allImages.length === 0 && realImg) allImages = [realImg];
+
+      // ✅ COORDENADAS (MISMO FORMATO QUE GLOBAL/PERFIL)
+      const lng = (p.longitude ?? -3.7038);
+      const lat = (p.latitude ?? 40.4168);
+
+      return {
+        ...p,
+
+        // ✅ ID REAL DE PROPIEDAD (NO el id del Favorite row)
+        id: p.id,
+
+        // ✅ COORDS para que VaultPanel SIEMPRE pueda volar
+        coordinates: [lng, lat],
+
+        // (Opcional útil para compatibilidad legacy)
+        lng,
+        lat,
+
+        // ✅ IMÁGENES unificadas
+        images: allImages,
+        img: realImg || null,
+
+        // ✅ PRECIO unificado (igual que global/perfil)
+        price: new Intl.NumberFormat("es-ES").format(p.price || 0),
+        rawPrice: p.price,
+        priceValue: p.price,
+
+        // ✅ ESTADO
+        isFavorited: true,
+
+        // ✅ DATOS CRÍTICOS (igual que global/perfil)
+        m2: Number(p.mBuilt || 0),
+        mBuilt: Number(p.mBuilt || 0),
+        communityFees: p.communityFees || 0,
+        energyConsumption: p.energyConsumption,
+        energyEmissions: p.energyEmissions,
+        energyPending: p.energyPending,
+      };
+    })
+    .filter(Boolean);
+
+  return { success: true, data: cleanFavs };
 }
-

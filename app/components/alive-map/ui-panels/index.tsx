@@ -46,50 +46,114 @@ export const LUXURY_IMAGES = [
 // HERRAMIENTA DE REPARACIÓN DE DATOS E INYECCIÓN DE NANO CARDS
 const sanitizePropertyData = (p: any) => {
   if (!p) return null;
-  
+
+  // ✅ SOPORTE: si llega un Favorite de Prisma con include { property: true }
+  // (Ej: { id, userId, propertyId, property: {...} })
+  const base = p?.property
+    ? { ...p.property, propertyId: p.propertyId, favoriteId: p.id }
+    : p;
+
   // 1. Limpieza de imágenes y precios
   let safeImages: string[] = [];
-  if (Array.isArray(p.images) && p.images.length > 0) {
-      safeImages = p.images.map((i: any) => typeof i === 'string' ? i : i.url);
-  } else if (p.img) {
-      safeImages = [p.img];
-  } else if (p.mainImage) {
-      safeImages = [p.mainImage];
+  if (Array.isArray(base.images) && base.images.length > 0) {
+    safeImages = base.images
+      .map((i: any) => (typeof i === "string" ? i : i?.url))
+      .filter(Boolean);
+  } else if (base.img) {
+    safeImages = [base.img].filter(Boolean);
+  } else if (base.mainImage) {
+    safeImages = [base.mainImage].filter(Boolean);
   }
-  const safePrice = Number(p.priceValue || p.rawPrice || String(p.price).replace(/\D/g, '') || 0);
+
+  const safePrice = Number(
+    base.priceValue || base.rawPrice || String(base.price).replace(/\D/g, "") || 0
+  );
+
+  // ✅ ID UNIFICADO (muy importante para multi-origen y favoritos)
+  // - Si viene como Favorite row, preferimos propertyId (porque es el ID real de la propiedad)
+  const safeId = String(base.propertyId || base.id || base._id || base.uuid || Date.now());
+
+  // ✅ COORDENADAS UNIFICADAS:
+  // Prisma: latitude/longitude
+  // Legacy: lat/lng
+  // GeoJSON: coordinates / geometry.coordinates / location
+  const lngRaw =
+    base.lng ??
+    base.longitude ??
+    (Array.isArray(base.coordinates) ? base.coordinates[0] : undefined) ??
+    base.geometry?.coordinates?.[0] ??
+    (Array.isArray(base.location) ? base.location[0] : undefined);
+
+  const latRaw =
+    base.lat ??
+    base.latitude ??
+    (Array.isArray(base.coordinates) ? base.coordinates[1] : undefined) ??
+    base.geometry?.coordinates?.[1] ??
+    (Array.isArray(base.location) ? base.location[1] : undefined);
+
+  const lng = lngRaw !== undefined && lngRaw !== null ? Number(lngRaw) : undefined;
+  const lat = latRaw !== undefined && latRaw !== null ? Number(latRaw) : undefined;
+
+  const hasCoords = Number.isFinite(lng) && Number.isFinite(lat);
+  const coordinates = hasCoords ? [lng as number, lat as number] : undefined;
 
   // 2. GENERADOR AUTOMÁTICO DE NANO CARD (Si no trae requisitos, los creamos según el tipo)
-  let nanoRequirements = p.requirements || [];
-  
+  let nanoRequirements = base.requirements || [];
+  if (!Array.isArray(nanoRequirements)) nanoRequirements = [];
+
   if (nanoRequirements.length === 0) {
-      // Lógica de Inteligencia de Mercado
-      if (safePrice > 1000000) {
-          nanoRequirements = ["Acuerdo de Confidencialidad (NDA)", "Video Drone 4K", "Filtrado Financiero"];
-      } else if (p.type === 'land' || p.type === 'suelo') {
-          nanoRequirements = ["Levantamiento Topográfico", "Informe Urbanístico", "Cédula"];
-      } else if (p.type === 'commercial' || p.type === 'local') {
-          nanoRequirements = ["Licencia de Apertura", "Plano de Instalaciones", "Estudio de Mercado"];
-      } else {
-          // Residencial estándar
-          nanoRequirements = ["Reportaje Fotográfico", "Certificado Energético", "Nota Simple"];
-      }
+    // Lógica de Inteligencia de Mercado
+    if (safePrice > 1000000) {
+      nanoRequirements = [
+        "Acuerdo de Confidencialidad (NDA)",
+        "Video Drone 4K",
+        "Filtrado Financiero",
+      ];
+    } else if (base.type === "land" || base.type === "suelo") {
+      nanoRequirements = ["Levantamiento Topográfico", "Informe Urbanístico", "Cédula"];
+    } else if (base.type === "commercial" || base.type === "local") {
+      nanoRequirements = ["Licencia de Apertura", "Plano de Instalaciones", "Estudio de Mercado"];
+    } else {
+      // Residencial estándar
+      nanoRequirements = ["Reportaje Fotográfico", "Certificado Energético", "Nota Simple"];
+    }
   }
 
   return {
-      ...p,
-      id: String(p.id),
-      price: safePrice, 
-      priceValue: safePrice,
-      rawPrice: safePrice,
-      formattedPrice: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(safePrice),
-      images: safeImages,
-      img: safeImages[0] || null,
-      communityFees: p.communityFees || 0,
-      mBuilt: Number(p.mBuilt || p.m2 || 0),
-      // INYECTAMOS LA NANO CARD AQUÍ
-      requirements: nanoRequirements 
+    ...base,
+
+    // ✅ ID real de propiedad
+    id: safeId,
+
+    // Precio (mantenemos tu formato actual)
+    price: safePrice,
+    priceValue: safePrice,
+    rawPrice: safePrice,
+    formattedPrice: new Intl.NumberFormat("es-ES", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0,
+    }).format(safePrice),
+
+    // Imágenes
+    images: safeImages,
+    img: safeImages[0] || null,
+
+    // ✅ Puentes de coordenadas (para VaultPanel / fly-to / mapa)
+    longitude: hasCoords ? (lng as number) : base.longitude,
+    latitude: hasCoords ? (lat as number) : base.latitude,
+    lng: hasCoords ? (lng as number) : base.lng,
+    lat: hasCoords ? (lat as number) : base.lat,
+    coordinates,
+
+    communityFees: base.communityFees || 0,
+    mBuilt: Number(base.mBuilt || base.m2 || 0),
+
+    // INYECTAMOS LA NANO CARD AQUÍ
+    requirements: nanoRequirements,
   };
 };
+
 
 export default function UIPanels({ 
   map, 
@@ -155,29 +219,160 @@ export default function UIPanels({
     setMarketProp(null);
   }, [systemMode]);
  
-  useEffect(() => {
-      const loadFavs = async () => {
-          try {
-              const serverResponse = await getFavoritesAction();
-              if (serverResponse && serverResponse.success && Array.isArray(serverResponse.data)) {
-                  setLocalFavs(serverResponse.data);
-                  localStorage.setItem('stratos_favorites_v1', JSON.stringify(serverResponse.data));
-                  return;
-              }
-          } catch (e) { console.error("Modo offline:", e); }
+ useEffect(() => {
+  let isMounted = true;
 
-          const saved = localStorage.getItem('stratos_favorites_v1');
-          if (saved) { try { setLocalFavs(JSON.parse(saved)); } catch(e) {} }
-      };
-      loadFavs();
-      const onReloadFavs = () => loadFavs();
-      window.addEventListener('reload-favorites', onReloadFavs);
-      return () => window.removeEventListener('reload-favorites', onReloadFavs);
-  }, []);
+  // Normaliza cualquier formato (servidor / localStorage / Prisma include)
+  const normalizeFavList = (arr: any[]) => {
+    if (!Array.isArray(arr)) return [];
 
-  useEffect(() => {
-      if (localFavs.length > 0) localStorage.setItem('stratos_favorites_v1', JSON.stringify(localFavs));
-  }, [localFavs]);
+    return arr
+      .map((item: any) => {
+        if (!item) return null;
+
+        // Si viene como Favorite + property (include), el inmueble real está en item.property
+        const base = item?.property ? { ...item.property, propertyId: item.propertyId } : item;
+
+        // En Prisma Favorite, item.id puede ser el ID del favorito -> usamos propertyId si existe
+        const propId = base.propertyId || item.propertyId || base.id || item.id;
+        if (!propId) return null;
+
+        const merged = { ...base, id: String(propId), isFavorited: true };
+
+        // Reutilizamos tu saneador (precio, images, mBuilt, requirements)
+        const safe = sanitizePropertyData(merged) || merged;
+
+        // Coordenadas robustas (para que SIEMPRE vuele)
+        const lng =
+          (Array.isArray(safe.coordinates) ? safe.coordinates[0] : undefined) ??
+          safe.longitude ??
+          safe.lng ??
+          safe?.geometry?.coordinates?.[0];
+
+        const lat =
+          (Array.isArray(safe.coordinates) ? safe.coordinates[1] : undefined) ??
+          safe.latitude ??
+          safe.lat ??
+          safe?.geometry?.coordinates?.[1];
+
+        const nLng = Number(lng);
+        const nLat = Number(lat);
+
+        const coords =
+          Number.isFinite(nLng) && Number.isFinite(nLat) ? [nLng, nLat] : safe.coordinates;
+
+        return { ...safe, id: String(propId), coordinates: coords, isFavorited: true };
+      })
+      .filter(Boolean);
+  };
+
+  // Persistencia + limpieza de “fav-*” para evitar mezcla entre users
+  const persistFavs = (list: any[]) => {
+    try {
+      // 1) IDs previos (antes de sobrescribir)
+      let prevIds: string[] = [];
+      try {
+        const prevRaw = localStorage.getItem("stratos_favorites_v1");
+        const prevParsed = prevRaw ? JSON.parse(prevRaw) : [];
+        if (Array.isArray(prevParsed)) {
+          prevIds = prevParsed.map((x: any) => String(x?.id)).filter(Boolean);
+        }
+      } catch (e) {}
+
+      const nextIds = new Set(
+        (Array.isArray(list) ? list : []).map((x: any) => String(x?.id)).filter(Boolean)
+      );
+
+      // 2) Guardar master list (SIEMPRE)
+      localStorage.setItem("stratos_favorites_v1", JSON.stringify(Array.isArray(list) ? list : []));
+
+      // 3) Quitar flags viejos y notificar a las nanocards
+      prevIds.forEach((id) => {
+        if (!nextIds.has(id)) {
+          localStorage.removeItem(`fav-${id}`);
+          window.dispatchEvent(
+            new CustomEvent("sync-property-state", { detail: { id, isFav: false } })
+          );
+        }
+      });
+
+      // 4) Poner flags nuevos y notificar a las nanocards
+      (Array.isArray(list) ? list : []).forEach((x: any) => {
+        const id = String(x?.id);
+        if (!id) return;
+        localStorage.setItem(`fav-${id}`, "true");
+        window.dispatchEvent(
+          new CustomEvent("sync-property-state", { detail: { id, isFav: true } })
+        );
+      });
+    } catch (e) {}
+  };
+
+  const loadFavs = async () => {
+    // 1) Intento servidor
+    try {
+      const serverResponse = await getFavoritesAction();
+
+      // ✅ OK: lista del servidor (aunque venga vacía)
+      if (serverResponse?.success && Array.isArray(serverResponse.data)) {
+        const normalized = normalizeFavList(serverResponse.data);
+        if (isMounted) setLocalFavs(normalized);
+        persistFavs(normalized);
+        return;
+      }
+
+      // ✅ Sin sesión / no autorizado: limpiamos y NO mezclamos con storage de otro user
+      if (serverResponse && serverResponse.success === false) {
+        if (isMounted) setLocalFavs([]);
+        persistFavs([]);
+        return;
+      }
+    } catch (e) {
+      console.error("Modo offline:", e);
+    }
+
+    // 2) Fallback localStorage SOLO si hubo excepción (offline real)
+    try {
+      const saved = localStorage.getItem("stratos_favorites_v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const normalized = normalizeFavList(parsed);
+          if (isMounted) setLocalFavs(normalized);
+          persistFavs(normalized);
+          return;
+        }
+      }
+    } catch (e) {}
+
+    // 3) Si no hay nada, vacío seguro
+    if (isMounted) {
+      setLocalFavs([]);
+      persistFavs([]);
+    }
+  };
+
+  loadFavs();
+
+  const onReloadFavs = () => loadFavs();
+  window.addEventListener("reload-favorites", onReloadFavs);
+
+  return () => {
+    isMounted = false;
+    window.removeEventListener("reload-favorites", onReloadFavs);
+  };
+}, []);
+
+
+
+ useEffect(() => {
+  try {
+    // ✅ Guardar SIEMPRE, incluso si está vacío (clave para multiusuario)
+    localStorage.setItem("stratos_favorites_v1", JSON.stringify(Array.isArray(localFavs) ? localFavs : []));
+  } catch (e) {}
+}, [localFavs]);
+
+
 
   const handleToggleFavorite = async (prop: any) => {
       if (!prop) return;
