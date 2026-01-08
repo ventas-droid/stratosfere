@@ -183,7 +183,7 @@ export const useMapLogic = () => {
 
       // 1. RECONSTRUIR EJÉRCITO (MAPA + LOCAL) PARA FILTRAR
 // ✅ FIX: ya NO usamos STRATOS_PROPERTIES (está vacío). Usamos la fuente real del mapa.
-const source: any = map.current.getSource('properties');
+const baseSource: any = map.current.getSource('properties');
 
 // Features actuales reales (server + local ya inyectado por RADAR)
 const sourceFeaturesRaw = source?._data?.features;
@@ -332,10 +332,10 @@ if (allData.length === 0) {
       Object.values(markersRef.current).forEach((marker: any) => marker.remove());
       markersRef.current = {};
 
-      const source: any = map.current.getSource('properties');
-      if (source) {
-        source.setData({ type: 'FeatureCollection', features: filteredFeatures });
-      }
+     const src: any = map.current.getSource('properties');
+if (src) {
+  src.setData({ type: 'FeatureCollection', features: filteredFeatures });
+}
 
       map.current.once('idle', () => {
         console.log(`✅ Filtro aplicado: ${filteredFeatures.length} activos encontrados.`);
@@ -649,7 +649,7 @@ if (src && (src as any)._data) {
       } catch (e) { console.error(e); }
 
       // 2. ACTUALIZAR EN EL MAPA
-      const source: any = map.current.getSource('properties');
+const updateSource: any = map.current.getSource('properties');
       if (source && source._data) {
         const currentFeatures = source._data.features;
         const updatedFeatures = currentFeatures.map((f: any) => {
@@ -692,7 +692,7 @@ map.current.once('idle', () => updateMarkers());
     const bounds = map.current.getBounds();
 
     // 2. Acceder a los datos crudos del mapa
-    const source: any = map.current.getSource('properties');
+const radarSource: any = map.current.getSource('properties');
     
     // Si el mapa aún no ha cargado datos, abortamos misión
     if (!source || !source._data || !source._data.features) return [];
@@ -819,7 +819,7 @@ map.current.once('idle', () => updateMarkers());
             if (!map.current) return;
 
             // Verificamos si la capa existe. Si no, esperamos.
-            const source = map.current.getSource('properties');
+const addSource: any = map.current.getSource('properties');
             
             if (source) {
                 // ¡ÉXITO! El mapa está listo. Pintamos.
