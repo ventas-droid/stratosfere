@@ -321,15 +321,16 @@ export default function UIPanels({
         return;
       }
 
-      // ✅ Sin sesión / no autorizado: limpiamos y NO mezclamos con storage de otro user
-      if (serverResponse && serverResponse.success === false) {
-        if (isMounted) setLocalFavs([]);
-        persistFavs([]);
-        return;
-      }
-    } catch (e) {
-      console.error("Modo offline:", e);
-    }
+      // ✅ Sin sesión / no autorizado: NO borramos (evita perder favoritos por un "false" momentáneo)
+// Dejamos que continúe al fallback de localStorage.
+if (serverResponse && serverResponse.success === false) {
+  console.warn("⚠️ getFavoritesAction success:false -> usando fallback localStorage (NO se limpia).");
+  // NO hacemos: setLocalFavs([]), persistFavs([]), ni return.
+}
+} catch (e) {
+  console.error("Modo offline:", e);
+}
+
 
     // 2) Fallback localStorage SOLO si hubo excepción (offline real)
     try {

@@ -257,21 +257,18 @@ try {
   }
 } catch (err) { console.error(err); }
 
-// Merge por ID (evita duplicados y evita que el filtro “vacíe” el mapa)
-const byId = new Map<string, any>();
-masterFeatures.forEach((f: any) => byId.set(String(f.properties?.id), f));
-userFeatures.forEach((f: any) => {
-  const k = String(f.properties?.id);
-  if (!byId.has(k)) byId.set(k, f);
+// ✅ Merge SIN dedupe por id (evita colapso a 1 card si algún id viene vacío)
+const allData = [...masterFeatures, ...userFeatures].filter((f: any) => {
+  const pid = f?.properties?.id ?? f?.properties?._id ?? f?.id;
+  return pid !== undefined && pid !== null && String(pid).trim() !== "";
 });
 
-const allData = Array.from(byId.values());
-
-// ✅ Si aún no hay datos reales, NO tocamos el source (evita NanoCards “flash y desaparición”)
+// ✅ Si por lo que sea aún no hay datos, NO tocar el source (evita borrado)
 if (allData.length === 0) {
-  console.warn("⏳ Filtro recibido pero aún no hay features. No se aplica para no borrar NanoCards.");
+  console.warn("⏳ Filtro recibido pero no hay features válidas aún. No aplico para no borrar NanoCards.");
   return;
 }
+
 
 
       // 2. APLICAR LÓGICA DE FILTRADO
