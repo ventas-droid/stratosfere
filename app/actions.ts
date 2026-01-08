@@ -296,65 +296,56 @@ export async function toggleFavoriteAction(propertyId: string) {
 
 // H. LEER FAVORITOS (BÓVEDA) ✅ UNIFICADO CON GLOBAL/PERFIL
 export async function getFavoritesAction() {
-  const user = await getCurrentUser();
-  if (!user) return { success: false, data: [] };
+    const user = await getCurrentUser();
+    if (!user) return { success: false, data: [] };
 
-  const favs = await prisma.favorite.findMany({
-    where: { userId: user.id },
-    include: { property: { include: { images: true } } }
-  });
+    const favs = await prisma.favorite.findMany({
+        where: { userId: user.id },
+        include: { property: { include: { images: true } } }
+    });
 
-  const cleanFavs = favs
-    .map((f) => {
-      const p: any = f.property;
-      if (!p) return null;
+    const cleanFavs = favs.map(f => {
+        const p: any = f.property;
+        if (!p) return null;
 
-      // ✅ IMÁGENES (MISMO FORMATO QUE GLOBAL/PERFIL: string[])
-      const realImg =
-        p.images && p.images.length > 0 ? p.images[0].url : p.mainImage || null;
+        // Imágenes consistentes
+        let allImages = (p.images || []).map((img: any) => img.url);
+        if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
+        const realImg = allImages[0] || null;
 
-      let allImages = (p.images || []).map((img: any) => img.url);
-      if (allImages.length === 0 && realImg) allImages = [realImg];
+        const lng = (p.longitude ?? -3.7038);
+        const lat = (p.latitude ?? 40.4168);
 
-      // ✅ COORDENADAS (MISMO FORMATO QUE GLOBAL/PERFIL)
-      const lng = (p.longitude ?? -3.7038);
-      const lat = (p.latitude ?? 40.4168);
+        return {
+            ...p,
+            id: p.id,
 
-      return {
-        ...p,
+            // ✅ COORDENADAS PARA “VOLAR”
+            coordinates: [lng, lat],
+            lng,
+            lat,
 
-        // ✅ ID REAL DE PROPIEDAD (NO el id del Favorite row)
-        id: p.id,
+            // ✅ Imágenes coherentes con el mapa/global
+            images: allImages,
+            img: realImg,
 
-        // ✅ COORDS para que VaultPanel SIEMPRE pueda volar
-        coordinates: [lng, lat],
+            // ✅ Favorito
+            isFavorited: true,
 
-        // (Opcional útil para compatibilidad legacy)
-        lng,
-        lat,
+            // ✅ Precio numérico estable
+            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
+            rawPrice: p.price,
+            priceValue: p.price,
 
-        // ✅ IMÁGENES unificadas
-        images: allImages,
-        img: realImg || null,
+            // ✅ Datos críticos
+            m2: Number(p.mBuilt || 0),
+            mBuilt: Number(p.mBuilt || 0),
+            communityFees: p.communityFees || 0,
+            energyConsumption: p.energyConsumption,
+            energyEmissions: p.energyEmissions,
+            energyPending: p.energyPending
+        };
+    }).filter(Boolean);
 
-        // ✅ PRECIO unificado (igual que global/perfil)
-        price: new Intl.NumberFormat("es-ES").format(p.price || 0),
-        rawPrice: p.price,
-        priceValue: p.price,
-
-        // ✅ ESTADO
-        isFavorited: true,
-
-        // ✅ DATOS CRÍTICOS (igual que global/perfil)
-        m2: Number(p.mBuilt || 0),
-        mBuilt: Number(p.mBuilt || 0),
-        communityFees: p.communityFees || 0,
-        energyConsumption: p.energyConsumption,
-        energyEmissions: p.energyEmissions,
-        energyPending: p.energyPending,
-      };
-    })
-    .filter(Boolean);
-
-  return { success: true, data: cleanFavs };
+    return { success: true, data: cleanFavs };
 }

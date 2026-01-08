@@ -181,65 +181,98 @@ export const useMapLogic = () => {
 
       console.log(`🔍 FILTRANDO AVANZADO:`, { priceRange, context, specs, specificType });
 
-      // 1. RECONSTRUIR EJÉRCITO (Master + Local) PARA FILTRAR
-      // ✅ AQUÍ estaba el enemigo: se reconstruía y se perdían elevator/specs/selectedServices
-      const masterFeatures = STRATOS_PROPERTIES.map(p => {
-        const servicesFromArray = p.specs
-          ? Object.keys(p.specs).filter((k: any) => (p.specs as any)[k])
-          : [];
+      // 1. RECONSTRUIR EJÉRCITO (MAPA + LOCAL) PARA FILTRAR
+// ✅ FIX: ya NO usamos STRATOS_PROPERTIES (está vacío). Usamos la fuente real del mapa.
+const source: any = map.current.getSource('properties');
 
-        return ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: p.coordinates },
-          properties: {
-            ...p,
-            id: p.id,
-            priceValue: Number(p.price),
-            m2: Number(p.mBuilt),
-            mBuilt: Number(p.mBuilt),
-            img: p.images?.[0],
-            selectedServices: servicesFromArray,
-            elevator: isYes(p?.specs?.elevator) || isYes((p as any).elevator) || isYes((p as any).ascensor)
-          }
-        });
-      });
+// Features actuales reales (server + local ya inyectado por RADAR)
+const sourceFeaturesRaw = source?._data?.features;
+let masterFeatures: any[] = Array.isArray(sourceFeaturesRaw) ? sourceFeaturesRaw : [];
 
-      let userFeatures: any[] = [];
-      try {
-        const saved = localStorage.getItem('stratos_my_properties');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          userFeatures = parsed.map((p: any) => ({
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: p.coordinates || [-3.6883, 40.4280] },
-            properties: {
-              ...p,
-            id: p.id || Date.now(),
-              role: p.role || 'PROPIETARIO',
-              type: p.type || 'Propiedad',
-              priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
-              m2: Number(p.mBuilt || p.m2 || 0),
-              mBuilt: Number(p.mBuilt || p.m2 || 0),
-              // CORRECCIÓN: Si no hay foto, ponemos NULL. Prohibido inventar.
-              img: (p.images && p.images.length > 0)
-                ? p.images[0]
-                : (p.img || null),
-              selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
-              specs: p.specs || {},
+// Normalizamos (sin perder elevator/specs/selectedServices)
+masterFeatures = masterFeatures.map((f: any) => {
+  const p = f.properties || {};
+  const idStr = String(p.id ?? p._id ?? f.id ?? Date.now());
 
-              // ✅ Ascensor blindado (acepta "Sí")
-              elevator: (
-                isYes(p.elevator) ||
-                isYes(p.ascensor) ||
-                isYes(p.hasElevator) ||
-                isYes(p?.specs?.elevator)
-              )
-            }
-          }));
+  const priceValue = Number(
+    p.priceValue ??
+    p.rawPrice ??
+    (typeof p.price === 'string' ? String(p.price).replace(/\D/g, '') : p.price) ??
+    0
+  );
+
+  const m2 = Number(p.m2 ?? p.mBuilt ?? 0);
+  const mBuilt = Number(p.mBuilt ?? p.m2 ?? 0);
+
+  return {
+    ...f,
+    properties: {
+      ...p,
+      id: idStr,
+      priceValue,
+      m2,
+      mBuilt,
+      selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
+      specs: p.specs || {},
+      elevator: (
+        isYes(p.elevator) ||
+        isYes(p.ascensor) ||
+        isYes(p.hasElevator) ||
+        isYes(p?.specs?.elevator)
+      )
+    }
+  };
+});
+
+// LocalStorage (mis activos) como refuerzo
+let userFeatures: any[] = [];
+try {
+  const saved = localStorage.getItem('stratos_my_properties');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed)) {
+      userFeatures = parsed.map((p: any) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: p.coordinates || [-3.6883, 40.4280] },
+        properties: {
+          ...p,
+          id: String(p.id || Date.now()),
+          role: p.role || 'PROPIETARIO',
+          type: p.type || 'Propiedad',
+          priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
+          m2: Number(p.mBuilt || p.m2 || 0),
+          mBuilt: Number(p.mBuilt || p.m2 || 0),
+          img: (p.images && p.images.length > 0) ? p.images[0] : (p.img || null),
+          selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
+          specs: p.specs || {},
+          elevator: (
+            isYes(p.elevator) ||
+            isYes(p.ascensor) ||
+            isYes(p.hasElevator) ||
+            isYes(p?.specs?.elevator)
+          )
         }
-      } catch (err) { console.error(err); }
+      }));
+    }
+  }
+} catch (err) { console.error(err); }
 
-      const allData = [...masterFeatures, ...userFeatures];
+// Merge por ID (evita duplicados y evita que el filtro “vacíe” el mapa)
+const byId = new Map<string, any>();
+masterFeatures.forEach((f: any) => byId.set(String(f.properties?.id), f));
+userFeatures.forEach((f: any) => {
+  const k = String(f.properties?.id);
+  if (!byId.has(k)) byId.set(k, f);
+});
+
+const allData = Array.from(byId.values());
+
+// ✅ Si aún no hay datos reales, NO tocamos el source (evita NanoCards “flash y desaparición”)
+if (allData.length === 0) {
+  console.warn("⏳ Filtro recibido pero aún no hay features. No se aplica para no borrar NanoCards.");
+  return;
+}
+
 
       // 2. APLICAR LÓGICA DE FILTRADO
       const filteredFeatures = allData.filter(f => {
@@ -638,7 +671,7 @@ export const useMapLogic = () => {
         source.setData({ type: 'FeatureCollection', features: updatedFeatures });
         
         // Forzamos repintado visual inmediato
-        setTimeout(() => updateMarkers(), 50); 
+map.current.once('idle', () => updateMarkers());
       }
     };
 

@@ -227,18 +227,24 @@ export default function MapNanoCard(props: any) {
 
       // 4. DISPARO DE SEÑALES (MANTENIDAS EXACTAMENTE IGUAL)
       if (action === 'fav') {
-          setLiked(targetState); 
-          if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: payload }));
-          }
-      } else if (action === 'open') {
-          if (typeof window !== 'undefined') {
-              // Señal 1: Abrir panel lateral
-              window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
-              // Señal 2: Marcar activo en el sistema
-              window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
-          }
-      }
+    setLiked(targetState);
+    if (typeof window !== 'undefined') {
+        // 1) Toggle favorito
+        window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: payload }));
+
+        // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón (lo que necesitas)
+        window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
+        window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
+    }
+} else if (action === 'open') {
+    if (typeof window !== 'undefined') {
+        // Señal 1: Abrir panel lateral
+        window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
+        // Señal 2: Marcar activo en el sistema
+        window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
+    }
+}
+
   };
 
   useEffect(() => {
