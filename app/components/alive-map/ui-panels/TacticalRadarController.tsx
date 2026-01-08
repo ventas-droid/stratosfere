@@ -1,132 +1,141 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
-  Zap, CheckCircle2, X, Navigation, ChevronLeft, Search, 
-  Check, ShieldCheck, Plus, MessageSquare, Bell, User, Loader2, Send,
-  Crown, LayoutGrid // Iconos nuevos para rangos
+  X, Navigation, ChevronLeft, Search, Check, ShieldCheck, 
+  Plus, MessageSquare, Bell, User, Loader2, Send, Zap, CheckCircle2
 } from "lucide-react";
 
-// Importamos conexión segura al motor y audio
 import { runAgencyOSSmoke } from '../agency-os/agencyos.smoke';
-import { playSynthSound } from './audio'; // Aseguramos el sonido
-
-// Configuración Inicial (Por defecto somos novatos)
-const DEFAULT_LICENSE = {
-    name: "LICENSE: ESSENTIAL",
-    badge: "🔹",
-    credits: 10,
-    perks: ["Radar 2D"]
-};
+import { SERVICE_CATALOG } from '../agency-os/agencyos.catalog'; // Conectado al catálogo limpio
+import { playSynthSound } from './audio';
 
 export default function TacticalRadarController({ targets = [], onClose }: any) {
   
-  // --- 1. ESTADOS ---
+  // --- 1. LICENCIA Y SALDO ---
+  const [agencyLicense, setAgencyLicense] = useState<any>({ 
+      name: "CUENTA PROFESSIONAL", 
+      credits: 50, 
+  });
+
+  // Escuchar actualizaciones de saldo (Mercado)
+  useEffect(() => {
+      const handleUpgrade = (e: any) => {
+          setAgencyLicense(e.detail);
+      };
+      window.addEventListener('agency-upgrade-signal', handleUpgrade);
+      return () => window.removeEventListener('agency-upgrade-signal', handleUpgrade);
+  }, []);
+
+  // --- 2. ESTADOS ---
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
-  const [activeServices, setActiveServices] = useState<string[]>([]);
-  
-  // 🔥 ESTADO DE LICENCIA (LA ANTENA)
-  const [agencyLicense, setAgencyLicense] = useState<any>(DEFAULT_LICENSE);
-  
-  // Mensajería y Memoria
+  const [activeServices, setActiveServices] = useState<string[]>(['LEGAL_CHECK']); 
+  const [customServices, setCustomServices] = useState<any[]>([]); 
+  const [showAddService, setShowAddService] = useState(false);
+  const [newServiceName, setNewServiceName] = useState("");
+
   const [msgStatus, setMsgStatus] = useState<"IDLE" | "SENDING" | "SENT">("IDLE");
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [inputMsg, setInputMsg] = useState("");
-  const [processedIds, setProcessedIds] = useState<string[]>([]); 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [activeTab, setActiveTab] = useState<'RADAR' | 'COMMS'>('RADAR');
-
-  // --- 2. EFECTOS DE CONEXIÓN ---
+  const chatEndRef = useRef<HTMLDivElement>(null);
   
-  // A. Memoria Persistente (Leads trabajados)
+  const [processedIds, setProcessedIds] = useState<string[]>([]); 
   useEffect(() => {
     const saved = localStorage.getItem('stratos_processed_leads');
     if (saved) setProcessedIds(JSON.parse(saved));
   }, []);
 
-  // B. 🔥 LA ANTENA RECEPTORA (Escucha al Mercado)
-  useEffect(() => {
-      const handleLicenseUpgrade = (e: any) => {
-          console.log("📡 RADAR: Nueva Licencia Detectada ->", e.detail.name);
-          setAgencyLicense(e.detail); // Actualizamos el rango
-          
-          // Efecto visual/sonoro de "Upgrade"
-          try { playSynthSound('upgrade'); } catch(e) {}
-      };
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory]);
 
-      window.addEventListener('agency-upgrade-signal', handleLicenseUpgrade);
-      return () => window.removeEventListener('agency-upgrade-signal', handleLicenseUpgrade);
-  }, []);
+  // --- 3. BÚSQUEDA INTELIGENTE (LA QUE USTED QUERÍA) ---
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
-  // --- 3. BÚSQUEDA Y VUELO ---
+  // A. Filtro Local (Base de Datos)
   const filteredTargets = targets.filter((t: any) => {
       if (!searchTerm) return true;
-      const searchLower = searchTerm.toLowerCase();
+      const term = searchTerm.toLowerCase();
       return (
-          (t.address && t.address.toLowerCase().includes(searchLower)) ||
-          (t.type && t.type.toLowerCase().includes(searchLower)) ||
-          (t.price && t.price.toString().includes(searchLower))
+          (t.address && t.address.toLowerCase().includes(term)) ||
+          (t.type && t.type.toLowerCase().includes(term)) ||
+          (t.price && t.price.toString().includes(term))
       );
   });
 
+  // B. Búsqueda Global (OpenStreetMap / Nominatim) - RECUPERADA
   const performGlobalSearch = async () => {
-    if (!searchTerm) {
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('trigger-scan-signal'));
-        return;
-    }
+    if (!searchTerm) return;
     setIsSearching(true);
     try {
-        // Simulación de búsqueda inteligente
-        setTimeout(() => {
-             if (typeof window !== "undefined") {
-                // Buscamos coordenadas falsas cerca de Madrid para el ejemplo
+        // Busca coordenadas reales
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}`);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            const location = data[0];
+            const lat = parseFloat(location.lat);
+            const lon = parseFloat(location.lon);
+            
+            if (typeof window !== "undefined") {
+                // 1. Mueve el mapa
                 window.dispatchEvent(new CustomEvent("fly-to-location", { 
-                    detail: { center: [-3.6883, 40.4280], zoom: 14, pitch: 45 } 
+                    detail: { center: [lon, lat], zoom: 14, pitch: 45 } 
                 }));
-                window.dispatchEvent(new CustomEvent('trigger-scan-signal'));
-             }
-             setIsSearching(false);
-        }, 1500);
-    } catch (error) { setIsSearching(false); }
+                // 2. Dispara escaneo en la nueva zona
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('trigger-scan-signal'));
+                    setIsSearching(false);
+                }, 1500);
+            }
+        } else {
+            setIsSearching(false);
+        }
+    } catch (error) {
+        setIsSearching(false);
+    }
   };
 
-  // --- 4. LÓGICA TÁCTICA ---
+  // --- 4. OPERATIVA ---
   const handleTrabajar = (target: any) => {
     setSelectedTarget(target);
     const isProcessed = processedIds.includes(String(target.id));
     
     if (isProcessed) {
         setMsgStatus("SENT");
-        setActiveTab("COMMS");
         setChatHistory([
-            { sender: 'system', text: 'Expediente recuperado de AgencyOS.' },
+            { sender: 'system', text: 'Expediente consultado.' },
             { sender: 'me', text: 'Propuesta enviada anteriormente.' }
         ]);
     } else {
         setMsgStatus("IDLE");    
-        setActiveTab("RADAR");
         setChatHistory([]);
-        setActiveServices([]);
+        setActiveServices(['LEGAL_CHECK']); 
     }
   };
 
-  const handleVolar = (e: any, target: any) => {
-    e.stopPropagation(); 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("fly-to-location", { 
-        detail: { center: [target.lng, target.lat], zoom: 18, pitch: 60 } 
-      }));
-    }
+  const toggleService = (id: string) => {
+      setActiveServices(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  };
+
+  const calculateCost = () => {
+      let cost = 0;
+      activeServices.forEach(srvId => {
+          if (SERVICE_CATALOG[srvId]) cost += SERVICE_CATALOG[srvId].costCredits;
+      });
+      return cost;
   };
 
   const sendProposal = () => {
     if (!selectedTarget) return;
+    
+    // Consumo de saldo (Simulado visualmente)
+    const cost = calculateCost();
+    setAgencyLicense((prev: any) => ({ ...prev, credits: Math.max(0, prev.credits - cost) }));
+
     setMsgStatus("SENDING");
     
-    // Conexión al Motor AgencyOS
     const result = runAgencyOSSmoke({
         scope: { ownerId: 'demo', agencyId: 'corp' },
-        target: { propertyId: String(selectedTarget.id), title: selectedTarget.type }
+        target: { propertyId: String(selectedTarget.id), title: selectedTarget.type || "Propiedad" }
     });
 
     setTimeout(() => {
@@ -138,16 +147,12 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
             setProcessedIds(newProcessed);
             localStorage.setItem('stratos_processed_leads', JSON.stringify(newProcessed));
 
-            setActiveTab('COMMS');
             setChatHistory([
-                { sender: 'system', text: `CASE #${result.case.id.substring(0,6).toUpperCase()}: Activo.` },
-                { sender: 'system', text: `Licencia ${agencyLicense.name} verificada.` },
-                { sender: 'me', text: 'Propuesta enviada. Esperando validación.' }
+                { sender: 'system', text: `Expediente #${result.case.id.substring(0,6)} generado.` },
+                { sender: 'me', text: 'Propuesta comercial enviada.' }
             ]);
-        } else {
-            setMsgStatus("IDLE");
         }
-    }, 1200);
+    }, 1000);
   };
 
   const sendMessage = () => {
@@ -157,58 +162,51 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       setInputMsg("");
       setTimeout(() => {
           setChatHistory(prev => [...prev, { sender: 'owner', text: 'Recibido.' }]);
-          try { playSynthSound('ping'); } catch(e) {}
-      }, 2000);
+      }, 1500);
   };
 
-  // --- RENDER ---
+  // --- RENDERIZADO PROFESIONAL ---
   return (
-    <div className="flex flex-col h-full w-full bg-[#F5F5F7]/95 backdrop-blur-3xl text-slate-900 shadow-2xl font-sans border-l border-white/40 pointer-events-auto">
+    <div className="flex flex-col h-full w-full bg-[#F5F5F7]/95 backdrop-blur-3xl text-slate-900 shadow-xl font-sans border-l border-white/20 pointer-events-auto">
       
-      {/* CABECERA INTELIGENTE (Muestra tu Rango) */}
+      {/* CABECERA */}
       <div className="shrink-0 p-6 pb-4 border-b border-black/5 z-20 space-y-4">
          <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
                {selectedTarget && (
-                   <button onClick={() => setSelectedTarget(null)} className="w-8 h-8 rounded-full bg-white hover:bg-slate-200 flex items-center justify-center shadow-sm border border-black/5 transition-all">
-                       <ChevronLeft size={18} />
+                   <button onClick={() => setSelectedTarget(null)} className="w-8 h-8 rounded-full bg-white hover:bg-slate-200 flex items-center justify-center shadow-sm border border-black/5">
+                       <ChevronLeft size={20} />
                    </button>
                )}
                <div>
-                   <h2 className="text-2xl font-black tracking-tighter text-slate-900 leading-none">Radar.</h2>
-                   
-                   {/* 🔥 AQUÍ ESTÁ LA MAGIA: Muestra la Licencia Activa */}
-                   <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-sm">{agencyLicense.badge}</span>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-0.5">
-                          {agencyLicense.name.replace("LICENSE: ", "")}
-                      </p>
-                      <span className="bg-slate-200 text-slate-600 px-1.5 rounded text-[9px] font-bold">
-                          {agencyLicense.credits} CR
-                      </span>
+                   <h2 className="text-2xl font-black tracking-tight text-slate-900 mb-0.5">Radar.</h2>
+                   <div className="flex items-center gap-2 mt-1 opacity-70">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{agencyLicense.name}</span>
+                      <span className="w-1 h-1 bg-slate-400 rounded-full"></span>
+                      <span className="text-[10px] font-bold">Saldo: {agencyLicense.credits} Cr</span>
                    </div>
-
                </div>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-full bg-black/5 hover:bg-black/10 text-slate-500 flex items-center justify-center transition-all">
-               <X size={16} />
+            <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-200/50 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all">
+               <X size={18} />
             </button>
          </div>
 
+         {/* BUSCADOR REAL */}
          {!selectedTarget && (
-             <div className="flex gap-2 animate-fade-in">
-                 <div className="flex-1 bg-white flex items-center px-3 py-2.5 rounded-xl border border-slate-200 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+             <div className="flex gap-2">
+                 <div className="flex-1 bg-white flex items-center px-3 py-2.5 rounded-xl border border-slate-200 shadow-sm focus-within:border-blue-500 transition-all">
                      <Search size={14} className="text-slate-400 mr-2" />
                      <input 
                         type="text" 
-                        placeholder="Escanear sector..." 
+                        placeholder="Buscar ubicación (ej: Manilva)..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && performGlobalSearch()}
-                        className="bg-transparent border-none outline-none text-xs font-bold text-slate-700 w-full placeholder-slate-300"
+                        className="bg-transparent border-none outline-none text-xs font-bold text-slate-700 w-full placeholder-slate-400"
                      />
                  </div>
-                 <button onClick={performGlobalSearch} className="px-4 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-black transition-colors shadow-lg">
+                 <button onClick={performGlobalSearch} className="px-4 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-black transition-colors shadow-md">
                      {isSearching ? <Loader2 size={14} className="animate-spin"/> : <Search size={14} />}
                  </button>
              </div>
@@ -220,149 +218,100 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
          
          {selectedTarget ? (
             <div className="bg-white rounded-[24px] shadow-sm border border-white/60 overflow-hidden animate-fade-in-up">
-                {/* DATOS PROPIEDAD */}
+                {/* INFO PROPIEDAD */}
                 <div className="p-6 pb-0">
-                    <div className="flex justify-between items-start">
-                        <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-wider">Oportunidad</span>
-                        <div className="text-right">
-                            <div className="text-lg font-black text-slate-900">{selectedTarget.price}</div>
-                        </div>
+                    <span className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wider">Captación</span>
+                    <h3 className="font-bold text-xl text-slate-900 leading-tight mt-2">{selectedTarget.type}</h3>
+                    <div className="text-lg font-black text-slate-900 mb-4">{selectedTarget.price}</div>
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 p-3 rounded-xl mb-5">
+                        <Navigation size={14} className="text-slate-400"/> 
+                        <span className="truncate">{selectedTarget.address || "Ubicación Privada"}</span>
                     </div>
-                    <h3 className="font-black text-2xl text-slate-900 leading-tight mt-2 mb-1">{selectedTarget.type}</h3>
-                    <div className="flex items-center gap-1 text-xs font-bold text-slate-400 mb-5">
-                        <Navigation size={12}/> 
-                        <span className="truncate uppercase">{selectedTarget.address || "Ubicación Privada"}</span>
-                    </div>
-                    <div className="h-px w-full bg-slate-100 mb-4"></div>
                 </div>
 
-                {/* TABS */}
-                <div className="px-6 pb-6">
-                    <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
-                        <button onClick={() => setActiveTab('RADAR')} className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'RADAR' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400'}`}>Táctica</button>
-                        <button onClick={() => setActiveTab('COMMS')} className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === 'COMMS' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400'}`}>Comms</button>
-                    </div>
-
-                    {/* PANEL SERVICIOS */}
-                    {activeTab === 'RADAR' && (
-                        <div className="animate-fade-in">
-                            {msgStatus === 'SENT' ? (
-                                <div className="text-center py-8">
-                                    <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 ring-4 ring-emerald-50">
-                                        <CheckCircle2 size={32} />
-                                    </div>
-                                    <h3 className="font-bold text-slate-900">Propuesta Activa</h3>
-                                    <p className="text-xs text-slate-500 mt-2 mb-6 max-w-[200px] mx-auto">El propietario ha recibido su oferta. Acceda al canal seguro.</p>
-                                    <button onClick={() => setActiveTab('COMMS')} className="px-6 py-3 bg-slate-900 text-white rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-black transition-all shadow-lg">Abrir Canal</button>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="space-y-3 mb-6">
-                                        <div className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/50">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400"><ShieldCheck size={16}/></div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-900 uppercase">Pack Básico</p>
-                                                    <p className="text-[9px] text-slate-400">Verificación incluida</p>
-                                                </div>
-                                            </div>
-                                            <Check size={14} className="text-emerald-500"/>
-                                        </div>
-                                    </div>
-
-                                    <button onClick={sendProposal} disabled={msgStatus === "SENDING"} className="w-full bg-blue-600 text-white font-bold text-xs tracking-widest py-4 rounded-xl shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all uppercase">
-                                        {msgStatus === "SENDING" ? (
-                                            <>
-                                                <Loader2 size={14} className="animate-spin"/> Generando...
-                                            </>
-                                        ) : (
-                                            <>Enviar Propuesta <Send size={14}/></>
-                                        )}
-                                    </button>
-                                    <p className="text-center text-[9px] text-slate-400 mt-3 font-medium">
-                                        Coste: 1 Crédito de {agencyLicense.credits} disponibles
-                                    </p>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {/* PANEL CHAT */}
-                    {activeTab === 'COMMS' && (
-                        <div className="animate-fade-in flex flex-col h-[300px]">
-                            <div className="flex-1 overflow-y-auto space-y-3 p-1 custom-scrollbar">
-                                {chatHistory.length === 0 && (
-                                    <div className="text-center py-10 opacity-50">
-                                        <MessageSquare size={24} className="mx-auto mb-2"/>
-                                        <p className="text-[10px]">Canal seguro encriptado.</p>
-                                    </div>
-                                )}
+                {/* OPERATIVA */}
+                <div className="px-6 pb-6 bg-slate-50/50 pt-4 border-t border-slate-100">
+                    
+                    {msgStatus === 'SENT' ? (
+                        <div className="flex flex-col h-[300px]">
+                             <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl mb-3 flex items-center gap-2">
+                                <CheckCircle2 size={16} className="text-emerald-600"/>
+                                <span className="text-[10px] font-bold text-emerald-800">Propuesta Activa</span>
+                             </div>
+                             <div className="flex-1 overflow-y-auto space-y-2 p-1 mb-2">
                                 {chatHistory.map((msg, i) => (
                                     <div key={i} className={`flex gap-2 ${msg.sender === 'me' ? 'flex-row-reverse' : ''}`}>
-                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${msg.sender === 'me' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-400'}`}>
-                                            {msg.sender === 'me' ? <User size={10}/> : (msg.sender === 'system' ? <ShieldCheck size={10}/> : <User size={10}/>)}
-                                        </div>
-                                        <div className={`p-2.5 rounded-2xl text-[10px] max-w-[85%] font-medium leading-relaxed ${msg.sender === 'me' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white border border-slate-100 text-slate-600 rounded-tl-sm shadow-sm'}`}>
+                                        <div className={`p-2 rounded-xl text-[10px] max-w-[85%] font-medium ${msg.sender === 'me' ? 'bg-[#1c1c1e] text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>
                                             {msg.text}
                                         </div>
                                     </div>
                                 ))}
+                                <div ref={chatEndRef}/>
+                             </div>
+                             <div className="flex gap-2">
+                                <input value={inputMsg} onChange={e=>setInputMsg(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage()} className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none" placeholder="Escribir mensaje..."/>
+                                <button onClick={sendMessage} className="bg-slate-900 text-white p-2 rounded-lg"><Send size={14}/></button>
+                             </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex justify-between items-end mb-3">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase">Servicios Incluidos</p>
+                                <span className="text-[10px] font-bold text-slate-400">{calculateCost()} Créditos</span>
                             </div>
 
-                            <div className="mt-2 bg-white border border-slate-200 rounded-xl p-1.5 flex items-center gap-2 pr-2 shadow-sm focus-within:border-blue-500 transition-colors">
-                                <input 
-                                    value={inputMsg}
-                                    onChange={e => setInputMsg(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                                    type="text" 
-                                    placeholder="Escribir mensaje..."
-                                    className="flex-1 bg-transparent text-xs px-3 py-2 outline-none font-medium text-slate-700 placeholder-slate-300"
-                                />
-                                <button onClick={sendMessage} className="p-2 bg-slate-900 text-white rounded-lg hover:bg-black transition-colors">
-                                    <Send size={12}/>
-                                </button>
+                            <div className="space-y-2 mb-6">
+                                {Object.values(SERVICE_CATALOG).map((service: any) => {
+                                    const isSelected = activeServices.includes(service.id);
+                                    return (
+                                        <div key={service.id} onClick={() => toggleService(service.id)} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-white border-blue-500 shadow-sm ring-1 ring-blue-500/10' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>
+                                                    {isSelected && <Check size={8} className="text-white" strokeWidth={4}/>}
+                                                </div>
+                                                <span className="text-xs font-medium text-slate-900">{service.label}</span>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-400">{service.priceEUR}€</span>
+                                        </div>
+                                    )
+                                })}
                             </div>
-                        </div>
+
+                            <button onClick={sendProposal} disabled={msgStatus === "SENDING"} className="w-full bg-[#1c1c1e] text-white font-bold text-xs py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 hover:bg-black transition-all">
+                                {msgStatus === "SENDING" ? <Loader2 size={14} className="animate-spin"/> : "ENVIAR PROPUESTA"}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
          ) : (
-             /* LISTA DE RESULTADOS */
-             <div className="space-y-3 pb-20">
-                <div className="flex justify-between items-end px-1 mb-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Objetivos ({filteredTargets.length})</p>
-                    {isSearching && <p className="text-[9px] font-bold text-blue-500 uppercase animate-pulse">Escaneando...</p>}
+             <div className="space-y-3 pb-10">
+                <div className="flex justify-between items-end px-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resultados ({filteredTargets.length})</p>
                 </div>
                 
                 {filteredTargets.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-                        <div className="w-16 h-16 rounded-full bg-white border border-slate-200 flex items-center justify-center mb-4 shadow-sm">
-                            <Search size={24} className="opacity-50"/>
-                        </div>
-                        <p className="text-xs font-bold uppercase tracking-wider text-center max-w-[200px]">Sin señal en el sector</p>
-                        <button onClick={() => setSearchTerm("")} className="mt-4 text-[10px] text-blue-500 font-bold hover:underline">Reiniciar Radar</button>
+                    <div className="text-center py-12">
+                        <p className="text-xs font-bold text-slate-400">Sin propiedades en esta zona.</p>
+                        <p className="text-[10px] text-slate-300 mt-1">Pruebe a buscar otra ubicación.</p>
                     </div>
                 ) : (
                     filteredTargets.map((t: any) => {
                         const isProcessed = processedIds.includes(String(t.id));
                         return (
-                            <div key={t.id} onClick={() => handleTrabajar(t)} className={`group relative p-4 rounded-[24px] cursor-pointer transition-all duration-300 border hover:shadow-lg hover:-translate-y-1 ${isProcessed ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100 hover:border-blue-200'}`}>
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className="font-black text-slate-900 text-sm">{t.type}</span>
-                                    {isProcessed ? (
-                                        <span className="bg-emerald-100 text-emerald-600 text-[8px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1"><CheckCircle2 size={8}/> Contactado</span>
-                                    ) : (
-                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{t.price}</span>
-                                    )}
-                                </div>
-                                <p className="text-[10px] text-slate-400 font-bold truncate flex items-center gap-1.5 uppercase mb-3">
-                                    <Navigation size={10} /> {t.address || "Zona Desconocida"}
-                                </p>
-                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
-                                    <span className="text-[9px] font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">VER FICHA</span>
-                                    <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                        <ChevronLeft size={12} className="rotate-180"/>
+                            <div key={t.id} onClick={() => handleTrabajar(t)} className={`bg-white p-4 rounded-xl shadow-sm border cursor-pointer hover:shadow-md transition-all flex justify-between items-center group relative overflow-hidden ${isProcessed ? 'border-emerald-200 bg-emerald-50/10' : 'border-slate-100'}`}>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-bold text-slate-900 text-xs">{t.type}</span>
+                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{t.price}</span>
+                                        {isProcessed && <span className="text-emerald-600 text-[9px] font-bold flex items-center gap-1"><CheckCircle2 size={10}/> Enviado</span>}
                                     </div>
+                                    <p className="text-[10px] text-slate-500 truncate max-w-[180px]">
+                                        {t.address || "Dirección Privada"}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button className="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-100 flex items-center justify-center transition-all border border-slate-200"><Navigation size={14} /></button>
                                 </div>
                             </div>
                         )
@@ -374,3 +323,4 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     </div>
   );
 }
+
