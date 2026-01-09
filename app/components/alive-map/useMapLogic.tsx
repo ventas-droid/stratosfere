@@ -490,7 +490,7 @@ if (Array.isArray(p.images)) {
 };
 
   // --------------------------------------------------------------------
-  // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA 🇪🇸
+  // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA (CALIBRADO) 🇪🇸
   // --------------------------------------------------------------------
   const searchCity = async (rawQuery: any) => {
     if (!rawQuery || !map.current) return;
@@ -501,24 +501,34 @@ if (Array.isArray(p.images)) {
     // Decisión de Vuelo / Auto-Zoom
     if (location.length > 2) {
       try {
-        const types = 'place,locality,district,neighborhood,address,poi';
+        // 🔥 CORRECCIÓN: Lista completa de tipos para encontrar Urbanizaciones y Calles exactas
+        const types = 'country,region,postcode,district,place,locality,neighborhood,address,poi';
         
-        // 🔥 CORRECCIÓN TÁCTICA: AÑADIDO '&country=es' PARA EVITAR IR A OHIO
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${mapboxgl.accessToken}&country=es&types=${types}&language=es`;
+        // 🔥 AÑADIDO: fuzzyMatch=true para tolerar imprecisiones y encontrar "Altea Hills"
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${mapboxgl.accessToken}&country=es&types=${types}&language=es&fuzzyMatch=true&autocomplete=true`;
         
         const response = await fetch(url);
         const data = await response.json();
 
         if (data.features?.length > 0) {
-          // Vuelo directo al objetivo español
-          map.current.flyTo({
-            center: data.features[0].center,
-            zoom: 13.5,
-            pitch: 50,
-            bearing: 0,
-            speed: 1.2,
-            essential: true
-          });
+          const target = data.features[0];
+
+          // Lógica de Aterrizaje Inteligente:
+          // Si el resultado tiene un área definida (ej: Urbanización), la encuadramos.
+          if (target.bbox) {
+             map.current.fitBounds(target.bbox, { padding: 50, duration: 2500, essential: true });
+          } 
+          // Si es un punto exacto (Calle/Portal), bajamos al detalle (Zoom 17)
+          else {
+             map.current.flyTo({
+               center: target.center,
+               zoom: 17, // Zoom de calle (antes era 13.5, muy lejos)
+               pitch: 60,
+               bearing: 0,
+               speed: 1.5,
+               essential: true
+             });
+          }
         }
       } catch (error) {
         console.error("🚨 Mapbox Error:", error);
@@ -539,6 +549,7 @@ if (Array.isArray(p.images)) {
       }, 500);
     }
   };
+  
   // --------------------------------------------------------------------
   // F. RECEPTOR DE NUEVAS PROPIEDADES (ADD PROPERTY) - VERSIÓN BLINDADA
   // --------------------------------------------------------------------
