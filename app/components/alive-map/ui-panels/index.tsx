@@ -174,47 +174,73 @@ const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
 // 🔥 AÑADA ESTA LÍNEA EXACTA (EL ESLABÓN PERDIDO):
 const [identityVerified, setIdentityVerified] = useState(false);
   
-// 1. IDENTIFICACIÓN DE USUARIO (CON PROTOCOLO DE RESCATE)
+// 1. IDENTIFICACIÓN DE USUARIO (CON PROTOCOLO DE RESCATE BLINDADO)
   useEffect(() => {
     let alive = true;
 
-    // A. INTENTO DE RESCATE (Offline)
-    const cachedLastUserKey = typeof window !== "undefined" ? localStorage.getItem("stratos_last_user_key") : null;
-    
-    // Si hay memoria de quién éramos, la cargamos YA (evita parpadeo blanco)
-    if (cachedLastUserKey) {
-        console.log("🛡️ MODO RESCATE: Identidad caché detectada ->", cachedLastUserKey);
-        setActiveUserKey(cachedLastUserKey);
+    // A. INTENTO DE RESCATE (Offline / Arranque rápido)
+    if (typeof window !== "undefined") {
+        const cachedLast = localStorage.getItem("stratos_last_user_key");
+        const currentActive = localStorage.getItem("stratos_active_user_key");
+        
+        // Si tenemos un "last" (rescate) pero no un "active" (porque acabamos de recargar)
+        // Lo promovemos inmediatamente para que las NanoCards nazcan con memoria.
+        if (cachedLast && !currentActive) {
+            console.log("🛡️ MODO RESCATE: Promoviendo identidad caché a activa.");
+            localStorage.setItem("stratos_active_user_key", cachedLast);
+            setActiveUserKey(cachedLast); 
+            
+            // 🔥 DISPARO PREVENTIVO: Para que las NanoCards despierten YA
+            window.dispatchEvent(new CustomEvent("user-changed", { detail: { userKey: cachedLast } }));
+            window.dispatchEvent(new CustomEvent("reload-favorites"));
+        } else if (cachedLast) {
+             setActiveUserKey(cachedLast);
+        }
     }
 
     (async () => {
       try {
         const me = await getUserMeAction();
-        const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
-        
         if (!alive) return;
 
-        // B. SI EL SERVER RESPONDE (ÉXITO)
+        // Determinamos la llave real del servidor
+        const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
+        
+        // B. SI EL SERVER RESPONDE (ÉXITO) - LÓGICA DE CONFIRMACIÓN
+        if (key !== "anon") {
+            // Confirmado: Somos alguien -> Guardamos en Last y Active
+            localStorage.setItem("stratos_last_user_key", key);
+            localStorage.setItem("stratos_active_user_key", key);
+        } else {
+            // Confirmado: No somos nadie -> Limpiamos 'active' para evitar fantasmas
+            localStorage.removeItem("stratos_active_user_key");
+        }
+
         setActiveUserKey(key);
         setIdentityVerified(true); // ✅ CONFIRMAMOS: SERVER VIVO
 
-        if (key !== "anon") localStorage.setItem("stratos_last_user_key", key);
+        // 🔥 SEÑAL DE ACTIVACIÓN MASIVA (BROADCAST)
+        // Esto confirma a todo el sistema quién es el usuario final
+        window.dispatchEvent(new CustomEvent("user-changed", { detail: { userKey: key } }));
+        window.dispatchEvent(new CustomEvent("reload-favorites"));
 
       } catch (e) {
         if (!alive) return;
         
-        // C. SI EL SERVER FALLA (ERROR 500)
-        console.warn("⚠️ FALLO DE RED/SERVER (500). Manteniendo posición.");
+        // C. SI EL SERVER FALLA (ERROR 500 / OFFLINE)
+        console.warn("⚠️ FALLO DE RED/SERVER. Manteniendo posición de rescate.");
         setIdentityVerified(false); // ❌ IMPORTANTE: NO TOCAR EL ESPEJO
         
         // Solo si NO teníamos caché de rescate, nos resignamos a ser anon.
-        // Si teníamos caché, nos quedamos con ella.
+        // Si teníamos caché (cargada en el paso A), nos quedamos con ella.
+        const cachedLastUserKey = localStorage.getItem("stratos_last_user_key");
         if (!cachedLastUserKey) setActiveUserKey("anon");
       }
     })();
+    
     return () => { alive = false; };
   }, []);
-  
+
   const normalizeFavList = (arr: any[]) => {
     if (!Array.isArray(arr)) return [];
     return arr.map((item: any) => {
@@ -262,28 +288,36 @@ const [identityVerified, setIdentityVerified] = useState(false);
     } catch {}
   };
 
-  // ✅ Persistencia Inteligente
+  // ✅ Persistencia Inteligente (CON MEMORIA DE SUPERVIVENCIA)
   const persistFavsForUser = (userKey: string, list: any[]) => {
     try {
-      const LIST_KEY = `stratos_favorites_v1:${userKey || "anon"}`;
+      const safeUser = userKey || "anon";
+      const LIST_KEY = `stratos_favorites_v1:${safeUser}`;
       const safeList = Array.isArray(list) ? list : [];
 
-      if (userKey && userKey !== "anon") {
-        localStorage.setItem(LIST_KEY, JSON.stringify(safeList));
+      // 1. GUARDADO PRINCIPAL: Guardamos SIEMPRE, incluso si es anon.
+      // Esto asegura que si el server falla (500), el navegador retenga los datos.
+      localStorage.setItem(LIST_KEY, JSON.stringify(safeList));
+
+      // 2. COPIA DE SEGURIDAD (LAST GOOD): Un respaldo universal.
+      // Si todo lo demas falla, leeremos de aquí.
+      if (safeList.length > 0) {
+          localStorage.setItem("stratos_favorites_last_good", JSON.stringify(safeList));
       }
 
+      // 3. ESPEJO GLOBAL (Para las NanoCards)
       mirrorGlobalFavsForNanoCard(safeList);
 
+      // 4. FLAGS INDIVIDUALES (Para velocidad de renderizado)
       safeList.forEach((x: any) => {
         const id = String(x?.id);
         if (!id) return;
-        if (userKey && userKey !== "anon") localStorage.setItem(`fav-${userKey}-${id}`, "true");
+        if (safeUser !== "anon") localStorage.setItem(`fav-${safeUser}-${id}`, "true");
         localStorage.setItem(`fav-${id}`, "true");
       });
     } catch {}
   };
-
-  // 2. CARGA DE FAVORITOS (BLINDAJE TOTAL ANTI-500)
+ // 2. CARGA DE FAVORITOS (BLINDAJE TOTAL + RESCATE DE MEMORIA)
   useEffect(() => {
     // Candado de arranque
     if (activeUserKey === null) return;
@@ -292,47 +326,67 @@ const [identityVerified, setIdentityVerified] = useState(false);
     const userKey = activeUserKey;
     const LIST_KEY = `stratos_favorites_v1:${userKey}`;
 
-    // Helper de caché (Devuelve true si recuperó algo)
+    // HELPER MEJORADO: Busca en caché usuario -> Y si falla -> Busca en Last Good
     const tryLocalCache = () => {
       try {
+        // A) INTENTO PRINCIPAL: Caché del usuario actual (o anon)
         const saved = localStorage.getItem(LIST_KEY);
-        if (!saved) return false;
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const normalized = normalizeFavList(parsed);
-          if (isMounted) setLocalFavs(normalized);
-          persistFavsForUser(userKey, normalized);
-          console.log("🛡️ BLINDAJE: Datos recuperados de caché local.");
-          return true;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const normalized = normalizeFavList(parsed);
+            if (isMounted) setLocalFavs(normalized);
+            // Refrescamos el espejo pero SIN sobreescribir si estamos leyendo
+            mirrorGlobalFavsForNanoCard(normalized); 
+            console.log("🛡️ BLINDAJE: Datos recuperados de caché directa.");
+            return true;
+          }
+        }
+
+        // B) INTENTO DESESPERADO: ¿Hay una copia de seguridad "Last Good"?
+        const lastGood = localStorage.getItem("stratos_favorites_last_good");
+        if (lastGood) {
+            const parsed = JSON.parse(lastGood);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                const normalized = normalizeFavList(parsed);
+                if (isMounted) setLocalFavs(normalized);
+                mirrorGlobalFavsForNanoCard(normalized);
+                console.log("🛡️ BLINDAJE: Usando copia de seguridad (Last Good).");
+                return true;
+            }
         }
       } catch {}
       return false;
     };
 
     const loadFavs = async () => {
-      // 1. CASO ANONIMO (Solo si de verdad somos anon)
+      // 1. CASO ANONIMO
       if (userKey === "anon") {
-        if (isMounted) setLocalFavs([]);
-        // Solo limpiamos el espejo si estamos seguros. 
-        // Si venimos de un fallo server (identityVerified=false), mejor no tocar.
-        if (identityVerified) mirrorGlobalFavsForNanoCard([]);
+        // Intentamos leer caché de anon por si acaso guardó algo antes del 500
+        const used = tryLocalCache();
+        
+        // Solo limpiamos si el servidor ESTÁ VIVO y confirma que somos anon.
+        // Si el servidor está muerto (identityVerified=false), NO BORRAMOS NADA.
+        if (!used && identityVerified) { 
+            if (isMounted) setLocalFavs([]);
+            mirrorGlobalFavsForNanoCard([]); 
+        }
         return;
       }
 
       // 2. MODO PRECARIO (Servidor caído / Error 500)
-      // Si el servidor no nos ha validado, NO intentamos hacer fetch (fallaría seguro).
       if (!identityVerified) {
-        console.warn("⚠️ MODO PRECARIO: Servidor no disponible. Usando solo caché.");
+        console.warn("⚠️ MODO PRECARIO: Servidor 500. Usando caché extendida.");
         const used = tryLocalCache();
-        if (!used && isMounted) setLocalFavs([]); // UI vacía pero limpia
-        return; // 🔥 ALTO EL FUEGO: No tocamos el espejo global
+        if (!used && isMounted) setLocalFavs([]); 
+        return; // 🔥 ALTO EL FUEGO: Espejo intacto
       }
 
-      // 3. MODO ONLINE (Identidad verificada)
+      // 3. MODO ONLINE
       try {
         const serverResponse = await getFavoritesAction();
 
-        // A) ÉXITO: Datos recibidos
+        // A) ÉXITO
         if (serverResponse?.success && Array.isArray(serverResponse.data) && serverResponse.data.length > 0) {
           const normalized = normalizeFavList(serverResponse.data);
           if (isMounted) setLocalFavs(normalized);
@@ -340,41 +394,36 @@ const [identityVerified, setIdentityVerified] = useState(false);
           return;
         }
 
-        // B) VACÍO SOSPECHOSO: El servidor dice 0, pero revisamos caché por si acaso
+        // B) SERVIDOR VACÍO (Revisamos caché antes de borrar)
         if (serverResponse?.success && Array.isArray(serverResponse.data) && serverResponse.data.length === 0) {
           const used = tryLocalCache();
-          if (used) return; // La caché nos salvó de un borrado accidental
+          if (used) return; 
 
-          // Si no hay caché, es un vacío real
           if (isMounted) setLocalFavs([]);
           mirrorGlobalFavsForNanoCard([]);
           return;
         }
 
-        // C) RESPUESTA RARA: Usar caché
+        // C) RESPUESTA RARA
         const used = tryLocalCache();
         if (used) return;
 
       } catch (e) {
-        // 4. CAÍDA DURANTE LA PETICIÓN
-        console.warn("Offline favorites mode (Fetch Error)");
+        // 4. ERROR FETCH
         const used = tryLocalCache();
         if (!used && isMounted) setLocalFavs([]);
-        return; // 🔥 ALTO EL FUEGO
+        return;
       }
 
-      // Final por defecto (solo si todo lo anterior falló limpiamente)
       if (isMounted) setLocalFavs([]);
     };
 
     loadFavs();
     
-    // Escucha de recargas manuales
     const onReloadFavs = () => loadFavs();
     window.addEventListener("reload-favorites", onReloadFavs);
     return () => { isMounted = false; window.removeEventListener("reload-favorites", onReloadFavs); };
     
-    // 🔥 DEPENDENCIAS CLAVE: Se reactiva si cambia el usuario O si recuperamos la conexión (identityVerified)
   }, [activeUserKey, identityVerified]);
   
   // 3. TOGGLE FAVORITE

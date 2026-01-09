@@ -88,177 +88,301 @@ const PACK_BADGES: Record<string, any> = {
 export default function MapNanoCard(props: any) {
   const data = props.data || {};
 
-  const id = useMemo(() => {
-      return props.id || data.id || data._id || `prop-${Math.random().toString(36).substr(2, 9)}`;
-  }, [props.id, data.id, data._id]);
- 
-  // Datos
-  const rooms = props.rooms ?? data.rooms ?? 0;
-  const baths = props.baths ?? data.baths ?? 0;
-  const mBuilt = props.mBuilt || data.mBuilt || props.surface || data.surface || props.m2 || data.m2 || 0;
-  const type = props.type || data.type || "Propiedad";
+ // DENTRO DE MapNanoCard.tsx (Al principio)
+
+// 🔥 FIX #1: ID ESTABLE Y UNIFICADO
+// Buscamos el ID real hasta debajo de las piedras. Si no hay, mejor null que random.
+const id = useMemo(() => {
+  const raw =
+    props?.id ??
+    data?.id ??
+    data?._id ??
+    data?.propertyId ??
+    data?.property?.id ??
+    data?.property?.propertyId;
+
+  return raw ? String(raw) : null;
+}, [
+  props?.id,
+  data?.id,
+  data?._id,
+  data?.propertyId,
+  data?.property?.id,
+  data?.property?.propertyId,
+]);
+
+// Datos
+const rooms = props.rooms ?? data.rooms ?? 0;
+const baths = props.baths ?? data.baths ?? 0;
+const mBuilt =
+  props.mBuilt ||
+  data.mBuilt ||
+  props.surface ||
+  data.surface ||
+  props.m2 ||
+  data.m2 ||
+  0;
+const type = props.type || data.type || "Propiedad";
+
 // 🔥 CORRECCIÓN DE IMAGEN (VERSION FINAL)
-  const img = 
-      (Array.isArray(props.images) && props.images.length > 0 ? props.images[0] : null) || 
-      (Array.isArray(data.images) && data.images.length > 0 ? data.images[0] : null) || 
-      props.img || 
-      props.image || 
-      data.img || 
-      "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";  const city = props.city || data.city;
-  const location = props.location || data.location;
-  const address = props.address || data.address;
-  const floor = props.floor || data.floor;
-  
-  // Servicios para los Packs
-  const selectedServices = props.selectedServices || data.selectedServices || [];
+const img =
+  (Array.isArray(props.images) && props.images.length > 0 ? props.images[0] : null) ||
+  (Array.isArray(data.images) && data.images.length > 0 ? data.images[0] : null) ||
+  props.img ||
+  props.image ||
+  data.img ||
+  "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
-  // Precio Vivo
-  const rawPriceInput = props.rawPrice ?? data?.rawPrice ?? props.priceValue;
-  const stringPriceInput = props.price ?? data?.price; 
-  const [currentPrice, setCurrentPrice] = useState(() => safeParsePrice(rawPriceInput, stringPriceInput));
+const city = props.city || data.city;
+const location = props.location || data.location;
+const address = props.address || data.address;
+const floor = props.floor || data.floor;
 
-  useEffect(() => {
-    const handleUpdate = (e: any) => {
-        if (String(e.detail.id) === String(id) && e.detail.updates) {
-            const u = e.detail.updates;
-            if (u.price || u.rawPrice || u.priceValue) {
-                const newP = safeParsePrice(u.rawPrice ?? u.priceValue, u.price);
-                setCurrentPrice(newP);
-            }
-        }
-    };
-    if (typeof window !== 'undefined') window.addEventListener('update-property-signal', handleUpdate);
-    return () => { if (typeof window !== 'undefined') window.removeEventListener('update-property-signal', handleUpdate); };
-  }, [id]);
+// Servicios para los Packs
+const selectedServices = props.selectedServices || data.selectedServices || [];
 
-  const displayLabel = useMemo(() => {
-    if (currentPrice === 0) return "Consultar"; 
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(currentPrice);
-  }, [currentPrice]);
-  
-  const style = getPriceStyle(currentPrice);
+// Precio Vivo
+const rawPriceInput = props.rawPrice ?? data?.rawPrice ?? props.priceValue;
+const stringPriceInput = props.price ?? data?.price;
+const [currentPrice, setCurrentPrice] = useState(() =>
+  safeParsePrice(rawPriceInput, stringPriceInput)
+);
 
-  // Detectar Pack Activo
-  const activePack = useMemo(() => {
-    if (!selectedServices || selectedServices.length === 0) return null;
-    if (selectedServices.includes('pack_elite')) return PACK_BADGES['pack_elite'];
-    if (selectedServices.includes('pack_investor')) return PACK_BADGES['pack_investor'];
-    if (selectedServices.includes('pack_pro')) return PACK_BADGES['pack_pro'];
-    if (selectedServices.includes('pack_express')) return PACK_BADGES['pack_express'];
-    if (selectedServices.includes('pack_basic')) return PACK_BADGES['pack_basic'];
-    return null;
-  }, [selectedServices]);
+useEffect(() => {
+  const handleUpdate = (e: any) => {
+    if (String(e.detail.id) === String(id) && e.detail.updates) {
+      const u = e.detail.updates;
+      if (u.price || u.rawPrice || u.priceValue) {
+        const newP = safeParsePrice(u.rawPrice ?? u.priceValue, u.price);
+        setCurrentPrice(newP);
+      }
+    }
+  };
+  if (typeof window !== "undefined")
+    window.addEventListener("update-property-signal", handleUpdate);
+  return () => {
+    if (typeof window !== "undefined")
+      window.removeEventListener("update-property-signal", handleUpdate);
+  };
+}, [id]);
 
-  // Estado Favorito
-  const [liked, setLiked] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
+const displayLabel = useMemo(() => {
+  if (currentPrice === 0) return "Consultar";
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(currentPrice);
+}, [currentPrice]);
 
-  useEffect(() => {
-  if (typeof window !== "undefined") {
-    const userKey = localStorage.getItem("stratos_active_user_key") || "anon";
+const style = getPriceStyle(currentPrice);
+
+// Detectar Pack Activo
+const activePack = useMemo(() => {
+  if (!selectedServices || selectedServices.length === 0) return null;
+  if (selectedServices.includes("pack_elite")) return PACK_BADGES["pack_elite"];
+  if (selectedServices.includes("pack_investor")) return PACK_BADGES["pack_investor"];
+  if (selectedServices.includes("pack_pro")) return PACK_BADGES["pack_pro"];
+  if (selectedServices.includes("pack_express")) return PACK_BADGES["pack_express"];
+  if (selectedServices.includes("pack_basic")) return PACK_BADGES["pack_basic"];
+  return null;
+}, [selectedServices]);
+
+// Estado Favorito
+const [liked, setLiked] = useState(false);
+const [isHovered, setIsHovered] = useState(false);
+const cardRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  if (!id || typeof window === "undefined") return;
+
+  const resolveUserKey = () =>
+    localStorage.getItem("stratos_active_user_key") ||
+    localStorage.getItem("stratos_last_user_key") ||
+    "anon";
+
+  const readFavState = () => {
+    const userKey = resolveUserKey();
     const LIST_KEY = `stratos_favorites_v1:${userKey}`;
-    const FLAG_KEY = `fav-${userKey}-${id}`;
 
-    let isSaved = localStorage.getItem(FLAG_KEY) === "true";
+    const specificKey = userKey !== "anon" ? `fav-${userKey}-${id}` : null;
+    const genericKey = `fav-${id}`;
+
+    // Prioridad: Flag específico > Flag genérico > Lista Maestra
+    let isSaved =
+      (specificKey ? localStorage.getItem(specificKey) === "true" : false) ||
+      localStorage.getItem(genericKey) === "true";
 
     if (!isSaved) {
       try {
         const masterList = JSON.parse(localStorage.getItem(LIST_KEY) || "[]");
-        isSaved =
+        const found =
           Array.isArray(masterList) &&
           masterList.some((item: any) => String(item?.id) === String(id));
 
-        if (isSaved) localStorage.setItem(FLAG_KEY, "true");
+        if (found) {
+          isSaved = true;
+          // Auto-reparación de flags
+          localStorage.setItem(genericKey, "true");
+          if (specificKey) localStorage.setItem(specificKey, "true");
+        }
       } catch (e) {}
     }
 
-    setLiked(isSaved);
-  }
+    setLiked(!!isSaved);
+  };
 
+  // Radio: actualiza + persiste (para que no se apague al repintar el mapa)
   const handleRemoteCommand = (e: any) => {
     if (e?.detail && String(e.detail.id) === String(id)) {
-      setLiked(!!e.detail.isFav);
+      const nextState = !!e.detail.isFav;
+      setLiked(nextState);
+
+      try {
+        const userKey = resolveUserKey();
+        const specificKey = userKey !== "anon" ? `fav-${userKey}-${id}` : null;
+        const genericKey = `fav-${id}`;
+
+        if (nextState) {
+          localStorage.setItem(genericKey, "true");
+          if (specificKey) localStorage.setItem(specificKey, "true");
+        } else {
+          localStorage.removeItem(genericKey);
+          if (specificKey) localStorage.removeItem(specificKey);
+        }
+      } catch (err) {}
     }
   };
+
+  readFavState();
 
   window.addEventListener("sync-property-state", handleRemoteCommand as EventListener);
-  return () => window.removeEventListener("sync-property-state", handleRemoteCommand as EventListener);
+  window.addEventListener("reload-favorites", readFavState as EventListener);
+  window.addEventListener("user-changed", readFavState as EventListener);
+
+  return () => {
+    window.removeEventListener("sync-property-state", handleRemoteCommand as EventListener);
+    window.removeEventListener("reload-favorites", readFavState as EventListener);
+    window.removeEventListener("user-changed", readFavState as EventListener);
+  };
 }, [id]);
 
-// GESTOR DE ACCIONES (VERSIÓN DEFINITIVA: 100% SEGURA)
-  const handleAction = (e: React.MouseEvent, action: string) => {
-      e.preventDefault();
-      e.stopPropagation(); 
-      
-      const targetState = action === 'fav' ? !liked : liked;
-      
-      // 1. CÁLCULO DE COORDENADAS (MANTENIDO EXACTAMENTE IGUAL)
-      const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates || (props.lng && props.lat ? [props.lng, props.lat] : null);
-      
-      // 2. RECUPERACIÓN DE FOTOS (MEJORADA)
-      let finalAlbum: string[] = [];
-      
-      // Buscamos en todas partes
-      if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images;
-      else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images;
-      else if (img) finalAlbum = [img];
-      
-      // Buscamos en mainImage (para propiedades nuevas)
-      if (finalAlbum.length === 0) {
-          if (props.mainImage) finalAlbum = [props.mainImage];
-          else if (data.mainImage) finalAlbum = [data.mainImage];
+// GESTOR DE ACCIONES (VERSIÓN DEFINITIVA: SEGURA + SIN ROMPER APERTURA)
+const handleAction = (e: React.MouseEvent, action: string) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (!id) return;
+
+  // --- SAFETY BOX + TOGGLE ATÓMICO (solo para fav) ---
+  let targetState = action === "fav" ? !liked : liked;
+
+  if (action === "fav" && typeof window !== "undefined") {
+    const userKey =
+      localStorage.getItem("stratos_active_user_key") ||
+      localStorage.getItem("stratos_last_user_key") ||
+      "anon";
+
+    const specificKey = userKey !== "anon" ? `fav-${userKey}-${id}` : null;
+    const genericKey = `fav-${id}`;
+
+    const isActuallySaved =
+      (specificKey ? localStorage.getItem(specificKey) === "true" : false) ||
+      localStorage.getItem(genericKey) === "true";
+
+    // Si hay desincronización: corregimos color y NO togglamos (evita borrados accidentales)
+    if (isActuallySaved !== liked) {
+      setLiked(isActuallySaved);
+      return;
+    }
+
+    // Toggle basado en la verdad, no en liked
+    targetState = !isActuallySaved;
+
+    // Persistencia inmediata (anti-repintado)
+    try {
+      if (targetState) {
+        localStorage.setItem(genericKey, "true");
+        if (specificKey) localStorage.setItem(specificKey, "true");
+      } else {
+        localStorage.removeItem(genericKey);
+        if (specificKey) localStorage.removeItem(specificKey);
       }
-      
-      // Limpiamos URLs
-      finalAlbum = finalAlbum.map((i: any) => typeof i === 'string' ? i : i.url || i);
-      
-      // 🛑 SIN FOTOS FALSAS: Si no hay, null (saldrá gris/vacío, pero honesto)
-      const finalImg = finalAlbum[0] || img || null;
+    } catch (err) {}
+  }
 
-      // 3. PAQUETE DE DATOS (AQUÍ ESTÁ EL ARREGLO DEL PRECIO)
-      const payload = { 
-          id, 
-          ...props, // Datos originales (incluye basura vieja)
-          ...data,  
-          
-          // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
-          price: currentPrice,       
-          formattedPrice: displayLabel,
-          priceValue: currentPrice, // ESTO ARREGLA EL PRECIO EN DETAILS
-          rawPrice: currentPrice,   // ESTO TAMBIÉN
+  // 1. CÁLCULO DE COORDENADAS (MANTENIDO EXACTAMENTE IGUAL)
+  const navCoords =
+    props.coordinates ||
+    data.coordinates ||
+    data.geometry?.coordinates ||
+    (props.lng && props.lat ? [props.lng, props.lat] : null);
 
-          // FOTOS LIMPIAS
-          img: finalImg,      
-          images: finalAlbum,
-          
-          type: type, 
-          location: (city || location || address || "MADRID").toUpperCase(), 
-          isFav: targetState, 
-          coordinates: navCoords
-      };
+  // 2. RECUPERACIÓN DE FOTOS (MEJORADA)
+  let finalAlbum: string[] = [];
 
-      // 4. DISPARO DE SEÑALES (MANTENIDAS EXACTAMENTE IGUAL)
-      if (action === 'fav') {
-    setLiked(targetState);
-    if (typeof window !== 'undefined') {
-        // 1) Toggle favorito
-        window.dispatchEvent(new CustomEvent('toggle-fav-signal', { detail: payload }));
+  // Buscamos en todas partes
+  if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images;
+  else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images;
+  else if (img) finalAlbum = [img];
 
-        // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón (lo que necesitas)
-        window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
-        window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
-    }
-} else if (action === 'open') {
-    if (typeof window !== 'undefined') {
-        // Señal 1: Abrir panel lateral
-        window.dispatchEvent(new CustomEvent('open-details-signal', { detail: payload }));
-        // Señal 2: Marcar activo en el sistema
-        window.dispatchEvent(new CustomEvent('select-property-signal', { detail: { id: id } }));
-    }
-}
+  // Buscamos en mainImage (para propiedades nuevas)
+  if (finalAlbum.length === 0) {
+    if (props.mainImage) finalAlbum = [props.mainImage];
+    else if (data.mainImage) finalAlbum = [data.mainImage];
+  }
 
+  // Limpiamos URLs
+  finalAlbum = finalAlbum.map((i: any) => (typeof i === "string" ? i : i.url || i));
+
+  // 🛑 SIN FOTOS FALSAS: Si no hay, null (saldrá gris/vacío, pero honesto)
+  const finalImg = finalAlbum[0] || img || null;
+
+  // 3. PAQUETE DE DATOS (AQUÍ ESTÁ EL ARREGLO DEL PRECIO)
+  const payload = {
+    id,
+    ...props, // Datos originales (incluye basura vieja)
+    ...data,
+
+    // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
+    price: currentPrice,
+    formattedPrice: displayLabel,
+    priceValue: currentPrice, // ESTO ARREGLA EL PRECIO EN DETAILS
+    rawPrice: currentPrice, // ESTO TAMBIÉN
+
+    // FOTOS LIMPIAS
+    img: finalImg,
+    images: finalAlbum,
+
+    type: type,
+    location: (city || location || address || "MADRID").toUpperCase(),
+    isFav: targetState,
+    coordinates: navCoords,
   };
+
+  // 4. DISPARO DE SEÑALES (MANTENIDAS EXACTAMENTE IGUAL)
+  if (action === "fav") {
+    setLiked(targetState);
+    if (typeof window !== "undefined") {
+      // 1) Toggle favorito
+      window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: payload }));
+
+      // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón (lo que necesitas)
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: id } }));
+
+      // 3) Despertador global (por si el mapa repinta NanoCards)
+      window.dispatchEvent(new CustomEvent("reload-favorites"));
+    }
+  } else if (action === "open") {
+    if (typeof window !== "undefined") {
+      // Señal 1: Abrir panel lateral
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
+      // Señal 2: Marcar activo en el sistema
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: id } }));
+    }
+  }
+};
 
   useEffect(() => {
     if (cardRef.current) {
