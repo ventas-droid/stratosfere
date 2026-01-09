@@ -885,12 +885,12 @@ const [identityVerified, setIdentityVerified] = useState(false);
                 </div>
            )}
            
-           {/* 3. BÓVEDA / FAVORITOS (Derecha) */}
+          {/* 3. BÓVEDA / FAVORITOS (Derecha) */}
            {rightPanel === 'VAULT' && (
                <VaultPanel 
                    rightPanel={rightPanel} 
                    toggleRightPanel={(p: any) => setRightPanel('NONE')} 
-                   favorites={localFavs} 
+                   favorites={systemMode === 'AGENCY' ? [] : localFavs}
                    onToggleFavorite={handleToggleFavorite} 
                    map={map} 
                    soundEnabled={soundEnabled} 
