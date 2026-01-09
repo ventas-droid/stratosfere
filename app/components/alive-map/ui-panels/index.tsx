@@ -603,6 +603,33 @@ const [identityVerified, setIdentityVerified] = useState(false);
       setShowAdvancedConsole(false);
   };
 
+  // --------------------------------------------------------
+  // 🔥 PROTOCOLO DE DESCONTAMINACIÓN (CLEAN SLATE)
+  // --------------------------------------------------------
+  useEffect(() => {
+      // Cada vez que cambiamos de modo (GATEWAY <-> EXPLORER <-> AGENCY)
+      // Cerramos todas las compuertas para evitar cruce de datos.
+      
+      console.log(`🔄 CAMBIO DE MODO DETECTADO: ${systemMode}`);
+      
+      // 1. Cerrar Paneles Laterales
+      setRightPanel('NONE');
+      
+      // 2. Cerrar Paneles Centrales/Modales
+      setActivePanel('NONE');
+      
+      // 3. Limpiar Selecciones (Para que el mapa no brille por cosas viejas)
+      setSelectedProp(null); 
+      setEditingProp(null);
+      setMarketProp(null);
+
+      // 4. Sonido de transición (Mecánico)
+      if (systemMode !== 'GATEWAY' && soundEnabled) {
+           playSynthSound('click'); 
+      }
+
+  }, [systemMode]);
+  
   // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {
     return (
