@@ -260,44 +260,56 @@ export default function UIPanels({
     } catch {}
   };
 
-  // 2. CARGA DE FAVORITOS (PROTEGIDA Y BLINDADA)
+  // 2. CARGA DE FAVORITOS (BLINDAJE TOTAL ANTI-500)
   useEffect(() => {
+    // Candado de arranque
     if (activeUserKey === null) return;
 
     let isMounted = true;
     const userKey = activeUserKey;
     const LIST_KEY = `stratos_favorites_v1:${userKey}`;
 
+    // Helper de caché (Devuelve true si recuperó algo)
+    const tryLocalCache = () => {
+      try {
+        const saved = localStorage.getItem(LIST_KEY);
+        if (!saved) return false;
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const normalized = normalizeFavList(parsed);
+          if (isMounted) setLocalFavs(normalized);
+          persistFavsForUser(userKey, normalized);
+          console.log("🛡️ BLINDAJE: Datos recuperados de caché local.");
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
     const loadFavs = async () => {
-      // 1. Caso Anon
+      // 1. CASO ANONIMO (Solo si de verdad somos anon)
       if (userKey === "anon") {
         if (isMounted) setLocalFavs([]);
-        mirrorGlobalFavsForNanoCard([]);
+        // Solo limpiamos el espejo si estamos seguros. 
+        // Si venimos de un fallo server (identityVerified=false), mejor no tocar.
+        if (identityVerified) mirrorGlobalFavsForNanoCard([]);
         return;
       }
 
-      // Helper de caché
-      const tryLocalCache = () => {
-        try {
-          const saved = localStorage.getItem(LIST_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const normalized = normalizeFavList(parsed);
-              if (isMounted) setLocalFavs(normalized);
-              persistFavsForUser(userKey, normalized);
-              return true;
-            }
-          }
-        } catch {}
-        return false;
-      };
+      // 2. MODO PRECARIO (Servidor caído / Error 500)
+      // Si el servidor no nos ha validado, NO intentamos hacer fetch (fallaría seguro).
+      if (!identityVerified) {
+        console.warn("⚠️ MODO PRECARIO: Servidor no disponible. Usando solo caché.");
+        const used = tryLocalCache();
+        if (!used && isMounted) setLocalFavs([]); // UI vacía pero limpia
+        return; // 🔥 ALTO EL FUEGO: No tocamos el espejo global
+      }
 
-      // 2. Intentar Servidor
+      // 3. MODO ONLINE (Identidad verificada)
       try {
         const serverResponse = await getFavoritesAction();
-        
-        // A) Éxito con datos
+
+        // A) ÉXITO: Datos recibidos
         if (serverResponse?.success && Array.isArray(serverResponse.data) && serverResponse.data.length > 0) {
           const normalized = normalizeFavList(serverResponse.data);
           if (isMounted) setLocalFavs(normalized);
@@ -305,40 +317,43 @@ export default function UIPanels({
           return;
         }
 
-        // B) Éxito pero VACÍO (Peligroso): Revisamos caché local antes de machacar
+        // B) VACÍO SOSPECHOSO: El servidor dice 0, pero revisamos caché por si acaso
         if (serverResponse?.success && Array.isArray(serverResponse.data) && serverResponse.data.length === 0) {
-            const usedCache = tryLocalCache();
-            if (usedCache) return; // Salvados por la caché
+          const used = tryLocalCache();
+          if (used) return; // La caché nos salvó de un borrado accidental
 
-            // Si no hay caché, es que de verdad es vacío
-            if (isMounted) setLocalFavs([]);
-            mirrorGlobalFavsForNanoCard([]);
-            return;
+          // Si no hay caché, es un vacío real
+          if (isMounted) setLocalFavs([]);
+          mirrorGlobalFavsForNanoCard([]);
+          return;
         }
 
-        // C) Fallo del servidor: Usar caché
-        const usedCache = tryLocalCache();
-        if (usedCache) return;
+        // C) RESPUESTA RARA: Usar caché
+        const used = tryLocalCache();
+        if (used) return;
 
-      } catch (e) { 
-          // 3. Modo Offline: Usar caché
-          console.warn("Offline favorites mode"); 
-          const usedCache = tryLocalCache();
-          if (usedCache) return; // 🔥 AQUÍ ESTÁ SU CORRECCIÓN VITAL
+      } catch (e) {
+        // 4. CAÍDA DURANTE LA PETICIÓN
+        console.warn("Offline favorites mode (Fetch Error)");
+        const used = tryLocalCache();
+        if (!used && isMounted) setLocalFavs([]);
+        return; // 🔥 ALTO EL FUEGO
       }
 
-      // 4. Si todo falla y es usuario nuevo
+      // Final por defecto (solo si todo lo anterior falló limpiamente)
       if (isMounted) setLocalFavs([]);
-      mirrorGlobalFavsForNanoCard([]);
     };
 
     loadFavs();
-
+    
+    // Escucha de recargas manuales
     const onReloadFavs = () => loadFavs();
     window.addEventListener("reload-favorites", onReloadFavs);
     return () => { isMounted = false; window.removeEventListener("reload-favorites", onReloadFavs); };
-  }, [activeUserKey]);
-
+    
+    // 🔥 DEPENDENCIAS CLAVE: Se reactiva si cambia el usuario O si recuperamos la conexión (identityVerified)
+  }, [activeUserKey, identityVerified]);
+  
   // 3. TOGGLE FAVORITE
   const handleToggleFavorite = async (prop: any) => {
     if (!prop || activeUserKey === null) return;
