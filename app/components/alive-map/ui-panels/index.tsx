@@ -168,30 +168,53 @@ export default function UIPanels({
   const [notifications, setNotifications] = useState<any[]>([]);
   
   // --- FAVORITOS MULTI-USUARIO BLINDADOS ---
-  const [localFavs, setLocalFavs] = useState<any[]>([]);
-  // 🔥 CANDADO: Empezamos en null para evitar borrados accidentales
-  const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
+ const [localFavs, setLocalFavs] = useState<any[]>([]);
+const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
 
-  // 1. IDENTIFICACIÓN DE USUARIO (Una sola vez)
+// 🔥 AÑADA ESTA LÍNEA EXACTA (EL ESLABÓN PERDIDO):
+const [identityVerified, setIdentityVerified] = useState(false);
+  
+// 1. IDENTIFICACIÓN DE USUARIO (CON PROTOCOLO DE RESCATE)
   useEffect(() => {
     let alive = true;
+
+    // A. INTENTO DE RESCATE (Offline)
+    const cachedLastUserKey = typeof window !== "undefined" ? localStorage.getItem("stratos_last_user_key") : null;
+    
+    // Si hay memoria de quién éramos, la cargamos YA (evita parpadeo blanco)
+    if (cachedLastUserKey) {
+        console.log("🛡️ MODO RESCATE: Identidad caché detectada ->", cachedLastUserKey);
+        setActiveUserKey(cachedLastUserKey);
+    }
+
     (async () => {
       try {
-        console.log("🔍 Verificando identidad...");
         const me = await getUserMeAction();
-        // Si me devuelve datos, usamos el ID. Si no, "anon".
         const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
-        if (alive) {
-            console.log("👤 Identidad confirmada:", key);
-            setActiveUserKey(key);
-        }
+        
+        if (!alive) return;
+
+        // B. SI EL SERVER RESPONDE (ÉXITO)
+        setActiveUserKey(key);
+        setIdentityVerified(true); // ✅ CONFIRMAMOS: SERVER VIVO
+
+        if (key !== "anon") localStorage.setItem("stratos_last_user_key", key);
+
       } catch (e) {
-        if (alive) setActiveUserKey("anon");
+        if (!alive) return;
+        
+        // C. SI EL SERVER FALLA (ERROR 500)
+        console.warn("⚠️ FALLO DE RED/SERVER (500). Manteniendo posición.");
+        setIdentityVerified(false); // ❌ IMPORTANTE: NO TOCAR EL ESPEJO
+        
+        // Solo si NO teníamos caché de rescate, nos resignamos a ser anon.
+        // Si teníamos caché, nos quedamos con ella.
+        if (!cachedLastUserKey) setActiveUserKey("anon");
       }
     })();
     return () => { alive = false; };
   }, []);
-
+  
   const normalizeFavList = (arr: any[]) => {
     if (!Array.isArray(arr)) return [];
     return arr.map((item: any) => {
