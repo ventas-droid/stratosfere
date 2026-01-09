@@ -418,14 +418,20 @@ const [identityVerified, setIdentityVerified] = useState(false);
       if (isMounted) setLocalFavs([]);
     };
 
+   // 1. Carga inicial (Al montar el componente)
     loadFavs();
-    
-    const onReloadFavs = () => loadFavs();
-    window.addEventListener("reload-favorites", onReloadFavs);
-    return () => { isMounted = false; window.removeEventListener("reload-favorites", onReloadFavs); };
+
+    // 2. Recarga SOLO si cambia la identidad del usuario (Login/Logout)
+    // Esto es seguro y necesario. Lo que quitamos es el "reload-favorites".
+    const onUserChange = () => loadFavs();
+    window.addEventListener("user-changed", onUserChange);
+
+    return () => { 
+        isMounted = false; 
+        window.removeEventListener("user-changed", onUserChange);
+    };
     
   }, [activeUserKey, identityVerified]);
-  
   // 3. TOGGLE FAVORITE
   const handleToggleFavorite = async (prop: any) => {
     if (!prop || activeUserKey === null) return;
