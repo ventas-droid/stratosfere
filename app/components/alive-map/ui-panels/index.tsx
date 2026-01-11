@@ -976,9 +976,9 @@ export default function UIPanels({
            <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
            <AgencyPortfolioPanel isOpen={rightPanel === 'AGENCY_PORTFOLIO'} onClose={() => setRightPanel('NONE')} onCreateNew={() => handleEditAsset(null)} onEditProperty={(p:any) => handleEditAsset(p)} />
 
-           {/* 5. INSPECTOR Y DETALLES */}
+{/* 5. INSPECTOR Y DETALLES */}
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
-           {activePanel === 'DETAILS' && <DetailsPanel selectedProp={selectedProp} onClose={() => setActivePanel('NONE')} onToggleFavorite={handleToggleFavorite} favorites={localFavs} soundEnabled={soundEnabled} playSynthSound={playSynthSound} onOpenInspector={() => setActivePanel('INSPECTOR')} />}
+           {activePanel === 'DETAILS' && <DetailsPanel selectedProp={selectedProp} onClose={() => setActivePanel('NONE')} onToggleFavorite={handleToggleFavorite} favorites={systemMode === 'AGENCY' ? agencyFavs : localFavs} soundEnabled={soundEnabled} playSynthSound={playSynthSound} onOpenInspector={() => setActivePanel('INSPECTOR')} />}
        </div>
 
        {/* =================================================================

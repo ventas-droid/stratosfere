@@ -1,86 +1,73 @@
 // @ts-nocheck
 "use client";
 
-// ⚠️ CAMBIO TÁCTICO 1: Añadimos 'Suspense' a la importación
 import React, { useMemo, useState, Suspense } from "react";
 import AliveMap from "./components/alive-map/AliveMap";
 import UIPanels from "./components/alive-map/ui-panels"; 
 
-// ⚠️ CAMBIO TÁCTICO 2: Le cambiamos el nombre a esta función (de 'Page' a 'PageContent')
-// TODO EL CONTENIDO SIGUE EXACTAMENTE IGUAL, NO HE TOCADO NI UNA COMA DENTRO.
+// --- CONTENIDO DE LA PÁGINA (CEREBRO LIMPIO) ---
 function PageContent() {
   // 1. ESTADOS PRINCIPALES DEL SISTEMA
   const [systemMode, setSystemMode] = useState("GATEWAY");
   const [mapInstance, setMapInstance] = useState(null);
   
-  // ✅ NUEVO: ESTADO PARA GUARDAR EL DISPARADOR DE BÚSQUEDA
+  // ✅ ESTADO PARA EL GATILLO DE BÚSQUEDA
   const [searchTrigger, setSearchTrigger] = useState(null); 
 
-  // ... (resto de su código: mapBridge, favorites, etc.)
   // 2. PUENTE DE MANDO (Bridge)
-  // Unifica las órdenes entre el Mapa y los Paneles UI para evitar errores
   const mapBridge = useMemo(() => {
     return {
       current: mapInstance,
-      flyTo: (opts) => mapInstance?.flyTo?.(opts),
-      jumpTo: (opts) => mapInstance?.jumpTo?.(opts),
-      getConfig: (...args) => mapInstance?.getConfig?.(...args),
-      setConfig: (...args) => mapInstance?.setConfig?.(...args),
+      flyTo: (opts: any) => mapInstance?.flyTo?.(opts),
+      jumpTo: (opts: any) => mapInstance?.jumpTo?.(opts),
+      getConfig: (...args: any) => mapInstance?.getConfig?.(...args),
+      setConfig: (...args: any) => mapInstance?.setConfig?.(...args),
     };
   }, [mapInstance]);
 
-  // 3. GESTIÓN DE FAVORITOS (The Vault)
-  const [favorites, setFavorites] = useState([]);
-  
-  const onToggleFavorite = (prop) => {
-    const key = prop?.id ?? prop?.price ?? JSON.stringify(prop);
-    setFavorites((prev) => {
-      const exists = prev.some((p) => (p?.id ?? p?.price ?? JSON.stringify(p)) === key);
-      return exists
-        ? prev.filter((p) => (p?.id ?? p?.price ?? JSON.stringify(p)) !== key)
-        : [prop, ...prev];
-    });
-  };
-
-  // 4. CONFIGURACIÓN DE USUARIO
+  // 3. CONFIGURACIÓN DE USUARIO
+  // ⚠️ NOTA TÁCTICA: Aquí hemos BORRADO toda la lógica de 'favorites'.
+  // Ahora es 'UIPanels' (index.tsx) quien lleva el control total de las mochilas.
   const [lang, setLang] = useState("ES");
   const [soundEnabled, setSoundEnabled] = useState(true);
 
- // 5. DESPLIEGUE VISUAL
+  // 4. DESPLIEGUE VISUAL
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black">
       
-      {/* CAPA 1: EL MAPA (El Motor nos da la función) */}
+      {/* CAPA 1: EL MAPA (Renderizado puro) */}
       <AliveMap 
         systemMode={systemMode} 
         onMapLoad={setMapInstance}
-        onRegisterSearch={setSearchTrigger} // 🔌 CONEXIÓN A: Recibimos el arma del mapa
+        onRegisterSearch={setSearchTrigger} 
       />
       
-      {/* CAPA 2: LA INTERFAZ (El Panel recibe la función para disparar) */}
+      {/* CAPA 2: LA INTERFAZ (El verdadero cerebro) */}
       <UIPanels
         map={mapBridge}
-        searchCity={searchTrigger} // 🔌 CONEXIÓN B: Le damos el arma al panel
+        searchCity={searchTrigger}
         
-        // ... (resto de sus props que ya tenía: onToggleFavorite, favorites, etc.)
-        onToggleFavorite={onToggleFavorite}
-        favorites={favorites}
+        // Configuración visual
         lang={lang}
         setLang={setLang}
         soundEnabled={soundEnabled}
-        toggleSound={() => setSoundEnabled((s) => !s)}
+        toggleSound={() => setSoundEnabled((s: boolean) => !s)}
+        
+        // Modos del sistema
         systemMode={systemMode}
         setSystemMode={setSystemMode}
+        
+        // ⚠️ IMPORTANTE: No pasamos 'favorites' ni 'onToggleFavorite'
+        // Dejamos que UIPanels use sus propios estados internos (agencyFavs/localFavs)
       />
     </div>
   );
 }
 
-// ⚠️ CAMBIO TÁCTICO 3: EXPORTAMOS EL BÚNKER
-// Esta es la parte que arregla el error. Envolvemos todo en Suspense.
+// --- EXPORTACIÓN BLINDADA (CON SUSPENSE) ---
 export default function Page() {
   return (
-    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white">Cargando Stratosfere...</div>}>
+    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">CARGANDO STRATOSFERE...</div>}>
       <PageContent />
     </Suspense>
   )
