@@ -2,8 +2,13 @@
 "use client";
 
 import React, { useMemo, useState, Suspense } from "react";
-// Asegúrese de que estas rutas coincidan con sus carpetas actuales
-import AliveMap from "./ui/alive-map/AliveMap";
+
+// ⚠️ CORRECCIÓN DE RUTAS TÁCTICA:
+// 1. Buscamos el Mapa en la carpeta antigua 'components' (que es donde solía estar)
+// Si esto falla, probaremos otra ruta.
+import AliveMap from "./components/alive-map/AliveMap";
+
+// 2. Buscamos el Panel en la carpeta nueva 'ui' (donde está el index.tsx que hemos arreglado)
 import UIPanels from "./ui/alive-map/index"; 
 
 // --- CONTENIDO DE LA PÁGINA (CEREBRO LIMPIO) ---
@@ -16,7 +21,6 @@ function PageContent() {
   const [searchTrigger, setSearchTrigger] = useState(null); 
 
   // 2. PUENTE DE MANDO (Bridge)
-  // Unifica las órdenes entre el Mapa y los Paneles UI
   const mapBridge = useMemo(() => {
     return {
       current: mapInstance,
@@ -35,14 +39,14 @@ function PageContent() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black">
       
-      {/* CAPA 1: EL MAPA (Renderizado puro) */}
+      {/* CAPA 1: EL MAPA */}
       <AliveMap 
         systemMode={systemMode} 
         onMapLoad={setMapInstance}
         onRegisterSearch={setSearchTrigger} 
       />
       
-      {/* CAPA 2: LA INTERFAZ (El verdadero cerebro) */}
+      {/* CAPA 2: LA INTERFAZ */}
       <UIPanels
         map={mapBridge}
         searchCity={searchTrigger}
@@ -57,19 +61,18 @@ function PageContent() {
         systemMode={systemMode}
         setSystemMode={setSystemMode}
         
-        // ⚠️ NOTA TÁCTICA: Aquí hemos quitado los favoritos antiguos.
-        // Ahora UIPanels usará sus propias mochilas internas (Agencia vs Personal)
-        // Esto soluciona el conflicto del "doble clic".
+        // ⚠️ IMPORTANTE: Sin pasar 'favorites' antiguos para evitar conflictos
       />
     </div>
   );
 }
 
-// --- EXPORTACIÓN BLINDADA (CON SUSPENSE) ---
+// --- EXPORTACIÓN BLINDADA ---
 export default function Page() {
   return (
-    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">CARGANDO STRATOSFERE...</div>}>
+    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white animate-pulse">CARGANDO STRATOSFERE...</div>}>
       <PageContent />
     </Suspense>
   )
 }
+
