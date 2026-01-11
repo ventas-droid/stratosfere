@@ -446,16 +446,15 @@ export default function UIPanels({
     
   }, [activeUserKey, identityVerified]);
   
-  // 3. TOGGLE FAVORITE (VERSION DUAL: AGENCIA vs PARTICULAR)
+  // 3. TOGGLE FAVORITE (VERSIÓN SILENCIOSA - SIN APERTURA AUTOMÁTICA)
   const handleToggleFavorite = async (prop: any) => {
     if (!prop || activeUserKey === null) return;
     if (soundEnabled) playSynthSound("click");
 
     const userKey = activeUserKey;
-    // 🔥 DETECTAMOS EL MODO
     const isAgencyMode = systemMode === 'AGENCY';
     
-    // 🔥 ELEGIMOS LA LISTA CORRECTA
+    // Elegimos la mochila correcta
     const currentList = isAgencyMode ? agencyFavs : localFavs;
     const setList = isAgencyMode ? setAgencyFavs : setLocalFavs;
 
@@ -485,6 +484,7 @@ export default function UIPanels({
           try { localStorage.removeItem(`agency-fav-${safeId}`); } catch {}
       }
       newStatus = false;
+
     } else {
       // --- AÑADIR ---
       newFavs = [...currentList, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
@@ -496,25 +496,24 @@ export default function UIPanels({
       } else {
           try { localStorage.setItem(`agency-fav-${safeId}`, "true"); } catch {}
       }
-      setRightPanel(isAgencyMode ? "AGENCY_PORTFOLIO" : "VAULT"); 
+      
+      // 🚫 LÍNEA ELIMINADA: Ya no forzamos la apertura del panel
+      // setRightPanel(isAgencyMode ? "AGENCY_PORTFOLIO" : "VAULT"); 
+      
       newStatus = true;
     }
 
-    // Actualizamos el estado
     setList(newFavs);
 
-    // Persistencia
     if (!isAgencyMode) {
         persistFavsForUser(userKey, newFavs);
         if (userKey !== "anon") {
             try { await toggleFavoriteAction(String(safeId)); } catch (error) { console.error(error); }
         }
     } else {
-        // Guardamos lo de la agencia en el navegador
         localStorage.setItem(`stratos_agency_favs_${userKey}`, JSON.stringify(newFavs));
     }
 
-    // Aviso al mapa
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
     }
