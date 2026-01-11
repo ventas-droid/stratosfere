@@ -3,25 +3,19 @@
 
 import React, { useMemo, useState, Suspense } from "react";
 
-// ⚠️ CORRECCIÓN DE RUTA TÁCTICA:
-// Hemos visto en su captura que la carpeta se llama 'ui-panels'.
-// Usamos '..' para salir de 'app' y buscarla.
-// Si esto falla, pruebe con "./ui-panels/AliveMap" (si está dentro de app)
-import AliveMap from "../ui-panels/AliveMap";
+import AliveMap from "@/app/components/alive-map/AliveMap";
+import UIPanels from "@/app/components/alive-map/ui-panels";
 
-// El panel también vive allí (index.tsx está dentro de ui-panels)
-import UIPanels from "../ui-panels/index"; 
-
-// --- CONTENIDO DE LA PÁGINA ---
+// --- CONTENIDO DE LA PÁGINA (CEREBRO LIMPIO) ---
 function PageContent() {
-  // 1. ESTADOS PRINCIPALES
+  // 1. ESTADOS PRINCIPALES DEL SISTEMA
   const [systemMode, setSystemMode] = useState("GATEWAY");
   const [mapInstance, setMapInstance] = useState(null);
   
-  // ✅ GATILLO DE BÚSQUEDA
+  // ✅ ESTADO PARA EL GATILLO DE BÚSQUEDA
   const [searchTrigger, setSearchTrigger] = useState(null); 
 
-  // 2. PUENTE DE MANDO
+  // 2. PUENTE DE MANDO (Bridge)
   const mapBridge = useMemo(() => {
     return {
       current: mapInstance,
@@ -62,10 +56,10 @@ function PageContent() {
   );
 }
 
-// --- EXPORTACIÓN BLINDADA ---
+// --- EXPORTACIÓN BLINDADA (CON SUSPENSE) ---
 export default function Page() {
   return (
-    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white animate-pulse">CARGANDO STRATOSFERE...</div>}>
+    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">CARGANDO STRATOSFERE...</div>}>
       <PageContent />
     </Suspense>
   )
