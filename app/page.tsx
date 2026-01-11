@@ -2,8 +2,9 @@
 "use client";
 
 import React, { useMemo, useState, Suspense } from "react";
-import AliveMap from "./components/alive-map/AliveMap";
-import UIPanels from "./components/alive-map/ui-panels"; 
+// Asegúrese de que estas rutas coincidan con sus carpetas actuales
+import AliveMap from "./ui/alive-map/AliveMap";
+import UIPanels from "./ui/alive-map/index"; 
 
 // --- CONTENIDO DE LA PÁGINA (CEREBRO LIMPIO) ---
 function PageContent() {
@@ -15,6 +16,7 @@ function PageContent() {
   const [searchTrigger, setSearchTrigger] = useState(null); 
 
   // 2. PUENTE DE MANDO (Bridge)
+  // Unifica las órdenes entre el Mapa y los Paneles UI
   const mapBridge = useMemo(() => {
     return {
       current: mapInstance,
@@ -26,8 +28,6 @@ function PageContent() {
   }, [mapInstance]);
 
   // 3. CONFIGURACIÓN DE USUARIO
-  // ⚠️ NOTA TÁCTICA: Aquí hemos BORRADO toda la lógica de 'favorites'.
-  // Ahora es 'UIPanels' (index.tsx) quien lleva el control total de las mochilas.
   const [lang, setLang] = useState("ES");
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -57,8 +57,9 @@ function PageContent() {
         systemMode={systemMode}
         setSystemMode={setSystemMode}
         
-        // ⚠️ IMPORTANTE: No pasamos 'favorites' ni 'onToggleFavorite'
-        // Dejamos que UIPanels use sus propios estados internos (agencyFavs/localFavs)
+        // ⚠️ NOTA TÁCTICA: Aquí hemos quitado los favoritos antiguos.
+        // Ahora UIPanels usará sus propias mochilas internas (Agencia vs Personal)
+        // Esto soluciona el conflicto del "doble clic".
       />
     </div>
   );
