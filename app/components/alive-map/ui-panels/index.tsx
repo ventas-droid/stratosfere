@@ -167,14 +167,27 @@ export default function UIPanels({
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   
-  // --- FAVORITOS MULTI-USUARIO BLINDADOS ---
+ // --- FAVORITOS MULTI-USUARIO BLINDADOS ---
  const [localFavs, setLocalFavs] = useState<any[]>([]);
-const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
+ const [agencyFavs, setAgencyFavs] = useState<any[]>([]); // 🔥 NUEVA: Mochila Agencia
+ const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
 
-// 🔥 AÑADA ESTA LÍNEA EXACTA (EL ESLABÓN PERDIDO):
-const [identityVerified, setIdentityVerified] = useState(false);
+ // 🔥 AÑADA ESTA LÍNEA EXACTA (EL ESLABÓN PERDIDO):
+ const [identityVerified, setIdentityVerified] = useState(false);
   
-// 1. IDENTIFICACIÓN DE USUARIO (CON PROTOCOLO DE RESCATE BLINDADO)
+// 🔥 RECUPERADOR DE MEMORIA DE AGENCIA (Carga Inicial)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeUserKey && activeUserKey !== 'anon') {
+        const savedAgency = localStorage.getItem(`stratos_agency_favs_${activeUserKey}`);
+        if (savedAgency) {
+            try {
+                setAgencyFavs(JSON.parse(savedAgency));
+            } catch (e) {}
+        }
+    }
+  }, [activeUserKey]);
+
+ // 1. IDENTIFICACIÓN DE USUARIO (CON PROTOCOLO DE RESCATE BLINDADO)
   useEffect(() => {
     let alive = true;
 
@@ -432,12 +445,20 @@ const [identityVerified, setIdentityVerified] = useState(false);
     };
     
   }, [activeUserKey, identityVerified]);
-  // 3. TOGGLE FAVORITE
+  
+  // 3. TOGGLE FAVORITE (VERSION DUAL: AGENCIA vs PARTICULAR)
   const handleToggleFavorite = async (prop: any) => {
     if (!prop || activeUserKey === null) return;
     if (soundEnabled) playSynthSound("click");
 
     const userKey = activeUserKey;
+    // 🔥 DETECTAMOS EL MODO
+    const isAgencyMode = systemMode === 'AGENCY';
+    
+    // 🔥 ELEGIMOS LA LISTA CORRECTA
+    const currentList = isAgencyMode ? agencyFavs : localFavs;
+    const setList = isAgencyMode ? setAgencyFavs : setLocalFavs;
+
     const cleaned = sanitizePropertyData(prop) || prop;
     const safeId = String(cleaned?.id || prop?.id || Date.now());
 
@@ -448,34 +469,54 @@ const [identityVerified, setIdentityVerified] = useState(false);
       formattedPrice: cleaned?.formattedPrice || cleaned?.price || prop?.formattedPrice || prop?.price || "Consultar"
     };
 
-    const exists = localFavs.some((f) => String(f.id) === safeId);
+    const exists = currentList.some((f:any) => String(f.id) === safeId);
     let newFavs: any[] = [];
     let newStatus = false;
 
     if (exists) {
-      newFavs = localFavs.filter((f) => String(f.id) !== safeId);
-      addNotification("Eliminado de colección");
-      try { localStorage.removeItem(`fav-${safeId}`); } catch {}
-      if (userKey !== "anon") { try { localStorage.removeItem(`fav-${userKey}-${safeId}`); } catch {} }
+      // --- BORRAR ---
+      newFavs = currentList.filter((f:any) => String(f.id) !== safeId);
+      addNotification(isAgencyMode ? "Eliminado de Portafolio" : "Eliminado de Colección");
+      
+      if (!isAgencyMode) {
+          try { localStorage.removeItem(`fav-${safeId}`); } catch {}
+          if (userKey !== "anon") { try { localStorage.removeItem(`fav-${userKey}-${safeId}`); } catch {} }
+      } else {
+          try { localStorage.removeItem(`agency-fav-${safeId}`); } catch {}
+      }
       newStatus = false;
     } else {
-      newFavs = [...localFavs, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
-      addNotification("Guardado en Favoritos");
-      try { localStorage.setItem(`fav-${safeId}`, "true"); } catch {}
-      if (userKey !== "anon") { try { localStorage.setItem(`fav-${userKey}-${safeId}`, "true"); } catch {} }
-      setRightPanel("VAULT");
+      // --- AÑADIR ---
+      newFavs = [...currentList, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
+      addNotification(isAgencyMode ? "Añadido a Portafolio" : "Guardado en Favoritos");
+      
+      if (!isAgencyMode) {
+          try { localStorage.setItem(`fav-${safeId}`, "true"); } catch {}
+          if (userKey !== "anon") { try { localStorage.setItem(`fav-${userKey}-${safeId}`, "true"); } catch {} }
+      } else {
+          try { localStorage.setItem(`agency-fav-${safeId}`, "true"); } catch {}
+      }
+      setRightPanel(isAgencyMode ? "AGENCY_PORTFOLIO" : "VAULT"); 
       newStatus = true;
     }
 
-    setLocalFavs(newFavs);
-    persistFavsForUser(userKey, newFavs);
+    // Actualizamos el estado
+    setList(newFavs);
 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
+    // Persistencia
+    if (!isAgencyMode) {
+        persistFavsForUser(userKey, newFavs);
+        if (userKey !== "anon") {
+            try { await toggleFavoriteAction(String(safeId)); } catch (error) { console.error(error); }
+        }
+    } else {
+        // Guardamos lo de la agencia en el navegador
+        localStorage.setItem(`stratos_agency_favs_${userKey}`, JSON.stringify(newFavs));
     }
 
-    if (userKey !== "anon") {
-        try { await toggleFavoriteAction(String(safeId)); } catch (error) { console.error(error); }
+    // Aviso al mapa
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
     }
   };
 
@@ -542,6 +583,7 @@ const [identityVerified, setIdentityVerified] = useState(false);
     }, 1500);
   };
 
+  // Escucha de señales (Actualizado para detectar cambios de Modo)
   useEffect(() => {
     const handleOpenDetails = (e: any) => {
         const rawData = e.detail;
@@ -552,13 +594,16 @@ const [identityVerified, setIdentityVerified] = useState(false);
     };
 
     const handleToggleFavSignal = (e: any) => { handleToggleFavorite(e.detail); };
+    
     window.addEventListener('open-details-signal', handleOpenDetails);
     window.addEventListener('toggle-fav-signal', handleToggleFavSignal);
+    
     return () => {
         window.removeEventListener('open-details-signal', handleOpenDetails);
         window.removeEventListener('toggle-fav-signal', handleToggleFavSignal);
     };
-  }, [soundEnabled, localFavs]);
+    // 🔥 AQUÍ ESTÁ LA CLAVE: Añadimos 'agencyFavs' y 'systemMode'
+  }, [soundEnabled, localFavs, agencyFavs, systemMode]);
 
   useEffect(() => {
       const handleEditMarket = (e: any) => {
@@ -629,7 +674,34 @@ const [identityVerified, setIdentityVerified] = useState(false);
       }
 
   }, [systemMode]);
-  
+ 
+  // --------------------------------------------------------
+  // 🔥 PASO 2: SINCRONIZACIÓN VISUAL DE CORAZONES (MÁSCARA DE MODO)
+  // --------------------------------------------------------
+  useEffect(() => {
+      // 1. Determinar qué lista manda ahora
+      const targetList = systemMode === 'AGENCY' ? agencyFavs : localFavs;
+      const targetIds = new Set(targetList.map((x:any) => String(x.id)));
+
+      if (typeof window !== 'undefined') {
+          // A. Forzamos lectura fresca en NanoCards
+          window.dispatchEvent(new CustomEvent("reload-favorites")); 
+          
+          // B. Limpieza Cruzada: Apagamos VISUALMENTE los que NO son de este modo
+          const oppositeList = systemMode === 'AGENCY' ? localFavs : agencyFavs;
+          oppositeList.forEach((p:any) => {
+              if (!targetIds.has(String(p.id))) {
+                 window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: false } }));
+              }
+          });
+          
+          // C. Encendemos los nuestros
+          targetList.forEach((p:any) => {
+             window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: true } }));
+          });
+      }
+  }, [systemMode, localFavs, agencyFavs]);
+
   // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {
     return (
@@ -885,12 +957,13 @@ const [identityVerified, setIdentityVerified] = useState(false);
                 </div>
            )}
            
-          {/* 3. BÓVEDA / FAVORITOS (Derecha) */}
+         {/* 3. BÓVEDA / FAVORITOS (Derecha) */}
            {rightPanel === 'VAULT' && (
                <VaultPanel 
                    rightPanel={rightPanel} 
                    toggleRightPanel={(p: any) => setRightPanel('NONE')} 
-                   favorites={systemMode === 'AGENCY' ? [] : localFavs}
+                   // 🔥 CAMBIO CLAVE: Pasamos 'agencyFavs' si estamos en modo AGENCIA
+                   favorites={systemMode === 'AGENCY' ? agencyFavs : localFavs} 
                    onToggleFavorite={handleToggleFavorite} 
                    map={map} 
                    soundEnabled={soundEnabled} 
