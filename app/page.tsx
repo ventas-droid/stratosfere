@@ -3,24 +3,25 @@
 
 import React, { useMemo, useState, Suspense } from "react";
 
-// ⚠️ CORRECCIÓN DE RUTAS TÁCTICA:
-// 1. Buscamos el Mapa en la carpeta antigua 'components' (que es donde solía estar)
-// Si esto falla, probaremos otra ruta.
-import AliveMap from "./components/alive-map/AliveMap";
+// ⚠️ CORRECCIÓN DE RUTA TÁCTICA:
+// Hemos visto en su captura que la carpeta se llama 'ui-panels'.
+// Usamos '..' para salir de 'app' y buscarla.
+// Si esto falla, pruebe con "./ui-panels/AliveMap" (si está dentro de app)
+import AliveMap from "../ui-panels/AliveMap";
 
-// 2. Buscamos el Panel en la carpeta nueva 'ui' (donde está el index.tsx que hemos arreglado)
-import UIPanels from "./ui/alive-map/index"; 
+// El panel también vive allí (index.tsx está dentro de ui-panels)
+import UIPanels from "../ui-panels/index"; 
 
-// --- CONTENIDO DE LA PÁGINA (CEREBRO LIMPIO) ---
+// --- CONTENIDO DE LA PÁGINA ---
 function PageContent() {
-  // 1. ESTADOS PRINCIPALES DEL SISTEMA
+  // 1. ESTADOS PRINCIPALES
   const [systemMode, setSystemMode] = useState("GATEWAY");
   const [mapInstance, setMapInstance] = useState(null);
   
-  // ✅ ESTADO PARA EL GATILLO DE BÚSQUEDA
+  // ✅ GATILLO DE BÚSQUEDA
   const [searchTrigger, setSearchTrigger] = useState(null); 
 
-  // 2. PUENTE DE MANDO (Bridge)
+  // 2. PUENTE DE MANDO
   const mapBridge = useMemo(() => {
     return {
       current: mapInstance,
@@ -50,18 +51,12 @@ function PageContent() {
       <UIPanels
         map={mapBridge}
         searchCity={searchTrigger}
-        
-        // Configuración visual
         lang={lang}
         setLang={setLang}
         soundEnabled={soundEnabled}
         toggleSound={() => setSoundEnabled((s: boolean) => !s)}
-        
-        // Modos del sistema
         systemMode={systemMode}
         setSystemMode={setSystemMode}
-        
-        // ⚠️ IMPORTANTE: Sin pasar 'favorites' antiguos para evitar conflictos
       />
     </div>
   );
@@ -75,4 +70,3 @@ export default function Page() {
     </Suspense>
   )
 }
-
