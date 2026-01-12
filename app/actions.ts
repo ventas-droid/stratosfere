@@ -258,41 +258,93 @@ export async function getUserMeAction() {
   return { success: true, data: user };
 }
 
-// F. ACTUALIZAR PERFIL (Necesaria para ProfilePanel)
+// F. ACTUALIZAR PERFIL (VERSIÓN FINAL - TODOS LOS CAMPOS)
 export async function updateUserAction(data: any) {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "No autorizado" };
+
   try {
+    const updateData: any = {};
+
+    // 1. Identidad Personal
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.avatar !== undefined) updateData.avatar = data.avatar;
+
+    // 2. Identidad Corporativa (Agencia)
+    if (data.companyName !== undefined) updateData.companyName = data.companyName;
+    if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo;
+    if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
+    if (data.tagline !== undefined) updateData.tagline = data.tagline;
+    if (data.zone !== undefined) updateData.zone = data.zone;
+    if (data.licenseNumber !== undefined) updateData.licenseNumber = data.licenseNumber;
+    if (data.cif !== undefined) updateData.cif = data.cif;
+
+    // 3. Contacto & Web
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.mobile !== undefined) updateData.mobile = data.mobile;
+    if (data.website !== undefined) updateData.website = data.website;
+
+    // Ejecutar en DB
     await prisma.user.update({
         where: { id: user.id },
-        data: { name: data.name, avatar: data.avatar || undefined }
+        data: updateData
     });
-    revalidatePath('/');
+
+    revalidatePath('/'); 
     return { success: true };
   } catch (e) {
+    console.error("Error update user:", e);
     return { success: false, error: String(e) };
   }
 }
 
-// G. TOGGLE LIKE (Necesaria para los corazones)
-export async function toggleFavoriteAction(propertyId: string) {
+// actions.ts
+export async function toggleFavoriteAction(propertyId: string, desired?: boolean) {
   const user = await getCurrentUser();
-  if (!user) return { success: false };
+  if (!user?.id) {
+    return { success: false, error: "NOT_AUTHENTICATED" };
+  }
 
-  const existing = await prisma.favorite.findUnique({
-    where: { userId_propertyId: { userId: user.id, propertyId } }
-  });
+  const safePropertyId = String(propertyId || "").trim();
+  if (!safePropertyId) {
+    return { success: false, error: "MISSING_PROPERTY_ID" };
+  }
 
-  if (existing) {
-    await prisma.favorite.delete({ where: { id: existing.id } });
-    revalidatePath('/');
-    return { success: true, isFavorite: false };
-  } else {
-    await prisma.favorite.create({ data: { userId: user.id, propertyId } });
-    revalidatePath('/');
-    return { success: true, isFavorite: true };
+  try {
+    const where = { userId_propertyId: { userId: user.id, propertyId: safePropertyId } };
+
+    const existing = await prisma.favorite.findUnique({ where });
+    const exists = !!existing;
+
+    // ✅ IDEMPOTENCIA:
+    // - Si desired viene (true/false), obedecemos
+    // - Si no viene, hacemos toggle clásico
+    const shouldAdd = typeof desired === "boolean" ? desired : !exists;
+
+    // Si me piden un estado que ya es el actual -> no hago nada
+    if (shouldAdd === exists) {
+      return {
+        success: true,
+        isFavorite: exists,
+        action: "noop",
+      };
+    }
+
+    if (shouldAdd) {
+      await prisma.favorite.create({
+        data: { userId: user.id, propertyId: safePropertyId },
+      });
+      return { success: true, isFavorite: true, action: "added" };
+    } else {
+      await prisma.favorite.delete({ where });
+      return { success: true, isFavorite: false, action: "removed" };
+    }
+  } catch (e) {
+    console.error("toggleFavoriteAction error:", e);
+    return { success: false, error: "SERVER_ERROR" };
   }
 }
+
 
 // H. LEER FAVORITOS (BÓVEDA) ✅ UNIFICADO CON GLOBAL/PERFIL
 export async function getFavoritesAction() {
@@ -348,4 +400,102 @@ export async function getFavoritesAction() {
     }).filter(Boolean);
 
     return { success: true, data: cleanFavs };
+}
+// =========================================================
+// 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO)
+// =========================================================
+
+// A. OBTENER PORTAFOLIO COMPLETO (PROPIAS + FAVORITOS)
+export async function getAgencyPortfolioAction() {
+  try {
+    const user = await getUserMeAction();
+    if (!user.success || !user.data) return { success: false, data: [] };
+
+    // 1. Mis Propiedades (Soy dueño)
+    const myProperties = await prisma.property.findMany({
+      where: { userId: user.data.id },
+      include: { images: true }
+    });
+
+    // 2. Mis Favoritos (He dado like)
+    const myFavorites = await prisma.favorite.findMany({
+      where: { userId: user.data.id },
+      include: { property: { include: { images: true } } }
+    });
+
+    // 3. Unificar listas (Normalizando datos)
+    const owned = myProperties.map((p: any) => ({ ...p, isOwner: true, isFavorited: true }));
+    const favs = myFavorites.map((f: any) => ({ ...f.property, isOwner: false, isFavorited: true }));
+
+    // 4. Eliminar duplicados (Por si di like a mi propia casa)
+    const combined = [...owned];
+    const ownedIds = new Set(owned.map((p:any) => p.id));
+    
+    favs.forEach((f:any) => {
+        if (!ownedIds.has(f.id)) combined.push(f);
+    });
+
+    // 5. Formatear para el Mapa (Precio, Fotos, Coordenadas)
+    const cleanList = combined.map((p: any) => {
+        if (!p) return null;
+        let allImages = (p.images || []).map((img: any) => img.url);
+        if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
+        
+        return {
+            ...p,
+            id: p.id,
+            images: allImages,
+            img: allImages[0] || null,
+            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
+            rawPrice: p.price,
+            priceValue: p.price,
+            coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
+            m2: Number(p.mBuilt || 0),
+            communityFees: p.communityFees || 0
+        };
+    }).filter(Boolean);
+
+    return { success: true, data: cleanList };
+  } catch (error) {
+    console.error("Error Stock:", error);
+    return { success: false, error: "Error de conexión" };
+  }
+}
+
+// B. BORRAR DEL STOCK (LÓGICA PRIORITARIA)
+export async function deleteFromStockAction(propertyId: string) {
+    try {
+        const user = await getUserMeAction();
+        if (!user.success || !user.data) return { success: false };
+
+        // 1. ¿SOY EL DUEÑO? -> BORRADO TOTAL
+        const ownedProp = await prisma.property.findFirst({
+            where: { id: propertyId, userId: user.data.id }
+        });
+
+        if (ownedProp) {
+            // Prisma se encarga de borrar las imágenes y favoritos asociados si está configurado en Cascade
+            // Pero por seguridad, borramos imágenes primero
+            await prisma.image.deleteMany({ where: { propertyId } });
+            await prisma.property.delete({ where: { id: propertyId } });
+            
+            revalidatePath('/');
+            return { success: true, type: 'property_deleted' };
+        }
+
+        // 2. NO SOY DUEÑO -> BORRAR SOLO MI FAVORITO
+        const fav = await prisma.favorite.findUnique({
+            where: { userId_propertyId: { userId: user.data.id, propertyId } }
+        });
+
+        if (fav) {
+            await prisma.favorite.delete({ where: { id: fav.id } });
+            revalidatePath('/');
+            return { success: true, type: 'favorite_removed' };
+        }
+
+        return { success: false, error: "No tienes permisos sobre este activo." };
+    } catch (e) {
+        return { success: false, error: String(e) };
+    }
 }

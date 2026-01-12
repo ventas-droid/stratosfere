@@ -532,26 +532,22 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
                     
                     {step === "SECURITY" && <StepSecurity setStep={setStep} setLoading={setLoading} />}
                     
-                    {step === "SUCCESS" && (
+                   step === "SUCCESS" && (
                         <StepSuccess
                             formData={formData} 
                             handleClose={(payload: any) => {
-                                const rawNum = parsePriceInput(formData.price);
+                                // 1. Limpieza de LocalStorage (Eliminamos residuos antiguos)
                                 if (typeof window !== "undefined") {
-                                try {
-                                        const saved = JSON.parse(localStorage.getItem("stratos_my_properties") || "[]");
-                                        const idx = saved.findIndex((p: any) => p.id === payload.id);
-                                        if (idx >= 0) saved[idx] = payload;
-                                        else saved.push(payload);
-                                        localStorage.setItem("stratos_my_properties", JSON.stringify(saved));
-                                        window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-                                        window.dispatchEvent(new CustomEvent("force-map-refresh"));
-                                } catch (e) { console.error(e); }
+                                    // 🔥 YA NO GUARDAMOS AQUÍ. EL SERVER YA LO HIZO EN savePropertyAction.
+                                    // Solo emitimos señales para refrescar la vista.
+                                    window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+                                    window.dispatchEvent(new CustomEvent("force-map-refresh"));
                                 }
+                                // 2. Cerramos
                                 closeWizard(payload);
                             }}
                         />
-                    )}
+                    )
                 </div>
               </div>
 

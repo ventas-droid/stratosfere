@@ -17,21 +17,37 @@ enum UserRole {
   DIFUSOR
 }
 
+// prisma/schema.prisma
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
   password      String?
-  name          String?
+  name          String?   // Nombre Personal (Juan Pérez)
   surname       String?
-  phone         String?
-  avatar        String?
+  
+  // --- IDENTIDAD VISUAL ---
+  avatar        String?   // FOTO PERSONAL (Cara del agente)
+  coverImage    String?   // FONDO DE PERFIL (Agencia)
+  
+  // --- DATOS CORPORATIVOS (Separados de los personales) ---
   role          UserRole  @default(PARTICULAR)
-  companyName   String?
+  companyName   String?   // Nombre Comercial (InmoLuxury)
+  companyLogo   String?   // LOGO EMPRESA (Diferente al avatar)
   cif           String?
-  website       String?
   licenseNumber String?
+  licenseType   String?   @default("STARTER") // Nivel de Suscripción
+  
+  // --- CONTACTO Y ZONA ---
+  phone         String?   // Fijo
+  mobile        String?   // Móvil directo
+  website       String?
+  tagline       String?   // Eslogan (ej: "Líderes en Costa del Sol")
+  zone          String?   // Zona operativa (ej: "Marbella")
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  
   properties    Property[]
   favorites     Favorite[]
 }

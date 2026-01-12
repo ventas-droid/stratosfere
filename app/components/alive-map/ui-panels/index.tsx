@@ -1,15 +1,15 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from 'next/navigation';
 
-// 1. IMPORTACIÓN UNIFICADA DE ICONOS (LIMPIA)
+// 1. IMPORTACIÓN UNIFICADA DE ICONOS (CON BUILDING2 AÑADIDO)
 import { 
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
-  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2
+  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2 
 } from 'lucide-react';
 
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
@@ -33,7 +33,15 @@ import LandingWaitlist from "./LandingWaitlist";
 import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
-import { getFavoritesAction, toggleFavoriteAction, getUserMeAction } from '@/app/actions';
+import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
+// 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDAS LAS ACCIONES DE AGENCIA QUE FALTABAN
+import { 
+  getFavoritesAction, 
+  toggleFavoriteAction, 
+  getUserMeAction,
+  getAgencyPortfolioAction, // <--- NUEVA: Para cargar su Stock real
+  deleteFromStockAction     // <--- NUEVA: Para borrar de verdad
+} from '@/app/actions';
 
 // --- UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -124,12 +132,10 @@ export const sanitizePropertyData = (p: any) => {
 };
 
 export default function UIPanels({ 
-  map, 
-  searchCity, 
-  lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
+  map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
   
-  // --- MEMORIA DE UBICACIÓN ---
+  // --- 1. MEMORIA DE UBICACIÓN ---
   const [homeBase, setHomeBase] = useState<any>(null);
   useEffect(() => {
       if (typeof window !== 'undefined') {
@@ -137,79 +143,80 @@ export default function UIPanels({
           if (saved) try { setHomeBase(JSON.parse(saved)); } catch (e) {}
       }
   }, []);
+
+  // 🔥 MOVIDO AQUÍ (ANTES DE USARSE EN EL EFECTO DE GATE)
+  // --- DATOS USUARIO (SERVER-SIDE SOURCE OF TRUTH) ---
+  const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
+  const [identityVerified, setIdentityVerified] = useState(false);
+  const [agencyProfileData, setAgencyProfileData] = useState<any>(null);
+  const [localFavs, setLocalFavs] = useState<any[]>([]);
+  const [agencyFavs, setAgencyFavs] = useState<any[]>([]);
  
-  // --- CREDENCIALES ---
+  // --- 2. CREDENCIALES (SaaS Puro) ---
   const searchParams = useSearchParams();
-  const urlAccess = searchParams.get('access');
   const [gateUnlocked, setGateUnlocked] = useState(false);
 
+  // Efecto reactivo: Si tenemos usuario confirmado, abrimos la puerta.
   useEffect(() => {
-    const storedAccess = localStorage.getItem('stratos_access_granted');
-    if (urlAccess || storedAccess === 'true') {
-        setGateUnlocked(true);
-        if (!storedAccess) localStorage.setItem('stratos_access_granted', 'true');
-        if (urlAccess) {
-            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.replaceState({path: newUrl}, '', newUrl);
-        }
-    }
-  }, [urlAccess]);
+      // AHORA SÍ: activeUserKey YA EXISTE AQUÍ
+      if (activeUserKey && activeUserKey !== 'anon' && identityVerified) {
+          setGateUnlocked(true);
+      } else {
+          setGateUnlocked(false);
+      }
+  }, [activeUserKey, identityVerified]);
 
-  // --- ESTADOS SISTEMA ---
+  // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
   const [selectedProp, setSelectedProp] = useState<any>(null); 
   const [editingProp, setEditingProp] = useState<any>(null);
   const [marketProp, setMarketProp] = useState<any>(null);
-  
+  const [previousMode, setPreviousMode] = useState<'EXPLORER' | 'AGENCY'>('EXPLORER'); 
+
+  // --- 4. ESTADOS DE FLUJO ---
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
   const [landingComplete, setLandingComplete] = useState(false); 
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   
- // --- FAVORITOS MULTI-USUARIO BLINDADOS ---
- const [localFavs, setLocalFavs] = useState<any[]>([]);
- const [agencyFavs, setAgencyFavs] = useState<any[]>([]); // 🔥 NUEVA: Mochila Agencia
- const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
+  // --- 5. REFERENCIAS ---
+  const prevFavIdsRef = useRef<Set<string>>(new Set());
+const [dataVersion, setDataVersion] = useState(0);
+  // --- 6. ESTADOS IA ---
+  const [aiInput, setAiInput] = useState("");
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
 
- // 🔥 AÑADA ESTA LÍNEA EXACTA (EL ESLABÓN PERDIDO):
- const [identityVerified, setIdentityVerified] = useState(false);
-  
-// 🔥 RECUPERADOR DE MEMORIA DE AGENCIA (Carga Inicial)
+  // ... (RESTO DEL CÓDIGO SIGUE IGUAL: useEffects de carga, handlers, render, etc.)
+
+  // --- EFECTOS INICIALES ---
+
+  // Cargador Ligero de Perfil (FUSIONADO: Datos Server + Extras Locales)
+  // Cargador Ligero de Perfil (SOLO SERVER)
   useEffect(() => {
-    if (typeof window !== 'undefined' && activeUserKey && activeUserKey !== 'anon') {
-        const savedAgency = localStorage.getItem(`stratos_agency_favs_${activeUserKey}`);
-        if (savedAgency) {
-            try {
-                setAgencyFavs(JSON.parse(savedAgency));
-            } catch (e) {}
-        }
-    }
+      const fetchAgencyData = async () => {
+          if (activeUserKey && activeUserKey !== 'anon') {
+              try {
+                  const res = await getUserMeAction();
+                  
+                  if (res.success) {
+                      setAgencyProfileData({
+                          ...res.data,
+                          // Priorizamos el logo de agencia sobre el avatar personal
+                          avatar: res.data.companyLogo || res.data.avatar 
+                      });
+                  }
+              } catch (e) {}
+          }
+      };
+      fetchAgencyData();
   }, [activeUserKey]);
 
- // 1. IDENTIFICACIÓN DE USUARIO (CON PROTOCOLO DE RESCATE BLINDADO)
+ // 1. IDENTIFICACIÓN DE USUARIO (SOLO SERVER)
   useEffect(() => {
     let alive = true;
-
-    // A. INTENTO DE RESCATE (Offline / Arranque rápido)
-    if (typeof window !== "undefined") {
-        const cachedLast = localStorage.getItem("stratos_last_user_key");
-        const currentActive = localStorage.getItem("stratos_active_user_key");
-        
-        // Si tenemos un "last" (rescate) pero no un "active" (porque acabamos de recargar)
-        // Lo promovemos inmediatamente para que las NanoCards nazcan con memoria.
-        if (cachedLast && !currentActive) {
-            console.log("🛡️ MODO RESCATE: Promoviendo identidad caché a activa.");
-            localStorage.setItem("stratos_active_user_key", cachedLast);
-            setActiveUserKey(cachedLast); 
-            
-            // 🔥 DISPARO PREVENTIVO: Para que las NanoCards despierten YA
-            window.dispatchEvent(new CustomEvent("user-changed", { detail: { userKey: cachedLast } }));
-            window.dispatchEvent(new CustomEvent("reload-favorites"));
-        } else if (cachedLast) {
-             setActiveUserKey(cachedLast);
-        }
-    }
 
     (async () => {
       try {
@@ -219,35 +226,24 @@ export default function UIPanels({
         // Determinamos la llave real del servidor
         const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
         
-        // B. SI EL SERVER RESPONDE (ÉXITO) - LÓGICA DE CONFIRMACIÓN
+        // B. SI EL SERVER RESPONDE
         if (key !== "anon") {
-            // Confirmado: Somos alguien -> Guardamos en Last y Active
-            localStorage.setItem("stratos_last_user_key", key);
-            localStorage.setItem("stratos_active_user_key", key);
+            // Confirmado: Somos alguien
+            setActiveUserKey(key);
+            setIdentityVerified(true);
+            
+            // 🔥 SEÑAL DE ACTIVACIÓN
+            window.dispatchEvent(new CustomEvent("user-changed", { detail: { userKey: key } }));
+            window.dispatchEvent(new CustomEvent("reload-favorites"));
         } else {
-            // Confirmado: No somos nadie -> Limpiamos 'active' para evitar fantasmas
-            localStorage.removeItem("stratos_active_user_key");
+            // No hay sesión
+            handleLogoutCleanup();
         }
-
-        setActiveUserKey(key);
-        setIdentityVerified(true); // ✅ CONFIRMAMOS: SERVER VIVO
-
-        // 🔥 SEÑAL DE ACTIVACIÓN MASIVA (BROADCAST)
-        // Esto confirma a todo el sistema quién es el usuario final
-        window.dispatchEvent(new CustomEvent("user-changed", { detail: { userKey: key } }));
-        window.dispatchEvent(new CustomEvent("reload-favorites"));
 
       } catch (e) {
         if (!alive) return;
-        
-        // C. SI EL SERVER FALLA (ERROR 500 / OFFLINE)
-        console.warn("⚠️ FALLO DE RED/SERVER. Manteniendo posición de rescate.");
-        setIdentityVerified(false); // ❌ IMPORTANTE: NO TOCAR EL ESPEJO
-        
-        // Solo si NO teníamos caché de rescate, nos resignamos a ser anon.
-        // Si teníamos caché (cargada en el paso A), nos quedamos con ella.
-        const cachedLastUserKey = localStorage.getItem("stratos_last_user_key");
-        if (!cachedLastUserKey) setActiveUserKey("anon");
+        console.warn("⚠️ FALLO DE RED/SERVER.");
+        handleLogoutCleanup();
       }
     })();
     
@@ -272,34 +268,38 @@ export default function UIPanels({
     }).filter(Boolean);
   };
 
-  // ✅ Mirror Legacy (Solo para que el Mapa NanoCard vea corazones)
-  const mirrorGlobalFavsForNanoCard = (list: any[]) => {
-    try {
-      let prevIds: string[] = [];
-      try {
-        const prevRaw = localStorage.getItem("stratos_favorites_v1");
-        const prevParsed = prevRaw ? JSON.parse(prevRaw) : [];
-        if (Array.isArray(prevParsed)) prevIds = prevParsed.map((x: any) => String(x?.id)).filter(Boolean);
-      } catch {}
+ // ✅ Mirror SOLO por eventos (sin localStorage)
+const mirrorGlobalFavsForNanoCard = (list: any[]) => {
+  try {
+    const prevIds = prevFavIdsRef.current || new Set<string>();
+    const nextIds = new Set(
+      (Array.isArray(list) ? list : [])
+        .map((x: any) => String(x?.id))
+        .filter(Boolean)
+    );
 
-      const nextIds = new Set((Array.isArray(list) ? list : []).map((x: any) => String(x?.id)).filter(Boolean));
-      localStorage.setItem("stratos_favorites_v1", JSON.stringify(Array.isArray(list) ? list : []));
+    // 1) Apagar los que ya no están
+    prevIds.forEach((pid) => {
+      if (!nextIds.has(pid)) {
+        window.dispatchEvent(
+          new CustomEvent("sync-property-state", { detail: { id: pid, isFav: false } })
+        );
+      }
+    });
 
-      prevIds.forEach((id) => {
-        if (!nextIds.has(id)) {
-          localStorage.removeItem(`fav-${id}`);
-          window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id, isFav: false } }));
-        }
-      });
+    // 2) Encender los nuevos
+    nextIds.forEach((nid) => {
+      if (!prevIds.has(nid)) {
+        window.dispatchEvent(
+          new CustomEvent("sync-property-state", { detail: { id: nid, isFav: true } })
+        );
+      }
+    });
 
-      (Array.isArray(list) ? list : []).forEach((x: any) => {
-        const id = String(x?.id);
-        if (!id) return;
-        localStorage.setItem(`fav-${id}`, "true");
-        window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id, isFav: true } }));
-      });
-    } catch {}
-  };
+    // 3) Guardar snapshot en memoria (RAM)
+    prevFavIdsRef.current = nextIds;
+  } catch {}
+};
 
   // ✅ Persistencia Inteligente (CON MEMORIA DE SUPERVIVENCIA)
   const persistFavsForUser = (userKey: string, list: any[]) => {
@@ -308,20 +308,14 @@ export default function UIPanels({
       const LIST_KEY = `stratos_favorites_v1:${safeUser}`;
       const safeList = Array.isArray(list) ? list : [];
 
-      // 1. GUARDADO PRINCIPAL: Guardamos SIEMPRE, incluso si es anon.
-      // Esto asegura que si el server falla (500), el navegador retenga los datos.
       localStorage.setItem(LIST_KEY, JSON.stringify(safeList));
 
-      // 2. COPIA DE SEGURIDAD (LAST GOOD): Un respaldo universal.
-      // Si todo lo demas falla, leeremos de aquí.
       if (safeList.length > 0) {
           localStorage.setItem("stratos_favorites_last_good", JSON.stringify(safeList));
       }
 
-      // 3. ESPEJO GLOBAL (Para las NanoCards)
       mirrorGlobalFavsForNanoCard(safeList);
 
-      // 4. FLAGS INDIVIDUALES (Para velocidad de renderizado)
       safeList.forEach((x: any) => {
         const id = String(x?.id);
         if (!id) return;
@@ -330,199 +324,176 @@ export default function UIPanels({
       });
     } catch {}
   };
- // 2. CARGA DE FAVORITOS (BLINDAJE TOTAL + RESCATE DE MEMORIA)
+
+// 2. CARGA DE DATOS MULTI-USUARIO (CONEXIÓN REAL A BASE DE DATOS)
   useEffect(() => {
-    // Candado de arranque
-    if (activeUserKey === null) return;
-
     let isMounted = true;
-    const userKey = activeUserKey;
-    const LIST_KEY = `stratos_favorites_v1:${userKey}`;
 
-    // HELPER MEJORADO: Busca en caché usuario -> Y si falla -> Busca en Last Good
-    const tryLocalCache = () => {
-      try {
-        // A) INTENTO PRINCIPAL: Caché del usuario actual (o anon)
-        const saved = localStorage.getItem(LIST_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const normalized = normalizeFavList(parsed);
-            if (isMounted) setLocalFavs(normalized);
-            // Refrescamos el espejo pero SIN sobreescribir si estamos leyendo
-            mirrorGlobalFavsForNanoCard(normalized); 
-            console.log("🛡️ BLINDAJE: Datos recuperados de caché directa.");
-            return true;
-          }
-        }
+    const loadRealData = async () => {
+        // Si no hay usuario, no cargamos nada
+        if (!activeUserKey || activeUserKey === 'anon') return;
 
-        // B) INTENTO DESESPERADO: ¿Hay una copia de seguridad "Last Good"?
-        const lastGood = localStorage.getItem("stratos_favorites_last_good");
-        if (lastGood) {
-            const parsed = JSON.parse(lastGood);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                const normalized = normalizeFavList(parsed);
-                if (isMounted) setLocalFavs(normalized);
-                mirrorGlobalFavsForNanoCard(normalized);
-                console.log("🛡️ BLINDAJE: Usando copia de seguridad (Last Good).");
-                return true;
+        // A. CARGA MODO PARTICULAR (Favoritos)
+        try {
+           const favResult = await getFavoritesAction();
+           if (favResult.success && isMounted) {
+                // ✅ Normalizamos para que el ID sea SIEMPRE el de la Property
+                const normalized = normalizeFavList(favResult.data);
+
+                setLocalFavs(normalized);
+
+                // Mantenemos el espejo para las NanoCards
+                if (typeof mirrorGlobalFavsForNanoCard === 'function') {
+                    mirrorGlobalFavsForNanoCard(normalized);
+                }
+           }
+        } catch (e) {}
+
+        // B. CARGA MODO AGENCIA (Stock Real)
+        if (systemMode === 'AGENCY') {
+            try {
+                const stockResult = await getAgencyPortfolioAction();
+                if (stockResult.success && isMounted) {
+                    setAgencyFavs(stockResult.data);
+                    console.log("🏢 STOCK CARGADO DE DB:", stockResult.data.length);
+                }
+            } catch (e) {
+                console.error("Error cargando Stock:", e);
             }
         }
-      } catch {}
-      return false;
     };
 
-    const loadFavs = async () => {
-      // 1. CASO ANONIMO
-      if (userKey === "anon") {
-        // Intentamos leer caché de anon por si acaso guardó algo antes del 500
-        const used = tryLocalCache();
-        
-        // Solo limpiamos si el servidor ESTÁ VIVO y confirma que somos anon.
-        // Si el servidor está muerto (identityVerified=false), NO BORRAMOS NADA.
-        if (!used && identityVerified) { 
-            if (isMounted) setLocalFavs([]);
-            mirrorGlobalFavsForNanoCard([]); 
-        }
-        return;
-      }
-
-      // 2. MODO PRECARIO (Servidor caído / Error 500)
-      if (!identityVerified) {
-        console.warn("⚠️ MODO PRECARIO: Servidor 500. Usando caché extendida.");
-        const used = tryLocalCache();
-        if (!used && isMounted) setLocalFavs([]); 
-        return; // 🔥 ALTO EL FUEGO: Espejo intacto
-      }
-
-      // 3. MODO ONLINE
-      try {
-        const serverResponse = await getFavoritesAction();
-
-        // A) ÉXITO
-        if (serverResponse?.success && Array.isArray(serverResponse.data) && serverResponse.data.length > 0) {
-          const normalized = normalizeFavList(serverResponse.data);
-          if (isMounted) setLocalFavs(normalized);
-          persistFavsForUser(userKey, normalized);
-          return;
-        }
-
-        // B) SERVIDOR VACÍO (Revisamos caché antes de borrar)
-        if (serverResponse?.success && Array.isArray(serverResponse.data) && serverResponse.data.length === 0) {
-          const used = tryLocalCache();
-          if (used) return; 
-
-          if (isMounted) setLocalFavs([]);
-          mirrorGlobalFavsForNanoCard([]);
-          return;
-        }
-
-        // C) RESPUESTA RARA
-        const used = tryLocalCache();
-        if (used) return;
-
-      } catch (e) {
-        // 4. ERROR FETCH
-        const used = tryLocalCache();
-        if (!used && isMounted) setLocalFavs([]);
-        return;
-      }
-
-      if (isMounted) setLocalFavs([]);
-    };
-
-   // 1. Carga inicial (Al montar el componente)
-    loadFavs();
-
-    // 2. Recarga SOLO si cambia la identidad del usuario (Login/Logout)
-    // Esto es seguro y necesario. Lo que quitamos es el "reload-favorites".
-    const onUserChange = () => loadFavs();
-    window.addEventListener("user-changed", onUserChange);
-
-    return () => { 
-        isMounted = false; 
-        window.removeEventListener("user-changed", onUserChange);
-    };
+    loadRealData();
     
-  }, [activeUserKey, identityVerified]);
+    return () => { isMounted = false; };
+    
+    // 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDO 'dataVersion'
+  }, [activeUserKey, systemMode, identityVerified, dataVersion]);
   
-  // 3. TOGGLE FAVORITE (VERSIÓN SILENCIOSA - SIN APERTURA AUTOMÁTICA)
-  const handleToggleFavorite = async (prop: any) => {
-    if (!prop || activeUserKey === null) return;
-    if (soundEnabled) playSynthSound("click");
+  // 3. TOGGLE FAVORITE (IDEMPOTENTE: respeta prop.isFav si viene)
+const handleToggleFavorite = async (prop: any) => {
+  if (!prop || activeUserKey === null) return;
+  if (soundEnabled) playSynthSound("click");
 
-    const userKey = activeUserKey;
-    const isAgencyMode = systemMode === 'AGENCY';
-    
-    // Elegimos la mochila correcta
-    const currentList = isAgencyMode ? agencyFavs : localFavs;
-    const setList = isAgencyMode ? setAgencyFavs : setLocalFavs;
+  const userKey = activeUserKey;
 
-    const cleaned = sanitizePropertyData(prop) || prop;
-    const safeId = String(cleaned?.id || prop?.id || Date.now());
+  // 🚫 SaaS puro: si no hay identidad real, NO guardamos nada (sin localStorage)
+  if (!identityVerified || userKey === "anon") {
+    addNotification("Inicia sesión para guardar Referencias");
+    return;
+  }
 
-    const safeProp = {
-      ...cleaned,
-      id: safeId,
-      title: cleaned?.title || prop?.title || "Propiedad",
-      formattedPrice: cleaned?.formattedPrice || cleaned?.price || prop?.formattedPrice || prop?.price || "Consultar"
-    };
+  const cleaned = sanitizePropertyData(prop) || prop;
 
-    const exists = currentList.some((f:any) => String(f.id) === safeId);
-    let newFavs: any[] = [];
-    let newStatus = false;
+  // 🚫 Nada de IDs random: si no hay id real, abortamos
+  const safeIdRaw = cleaned?.id || prop?.id;
+  if (!safeIdRaw) {
+    console.warn("handleToggleFavorite: sin id real, abortado");
+    return;
+  }
+  const safeId = String(safeIdRaw);
 
-    if (exists) {
-      // --- BORRAR ---
-      newFavs = currentList.filter((f:any) => String(f.id) !== safeId);
-      addNotification(isAgencyMode ? "Eliminado de Portafolio" : "Eliminado de Colección");
-      
-      if (!isAgencyMode) {
-          try { localStorage.removeItem(`fav-${safeId}`); } catch {}
-          if (userKey !== "anon") { try { localStorage.removeItem(`fav-${userKey}-${safeId}`); } catch {} }
-      } else {
-          try { localStorage.removeItem(`agency-fav-${safeId}`); } catch {}
-      }
-      newStatus = false;
+  const existedBefore = localFavs.some((f: any) => String(f.id) === safeId);
 
-    } else {
-      // --- AÑADIR ---
-      newFavs = [...currentList, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
-      addNotification(isAgencyMode ? "Añadido a Portafolio" : "Guardado en Favoritos");
-      
-      if (!isAgencyMode) {
-          try { localStorage.setItem(`fav-${safeId}`, "true"); } catch {}
-          if (userKey !== "anon") { try { localStorage.setItem(`fav-${userKey}-${safeId}`, "true"); } catch {} }
-      } else {
-          try { localStorage.setItem(`agency-fav-${safeId}`, "true"); } catch {}
-      }
-      
-      // 🚫 LÍNEA ELIMINADA: Ya no forzamos la apertura del panel
-      // setRightPanel(isAgencyMode ? "AGENCY_PORTFOLIO" : "VAULT"); 
-      
-      newStatus = true;
+  // ✅ INTENCIÓN (si MapNanoCard manda isFav, obedecemos)
+  let shouldAdd = !existedBefore; // fallback: toggle clásico
+  if (typeof prop?.isFav === "boolean") {
+    shouldAdd = prop.isFav;
+
+    // 🛡️ Guardia: si el estado ya es el deseado, no hacemos nada
+    if (shouldAdd === existedBefore) {
+      console.log("🛡️ Acción redundante ignorada (ya sincronizado).");
+      return;
     }
+  }
 
-    setList(newFavs);
-
-    if (!isAgencyMode) {
-        persistFavsForUser(userKey, newFavs);
-        if (userKey !== "anon") {
-            try { await toggleFavoriteAction(String(safeId)); } catch (error) { console.error(error); }
-        }
-    } else {
-        localStorage.setItem(`stratos_agency_favs_${userKey}`, JSON.stringify(newFavs));
-    }
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
-    }
+  // Construimos el objeto seguro
+  const safeProp = {
+    ...cleaned,
+    id: safeId,
+    title: cleaned?.title || prop?.title || "Propiedad",
+    formattedPrice:
+      cleaned?.formattedPrice ||
+      cleaned?.price ||
+      prop?.formattedPrice ||
+      prop?.price ||
+      "Consultar",
   };
 
-  const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
-  const [aiInput, setAiInput] = useState("");
-  const [aiResponse, setAiResponse] = useState<string | null>(null);
-  const [isAiTyping, setIsAiTyping] = useState(false);
+  const prevFavs = localFavs;
+
+  let newFavs: any[] = [];
+  let newStatus = false;
+
+  if (!shouldAdd) {
+    newFavs = localFavs.filter((f: any) => String(f.id) !== safeId);
+    addNotification("Referencia eliminada");
+    newStatus = false;
+  } else {
+    const already = localFavs.some((f: any) => String(f.id) === safeId);
+    newFavs = already ? localFavs : [...localFavs, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
+    addNotification("Guardado en Referencias");
+    newStatus = true;
+  }
+
+  // 1) Optimistic UI
+  setLocalFavs(newFavs);
+
+  // 2) Broadcast visual inmediato para NanoCards
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
+  }
+
+  // 3) Persistencia servidor (tabla Favorites)
+  try {
+    await toggleFavoriteAction(String(safeId));
+  } catch (error) {
+    console.error(error);
+
+    // rollback UI
+    setLocalFavs(prevFavs);
+    addNotification("❌ Error guardando en servidor");
+
+    // rollback visual
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: existedBefore } })
+      );
+    }
+  }
+};
+
+  // 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)
+  const handleDeleteAgencyAsset = async (asset: any) => {
+      if (!asset) return;
+      if (soundEnabled) playSynthSound('click');
+      const targetId = String(asset.id || asset);
+
+      // 1. Optimistic UI (Borrado inmediato en pantalla)
+      const newStock = agencyFavs.filter((item: any) => String(item.id) !== targetId);
+      setAgencyFavs(newStock);
+      addNotification("Eliminando de Base de Datos...");
+
+      // 2. LLAMADA A BASE DE DATOS (Borrado Real)
+      if (activeUserKey && activeUserKey !== 'anon') {
+          try {
+              const result = await deleteFromStockAction(targetId);
+              
+              if (result.success) {
+                  addNotification("✅ Propiedad eliminada permanentemente");
+              } else {
+                  console.warn("Fallo al borrar en servidor");
+                  addNotification("❌ Error al borrar");
+              }
+          } catch (e) { console.error(e); }
+      }
+
+      // 3. Sincronizar Mapa
+      if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: targetId, isFav: false } }));
+      }
+  };
+  
 
   const toggleRightPanel = (p: string) => { 
       if(soundEnabled) playSynthSound('click'); 
@@ -533,9 +504,10 @@ export default function UIPanels({
       }
   };
 
-  const toggleMainPanel = (p: string) => { 
+ const toggleMainPanel = (p: string) => { 
       if(soundEnabled) playSynthSound('click'); 
       if (p === 'ARCHITECT') {
+          setPreviousMode(systemMode as 'EXPLORER' | 'AGENCY'); // <-- AÑADIR ESTO
           setEditingProp(null); 
           setRightPanel('NONE');
           setSystemMode('ARCHITECT');
@@ -544,8 +516,9 @@ export default function UIPanels({
       }
   };
 
-  const handleEditAsset = (asset: any) => {
+ const handleEditAsset = (asset: any) => {
       if(soundEnabled) playSynthSound('click');
+      setPreviousMode(systemMode as 'EXPLORER' | 'AGENCY'); // <-- AÑADIR ESTO
       setEditingProp(asset);      
       setRightPanel('NONE');      
       setActivePanel('NONE');
@@ -585,24 +558,32 @@ export default function UIPanels({
   // Escucha de señales (Actualizado para detectar cambios de Modo)
   useEffect(() => {
     const handleOpenDetails = (e: any) => {
-        const rawData = e.detail;
-        const cleanProp = sanitizePropertyData(rawData);
-        setSelectedProp(cleanProp);
-        setActivePanel('DETAILS');
-        if(soundEnabled) playSynthSound('click');
+        const cleanProp = sanitizePropertyData(e.detail);
+        if (cleanProp) {
+            setSelectedProp(cleanProp);
+            setActivePanel('DETAILS');
+            if(soundEnabled) playSynthSound('click');
+        }
     };
 
     const handleToggleFavSignal = (e: any) => { handleToggleFavorite(e.detail); };
     
+    // 🔥 ESTA ES LA PIEZA QUE FALTABA: EL GATILLO DE RECARGA
+    const handleReload = () => {
+        console.log("🔄 Recibida orden de recarga del servidor...");
+        setDataVersion(v => v + 1); 
+    };
+
     window.addEventListener('open-details-signal', handleOpenDetails);
     window.addEventListener('toggle-fav-signal', handleToggleFavSignal);
+    window.addEventListener('reload-profile-assets', handleReload); // <--- Antena conectada
     
     return () => {
         window.removeEventListener('open-details-signal', handleOpenDetails);
         window.removeEventListener('toggle-fav-signal', handleToggleFavSignal);
+        window.removeEventListener('reload-profile-assets', handleReload);
     };
-    // 🔥 AQUÍ ESTÁ LA CLAVE: Añadimos 'agencyFavs' y 'systemMode'
-  }, [soundEnabled, localFavs, agencyFavs, systemMode]);
+  }, [soundEnabled, localFavs, agencyFavs, systemMode, identityVerified]);
 
   useEffect(() => {
       const handleEditMarket = (e: any) => {
@@ -674,32 +655,29 @@ export default function UIPanels({
 
   }, [systemMode]);
  
-  // --------------------------------------------------------
-  // 🔥 PASO 2: SINCRONIZACIÓN VISUAL DE CORAZONES (MÁSCARA DE MODO)
-  // --------------------------------------------------------
-  useEffect(() => {
-      // 1. Determinar qué lista manda ahora
-      const targetList = systemMode === 'AGENCY' ? agencyFavs : localFavs;
-      const targetIds = new Set(targetList.map((x:any) => String(x.id)));
+  // 🔥 PASO 2: sincronización visual corazones
+useEffect(() => {
+  const targetList = localFavs; // ✅ SIEMPRE referencias
+  const targetIds = new Set(targetList.map((x:any) => String(x.id)));
 
-      if (typeof window !== 'undefined') {
-          // A. Forzamos lectura fresca en NanoCards
-          window.dispatchEvent(new CustomEvent("reload-favorites")); 
-          
-          // B. Limpieza Cruzada: Apagamos VISUALMENTE los que NO son de este modo
-          const oppositeList = systemMode === 'AGENCY' ? localFavs : agencyFavs;
-          oppositeList.forEach((p:any) => {
-              if (!targetIds.has(String(p.id))) {
-                 window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: false } }));
-              }
-          });
-          
-          // C. Encendemos los nuestros
-          targetList.forEach((p:any) => {
-             window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: true } }));
-          });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent("reload-favorites"));
+
+    // Apaga todo lo que no esté en referencias (si quieres limpieza)
+    // (si NO quieres apagar stock visualmente, elimina este bloque)
+    const allKnown = [...agencyFavs, ...localFavs];
+    allKnown.forEach((p:any) => {
+      if (!targetIds.has(String(p.id))) {
+        window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: false } }));
       }
-  }, [systemMode, localFavs, agencyFavs]);
+    });
+
+    targetList.forEach((p:any) => {
+      window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: true } }));
+    });
+  }
+}, [systemMode, localFavs, agencyFavs]);
+
 
   // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {
@@ -737,30 +715,60 @@ export default function UIPanels({
            </div>
        )}
 
-       {/* MODO ARQUITECTO */}
+      {/* MODO ARQUITECTO (CON MEMORIA + VUELO CINEMÁTICO) */}
        {systemMode === 'ARCHITECT' && (
            <ArchitectHud 
                soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
                initialData={editingProp} 
                onCloseMode={(success: boolean, payload: any) => { 
                    setEditingProp(null); 
+                   
                    if (success && payload) {
+                       // 1. Procesar datos frescos
                        const freshData = sanitizePropertyData(payload);
-                       setLocalFavs(currentFavs => currentFavs.map(fav => String(fav.id) === String(freshData.id) ? { ...fav, ...freshData } : fav));
+                       
+                       // 2. Actualizar listas en caliente (Stock y Favoritos)
+                       // Esto evita tener que recargar la página para ver los cambios
+                       setLocalFavs(prev => prev.map(f => String(f.id) === String(freshData.id) ? { ...f, ...freshData } : f));
+                       
+                       setAgencyFavs(prev => {
+                           const exists = prev.some(f => String(f.id) === String(freshData.id));
+                           if (exists) {
+                               return prev.map(f => String(f.id) === String(freshData.id) ? { ...f, ...freshData } : f);
+                           } else {
+                               return [freshData, ...prev]; // Si es nueva, arriba del todo
+                           }
+                       });
+
+                       // 3. Emitir señales al sistema
                        if (typeof window !== 'undefined') {
                            window.dispatchEvent(new CustomEvent('update-property-signal', { detail: { id: freshData.id, updates: freshData } }));
-                           setTimeout(() => { window.dispatchEvent(new CustomEvent('add-property-signal', { detail: freshData })); }, 100);
+                           if (!editingProp) { // Solo si es nueva
+                               setTimeout(() => { window.dispatchEvent(new CustomEvent('add-property-signal', { detail: freshData })); }, 100);
+                           }
                        }
-                       setSystemMode('EXPLORER');
+                       
+                       // 4. 🔥 VUELO CINEMÁTICO (ATERRIZAJE EN LA PROPIEDAD)
+                       if (map?.current && freshData.coordinates) {
+                           map.current.flyTo({
+                               center: freshData.coordinates,
+                               zoom: 19,
+                               pitch: 60,
+                               bearing: -20,
+                               duration: 3000, // 3 segundos de viaje suave
+                               essential: true
+                           });
+                       }
+
                        setLandingComplete(true); 
                        if (typeof setExplorerIntroDone === 'function') setExplorerIntroDone(true); 
-                   } else {
-                       setSystemMode('GATEWAY');
                    }
+                   
+                   // 5. RETORNO SEGURO A LA BASE (Agencia o Explorer)
+                   setSystemMode(previousMode || 'EXPLORER');
                }} 
            />
        )}
-
        {/* INTERFAZ COMPARTIDA (HUD) - SE VE EN EXPLORER Y AGENCIA */}
        {(systemMode === 'EXPLORER' || systemMode === 'AGENCY') && (
            <>
@@ -847,7 +855,7 @@ export default function UIPanels({
            </>
        )}
 
-      {/* MODO AGENCIA (BARRA OMNI TÁCTICA CON CHAT E IA) */}
+   {/* MODO AGENCIA (BARRA OMNI TÁCTICA CON CHAT E IA) */}
        {systemMode === 'AGENCY' && (
            <>
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
@@ -870,36 +878,37 @@ export default function UIPanels({
 
                            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                           {/* DERECHA: ARSENAL COMPLETO (6 BOTONES) */}
+                     {/* DERECHA: ARSENAL TÁCTICO DE AGENCIA (DOBLE CANAL) */}
                            <div className="flex items-center gap-1">
                                {/* 1. RADAR */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('ping'); if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-radar-signal')); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"><Crosshair size={18} /></button>
                                
-                               {/* 2. MERCADO */}
+                               {/* 2. MERCADO GLOBAL */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel === 'AGENCY_MARKET' ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}><Shield size={18} /></button>
 
-                               {/* 3. CHAT (NUEVO) */}
+                               {/* 3. COMUNICACIONES */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'CHAT' ? 'NONE' : 'CHAT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'}`}><MessageCircle size={18}/></button>
 
-                               {/* 4. IA (NUEVO) */}
+                               {/* 4. IA */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-white/50 hover:text-white'}`}><Sparkles size={18}/></button>
                                
-                               {/* 5. BÓVEDA */}
+                               {/* 5. 🏢 MI STOCK (ABRE PORTAFOLIO DE VENTAS) */}
+                               <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setRightPanel(rightPanel === 'AGENCY_PORTFOLIO' ? 'NONE' : 'AGENCY_PORTFOLIO'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel === 'AGENCY_PORTFOLIO' ? 'text-emerald-400 bg-white/10' : 'text-white/50 hover:text-white'}`}><Building2 size={18}/></button>
+
+                               {/* 6. ❤️ MIS FAVORITOS (ABRE BÓVEDA DE REFERENCIAS) */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); toggleRightPanel('VAULT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel === 'VAULT' ? 'text-red-500 bg-white/10' : 'text-white/50 hover:text-white'}`}><Heart size={18}/></button>
                                
-                               {/* 6. PERFIL */}
+                               {/* 7. PERFIL */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); toggleRightPanel('AGENCY_PROFILE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel === 'AGENCY_PROFILE' ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}><Briefcase size={18}/></button>
                            </div>
                        </div>
                    </div>
                </div>
                
-               <AgencyProfilePanel isOpen={rightPanel === 'AGENCY_PROFILE'} onClose={() => toggleRightPanel('NONE')} />
-               <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
-               <AgencyPortfolioPanel isOpen={rightPanel === 'AGENCY_PORTFOLIO'} onClose={() => setRightPanel('NONE')} onCreateNew={() => handleEditAsset(null)} onEditProperty={(p:any) => handleEditAsset(p)} />
+               {/* 🗑️ AQUÍ HE ELIMINADO LOS PANELES DUPLICADOS 🗑️ */}
+               {/* Ahora el sistema usará obligatoriamente los que están definidos al final del archivo, que sí funcionan bien. */}
            </>
        )}
-
        {/* MODO EXPLORADOR (BARRA USUARIO) */}
        {systemMode === 'EXPLORER' && (
            <>
@@ -931,13 +940,12 @@ export default function UIPanels({
                </div>
            </>
        )}
-
-      {/* =================================================================
+{/* =================================================================
            CAPA ESTRATOSFERA (Z-80) - TODOS LOS PANELES (USUARIO Y AGENCIA)
            Esta capa vive POR ENCIMA del Radar (Z-60) y del Mapa.
        ================================================================= */}
-       <div className="relative z-[80] pointer-events-none">
-           
+       <div className="absolute inset-0 z-[80] pointer-events-none"> {/* 🔥 CAMBIO: absolute inset-0 */}
+          
            {/* 1. PERFIL DE USUARIO */}
            <ProfilePanel 
                rightPanel={rightPanel} 
@@ -956,13 +964,12 @@ export default function UIPanels({
                 </div>
            )}
            
-         {/* 3. BÓVEDA / FAVORITOS (Derecha) */}
+           {/* 3. BÓVEDA / FAVORITOS (Derecha - Solo en modo Explorer) */}
            {rightPanel === 'VAULT' && (
                <VaultPanel 
                    rightPanel={rightPanel} 
                    toggleRightPanel={(p: any) => setRightPanel('NONE')} 
-                   // 🔥 CAMBIO CLAVE: Pasamos 'agencyFavs' si estamos en modo AGENCIA
-                   favorites={systemMode === 'AGENCY' ? agencyFavs : localFavs} 
+                   favorites={localFavs} 
                    onToggleFavorite={handleToggleFavorite} 
                    map={map} 
                    soundEnabled={soundEnabled} 
@@ -970,16 +977,84 @@ export default function UIPanels({
                />
            )}
            
-           {/* 4. PANELES DE AGENCIA (¡IMPORTANTE: ESTABAN PERDIDOS, AQUI SE RECUPERAN!) */}
+           {/* 4. PANELES DE AGENCIA (CONECTADOS AL BORRADO REAL) */}
+           {/* Aquí estaba el duplicado. Esta es la versión ÚNICA y CORRECTA. */}
            <AgencyProfilePanel isOpen={rightPanel === 'AGENCY_PROFILE'} onClose={() => toggleRightPanel('NONE')} />
            <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
-           <AgencyPortfolioPanel isOpen={rightPanel === 'AGENCY_PORTFOLIO'} onClose={() => setRightPanel('NONE')} onCreateNew={() => handleEditAsset(null)} onEditProperty={(p:any) => handleEditAsset(p)} />
+           
+         <AgencyPortfolioPanel 
+               isOpen={rightPanel === 'AGENCY_PORTFOLIO'} 
+               onClose={() => setRightPanel('NONE')} 
+               properties={agencyFavs}
+               onCreateNew={() => handleEditAsset(null)} 
+               onEditProperty={(p:any) => handleEditAsset(p)} 
+               
+               // 1. BORRADO (Ya lo teníamos)
+               onDelete={(p:any) => handleDeleteAgencyAsset(p)}
+               
+               // 2. TOGGLE (Ya lo teníamos)
+               onToggleFavorite={(p:any) => handleToggleFavorite(p)}
 
-{/* 5. INSPECTOR Y DETALLES */}
+               // 3. 🔥 VUELO CINEMÁTICO (ESTO ES LO QUE FALTA)
+               onSelect={(p:any) => {
+                   // A. Buscamos las coordenadas exactas
+                   const coords = p.coordinates || (p.latitude && p.longitude ? [p.longitude, p.latitude] : null);
+                   
+                   if (coords) {
+                       // B. Ejecutamos la maniobra de vuelo
+                       map?.current?.flyTo({ 
+                           center: coords, 
+                           zoom: 19,        // Zoom muy cerca para ver la Nano Card
+                           pitch: 60,       // Inclinación 3D
+                           bearing: -20,    // Un poco de rotación para estilo
+                           duration: 3000,  // 3 segundos de viaje suave
+                           essential: true
+                       });
+                       
+                       // C. Efectos de sonido y visuales
+                       if(soundEnabled) playSynthSound('warp');
+                       addNotification(`📍 Localizando: ${p.title || 'Propiedad'}`);
+                       
+                       // D. (Opcional) Si quiere que el panel se aparte para ver el mapa, descomente esto:
+                       // setRightPanel('NONE'); 
+
+                   } else {
+                       addNotification("⚠️ Propiedad sin coordenadas GPS");
+                       console.warn("Fallo de vuelo: Sin coordenadas", p);
+                   }
+               }}
+           />
+
+        {/* 5. INSPECTOR Y DETALLES (DUAL: MODO AGENCIA vs USUARIO) */}
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
-           {activePanel === 'DETAILS' && <DetailsPanel selectedProp={selectedProp} onClose={() => setActivePanel('NONE')} onToggleFavorite={handleToggleFavorite} favorites={systemMode === 'AGENCY' ? agencyFavs : localFavs} soundEnabled={soundEnabled} playSynthSound={playSynthSound} onOpenInspector={() => setActivePanel('INSPECTOR')} />}
+           
+           {activePanel === 'DETAILS' && (
+               systemMode === 'AGENCY' ? (
+                   // 🔥 VERSIÓN AGENCIA: Usa 'AgencyDetailsPanel' con SU MARCA y botón CONTACTAR AGENTE
+                   <AgencyDetailsPanel 
+                       selectedProp={selectedProp} 
+                       onClose={() => setActivePanel('NONE')} 
+                       onToggleFavorite={handleToggleFavorite} 
+                       favorites={localFavs}
+                       onOpenInspector={() => setActivePanel('INSPECTOR')}
+                       agencyData={agencyProfileData} // <--- Aquí inyectamos su logo y nombre
+                   />
+               ) : (
+                   // VERSIÓN USUARIO: Usa 'DetailsPanel' estándar
+                   <DetailsPanel 
+                       selectedProp={selectedProp} 
+                       onClose={() => setActivePanel('NONE')} 
+                       onToggleFavorite={handleToggleFavorite} 
+                       favorites={localFavs} 
+                       soundEnabled={soundEnabled} 
+                       playSynthSound={playSynthSound} 
+                       onOpenInspector={() => setActivePanel('INSPECTOR')} 
+                   />
+               )
+           )}
        </div>
-
+      
+      
        {/* =================================================================
            CAPA ORBITAL (Z-20000) - CHAT E INTELIGENCIA ARTIFICIAL
            Siempre flotando sobre todo lo demás.

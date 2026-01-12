@@ -399,7 +399,7 @@ export default function DetailsPanel({
                 {/* --- FOOTER --- */}
                 <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
                     <button className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95">
-                        <Phone size={18} /> Contactar Agente
+                        <Phone size={18} /> Contactar Propiedad
                     </button>
                     <button 
                         onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}

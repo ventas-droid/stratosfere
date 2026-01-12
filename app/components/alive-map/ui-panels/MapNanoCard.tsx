@@ -190,82 +190,39 @@ const activePack = useMemo(() => {
 
 // Estado Favorito
 const [liked, setLiked] = useState(false);
+const lastFavRef = useRef<boolean>(false);
 const [isHovered, setIsHovered] = useState(false);
 const cardRef = useRef<HTMLDivElement>(null);
 
 useEffect(() => {
   if (!id || typeof window === "undefined") return;
 
-  const resolveUserKey = () =>
-    localStorage.getItem("stratos_active_user_key") ||
-    localStorage.getItem("stratos_last_user_key") ||
-    "anon";
+  // Estado inicial (opcional): si viene marcado desde props/data, lo respetamos
+  const initial = !!(props?.isFav ?? props?.isFavorited ?? data?.isFav ?? data?.isFavorited);
 
-  const readFavState = () => {
-    const userKey = resolveUserKey();
-    const LIST_KEY = `stratos_favorites_v1:${userKey}`;
+  lastFavRef.current = initial; // ✅ verdad estable inicial
+  setLiked(initial);
 
-    const specificKey = userKey !== "anon" ? `fav-${userKey}-${id}` : null;
-    const genericKey = `fav-${id}`;
-
-    // Prioridad: Flag específico > Flag genérico > Lista Maestra
-    let isSaved =
-      (specificKey ? localStorage.getItem(specificKey) === "true" : false) ||
-      localStorage.getItem(genericKey) === "true";
-
-    if (!isSaved) {
-      try {
-        const masterList = JSON.parse(localStorage.getItem(LIST_KEY) || "[]");
-        const found =
-          Array.isArray(masterList) &&
-          masterList.some((item: any) => String(item?.id) === String(id));
-
-        if (found) {
-          isSaved = true;
-          // Auto-reparación de flags
-          localStorage.setItem(genericKey, "true");
-          if (specificKey) localStorage.setItem(specificKey, "true");
-        }
-      } catch (e) {}
-    }
-
-    setLiked(!!isSaved);
+  // ÚNICA fuente de verdad: eventos del sistema (UIPanels / servidor)
+  const onSync = (e: any) => {
+    if (String(e?.detail?.id) !== String(id)) return;
+    const next = !!e.detail.isFav;
+    lastFavRef.current = next; // ✅ guardamos verdad estable
+    setLiked(next);            // ✅ UI
   };
 
-  // Radio: actualiza + persiste (para que no se apague al repintar el mapa)
-  const handleRemoteCommand = (e: any) => {
-    if (e?.detail && String(e.detail.id) === String(id)) {
-      const nextState = !!e.detail.isFav;
-      setLiked(nextState);
-
-      try {
-        const userKey = resolveUserKey();
-        const specificKey = userKey !== "anon" ? `fav-${userKey}-${id}` : null;
-        const genericKey = `fav-${id}`;
-
-        if (nextState) {
-          localStorage.setItem(genericKey, "true");
-          if (specificKey) localStorage.setItem(specificKey, "true");
-        } else {
-          localStorage.removeItem(genericKey);
-          if (specificKey) localStorage.removeItem(specificKey);
-        }
-      } catch (err) {}
-    }
-  };
-
-  readFavState();
-
-  window.addEventListener("sync-property-state", handleRemoteCommand as EventListener);
-  window.addEventListener("reload-favorites", readFavState as EventListener);
-  window.addEventListener("user-changed", readFavState as EventListener);
+  window.addEventListener("sync-property-state", onSync as EventListener);
 
   return () => {
-    window.removeEventListener("sync-property-state", handleRemoteCommand as EventListener);
-    window.removeEventListener("reload-favorites", readFavState as EventListener);
-    window.removeEventListener("user-changed", readFavState as EventListener);
+    window.removeEventListener("sync-property-state", onSync as EventListener);
   };
-}, [id]);
+}, [
+  id,
+  props?.isFav,
+  props?.isFavorited,
+  data?.isFav,
+  data?.isFavorited,
+]);
 
 // GESTOR DE ACCIONES (VERSIÓN DEFINITIVA: SEGURA + SIN ROMPER APERTURA)
 const handleAction = (e: React.MouseEvent, action: string) => {
@@ -275,41 +232,18 @@ const handleAction = (e: React.MouseEvent, action: string) => {
   if (!id) return;
 
   // --- SAFETY BOX + TOGGLE ATÓMICO (solo para fav) ---
-  let targetState = action === "fav" ? !liked : liked;
+  // La "verdad" ya NO viene de localStorage: viene de la última señal global (server->UI)
+  if (action === "fav") {
+    const truth = lastFavRef.current;
 
-  if (action === "fav" && typeof window !== "undefined") {
-    const userKey =
-      localStorage.getItem("stratos_active_user_key") ||
-      localStorage.getItem("stratos_last_user_key") ||
-      "anon";
-
-    const specificKey = userKey !== "anon" ? `fav-${userKey}-${id}` : null;
-    const genericKey = `fav-${id}`;
-
-    const isActuallySaved =
-      (specificKey ? localStorage.getItem(specificKey) === "true" : false) ||
-      localStorage.getItem(genericKey) === "true";
-
-    // Si hay desincronización: corregimos color y NO togglamos (evita borrados accidentales)
-    if (isActuallySaved !== liked) {
-      setLiked(isActuallySaved);
+    // Si hay desincronización visual, corregimos y NO disparamos (evita inversiones raras)
+    if (truth !== liked) {
+      setLiked(truth);
       return;
     }
-
-    // Toggle basado en la verdad, no en liked
-    targetState = !isActuallySaved;
-
-    // Persistencia inmediata (anti-repintado)
-    try {
-      if (targetState) {
-        localStorage.setItem(genericKey, "true");
-        if (specificKey) localStorage.setItem(specificKey, "true");
-      } else {
-        localStorage.removeItem(genericKey);
-        if (specificKey) localStorage.removeItem(specificKey);
-      }
-    } catch (err) {}
   }
+
+  const targetState = action === "fav" ? !lastFavRef.current : liked;
 
   // 1. CÁLCULO DE COORDENADAS (MANTENIDO EXACTAMENTE IGUAL)
   const navCoords =
@@ -318,37 +252,35 @@ const handleAction = (e: React.MouseEvent, action: string) => {
     data.geometry?.coordinates ||
     (props.lng && props.lat ? [props.lng, props.lat] : null);
 
-  // 2. RECUPERACIÓN DE FOTOS (MEJORADA)
+  // 2. RECUPERACIÓN DE FOTOS (MEJORADA + SIN FOTOS FALSAS)
   let finalAlbum: string[] = [];
 
-  // Buscamos en todas partes
-  if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images;
-  else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images;
-  else if (img) finalAlbum = [img];
+  if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images as any;
+  else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images as any;
 
-  // Buscamos en mainImage (para propiedades nuevas)
   if (finalAlbum.length === 0) {
     if (props.mainImage) finalAlbum = [props.mainImage];
     else if (data.mainImage) finalAlbum = [data.mainImage];
+    else if (img) finalAlbum = [img]; // si quieres 0 placeholders, deja `img` como null
   }
 
-  // Limpiamos URLs
-  finalAlbum = finalAlbum.map((i: any) => (typeof i === "string" ? i : i.url || i));
+  finalAlbum = finalAlbum
+    .map((i: any) => (typeof i === "string" ? i : i?.url || i))
+    .filter(Boolean);
 
-  // 🛑 SIN FOTOS FALSAS: Si no hay, null (saldrá gris/vacío, pero honesto)
-  const finalImg = finalAlbum[0] || img || null;
+  const finalImg = finalAlbum[0] || null;
 
-  // 3. PAQUETE DE DATOS (AQUÍ ESTÁ EL ARREGLO DEL PRECIO)
+  // 3. PAQUETE DE DATOS (PRECIO FRESCO + IMAGEN LIMPIA)
   const payload = {
-    id,
-    ...props, // Datos originales (incluye basura vieja)
+    id: String(id),
+    ...props,
     ...data,
 
     // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
     price: currentPrice,
     formattedPrice: displayLabel,
-    priceValue: currentPrice, // ESTO ARREGLA EL PRECIO EN DETAILS
-    rawPrice: currentPrice, // ESTO TAMBIÉN
+    priceValue: currentPrice,
+    rawPrice: currentPrice,
 
     // FOTOS LIMPIAS
     img: finalImg,
@@ -356,30 +288,31 @@ const handleAction = (e: React.MouseEvent, action: string) => {
 
     type: type,
     location: (city || location || address || "MADRID").toUpperCase(),
-    isFav: targetState,
+    isFav: action === "fav" ? targetState : liked,
     coordinates: navCoords,
   };
 
-  // 4. DISPARO DE SEÑALES (MANTENIDAS EXACTAMENTE IGUAL)
+  // 4. DISPARO DE SEÑALES (SIN ROMPER NADA)
   if (action === "fav") {
+    // ✅ UI optimista + verdad local (SIN localStorage)
+    lastFavRef.current = targetState; // ✅ ESTA LÍNEA ES LA CLAVE
     setLiked(targetState);
+
     if (typeof window !== "undefined") {
-      // 1) Toggle favorito
+      // 1) Toggle favorito (server-side lo gestiona UIPanels)
       window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: payload }));
 
-      // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón (lo que necesitas)
+      // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón (como tú necesitas)
       window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: id } }));
-
-      // 3) Despertador global (por si el mapa repinta NanoCards)
-      window.dispatchEvent(new CustomEvent("reload-favorites"));
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
     }
-  } else if (action === "open") {
+    return;
+  }
+
+  if (action === "open") {
     if (typeof window !== "undefined") {
-      // Señal 1: Abrir panel lateral
       window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-      // Señal 2: Marcar activo en el sistema
-      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: id } }));
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
     }
   }
 };
