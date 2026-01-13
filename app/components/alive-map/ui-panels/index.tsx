@@ -151,8 +151,9 @@ export default function UIPanels({
   const [agencyProfileData, setAgencyProfileData] = useState<any>(null);
   const [localFavs, setLocalFavs] = useState<any[]>([]);
   const [agencyFavs, setAgencyFavs] = useState<any[]>([]);
- 
-  // --- 2. CREDENCIALES (SaaS Puro) ---
+ const [agencyLikes, setAgencyLikes] = useState<any[]>([]);
+ const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
+ // --- 2. CREDENCIALES (SaaS Puro) ---
   const searchParams = useSearchParams();
   const [gateUnlocked, setGateUnlocked] = useState(false);
 
@@ -191,10 +192,9 @@ const [dataVersion, setDataVersion] = useState(0);
 
   // ... (RESTO DEL CÓDIGO SIGUE IGUAL: useEffects de carga, handlers, render, etc.)
 
-  // --- EFECTOS INICIALES ---
+ // --- EFECTOS INICIALES ---
 
-  // Cargador Ligero de Perfil (FUSIONADO: Datos Server + Extras Locales)
-  // Cargador Ligero de Perfil (SOLO SERVER)
+  // 1. Cargador Ligero de Perfil (FUSIONADO)
   useEffect(() => {
       const fetchAgencyData = async () => {
           if (activeUserKey && activeUserKey !== 'anon') {
@@ -204,7 +204,6 @@ const [dataVersion, setDataVersion] = useState(0);
                   if (res.success) {
                       setAgencyProfileData({
                           ...res.data,
-                          // Priorizamos el logo de agencia sobre el avatar personal
                           avatar: res.data.companyLogo || res.data.avatar 
                       });
                   }
@@ -214,29 +213,39 @@ const [dataVersion, setDataVersion] = useState(0);
       fetchAgencyData();
   }, [activeUserKey]);
 
- // 1. IDENTIFICACIÓN DE USUARIO (SOLO SERVER)
+ // 2. IDENTIFICACIÓN DE USUARIO Y RANGO (EL CEREBRO DEL SISTEMA)
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
+        // A. LLAMADA AL SERVIDOR
         const me = await getUserMeAction();
         if (!alive) return;
 
-        // Determinamos la llave real del servidor
+        // B. OBTENCIÓN DE ID
         const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
         
-        // B. SI EL SERVER RESPONDE
         if (key !== "anon") {
-            // Confirmado: Somos alguien
+            // ✅ IDENTIDAD CONFIRMADA
             setActiveUserKey(key);
             setIdentityVerified(true);
             
-            // 🔥 SEÑAL DE ACTIVACIÓN
+            // 🔥 CÓDIGO NUEVO: DETECCIÓN DE RANGO (ROL)
+            // Aquí leemos si en la base de datos es 'AGENCIA' o 'PARTICULAR'
+            const dbRole = me.data?.role; 
+            console.log("👮‍♂️ IDENTIDAD SERVIDOR:", key, "| RANGO:", dbRole);
+            
+            // Guardamos el rol en el estado (IMPORTANTE: asegúrese de tener const [userRole, setUserRole] arriba)
+            if (typeof setUserRole === 'function') {
+                setUserRole(dbRole); 
+            }
+
+            // 🔥 DISPARO DE EVENTOS
             window.dispatchEvent(new CustomEvent("user-changed", { detail: { userKey: key } }));
             window.dispatchEvent(new CustomEvent("reload-favorites"));
         } else {
-            // No hay sesión
+            // 🚫 NO HAY SESIÓN
             handleLogoutCleanup();
         }
 
@@ -370,98 +379,105 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
     // 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDO 'dataVersion'
   }, [activeUserKey, systemMode, identityVerified, dataVersion]);
   
-  // 3. TOGGLE FAVORITE (IDEMPOTENTE: respeta prop.isFav si viene)
-const handleToggleFavorite = async (prop: any) => {
-  if (!prop || activeUserKey === null) return;
-  if (soundEnabled) playSynthSound("click");
+  // 3. TOGGLE FAVORITE (BIFURCADO: Agency Likes vs Private Likes)
+  const handleToggleFavorite = async (prop: any) => {
+      // A. Validaciones iniciales
+      if (!prop || activeUserKey === null) return;
+      if (soundEnabled) playSynthSound("click");
 
-  const userKey = activeUserKey;
+      const userKey = activeUserKey;
 
-  // 🚫 SaaS puro: si no hay identidad real, NO guardamos nada (sin localStorage)
-  if (!identityVerified || userKey === "anon") {
-    addNotification("Inicia sesión para guardar Referencias");
-    return;
-  }
+      // 🚫 SaaS puro: Validación de identidad
+      if (!identityVerified || userKey === "anon") {
+        addNotification("Inicia sesión para guardar Referencias");
+        return;
+      }
 
-  const cleaned = sanitizePropertyData(prop) || prop;
+      // B. Limpieza de datos (Sanitización robusta)
+      const cleaned = sanitizePropertyData(prop) || prop;
+      
+      // 🚫 Validación de ID seguro
+      const safeIdRaw = cleaned?.id || prop?.id;
+      if (!safeIdRaw) {
+        console.warn("handleToggleFavorite: sin id real, abortado");
+        return;
+      }
+      const safeId = String(safeIdRaw);
 
-  // 🚫 Nada de IDs random: si no hay id real, abortamos
-  const safeIdRaw = cleaned?.id || prop?.id;
-  if (!safeIdRaw) {
-    console.warn("handleToggleFavorite: sin id real, abortado");
-    return;
-  }
-  const safeId = String(safeIdRaw);
+      // C. SELECCIÓN DE BÓVEDA (CRUCIAL PARA NO MEZCLAR)
+      // Si es AGENCIA -> Usamos 'agencyLikes' (Bóveda de Vigilancia)
+      // Si es EXPLORER -> Usamos 'localFavs' (Favoritos Personales)
+      const isAgencyMode = systemMode === 'AGENCY';
+      
+      // ⚠️ Si no creó 'agencyLikes' arriba, cambie 'agencyLikes' por 'localFavs' aquí, pero se mezclarán.
+      const currentList = isAgencyMode ? agencyLikes : localFavs; 
+      const setTargetList = isAgencyMode ? setAgencyLikes : setLocalFavs;
+      const targetName = isAgencyMode ? "Bóveda de Agencia" : "Favoritos Personales";
 
-  const existedBefore = localFavs.some((f: any) => String(f.id) === safeId);
+      // D. Comprobar estado actual en la lista correspondiente
+      const isCurrentlyFav = currentList.some((f: any) => String(f.id) === safeId);
 
-  // ✅ INTENCIÓN (si MapNanoCard manda isFav, obedecemos)
-  let shouldAdd = !existedBefore; // fallback: toggle clásico
-  if (typeof prop?.isFav === "boolean") {
-    shouldAdd = prop.isFav;
+      // ✅ Intención (respetar prop.isFav si viene forzado)
+      let shouldAdd = !isCurrentlyFav;
+      if (typeof prop?.isFav === "boolean") {
+        shouldAdd = prop.isFav;
+        if (shouldAdd === isCurrentlyFav) {
+           console.log("🛡️ Acción redundante ignorada.");
+           return;
+        }
+      }
 
-    // 🛡️ Guardia: si el estado ya es el deseado, no hacemos nada
-    if (shouldAdd === existedBefore) {
-      console.log("🛡️ Acción redundante ignorada (ya sincronizado).");
-      return;
-    }
-  }
+      // Construimos el objeto seguro para guardar
+      const safeProp = {
+        ...cleaned,
+        id: safeId,
+        title: cleaned?.title || prop?.title || "Propiedad",
+        formattedPrice: cleaned?.formattedPrice || cleaned?.price || "Consultar",
+        savedAt: Date.now(),
+        isFavorited: true 
+      };
 
-  // Construimos el objeto seguro
-  const safeProp = {
-    ...cleaned,
-    id: safeId,
-    title: cleaned?.title || prop?.title || "Propiedad",
-    formattedPrice:
-      cleaned?.formattedPrice ||
-      cleaned?.price ||
-      prop?.formattedPrice ||
-      prop?.price ||
-      "Consultar",
+      // E. Lógica Optimista (Actualizamos la lista correcta)
+      const prevList = currentList; // Backup para rollback
+      let newList: any[] = [];
+      let newStatus = false;
+
+      if (!shouldAdd) {
+        newList = currentList.filter((f: any) => String(f.id) !== safeId);
+        addNotification(`Eliminado de ${targetName}`);
+        newStatus = false;
+      } else {
+        newList = [...currentList, safeProp];
+        addNotification(`Guardado en ${targetName}`);
+        newStatus = true;
+      }
+
+      // 1) Aplicar cambio visual a la lista
+      setTargetList(newList);
+
+      // 2) Broadcast visual inmediato para NanoCards
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
+      }
+
+      // 3) Persistencia Servidor (Tabla Favorites)
+      try {
+        await toggleFavoriteAction(String(safeId));
+        // Opcional: Si quiere asegurar consistencia total, puede disparar recarga
+        // setDataVersion(v => v + 1); 
+      } catch (error) {
+        console.error(error);
+        // Rollback UI en caso de error
+        setTargetList(prevList);
+        addNotification("❌ Error guardando en servidor");
+        // Rollback visual
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: isCurrentlyFav } })
+          );
+        }
+      }
   };
-
-  const prevFavs = localFavs;
-
-  let newFavs: any[] = [];
-  let newStatus = false;
-
-  if (!shouldAdd) {
-    newFavs = localFavs.filter((f: any) => String(f.id) !== safeId);
-    addNotification("Referencia eliminada");
-    newStatus = false;
-  } else {
-    const already = localFavs.some((f: any) => String(f.id) === safeId);
-    newFavs = already ? localFavs : [...localFavs, { ...safeProp, savedAt: Date.now(), isFavorited: true }];
-    addNotification("Guardado en Referencias");
-    newStatus = true;
-  }
-
-  // 1) Optimistic UI
-  setLocalFavs(newFavs);
-
-  // 2) Broadcast visual inmediato para NanoCards
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
-  }
-
-  // 3) Persistencia servidor (tabla Favorites)
-  try {
-    await toggleFavoriteAction(String(safeId));
-  } catch (error) {
-    console.error(error);
-
-    // rollback UI
-    setLocalFavs(prevFavs);
-    addNotification("❌ Error guardando en servidor");
-
-    // rollback visual
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: existedBefore } })
-      );
-    }
-  }
-};
 
   // 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)
   const handleDeleteAgencyAsset = async (asset: any) => {
@@ -709,9 +725,13 @@ useEffect(() => {
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end pb-8 animate-fade-in text-sans select-none">
        
-       {systemMode === 'GATEWAY' && (
+      {systemMode === 'GATEWAY' && (
            <div className="fixed inset-0 z-[50000] flex items-center justify-center pointer-events-auto bg-[#050505]/80 backdrop-blur-xl animate-fade-in duration-1000">
-               <DualGateway onSelectMode={(m:any) => { playSynthSound('boot'); setSystemMode(m); }} />
+               {/* 🔥 CAMBIO CRÍTICO: Pasamos 'userRole' al componente */}
+               <DualGateway 
+                   onSelectMode={(m:any) => { playSynthSound('boot'); setSystemMode(m); }} 
+                   userRole={userRole} 
+               />
            </div>
        )}
 

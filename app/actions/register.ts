@@ -7,7 +7,9 @@ import { sendWelcomeEmail } from './send-emails';
 import { cookies } from "next/headers"
 
 export async function registerUser(formData: FormData) {
-  const role = formData.get("role") as string
+  // Capturamos el rol que viene del formulario
+  const roleRaw = formData.get("role") as string
+  
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const name = formData.get("name") as string
@@ -16,10 +18,14 @@ export async function registerUser(formData: FormData) {
     return { error: "Faltan datos obligatorios" }
   }
 
+  // 1. ASIGNACIÓN DE ROL SEGURA (3 VÍAS)
+  let assignedRole = 'PARTICULAR'; // Por defecto
+  
+  if (roleRaw === 'AGENCIA') assignedRole = 'AGENCIA';
+  else if (roleRaw === 'DIFUSOR') assignedRole = 'DIFUSOR'; // <--- ¡NUEVA VÍA HABILITADA!
+
   try {
-    const existingUser = await db.user.findUnique({
-      where: { email }
-    })
+    const existingUser = await db.user.findUnique({ where: { email } })
     if (existingUser) {
       return { error: "Este email ya está registrado." }
     }
@@ -35,15 +41,13 @@ export async function registerUser(formData: FormData) {
         email,
         password: hashedPassword,
         name,
-        role: role === 'AGENCIA' ? 'AGENCIA' : 'PARTICULAR',
+        role: assignedRole as any, // Guardamos AGENCIA, DIFUSOR o PARTICULAR
       }
     })
 
     sendWelcomeEmail(email, name);
 
-    // 🔥 CORRECCIÓN AQUÍ: Añadido (await cookies())
     const cookieStore = await cookies();
-
     cookieStore.set('stratos_session_email', email, {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -56,10 +60,13 @@ export async function registerUser(formData: FormData) {
     return { error: "No se pudo guardar el usuario." }
   }
 
-  console.log("👉 REGISTRO COMPLETADO Y COOKIE FIJADA")
+  console.log(`👉 REGISTRO COMPLETADO: ${email} como ${assignedRole}`)
   
-  if (role === 'AGENCIA') {
+  // REDIRECCIÓN INTELIGENTE SEGÚN ROL
+  if (assignedRole === 'AGENCIA') {
     redirect("/?access=agency")
+  } else if (assignedRole === 'DIFUSOR') {
+    redirect("/?access=diffuser") // <--- NUEVA REDIRECCIÓN
   } else {
     redirect("/?access=granted")
   }
