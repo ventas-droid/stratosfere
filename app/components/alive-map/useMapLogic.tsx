@@ -366,128 +366,118 @@ if (src) {
   }, []);
 
   // --------------------------------------------------------------------
-  // D. PINTOR DE MARCADORES (UPDATE MARKERS)
+  // D. PINTOR DE MARCADORES (UPDATE MARKERS) - CORREGIDO
   // --------------------------------------------------------------------
- const updateMarkers = () => {
-  const mapInstance = map.current;
-  if (!mapInstance || !mapInstance.getSource("properties")) return;
+  const updateMarkers = () => {
+    const mapInstance = map.current;
+    if (!mapInstance || !mapInstance.getSource("properties")) return;
 
-  const features = mapInstance.querySourceFeatures("properties", {
-    filter: ["!", ["has", "point_count"]],
-  });
+    // Solo pintamos propiedades individuales (no clusters)
+    const features = mapInstance.querySourceFeatures("properties", {
+      filter: ["!", ["has", "point_count"]],
+    });
 
-  // Ordenar visualmente (Sur primero)
-  features.sort((a: any, b: any) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
-
-  // ✅ IDs SIEMPRE como string (clave anti-parpadeo)
-  const visibleIds = new Set(features.map((f: any) => String(f.properties.id)));
-
-  // Limpiar viejos (comparación string-string)
-  Object.keys(markersRef.current).forEach((id) => {
-    if (!visibleIds.has(id)) {
-      markersRef.current[id].remove();
-      delete markersRef.current[id];
-    }
-  });
-
-  // Pintar nuevos
-  features.forEach((feature: any) => {
-    const id = String(feature.properties.id);
-    if (markersRef.current[id]) return;
-
-    const el = document.createElement("div");
-    el.className = "nanocard-marker";
-
-    const root = createRoot(el);
-    const p = feature.properties;
-
-    // -------------------------------------------------------------
-    // 🛡️ PROTOCOLO DE RECUPERACIÓN DE IMÁGENES (FIX)
-    // -------------------------------------------------------------
-    let safeImages: any[] = [];
+    // Ordenar visualmente para que las del sur queden por delante (Efecto 3D)
+    features.sort((a: any, b: any) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
     
-    // 1. Intentamos leer el array directo (soporta strings o {url})
-if (Array.isArray(p.images)) {
-  safeImages = p.images
-    .map((i: any) => (typeof i === "string" ? i : i?.url))
-    .filter(Boolean);
-}
+    // ✅ IDs SIEMPRE como string para evitar parpadeos
+    const visibleIds = new Set(features.map((f: any) => String(f.properties.id)));
 
-    // 2. Si Mapbox lo ha convertido a texto '["url1", "url2"]', lo parseamos
-    else if (typeof p.images === 'string') {
+    // Limpiar marcadores viejos que ya no están en pantalla
+    Object.keys(markersRef.current).forEach((id) => {
+      if (!visibleIds.has(id)) {
+        markersRef.current[id].remove();
+        delete markersRef.current[id];
+      }
+    });
+
+    // Pintar nuevos marcadores
+    features.forEach((feature: any) => {
+      const id = String(feature.properties.id);
+      if (markersRef.current[id]) return; // Si ya existe, no lo tocamos
+
+      const el = document.createElement("div");
+      el.className = "nanocard-marker";
+      
+      const root = createRoot(el);
+      const p = feature.properties;
+
+      // 1. RECUPERACIÓN DE IMAGEN REAL (Sin imágenes falsas)
+      let safeImages: any[] = [];
+      if (Array.isArray(p.images)) {
+        safeImages = p.images.map((i: any) => (typeof i === "string" ? i : i?.url)).filter(Boolean);
+      } else if (typeof p.images === 'string') {
         try {
             const parsed = JSON.parse(p.images);
             safeImages = Array.isArray(parsed) ? parsed : [p.images];
-        } catch (e) {
-            safeImages = [p.images]; // Si falla, asumimos que es una URL suelta
-        }
-    }
-    // 3. Fallback a la imagen antigua (p.img)
-    if (safeImages.length === 0 && p.img) {
-        safeImages = [p.img];
-    }
+        } catch (e) { safeImages = [p.images]; }
+      }
+      
+      // Si no hay array, miramos la propiedad suelta 'img'
+      if (safeImages.length === 0 && p.img) safeImages = [p.img];
 
-    // 4. Calculamos la portada segura
-    const safeImg = safeImages[0] || p.img || undefined;
+      // Si no hay foto, pasamos null (La NanoCard sabrá qué hacer, pero no inventamos nada)
+      const safeImg = safeImages[0] || null;
 
+      // 🔥 2. CORRECCIÓN CRÍTICA DE METROS CUADRADOS
+      // Buscamos el dato en todas las variantes posibles para que nunca salga "0" si el dato existe
+      const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
-    // -------------------------------------------------------------
-    // 🎨 RENDERIZADO DE LA TARJETA (DATOS COMPLETOS Y BLINDADOS)
-    // -------------------------------------------------------------
-    root.render(
-      <MapNanoCard
-        id={id}
-        // Datos Financieros
-        price={p.price}
-        priceValue={p.priceValue}
-        rawPrice={p.priceValue}
-        
-        // Datos Físicos (Aquí conectamos con el fix de los 0m2)
-        rooms={p.rooms}
-        baths={p.baths}
-        mBuilt={p.m2} 
-        
-        // Equipamiento
-        selectedServices={p.selectedServices}
-        elevator={p.elevator}
-        specs={p.specs}
-        type={p.type}
-        
-        // Imágenes (Versión segura para evitar parpadeos)
-        img={safeImg}        
-        images={safeImages}  
-        
-        // Coordenadas
-        lat={feature.geometry.coordinates[1]}
-        lng={feature.geometry.coordinates[0]}
-        
-        // Información General
-        role={p.role}
-        title={p.title}
-        description={p.description}
-        
-        // Dirección (Blindaje triple anti-fallos)
-        address={p.address || p.location}
-        city={p.city || p.location}
-        location={p.location || p.city || p.address}
-        
-        // 🔥 EL CABLE QUE FALTABA (Conecta la base de datos con el panel lateral)
-        communityFees={p.communityFees}
+      root.render(
+        <MapNanoCard
+          id={id}
+          // Datos Financieros
+          price={p.price}
+          priceValue={p.priceValue}
+          rawPrice={p.priceValue}
+          
+          // Datos Físicos
+          rooms={p.rooms}
+          baths={p.baths}
+          
+          // 🔥 AQUÍ PASAMOS EL DATO UNIFICADO
+          mBuilt={finalM2}
+          m2={finalM2} 
+          
+          // Equipamiento
+          selectedServices={p.selectedServices}
+          elevator={p.elevator}
+          specs={p.specs}
+          type={p.type}
+          
+          // Imágenes
+          img={safeImg}
+          images={safeImages}
+          
+          // Coordenadas
+          lat={feature.geometry.coordinates[1]}
+          lng={feature.geometry.coordinates[0]}
+          
+          // Información General
+          role={p.role}
+          title={p.title}
+          description={p.description}
+          
+          // Dirección
+          address={p.address || p.location}
+          city={p.city || p.location}
+          location={p.location || p.city || p.address}
+          
+          // Datos Técnicos
+          communityFees={p.communityFees}
+          energyConsumption={p.energyConsumption}
+          energyEmissions={p.energyEmissions}
+          energyPending={p.energyPending}
+        />
+      );
 
-        // Energía
-        energyConsumption={p.energyConsumption}
-        energyEmissions={p.energyEmissions}
-        energyPending={p.energyPending}
-      />
-    );
+      const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat(feature.geometry.coordinates)
+        .addTo(mapInstance);
 
-    const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-      .setLngLat(feature.geometry.coordinates)
-      .addTo(mapInstance);
-
-    markersRef.current[id] = marker;
-  });
-};
+      markersRef.current[id] = marker;
+    });
+  };
 
   // --------------------------------------------------------------------
   // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA (CALIBRADO) 🇪🇸
@@ -549,88 +539,91 @@ if (Array.isArray(p.images)) {
       }, 500);
     }
   };
-  
+
   // --------------------------------------------------------------------
-  // F. RECEPTOR DE NUEVAS PROPIEDADES (ADD PROPERTY) - VERSIÓN BLINDADA
+  // C. RECEPTOR DE NUEVAS PROPIEDADES (ADD PROPERTY) - ANTI-DUPLICADOS
   // --------------------------------------------------------------------
   useEffect(() => {
     const handleNewProperty = async (event: any) => {
       const formData = event.detail;
       if (!map.current || !formData) return;
 
-      console.log("📦 MAP LOGIC: Recibiendo nueva propiedad:", formData);
+      console.log("📦 MAPA: Inyectando nueva propiedad...", formData);
 
-      // 1. CÁLCULO DE COORDENADAS
+      // 1. GEO (Si no viene, lo buscamos)
       let baseCoords = [-3.6883, 40.4280];
-      try {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${mapboxgl.accessToken}&country=es`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.features?.[0]) baseCoords = data.features[0].center;
-      } catch (e) {
-        console.error("Error Geo:", e);
+      if (formData.coordinates) {
+          baseCoords = formData.coordinates;
+      } else {
+          try {
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${mapboxgl.accessToken}&country=es`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.features?.[0]) baseCoords = data.features[0].center;
+          } catch (e) { console.error("Geo Error:", e); }
       }
-
+      
+      // Pequeña variación para evitar superposición exacta
       const jitter = () => (Math.random() - 0.5) * 0.0004;
       const finalCoords = [baseCoords[0] + jitter(), baseCoords[1] + jitter()];
 
-      // 2. CREACIÓN DEL FEATURE (CON ASCENSOR Y SERVICIOS)
+      // 2. PREPARAR IMAGEN REAL (Sin falsedades)
+      let finalImage = null;
+      if (formData.mainImage) finalImage = formData.mainImage;
+      else if (Array.isArray(formData.images) && formData.images.length > 0) {
+          const first = formData.images[0];
+          finalImage = typeof first === 'string' ? first : first.url;
+      }
+      else if (formData.img) finalImage = formData.img;
+
+      // 3. CONSTRUIR FEATURE GEOJSON
       const newFeature = {
         type: 'Feature',
         geometry: { type: 'Point', coordinates: finalCoords },
         properties: {
           ...formData,
-
-          id: formData.id || Date.now(),
-          type: formData.type || 'Piso',
-
-          // Datos Numéricos
+          id: String(formData.id), // ID siempre string para comparar
+          type: formData.type || 'Propiedad',
+          
           price: `${formData.price}€`,
-          priceValue: parseInt((formData.price || '0').toString().replace(/\D/g, '')),
-          m2: parseInt(formData.mBuilt || '0'),
-          rooms: Number(formData.rooms || 0),
-          baths: Number(formData.baths || 0),
-
-          // ✅ CRÍTICOS (BLINDADOS)
+          priceValue: Number(formData.price || 0),
+          
+          // 🔥 Aseguramos que los metros se guarden en m2 y mBuilt
+          m2: Number(formData.mBuilt || 0),
+          mBuilt: Number(formData.mBuilt || 0),
+          
           elevator: isYes(formData.elevator),
           selectedServices: Array.isArray(formData.selectedServices) ? formData.selectedServices : [],
-          specs: formData.specs || {},
-
-          // Texto / ubicación
-          address: formData.address,
-          city: formData.city,
-          location: formData.location,
-          title: formData.title || `Oportunidad en ${formData.address}`,
-          description: formData.description || "Propiedad exclusiva.",
-          role: "PROPIETARIO",
-
-         // Imagen (LIMPIEZA TOTAL)
-          img: (formData.images && formData.images.length > 0)
-            ? formData.images[0]
-            : null,
-
-          // Energía
-          energyConsumption: formData.energyConsumption,
-          energyEmissions: formData.energyEmissions,
-          energyPending: formData.energyPending,
+          
+          img: finalImage,
+          // Si no hay imágenes, array vacío (nada falso)
+          images: finalImage ? [finalImage] : [], 
         }
       };
 
-     // 3. INYECCIÓN EN EL MAPA
-const src: any = map.current.getSource('properties');
-if (src && (src as any)._data) {
-  const currentFeatures = (src as any)._data.features || [];
-  src.setData({ type: 'FeatureCollection', features: [...currentFeatures, newFeature] });
+      // 4. INYECCIÓN ANTI-DUPLICADOS (LA CLAVE)
+      const src: any = map.current.getSource('properties');
+      if (src && (src as any)._data) {
+        const currentFeatures = (src as any)._data.features || [];
+        
+        // 🔥 FILTRO CLAVE: Borramos la versión anterior si existe
+        // "Si el ID ya está en el mapa, quítalo antes de meter el nuevo"
+        const others = currentFeatures.filter((f: any) => String(f.properties.id) !== String(formData.id));
+        
+        // Añadimos la nueva versión limpia
+        src.setData({ type: 'FeatureCollection', features: [...others, newFeature] });
 
-  map.current.flyTo({ center: finalCoords, zoom: 17, pitch: 60 });
-}
-
+        // Forzamos vuelo y repintado
+        map.current.flyTo({ center: finalCoords, zoom: 18, pitch: 60 });
+        
+        map.current.once('idle', () => updateMarkers());
+        setTimeout(() => updateMarkers(), 250);
+      }
     };
 
     window.addEventListener('add-property-signal', handleNewProperty);
     return () => window.removeEventListener('add-property-signal', handleNewProperty);
   }, [map]);
-
   // --------------------------------------------------------------------
   // G. SISTEMA DE ACTUALIZACIÓN EN TIEMPO REAL (UPDATE PROPERTY)
   // --------------------------------------------------------------------
@@ -731,80 +724,71 @@ return visibleProps;
 
   };
 
-// ====================================================================
-  // ⚡️ VISIÓN GLOBAL: PROTOCOLO ANTI-FALLO (AUTOCURACIÓN)
-  // ====================================================================
+// --------------------------------------------------------------------
+  // D. RADAR GLOBAL (CARGA PURE CLOUD - CERO LOCAL STORAGE)
+  // --------------------------------------------------------------------
   useEffect(() => {
     // 1. Si el mapa no existe físicamente, abortamos.
     if (!map.current) return;
 
     const executeRadar = async () => {
       try {
-        console.log("📡 RADAR: Iniciando barrido táctico...");
+        console.log("📡 RADAR: Conectando con Base de Datos Global...");
         
-        // --- FASE 1: OBTENCIÓN DE DATOS ---
+        // --- FASE 1: OBTENCIÓN DE DATOS (SOLO SERVIDOR) ---
         const response = await getGlobalPropertiesAction();
         const serverData = response.success ? response.data : [];
 
-        let localData = [];
-        try {
-            const saved = localStorage.getItem('stratos_my_properties');
-            if (saved) localData = JSON.parse(saved);
-        } catch (e) {}
+        // 🗑️ REMOVIDO: Ya no leemos localStorage. Solo existe la verdad del servidor.
 
-        // --- FASE 2: FUSIÓN INTELIGENTE (Smart Merge) ---
+        // --- FASE 2: NORMALIZACIÓN Y ANTI-DUPLICADOS ---
+        // Usamos un Map para garantizar que cada ID sea único.
         const uniqueMap = new Map();
 
-        // A. Base Servidor
         serverData.forEach((p: any) => {
-            uniqueMap.set(String(p.id), { ...p, source: 'SERVER' });
-        });
-
-        // B. Sobreescritura Local (Respetando fotos del servidor)
-        localData.forEach((localProp: any) => {
-            if (localProp.id) {
-                const serverProp = uniqueMap.get(String(localProp.id));
-                
-                if (serverProp) {
-                    uniqueMap.set(String(localProp.id), { 
-                        ...serverProp,      
-                        ...localProp,       
-                        // Si local no tiene foto, usa la del servidor
-                        images: (localProp.images && localProp.images.length > 0) ? localProp.images : serverProp.images,
-                        img: localProp.img || serverProp.img,
-                        // Si local no tiene precio/comunidad, usa servidor
-                        priceValue: localProp.priceValue || serverProp.priceValue,
-                        communityFees: localProp.communityFees || serverProp.communityFees,
-                        mBuilt: localProp.mBuilt || serverProp.mBuilt || serverProp.m2,
-                        source: 'MERGED_SMART' 
-                    });
-                } else {
-                    uniqueMap.set(String(localProp.id), { ...localProp, source: 'LOCAL_ONLY' });
-                }
-            }
+            // Aseguramos ID como String para evitar conflictos "123" vs 123
+            const sId = String(p.id);
+            
+            // Si ya existe, lo sobrescribimos (la última versión del servidor manda)
+            uniqueMap.set(sId, { 
+                ...p, 
+                source: 'CLOUD_DB' 
+            });
         });
 
         const unifiedList = Array.from(uniqueMap.values());
 
-        // --- FASE 3: GEOMETRÍA (Espirales para edificios) ---
+        // --- FASE 3: GEOMETRÍA (Espirales para evitar superposición) ---
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
+            // Coordenadas: Prioridad al array [lng, lat], luego a las props sueltas
             let lng = Number(p.coordinates ? p.coordinates[0] : p.longitude);
             let lat = Number(p.coordinates ? p.coordinates[1] : p.latitude);
-            if (!lng || !lat) { lng = -3.6883; lat = 40.4280; }
+            
+            // Fallback de seguridad (Madrid) si las coordenadas están rotas
+            if (!lng || !lat || isNaN(lng) || isNaN(lat)) { lng = -3.6883; lat = 40.4280; }
 
-            const coordKey = `${lng.toFixed(3)},${lat.toFixed(3)}`;
+            // Clave de posición para detectar colisiones
+            const coordKey = `${lng.toFixed(4)},${lat.toFixed(4)}`;
             const count = coordTracker.get(coordKey) || 0;
             
+            // Si hay colisión, aplicamos espiral matemática
             if (count > 0) {
                 const angle = count * (Math.PI * 2 / 5); 
-                const separation = 0.0004; 
+                const separation = 0.0003; 
                 const radius = separation * (1 + Math.floor(count / 5)); 
                 lng += Math.cos(angle) * radius;
                 lat += Math.sin(angle) * radius;
             }
             coordTracker.set(coordKey, count + 1);
+
+            // Preparación de Imagen Real
+            const safeImage = p.mainImage || 
+                              (p.images && p.images.length > 0 ? (p.images[0].url || p.images[0]) : null);
+
+            // Unificación de Metros
+            const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
             return {
                 type: 'Feature',
@@ -812,12 +796,16 @@ return visibleProps;
                 properties: {
                     ...p,
                     id: String(p.id),
-                    priceValue: Number(p.rawPrice || p.priceValue || p.price),
-                    img: p.img || (p.images && p.images[0]) || null,
+                    priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
                     
-                    // 🔥 DATOS COMPLETOS
-                    m2: Number(p.m2 || p.mBuilt || 0),       
-                    mBuilt: Number(p.m2 || p.mBuilt || 0),   
+                    // Imagen: Solo la real o null (nada de placeholders falsos)
+                    img: safeImage,
+                    
+                    // 🔥 DATOS COMPLETOS Y NORMALIZADOS
+                    m2: finalM2,       
+                    mBuilt: finalM2,   
+                    
+                    elevator: isYes(p.elevator),
                     communityFees: p.communityFees,
                     energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions,
@@ -830,39 +818,38 @@ return visibleProps;
         const injectSafely = (attempts = 0) => {
             if (!map.current) return;
 
-            // Verificamos si la capa existe. Si no, esperamos.
-const addSource: any = map.current.getSource('properties');
+            const source: any = map.current.getSource('properties');
 
-if (addSource) {
-  (addSource as any).setData({
-    type: 'FeatureCollection',
-    features: features
-  });
+            if (source) {
+                // Reemplazo TOTAL de datos (Adiós duplicados)
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: features
+                });
 
-  console.log(`✅ RADAR: Despliegue exitoso (${features.length} activos).`);
+                console.log(`✅ RADAR: ${features.length} activos cargados desde la Nube.`);
 
-  if (map.current) {
-    map.current.once('idle', () => {
-      try { updateMarkers(); } catch (e) { console.error(e); }
-    });
-  }
+                // Forzar actualización visual de marcadores (React Portal)
+                if (map.current) {
+                    map.current.once('idle', () => {
+                        try { updateMarkers(); } catch (e) { console.error(e); }
+                    });
+                }
+                
+                // Doble check por si el mapa estaba en movimiento
+                setTimeout(() => {
+                    try { updateMarkers(); } catch (e) {}
+                }, 350);
 
-  setTimeout(() => {
-    try { updateMarkers(); } catch (e) {}
-  }, 350);
-
-} else {
-  if (attempts < 10) {
-    console.warn(`⏳ RADAR: Mapa ocupado. Reintentando (${attempts + 1}/10)...`);
-    setTimeout(() => injectSafely(attempts + 1), 500);
-  } else {
-    console.error("🚨 RADAR: Tiempo de espera agotado.");
-  }
-}
-
+            } else {
+                if (attempts < 10) {
+                    // Si el estilo del mapa no cargó, reintentamos un poco
+                    setTimeout(() => injectSafely(attempts + 1), 500);
+                }
+            }
         };
 
-        // Iniciamos el intento de inyección
+        // Ejecutar inyección
         injectSafely();
 
       } catch (e) { console.error("❌ Fallo crítico en radar:", e); }
@@ -872,15 +859,14 @@ if (addSource) {
     if (isLoaded) {
         executeRadar();
     } else {
-        // Red de seguridad por si isLoaded tarda
         map.current.once('load', executeRadar);
     }
 
+    // Escuchar peticiones de recarga forzosa (desde ArchitectHud o Botón de Refresco)
     window.addEventListener('force-map-refresh', executeRadar);
     return () => window.removeEventListener('force-map-refresh', executeRadar);
 
   }, [isLoaded]); // Fin del useEffect
-  
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
   // --------------------------------------------------------------------

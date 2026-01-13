@@ -348,12 +348,15 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
            if (favResult.success && isMounted) {
                 // ✅ Normalizamos para que el ID sea SIEMPRE el de la Property
                 const normalized = normalizeFavList(favResult.data);
+                
+                // 🔥 FILTRO ANTI-DUPLICADOS (Por si acaso viene sucio del server)
+                const uniqueFavs = Array.from(new Map(normalized.map(item => [String(item.id), item])).values());
 
-                setLocalFavs(normalized);
+                setLocalFavs(uniqueFavs);
 
                 // Mantenemos el espejo para las NanoCards
                 if (typeof mirrorGlobalFavsForNanoCard === 'function') {
-                    mirrorGlobalFavsForNanoCard(normalized);
+                    mirrorGlobalFavsForNanoCard(uniqueFavs);
                 }
            }
         } catch (e) {}
@@ -363,8 +366,14 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
             try {
                 const stockResult = await getAgencyPortfolioAction();
                 if (stockResult.success && isMounted) {
-                    setAgencyFavs(stockResult.data);
-                    console.log("🏢 STOCK CARGADO DE DB:", stockResult.data.length);
+                    
+                    // 🔥 FILTRO ANTI-DUPLICADOS PARA AGENCIA (CRÍTICO)
+                    // Si la DB devuelve algo raro, esto lo limpia antes de pintarlo en la lista
+                    const rawStock = stockResult.data || [];
+                    const uniqueStock = Array.from(new Map(rawStock.map((item:any) => [String(item.id), item])).values());
+                    
+                    setAgencyFavs(uniqueStock);
+                    console.log("🏢 STOCK CARGADO (LIMPIO):", uniqueStock.length);
                 }
             } catch (e) {
                 console.error("Error cargando Stock:", e);
@@ -376,7 +385,6 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
     
     return () => { isMounted = false; };
     
-    // 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDO 'dataVersion'
   }, [activeUserKey, systemMode, identityVerified, dataVersion]);
   
   // 3. TOGGLE FAVORITE (BIFURCADO: Agency Likes vs Private Likes)
@@ -1045,22 +1053,38 @@ useEffect(() => {
                }}
            />
 
-        {/* 5. INSPECTOR Y DETALLES (DUAL: MODO AGENCIA vs USUARIO) */}
+       {/* 5. INSPECTOR Y DETALLES (DUAL: MODO AGENCIA vs USUARIO) */}
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
            
            {activePanel === 'DETAILS' && (
                systemMode === 'AGENCY' ? (
-                   // 🔥 VERSIÓN AGENCIA: Usa 'AgencyDetailsPanel' con SU MARCA y botón CONTACTAR AGENTE
+                   // 🔥 VERSIÓN AGENCIA (CORREGIDA)
                    <AgencyDetailsPanel 
                        selectedProp={selectedProp} 
                        onClose={() => setActivePanel('NONE')} 
                        onToggleFavorite={handleToggleFavorite} 
                        favorites={localFavs}
                        onOpenInspector={() => setActivePanel('INSPECTOR')}
-                       agencyData={agencyProfileData} // <--- Aquí inyectamos su logo y nombre
+                       
+                       // 🛑 ANTES: agencyData={agencyProfileData} (ERROR: Pasaba tus datos)
+                       // ✅ AHORA: Extraemos los datos del DUEÑO de la propiedad seleccionada
+                       agencyData={{
+                           // 1. Nombre del dueño
+                           name: selectedProp?.user?.name || selectedProp?.userName || selectedProp?.ownerName || "Usuario Stratos",
+                           
+                           // 2. Foto del dueño
+                           avatar: selectedProp?.user?.avatar || selectedProp?.userAvatar || selectedProp?.ownerAvatar || null,
+                           
+                           // 3. Rol del dueño (Agencia o Particular)
+                           role: selectedProp?.user?.role || selectedProp?.role || "PARTICULAR",
+                           
+                           // 4. Verificación y Teléfono
+                           isVerified: selectedProp?.user?.isVerified ?? selectedProp?.isVerified ?? false,
+                           phone: selectedProp?.user?.phone || selectedProp?.phone || null
+                       }}
                    />
                ) : (
-                   // VERSIÓN USUARIO: Usa 'DetailsPanel' estándar
+                   // VERSIÓN USUARIO (Sin cambios)
                    <DetailsPanel 
                        selectedProp={selectedProp} 
                        onClose={() => setActivePanel('NONE')} 

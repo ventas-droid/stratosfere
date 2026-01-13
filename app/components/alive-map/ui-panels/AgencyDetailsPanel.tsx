@@ -61,15 +61,8 @@ export default function AgencyDetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-    // 4. 🔥 ESCUCHA ACTIVA: Si cambia el Perfil de Agencia (Logo/Nombre)
-    useEffect(() => {
-        const handleProfileUpdate = (e: any) => {
-            console.log("🔄 Cabecera actualizada en tiempo real:", e.detail);
-            setAgencyData((prev: any) => ({ ...prev, ...e.detail }));
-        };
-        window.addEventListener('agency-profile-updated', handleProfileUpdate);
-        return () => window.removeEventListener('agency-profile-updated', handleProfileUpdate);
-    }, []);
+    // 🛑 [ELIMINADO] El useEffect de 'agency-profile-updated' ha sido borrado
+    // para evitar que se muestren tus datos en lugar de los del dueño.
 
     // --- LÓGICA DE LIMPIEZA DE DATOS ---
     const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();

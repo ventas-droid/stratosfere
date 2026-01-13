@@ -33,11 +33,7 @@ export async function loginUser(formData: FormData) {
     return { success: true };
 }
 
-// =========================================================
-// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
-// =========================================================
-
-// A. MAPA GLOBAL (SOLUCIÓN DEFINITIVA A LOS 0 m² Y DATOS FALTANTES)
+// A. MAPA GLOBAL (CORREGIDO: AHORA TRAE LA IDENTIDAD DEL CREADOR)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -49,7 +45,22 @@ export async function getGlobalPropertiesAction() {
       orderBy: { createdAt: 'desc' },
       include: {
         images: true,
-        favoritedBy: { select: { userId: true } }
+        favoritedBy: { select: { userId: true } },
+        // 🔥 CRÍTICO: AQUÍ PEDIMOS LOS DATOS DEL DUEÑO A LA BASE DE DATOS
+        user: {
+            select: {
+                id: true,
+                name: true,
+                avatar: true,
+                companyName: true,  // Por si es Agencia
+                companyLogo: true,  // Por si es Agencia
+                role: true,
+                phone: true,
+                mobile: true,
+                cif: true,
+                licenseNumber: true
+            }
+        }
       }
     });
 
@@ -64,12 +75,38 @@ export async function getGlobalPropertiesAction() {
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
 
+        // 🔥 GESTIÓN DE IDENTIDAD: Preparamos los datos del dueño
+        const creator = p.user || {};
+        
+        // Si tiene nombre de empresa, usamos ese. Si no, el personal.
+        const finalName = creator.companyName || creator.name || "Usuario Stratos";
+        // Si tiene logo de empresa, usamos ese. Si no, el avatar personal.
+        const finalAvatar = creator.companyLogo || creator.avatar || null;
+        // Preferimos el móvil, si no el fijo.
+        const finalPhone = creator.mobile || creator.phone || null;
+
+        const ownerIdentity = {
+            name: finalName,
+            avatar: finalAvatar,
+            role: creator.role || "PARTICULAR",
+            phone: finalPhone,
+            isVerified: !!(creator.cif || creator.licenseNumber || creator.role === 'AGENCIA')
+        };
+
         return {
             ...p,
             id: p.id,
             coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
             images: allImages,
             img: realImg || null,
+            
+            // 🔥 AQUÍ ENVIAMOS EL "CARNET" DEL DUEÑO AL FRONTEND
+            user: ownerIdentity, 
+            
+            // Fallbacks por compatibilidad (para asegurar que se vea algo)
+            userName: finalName,
+            userAvatar: finalAvatar,
+            role: creator.role || "PARTICULAR",
             
             // PRECIO
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
@@ -84,13 +121,13 @@ export async function getGlobalPropertiesAction() {
             garage: p.garage,
             elevator: p.elevator,
 
-            // 🔥 DATOS CRÍTICOS RECUPERADOS (Aquí estaba el fallo de los 0m2 y N/D)
-            m2: Number(p.mBuilt || 0),             // Esto arregla la NanoCard vacía
-            mBuilt: Number(p.mBuilt || 0),         // Doble seguridad
-            communityFees: p.communityFees || 0,   // Esto arregla el Panel de Detalles
-            energyConsumption: p.energyConsumption,// Esto arregla la letra de consumo
-            energyEmissions: p.energyEmissions,    // Esto arregla la letra de emisiones
-            energyPending: p.energyPending         // Esto marca "En trámite" correctamente
+            // DATOS TÉCNICOS
+            m2: Number(p.mBuilt || 0),             
+            mBuilt: Number(p.mBuilt || 0),         
+            communityFees: p.communityFees || 0,   
+            energyConsumption: p.energyConsumption,
+            energyEmissions: p.energyEmissions,    
+            energyPending: p.energyPending         
         };
     });
 

@@ -1255,54 +1255,74 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
-  // --- 🔥 FUNCIÓN DE GUARDADO REAL (DB) ---
+  // --- 🔥 FUNCIÓN DE GUARDADO STRICT CLOUD (SIN FOTOS FALSAS) ---
   const handleSafeSave = async () => { 
       
-      // 1. LIMPIEZA DE DATOS
+      // 1. LIMPIEZA DE DATOS (Preparamos para enviar a la Nube)
       const cleanPayload = {
           ...formData,
-          // Aseguramos números para evitar errores en Prisma
+          // Convertimos textos a números para que la DB no proteste
           rooms: Number(formData.rooms || 0),
           baths: Number(formData.baths || 0),
           mBuilt: Number(formData.mBuilt || 0),
-          price: formData.price, // Se limpia en el servidor
-          // Coordenadas o Madrid por defecto
+          price: formData.price, 
+          // Si no hay GPS, usamos Madrid centro por seguridad técnica (pero nunca visual)
           coordinates: formData.coordinates || [-3.6883, 40.4280],
       };
 
-      console.log("📡 CONECTANDO CON SERVIDOR...", cleanPayload);
+      console.log("📡 SUBIENDO PROPIEDAD AL SERVIDOR...", cleanPayload);
 
       try {
-          // 2. DISPARO AL SERVIDOR (actions.ts)
+          // 2. DISPARO REAL A LA BASE DE DATOS
           const response = await savePropertyAction(cleanPayload);
 
           if (response.success && response.property) {
-              console.log("✅ PROPIEDAD GUARDADA EN NUBE. ID:", response.property.id);
+              console.log("✅ GUARDADO CONFIRMADO EN NUBE. ID:", response.property.id);
               
-              // 3. RECIBIMOS EL OBJETO REAL DE LA DB
+              // 3. CAPTURAMOS EL DATO FRESCO DEL SERVIDOR
               const serverProp = response.property;
               
-              // 4. PREPARAMOS EL FORMATO PARA EL MAPA
+              // 🔥 FIX DE IMAGEN REAL (CERO IMÁGENES DE RELLENO)
+              // Lógica: 
+              // A. ¿El servidor ya me devuelve la URL procesada? -> Úsala.
+              // B. ¿El servidor aún está procesando? -> Usa la que acabamos de subir en 'formData' (que es real).
+              // C. ¿No hay foto? -> NULL (Mejor que no salga nada a que salga una foto falsa).
+              
+              let secureImage = null;
+
+              if (serverProp.mainImage) {
+                  secureImage = serverProp.mainImage;
+              } else if (serverProp.images && serverProp.images.length > 0) {
+                  secureImage = serverProp.images[0].url;
+              } else if (formData.images && formData.images.length > 0) {
+                  // Fallback a la memoria local RECIENTE (pero es la foto real del usuario)
+                  secureImage = formData.images[0]; 
+              }
+
+              // 4. EMPAQUETAMOS PARA EL MAPA (VISUAL)
               const mapFormat = {
                   ...serverProp,
-                  // Reconstruimos coordenadas y precio para el frontend
                   coordinates: [serverProp.longitude, serverProp.latitude],
-                  img: serverProp.mainImage || (serverProp.images && serverProp.images[0]?.url),
+                  
+                  // Inyectamos la imagen REAL
+                  img: secureImage, 
+                  images: serverProp.images?.map((i:any) => i.url) || (secureImage ? [secureImage] : []),
+                  
                   price: new Intl.NumberFormat('es-ES').format(serverProp.price || 0),
                   selectedServices: serverProp.selectedServices
               };
 
-              // 5. ACTUALIZACIÓN EN TIEMPO REAL (SIN RECARGAR)
+              // 5. ACTUALIZACIÓN VISUAL (SIN RECARGAR LA PÁGINA)
               if (typeof window !== "undefined") {
-                  // A. Pinta la chincheta en el mapa
+                  // A. Pintar chincheta nueva (Con la foto REAL)
                   window.dispatchEvent(new CustomEvent("add-property-signal", { 
                       detail: mapFormat 
                   }));
                   
-                  // B. Avisa al Perfil para que recargue la lista de la DB
+                  // B. Avisar al Panel de Agencia (Portafolio) para que recargue de la Nube
                   window.dispatchEvent(new CustomEvent("reload-profile-assets"));
                   
-                  // C. Vuelo de cámara
+                  // C. Vuelo de cámara cinemático hacia la nueva propiedad
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent("map-fly-to", { 
                         detail: { center: mapFormat.coordinates, zoom: 18, pitch: 60, duration: 3000 } 
@@ -1310,19 +1330,17 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                   }, 500);
               }
 
-              // 6. MISIÓN CUMPLIDA: CERRAMOS EL HUD
+              // 6. CERRAR EL ASISTENTE
               handleClose(mapFormat);
 
           } else {
-              console.error("❌ Error Servidor:", response.error);
-              alert("Error al guardar: " + response.error);
+              alert("Error del servidor: " + response.error);
           }
       } catch (err) {
           console.error("❌ Fallo de red:", err);
-          alert("Error de conexión. Verifica tu internet.");
+          alert("Error crítico de conexión. Comprueba tu internet.");
       }
   };
-
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
       
