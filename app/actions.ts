@@ -60,7 +60,7 @@ export async function loginUser(formData: FormData) {
 // 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
 // =========================================================
 
-// EN: actions.ts
+// EN: actions.ts -> Sustituya getGlobalPropertiesAction completa
 
 export async function getGlobalPropertiesAction() {
   try {
@@ -73,33 +73,33 @@ export async function getGlobalPropertiesAction() {
       include: {
         images: true,
         favoritedBy: { select: { userId: true } },
-        // 🔥 EXTRACCIÓN QUIRÚRGICA DE LA IDENTIDAD
+        // 🔥 CONEXIÓN VITAL: Traemos al usuario FRESCO de la DB
         user: {
           select: {
             id: true,
-            role: true,             // EL DATO CRÍTICO
-            name: true,
+            role: true,             // Rol actual
+            name: true,             // Nombre actual
             surname: true,
             email: true,
-            avatar: true,           // FOTO PARTICULAR
-            companyName: true,      // NOMBRE AGENCIA
-            companyLogo: true,      // LOGO AGENCIA
-            coverImage: true,       // FONDO PERFIL (AMBOS)
-            phone: true,            // FIJO
-            mobile: true,           // MÓVIL (PRIORITARIO)
+            avatar: true,           // Foto actual (Particular)
+            companyName: true,      // Nombre empresa actual
+            companyLogo: true,      // Logo empresa actual
+            coverImage: true,       // Fondo actual
+            phone: true,            // Teléfono fijo actual
+            mobile: true,           // Móvil actual
             website: true,
             tagline: true,
             zone: true,
             cif: true,
             licenseNumber: true,
-            licenseType: true       // PACK DE LA AGENCIA
+            licenseType: true       
           }
         }
       }
     });
 
     const mappedProps = properties.map((p: any) => {
-        // 1. Gestión de Fotos
+        // 1. Gestión de Fotos Propiedad
         const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
         let allImages = (p.images || []).map((img: any) => img.url);
         if (allImages.length === 0 && realImg) allImages = [realImg];
@@ -109,35 +109,33 @@ export async function getGlobalPropertiesAction() {
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
 
-        // 3. FUSIÓN DE IDENTIDAD (PARA QUE LA NANO CARD NO TENGA DUDAS)
+        // 3. FUSIÓN DE IDENTIDAD (SIEMPRE FRESCA)
+        // Aquí usamos los datos que ACABAMOS de traer de la tabla User.
         const u = p.user || {};
         const isAgency = u.role === 'AGENCIA';
 
-        // Lógica de "Quién soy": Si es Agencia, usa datos corporativos. Si no, personales.
         const displayIdentity = {
             id: u.id,
             role: u.role || 'PARTICULAR',
             
-            // NOMBRE: Si es agencia -> Nombre Empresa. Si no -> Nombre Persona.
+            // NOMBRE: Si es agencia -> Empresa. Si no -> Persona.
             name: isAgency ? (u.companyName || u.name || "Agencia Stratos") : (u.name || "Usuario"),
             
-            // AVATAR: Si es agencia -> Logo Empresa. Si no -> Avatar Persona.
+            // AVATAR: Si es agencia -> Logo. Si no -> Avatar.
             avatar: isAgency ? (u.companyLogo || null) : (u.avatar || null),
             
-            // FONDO: Común para ambos
+            // FONDO
             coverImage: u.coverImage || null,
             
-            // CONTACTO: Prioridad al móvil
+            // CONTACTO
             phone: u.mobile || u.phone || null,
             email: u.email || null,
             website: u.website || null,
             
-            // EXTRAS AGENCIA:
+            // EXTRAS
             licenseType: u.licenseType || 'STARTER',
             tagline: isAgency ? (u.tagline || null) : null,
             zone: isAgency ? (u.zone || null) : null,
-            
-            // VERIFICACIÓN:
             isVerified: isAgency || !!u.cif
         };
 
@@ -148,11 +146,9 @@ export async function getGlobalPropertiesAction() {
             images: allImages,
             img: realImg || null,
             
-            // ✅ AQUÍ ESTÁ LA CLAVE: 
-            // La propiedad ahora lleva una mochila 'user' con la identidad exacta.
+            // ✅ MOCHILA ACTUALIZADA
             user: displayIdentity, 
 
-            // Datos Numéricos
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
             rawPrice: p.price,
             priceValue: p.price,
@@ -165,51 +161,6 @@ export async function getGlobalPropertiesAction() {
     return { success: true, data: mappedProps };
   } catch (error) {
     console.error("Error crítico en mapa global:", error);
-    // Devuelve array vacío para seguridad
-    return { success: false, data: [] };
-  }
-}
-// B. MIS PROPIEDADES (PERFIL)
-export async function getPropertiesAction() {
-  try {
-    const user = await getCurrentUser();
-    if (!user) return { success: false, data: [] };
-
-    const properties = await prisma.property.findMany({
-      where: { userId: user.id }, 
-      orderBy: { createdAt: 'desc' },
-      include: { images: true } 
-    });
-
-    const mappedProps = properties.map((p: any) => {
-        const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
-        let allImages = p.images.map((img: any) => img.url);
-        if (allImages.length === 0 && realImg) allImages = [realImg];
-
-        return {
-            ...p,
-            id: p.id,
-            coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
-            images: allImages,
-            img: realImg || null,
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            rawPrice: p.price,
-            pool: p.pool,
-            garage: p.garage,
-            elevator: p.elevator,
-
-            // 🔥 ASEGURAMOS CONSISTENCIA EN EL PERFIL TAMBIÉN
-            m2: Number(p.mBuilt || 0),
-            mBuilt: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0,
-            energyConsumption: p.energyConsumption,
-            energyEmissions: p.energyEmissions,
-            energyPending: p.energyPending
-        };
-    });
-
-    return { success: true, data: mappedProps };
-  } catch (error) {
     return { success: false, data: [] };
   }
 }
@@ -661,4 +612,51 @@ export async function deleteFromStockAction(propertyId: string) {
     } catch (e) {
         return { success: false, error: String(e) };
     }
+}// --- AÑADIR AL FINAL DE actions.ts ---
+
+// B. MIS PROPIEDADES (PERFIL) - Recuperada
+export async function getPropertiesAction() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, data: [] };
+
+    // Buscamos las propiedades donde el userId coincida con el usuario actual
+    const properties = await prisma.property.findMany({
+      where: { userId: user.id }, 
+      orderBy: { createdAt: 'desc' },
+      include: { images: true } 
+    });
+
+    const mappedProps = properties.map((p: any) => {
+        // Gestión de imagen principal
+        const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
+        let allImages = (p.images || []).map((img: any) => img.url);
+        if (allImages.length === 0 && realImg) allImages = [realImg];
+
+        return {
+            ...p,
+            id: p.id,
+            coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
+            images: allImages,
+            img: realImg || null,
+            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
+            rawPrice: p.price,
+            
+            // Datos normalizados
+            m2: Number(p.mBuilt || 0),
+            mBuilt: Number(p.mBuilt || 0),
+            communityFees: p.communityFees || 0,
+            
+            // Booleanos seguros
+            pool: !!p.pool,
+            garage: !!p.garage,
+            elevator: !!p.elevator
+        };
+    });
+
+    return { success: true, data: mappedProps };
+  } catch (error) {
+    console.error("Error getPropertiesAction:", error);
+    return { success: false, data: [] };
+  }
 }
