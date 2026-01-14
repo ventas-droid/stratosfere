@@ -32,7 +32,7 @@ function PageContent() {
 
   // 4. DESPLIEGUE VISUAL
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black">
+    <div className="relative w-screen h-screen overflow-hidden bg-[#F5F5F7]">
       
       {/* CAPA 1: EL MAPA */}
       <AliveMap 
@@ -59,7 +59,13 @@ function PageContent() {
 // --- EXPORTACIÓN BLINDADA (CON SUSPENSE) ---
 export default function Page() {
   return (
-    <Suspense fallback={<div className="w-screen h-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">CARGANDO STRATOSFERE...</div>}>
+    <Suspense fallback={
+      <div className="w-screen h-screen bg-[#F5F5F7] flex items-center justify-center">
+        <div className="w-48 h-1 bg-[#D1D1D6] rounded-full overflow-hidden">
+            <div className="h-full bg-[#8E8E93] animate-pulse w-full"></div>
+        </div>
+      </div>
+    }>
       <PageContent />
     </Suspense>
   )
