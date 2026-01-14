@@ -56,7 +56,7 @@ model Property {
   id                String    @id @default(cuid())
   userId            String?
   user              User?     @relation(fields: [userId], references: [id])
-  
+
   // Ubicación
   address           String
   city              String?
@@ -64,7 +64,7 @@ model Property {
   postcode          String?
   latitude          Float?
   longitude         Float?
-  
+
   // Detalles Básicos
   type              String    @default("Piso")
   floor             String?
@@ -74,7 +74,7 @@ model Property {
   mBuilt            Float
   rooms             Int
   baths             Int
-  
+
   // Amenities
   pool              Boolean   @default(false)
   garage            Boolean   @default(false)
@@ -84,31 +84,35 @@ model Property {
   ac                Boolean   @default(false)
   security          Boolean   @default(false)
   exterior          Boolean   @default(true)
-  
+
   // Datos Comerciales
   title             String?
   description       String?   @db.Text
   price             Float?
   communityFees     Float?
-  
+
   // Energía
   energyConsumption String?
   energyEmissions   String?
   energyPending     Boolean   @default(false)
-  
+
   // Multimedia y Servicios
   mainImage         String?
   images            Image[]
   selectedServices  String[]
   serviceOrders     ServiceOrder[]
-  
+
   // Estado Sistema
   status            String    @default("BORRADOR")
   views             Int       @default(0)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  
+
+  // Relaciones
   favoritedBy       Favorite[]
+
+  // --- NUEVO: snapshot con la identidad/branding del creador ---
+  ownerSnapshot     Json?     // { id, name, companyName, companyLogo, avatar, phone, mobile, coverImage, tagline, role }
 }
 
 model Image {
@@ -142,4 +146,3 @@ model Favorite {
   @@index([userId])
   @@index([propertyId])
 }
-
