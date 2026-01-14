@@ -42,15 +42,12 @@ export default function AgencyDetailsPanel({
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    // 🔥 1. ESTADO PARA LOS DATOS DEL DUEÑO (LIVE)
-    // Inicializamos con lo que viene de la propiedad, pero permitimos que cambie en vivo
-    const [ownerData, setOwnerData] = useState(initialAgencyData || initialProp?.user || {});
+    const [ownerData, setOwnerData] = useState(initialAgencyData || initialProp?.ownerSnapshot || initialProp?.user || {});
 
-    // Sincronizar si cambia la propiedad seleccionada (clic en el mapa)
-    useEffect(() => { 
-        setSelectedProp(initialProp); 
-        setOwnerData(initialAgencyData || initialProp?.user || {});
-    }, [initialProp, initialAgencyData]);
+useEffect(() => { 
+  setSelectedProp(initialProp); 
+  setOwnerData(initialAgencyData || initialProp?.ownerSnapshot || initialProp?.user || {});
+}, [initialProp, initialAgencyData]);
 
     // 🔥 2. PUENTE DE SINCRONIZACIÓN (LA SOLUCIÓN)
     // Escuchamos si el usuario edita su perfil en el panel derecho

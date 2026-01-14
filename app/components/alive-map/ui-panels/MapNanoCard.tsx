@@ -291,18 +291,24 @@ const payload = {
   isFav: action === "fav" ? targetState : liked,
   coordinates: navCoords,
 
-  user: (props?.user || data?.user)
-  ? {
-      ...(props?.user || data?.user),
-      // ✅ Asegura que user.role exista siempre
-      role:
-        (props?.user || data?.user)?.role ||
-        props?.role ||
-        data?.role ||
-        data?.user?.role ||
-        null,
-    }
-  : null,
+   // --- OwnerSnapshot priority: use ownerSnapshot if available, else fallback to user ---
+  ownerSnapshot: (data?.ownerSnapshot || props?.ownerSnapshot) ?? null,
+
+  user: (data?.ownerSnapshot || props?.ownerSnapshot || props?.user || data?.user)
+    ? {
+        // prefer the snapshot fields first, then fall back to user
+        ...(data?.ownerSnapshot || props?.ownerSnapshot || props?.user || data?.user),
+
+        // ensure role is present
+        role:
+          (data?.ownerSnapshot || props?.user || data?.user)?.role ||
+          props?.role ||
+          data?.role ||
+          data?.user?.role ||
+          null,
+      }
+    : null,
+
 
 // ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
 userName: props?.userName || data?.userName || null,

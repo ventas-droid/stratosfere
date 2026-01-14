@@ -31,20 +31,18 @@ export default function DetailsPanel({ selectedProp: initialProp, onClose, onTog
 
     // 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
     // Confiamos en el paquete 'user' normalizado que preparó actions.ts
-    const owner = selectedProp?.user || {};
-    
-    // 1. Identidad Visual
-    // actions.ts ya decide si mandar nombre/logo de empresa o personal en los campos 'name' y 'avatar'.
-    // Los '||' son solo seguridad extra.
-    const ownerName   = owner.name || owner.companyName || "Propietario";
-    const ownerAvatar = owner.avatar || owner.companyLogo || null; 
-    const ownerCover  = owner.coverImage || null; // Fondo de Perfil (Unificado en DB)
+   // PRIORIDAD: ownerSnapshot -> user
+const ownerFromSnapshot = (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === 'object')
+  ? selectedProp.ownerSnapshot
+  : (selectedProp?.user || {});
 
-    // 2. Contacto y Rol
-    // Prioridad absoluta al Móvil sobre el Fijo
-    const ownerPhone  = owner.mobile || owner.phone || "Consultar"; 
-    const ownerEmail  = owner.email  || "---";
-    const ownerRole   = owner.role   || "PARTICULAR";
+const ownerName   = ownerFromSnapshot.companyName || ownerFromSnapshot.name || "Propietario";
+const ownerAvatar = ownerFromSnapshot.companyLogo || ownerFromSnapshot.avatar || null;
+const ownerCover  = ownerFromSnapshot.coverImage || ownerFromSnapshot.cover || null;
+const ownerPhone  = ownerFromSnapshot.mobile || ownerFromSnapshot.phone || "Consultar";
+const ownerEmail  = ownerFromSnapshot.email || "---";
+const ownerRole   = (ownerFromSnapshot.role || "PARTICULAR").toUpperCase();
+
 
     // Listener para actualizaciones en vivo (Nano Card -> Detalle)
     useEffect(() => {
