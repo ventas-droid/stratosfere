@@ -51,14 +51,23 @@ export const LUXURY_IMAGES = [
   "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
 ];
 
-// HERRAMIENTA DE REPARACIÓN DE DATOS E INYECCIÓN DE NANO CARDS
+// HERRAMIENTA DE REPARACIÓN DE DATOS E INYECCIÓN DE NANO CARDS (CORREGIDA Y BLINDADA)
 export const sanitizePropertyData = (p: any) => {
   if (!p) return null;
 
+  // 1. APLANADO INTELIGENTE
+  // Usamos { ...p } en el else para crear una copia y poder modificarla sin afectar al original
   const base = p?.property
     ? { ...p.property, propertyId: p.propertyId, favoriteId: p.id }
-    : p;
+    : { ...p };
 
+  // 🔥 FIX CRÍTICO: RESCATE DEL DUEÑO
+  // Si el objeto padre 'p' tiene 'user' (el creador) pero 'base' lo perdió al aplanar, lo recuperamos.
+  if (!base.user && p.user) {
+      base.user = p.user;
+  }
+
+  // 2. GESTIÓN DE IMÁGENES (Lógica original conservada)
   let safeImages: string[] = [];
   if (Array.isArray(base.images) && base.images.length > 0) {
     safeImages = base.images
@@ -70,12 +79,16 @@ export const sanitizePropertyData = (p: any) => {
     safeImages = [base.mainImage].filter(Boolean);
   }
 
+  // 3. GESTIÓN DE PRECIOS (Lógica original conservada)
   const safePrice = Number(
     base.priceValue || base.rawPrice || String(base.price).replace(/\D/g, "") || 0
   );
 
-  const safeId = String(base.propertyId || base.id || base._id || base.uuid || Date.now());
+const safeIdRaw = base.propertyId ?? base.id ?? base._id ?? base.uuid;
+if (!safeIdRaw) return null; // ✅ sin id real, no inventamos
+const safeId = String(safeIdRaw);
 
+  // 4. GESTIÓN DE COORDENADAS (Lógica original conservada al 100%)
   const lngRaw =
     base.lng ??
     base.longitude ??
@@ -96,6 +109,7 @@ export const sanitizePropertyData = (p: any) => {
   const hasCoords = Number.isFinite(lng) && Number.isFinite(lat);
   const coordinates = hasCoords ? [lng as number, lat as number] : undefined;
 
+  // 5. REQUISITOS (Lógica original conservada)
   let nanoRequirements = base.requirements || [];
   if (!Array.isArray(nanoRequirements)) nanoRequirements = [];
 
@@ -111,6 +125,7 @@ export const sanitizePropertyData = (p: any) => {
     }
   }
 
+  // 6. RETORNO FINAL
   return {
     ...base,
     id: safeId,
@@ -128,6 +143,20 @@ export const sanitizePropertyData = (p: any) => {
     communityFees: base.communityFees || 0,
     mBuilt: Number(base.mBuilt || base.m2 || 0),
     requirements: nanoRequirements,
+   
+    // 🔥 ASEGURAMOS QUE EL DUEÑO VIAJE SIEMPRE AL FRONTEND (blindado)
+user: (base.user || p.user)
+  ? {
+      ...(base.user || p.user),
+      role: (base.user || p.user)?.role || base?.role || null,
+      companyName: (base.user || p.user)?.companyName || base?.companyName || null,
+      companyLogo: (base.user || p.user)?.companyLogo || base?.companyLogo || null,
+      cif: (base.user || p.user)?.cif || base?.cif || null,
+      licenseNumber: (base.user || p.user)?.licenseNumber || base?.licenseNumber || null,
+    }
+  : null,
+
+
   };
 };
 
@@ -1056,49 +1085,54 @@ useEffect(() => {
        {/* 5. INSPECTOR Y DETALLES (DUAL: MODO AGENCIA vs USUARIO) */}
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
            
+    {/* =========================================================
+               EL PORTERO: DECIDE SI ABRIR COLUMNA AGENCIA O PARTICULAR
+               ========================================================= */}
            {activePanel === 'DETAILS' && (
-               systemMode === 'AGENCY' ? (
-                   // 🔥 VERSIÓN AGENCIA (CORREGIDA)
-                   <AgencyDetailsPanel 
-                       selectedProp={selectedProp} 
-                       onClose={() => setActivePanel('NONE')} 
-                       onToggleFavorite={handleToggleFavorite} 
-                       favorites={localFavs}
-                       onOpenInspector={() => setActivePanel('INSPECTOR')}
-                       
-                       // 🛑 ANTES: agencyData={agencyProfileData} (ERROR: Pasaba tus datos)
-                       // ✅ AHORA: Extraemos los datos del DUEÑO de la propiedad seleccionada
-                       agencyData={{
-                           // 1. Nombre del dueño
-                           name: selectedProp?.user?.name || selectedProp?.userName || selectedProp?.ownerName || "Usuario Stratos",
-                           
-                           // 2. Foto del dueño
-                           avatar: selectedProp?.user?.avatar || selectedProp?.userAvatar || selectedProp?.ownerAvatar || null,
-                           
-                           // 3. Rol del dueño (Agencia o Particular)
-                           role: selectedProp?.user?.role || selectedProp?.role || "PARTICULAR",
-                           
-                           // 4. Verificación y Teléfono
-                           isVerified: selectedProp?.user?.isVerified ?? selectedProp?.isVerified ?? false,
-                           phone: selectedProp?.user?.phone || selectedProp?.phone || null
-                       }}
-                   />
-               ) : (
-                   // VERSIÓN USUARIO (Sin cambios)
-                   <DetailsPanel 
-                       selectedProp={selectedProp} 
-                       onClose={() => setActivePanel('NONE')} 
-                       onToggleFavorite={handleToggleFavorite} 
-                       favorites={localFavs} 
-                       soundEnabled={soundEnabled} 
-                       playSynthSound={playSynthSound} 
-                       onOpenInspector={() => setActivePanel('INSPECTOR')} 
-                   />
-               )
+               (() => {
+                   const owner = selectedProp?.user || null;
+
+// fallbacks por si algún payload trae role/company en root
+const ownerRole = String(owner?.role || selectedProp?.role || "").toUpperCase();
+const ownerCompanyName = owner?.companyName || selectedProp?.companyName || null;
+const ownerCompanyLogo = owner?.companyLogo || selectedProp?.companyLogo || null;
+const ownerCif = owner?.cif || selectedProp?.cif || null;
+const ownerLicense = owner?.licenseNumber || selectedProp?.licenseNumber || null;
+
+const isAgency =
+  ownerRole === "AGENCIA" ||
+  ownerRole === "AGENCY" ||
+  !!ownerCompanyName ||
+  !!ownerCompanyLogo ||
+  !!ownerCif ||
+  !!ownerLicense;
+  
+
+                   // 3. ABRIMOS LA PUERTA CORRESPONDIENTE
+                   return isAgency ? (
+                       <AgencyDetailsPanel 
+                           selectedProp={selectedProp} 
+                           onClose={() => setActivePanel('NONE')} 
+                           onToggleFavorite={handleToggleFavorite} 
+                           favorites={localFavs}
+                           onOpenInspector={() => setActivePanel('INSPECTOR')}
+                           agencyData={owner} // <--- CLAVE: Pasamos el dueño
+                       />
+                   ) : (
+                       <DetailsPanel 
+                           selectedProp={selectedProp} 
+                           onClose={() => setActivePanel('NONE')} 
+                           onToggleFavorite={handleToggleFavorite} 
+                           favorites={localFavs} 
+                           soundEnabled={soundEnabled} 
+                           playSynthSound={playSynthSound} 
+                           onOpenInspector={() => setActivePanel('INSPECTOR')} 
+                       />
+                   );
+               })()
            )}
        </div>
-      
-      
+    
        {/* =================================================================
            CAPA ORBITAL (Z-20000) - CHAT E INTELIGENCIA ARTIFICIAL
            Siempre flotando sobre todo lo demás.

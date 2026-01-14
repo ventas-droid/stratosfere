@@ -33,56 +33,66 @@ export async function loginUser(formData: FormData) {
     return { success: true };
 }
 
-// A. MAPA GLOBAL (CORREGIDO: AHORA TRAE LA IDENTIDAD DEL CREADOR)
+// =========================================================
+// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
+// =========================================================
+
+// A. MAPA GLOBAL (CORREGIDO: TRAE LA IDENTIDAD COMPLETA DEL CREADOR)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
     const currentUserId = user?.id;
 
-    // Traemos TODAS las publicadas
-    const properties = await prisma.property.findMany({
-      where: { status: 'PUBLICADO' },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        images: true,
-        favoritedBy: { select: { userId: true } },
-        // 🔥 CRÍTICO: AQUÍ PEDIMOS LOS DATOS DEL DUEÑO A LA BASE DE DATOS
-        user: {
-            select: {
-                id: true,
-                name: true,
-                avatar: true,
-                companyName: true,  // Por si es Agencia
-                companyLogo: true,  // Por si es Agencia
-                role: true,
-                phone: true,
-                mobile: true,
-                cif: true,
-                licenseNumber: true
-            }
-        }
-      }
-    });
+   // actions.ts — dentro de getGlobalPropertiesAction()
+
+const properties = await prisma.property.findMany({
+  where: { status: 'PUBLICADO' },
+  orderBy: { createdAt: 'desc' },
+  include: {
+    images: true,
+    favoritedBy: { select: { userId: true } },
+   user: {
+  select: {
+    id: true,
+    role: true,
+    name: true,
+    surname: true,
+    avatar: true,
+    companyName: true,
+    companyLogo: true,
+    coverImage: true,
+    phone: true,
+    mobile: true,
+    website: true,
+    tagline: true,
+    zone: true,
+    cif: true,               // ✅ AÑADIR
+    licenseNumber: true,     // ✅ AÑADIR
+  }
+}
+ }
+});
+
 
     const mappedProps = properties.map((p: any) => {
-        // Gestión de fotos (Prioridad: Galería -> Portada -> Null)
+        // 1. Gestión de Fotos
         const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
         let allImages = p.images.map((img: any) => img.url);
         if (allImages.length === 0 && realImg) allImages = [realImg];
 
-        // Verificar si yo le di like
+        // 2. Gestión de Favoritos
         const isFavoritedByMe = currentUserId
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
 
-        // 🔥 GESTIÓN DE IDENTIDAD: Preparamos los datos del dueño
+        // 3. 🔥 GESTIÓN DE IDENTIDAD (El arreglo visual)
         const creator = p.user || {};
         
-        // Si tiene nombre de empresa, usamos ese. Si no, el personal.
+        // Prioridad: Nombre Empresa > Nombre Persona > "Usuario Stratos"
         const finalName = creator.companyName || creator.name || "Usuario Stratos";
-        // Si tiene logo de empresa, usamos ese. Si no, el avatar personal.
+        // Prioridad: Logo Empresa > Avatar Persona > Null
         const finalAvatar = creator.companyLogo || creator.avatar || null;
-        // Preferimos el móvil, si no el fijo.
+        // Teléfono: Móvil > Fijo > Null
         const finalPhone = creator.mobile || creator.phone || null;
 
         const ownerIdentity = {
@@ -100,34 +110,33 @@ export async function getGlobalPropertiesAction() {
             images: allImages,
             img: realImg || null,
             
-            // 🔥 AQUÍ ENVIAMOS EL "CARNET" DEL DUEÑO AL FRONTEND
-            user: ownerIdentity, 
+           // 🔥 CLAVE: NO PIERDAS LOS CAMPOS REALES DEL CREADOR
+user: { ...creator, ...ownerIdentity },
+
             
-            // Fallbacks por compatibilidad (para asegurar que se vea algo)
+            // Fallbacks de compatibilidad
             userName: finalName,
             userAvatar: finalAvatar,
             role: creator.role || "PARTICULAR",
             
-            // PRECIO
+            // Datos Numéricos
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
             rawPrice: p.price,
             priceValue: p.price,
-            
-            // ESTADO
             isFavorited: isFavoritedByMe,
 
-            // EXTRAS BÁSICOS
+            // Extras
             pool: p.pool,
             garage: p.garage,
             elevator: p.elevator,
 
-            // DATOS TÉCNICOS
-            m2: Number(p.mBuilt || 0),             
-            mBuilt: Number(p.mBuilt || 0),         
-            communityFees: p.communityFees || 0,   
+            // Datos Técnicos
+            m2: Number(p.mBuilt || 0),
+            mBuilt: Number(p.mBuilt || 0),
+            communityFees: p.communityFees || 0,
             energyConsumption: p.energyConsumption,
-            energyEmissions: p.energyEmissions,    
-            energyPending: p.energyPending         
+            energyEmissions: p.energyEmissions,
+            energyPending: p.energyPending
         };
     });
 
@@ -137,6 +146,8 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
+
+
 
 // B. MIS PROPIEDADES (PERFIL)
 export async function getPropertiesAction() {
@@ -183,7 +194,7 @@ export async function getPropertiesAction() {
   }
 }
 
-// C. GUARDAR PROPIEDAD (ESCRITURA BLINDADA)
+// C. GUARDAR PROPIEDAD (ESCRITURA BLINDADA Y CORREGIDA)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
@@ -192,7 +203,7 @@ export async function savePropertyAction(data: any) {
     // Limpieza de Precio
     const cleanPrice = parseFloat(String(data.price).replace(/\D/g, '') || '0');
     
-    // 🔥 LIMPIEZA DE M2 "AGRESIVA": Busca en mBuilt, m2 o surface
+    // 🔥 LIMPIEZA DE M2 "AGRESIVA"
     const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
     const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
     
@@ -212,7 +223,7 @@ export async function savePropertyAction(data: any) {
         title: data.title || `Propiedad en ${data.city}`,
         description: data.description || "",
         price: cleanPrice,
-        mBuilt: cleanM2, // Aquí guardamos el valor limpio
+        mBuilt: cleanM2,
         address: data.address || "Dirección desconocida",
         city: data.city || "Madrid",
         latitude: data.coordinates ? data.coordinates[1] : 40.4168,
@@ -229,7 +240,7 @@ export async function savePropertyAction(data: any) {
         mainImage: mainImage,
         status: 'PUBLICADO', 
 
-        // 🔥 MAPEO EXACTO AL ESQUEMA DE PRISMA (CORREGIDO communityFees)
+        // MAPEO EXACTO AL ESQUEMA
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
         energyEmissions: data.energyEmissions || null,     
@@ -237,6 +248,26 @@ export async function savePropertyAction(data: any) {
     };
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
+    
+    // 🔥 ESTA ES LA CORRECCIÓN: Definimos qué queremos que nos devuelva la BD
+    const includeOptions = { 
+        images: true,
+        user: { // <--- AÑADIDO CRÍTICO: Devolvemos la identidad del dueño
+            select: {
+                id: true,
+                name: true,
+                avatar: true,
+                companyName: true,
+                companyLogo: true,
+                role: true,
+                phone: true,
+                mobile: true,
+                cif: true,
+                licenseNumber: true
+            }
+        }
+    };
+
     let result;
 
     if (data.id && data.id.length > 20) { 
@@ -247,20 +278,20 @@ export async function savePropertyAction(data: any) {
             result = await prisma.property.update({
                 where: { id: data.id },
                 data: { ...payload, images: imageCreateLogic },
-                include: { images: true }
+                include: includeOptions // <--- USAMOS EL INCLUDE COMPLETO
             });
         } else {
-             // Si el ID es raro, creamos nueva por seguridad
+             // Si el ID es raro, creamos nueva
              result = await prisma.property.create({ 
                  data: { ...payload, images: imageCreateLogic },
-                 include: { images: true }
+                 include: includeOptions // <--- USAMOS EL INCLUDE COMPLETO
              });
         }
     } else {
         // CREACIÓN
         result = await prisma.property.create({ 
             data: { ...payload, images: imageCreateLogic },
-            include: { images: true }
+            include: includeOptions // <--- USAMOS EL INCLUDE COMPLETO
         });
     }
 
@@ -271,19 +302,21 @@ export async function savePropertyAction(data: any) {
   }
 }
 
-// D. BORRAR PROPIEDAD
+// D. BORRAR PROPIEDAD (AÑADIR ESTO PARA ARREGLAR EL ERROR)
 export async function deletePropertyAction(id: string) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
+    
+    // Borramos solo si pertenece al usuario actual
     await prisma.property.deleteMany({ where: { id: id, userId: user.id } });
+    
     revalidatePath('/');
     return { success: true };
   } catch (error) {
     return { success: false, error: String(error) };
   }
 }
-
 // =========================================================
 // ❤️ 3. USUARIO Y FAVORITOS (FUNCIONES QUE FALTABAN)
 // =========================================================
@@ -385,59 +418,90 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
 
 // H. LEER FAVORITOS (BÓVEDA) ✅ UNIFICADO CON GLOBAL/PERFIL
 export async function getFavoritesAction() {
-    const user = await getCurrentUser();
-    if (!user) return { success: false, data: [] };
+  const user = await getCurrentUser();
+  if (!user) return { success: false, data: [] };
 
-    const favs = await prisma.favorite.findMany({
-        where: { userId: user.id },
-        include: { property: { include: { images: true } } }
-    });
+  const favs = await prisma.favorite.findMany({
+    where: { userId: user.id },
+    include: {
+      property: {
+        include: {
+          images: true,
+          user: {
+            select: {
+              id: true,
+              role: true,
+              name: true,
+              surname: true,
+              avatar: true,
+              companyName: true,
+              companyLogo: true,
+              coverImage: true,
+              phone: true,
+              mobile: true,
+              website: true,
+              tagline: true,
+              zone: true,
+              cif: true,
+              licenseNumber: true,
+            },
+          },
+        },
+      },
+    },
+  });
 
-    const cleanFavs = favs.map(f => {
-        const p: any = f.property;
-        if (!p) return null;
+  const cleanFavs = favs
+    .map((f) => {
+      const p: any = f.property;
+      if (!p) return null;
 
-        // Imágenes consistentes
-        let allImages = (p.images || []).map((img: any) => img.url);
-        if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
-        const realImg = allImages[0] || null;
+      // Imágenes consistentes
+      let allImages = (p.images || []).map((img: any) => img.url);
+      if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
+      const realImg = allImages[0] || null;
 
-        const lng = (p.longitude ?? -3.7038);
-        const lat = (p.latitude ?? 40.4168);
+      const lng = p.longitude ?? -3.7038;
+      const lat = p.latitude ?? 40.4168;
 
-        return {
-            ...p,
-            id: p.id,
+      return {
+        ...p,
+        id: p.id,
 
-            // ✅ COORDENADAS PARA “VOLAR”
-            coordinates: [lng, lat],
-            lng,
-            lat,
+        // ✅ CLAVE: identidad del creador para que el "portero" funcione
+        user: p.user,
 
-            // ✅ Imágenes coherentes con el mapa/global
-            images: allImages,
-            img: realImg,
+        // ✅ COORDENADAS PARA “VOLAR”
+        coordinates: [lng, lat],
+        lng,
+        lat,
 
-            // ✅ Favorito
-            isFavorited: true,
+        // ✅ Imágenes coherentes con el mapa/global
+        images: allImages,
+        img: realImg,
 
-            // ✅ Precio numérico estable
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            rawPrice: p.price,
-            priceValue: p.price,
+        // ✅ Favorito
+        isFavorited: true,
 
-            // ✅ Datos críticos
-            m2: Number(p.mBuilt || 0),
-            mBuilt: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0,
-            energyConsumption: p.energyConsumption,
-            energyEmissions: p.energyEmissions,
-            energyPending: p.energyPending
-        };
-    }).filter(Boolean);
+        // ✅ Precio numérico estable
+        price: new Intl.NumberFormat("es-ES").format(p.price || 0),
+        rawPrice: p.price,
+        priceValue: p.price,
 
-    return { success: true, data: cleanFavs };
+        // ✅ Datos críticos
+        m2: Number(p.mBuilt || 0),
+        mBuilt: Number(p.mBuilt || 0),
+        communityFees: p.communityFees || 0,
+        energyConsumption: p.energyConsumption,
+        energyEmissions: p.energyEmissions,
+        energyPending: p.energyPending,
+      };
+    })
+    .filter(Boolean);
+
+  return { success: true, data: cleanFavs };
 }
+
 // =========================================================
 // 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO)
 // =========================================================

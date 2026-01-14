@@ -175,7 +175,7 @@ export default function AgencyPortfolioPanel({
                                   {/* RENDERIZADO DINÁMICO DE LOS PRIMEROS 4 SERVICIOS */}
                                   {serviceIds.slice(0, 4).map((srvId: string) => {
                                       const key = normalizeKey(srvId);
-                                      const Icon = ICON_MAP[key] || ICON_MAP[srvId] || Sparkles;
+                                      const Icon = ICON_MAP[key] || ICON_MAP[normalizeKey(srvId)] || Sparkles;
                                       const isPack = key.startsWith('pack');
                                       const label = srvId.replace('pack_', '').replace(/_/g, ' ');
 

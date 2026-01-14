@@ -36,20 +36,21 @@ export default function AgencyDetailsPanel({
   onToggleFavorite, 
   favorites = [], 
   onOpenInspector,
-  agencyData: initialAgencyData // <--- RECIBIMOS DATOS INICIALES
+  agencyData: initialAgencyData // <--- RECIBIMOS EL DATO (Puede ser null)
 }: any) {
     
+    // 1. ESTADO DE LA PROPIEDAD (Para actualizaciones en vivo)
     const [selectedProp, setSelectedProp] = useState(initialProp);
-    // 🔥 ESTADO INTERNO PARA ACTUALIZACIÓN EN VIVO DEL PERFIL
-    const [agencyData, setAgencyData] = useState(initialAgencyData);
-
-    // 1. Sincronizar Propiedad
+    
+    // 2. SINCRONIZACIÓN (Si cambias de casa en el mapa, actualizamos aquí)
     useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
 
-    // 2. Sincronizar Datos de Agencia (Inicial)
-    useEffect(() => { setAgencyData(initialAgencyData); }, [initialAgencyData]);
+    // 🔥 CORRECCIÓN MAESTRA: DATOS DEL DUEÑO DIRECTOS (SIN MEMORIA)
+    // No usamos useState aquí. Leemos directamente lo que entra.
+    // Prioridad: Lo que manda el index > El usuario de la propiedad > Objeto vacío
+    const activeData = initialAgencyData || selectedProp?.user || {};
 
-    // 3. 🔥 ESCUCHA ACTIVA: Si cambia la propiedad (Precios/Servicios)
+    // 3. ESCUCHA ACTIVA (Para cambios de precio en tiempo real)
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -61,9 +62,13 @@ export default function AgencyDetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-    // 🛑 [ELIMINADO] El useEffect de 'agency-profile-updated' ha sido borrado
-    // para evitar que se muestren tus datos en lugar de los del dueño.
-
+    // --- VARIABLES DE IDENTIDAD (PARA USAR EN EL HTML MÁS ABAJO) ---
+    const name = activeData.companyName || activeData.name || "Usuario Stratos";
+    const avatar = activeData.companyLogo || activeData.avatar || null;
+    const role = activeData.role || "PARTICULAR";
+    const phone = activeData.phone || activeData.mobile || null;
+    const isVerified = !!(activeData.cif || activeData.licenseNumber);
+    
     // --- LÓGICA DE LIMPIEZA DE DATOS ---
     const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
     
@@ -116,11 +121,8 @@ export default function AgencyDetailsPanel({
         return map[rating] || "bg-gray-400";
     };
 
-    // --- DATOS DE CABECERA ---
-    const name = agencyData?.companyName || agencyData?.name || "Mi Agencia";
-    const avatar = agencyData?.avatar;
-    const role = "Agente Certificado"; 
-
+  
+   
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             {/* FONDO CRYSTAL */}
@@ -163,9 +165,9 @@ export default function AgencyDetailsPanel({
                                 <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-blue-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
                                     <Briefcase size={12}/> {role}
                                 </span>
-                                {agencyData?.phone && (
+                               {phone && (  // <--- CAMBIAR agencyData.phone POR phone
                                     <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-emerald-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
-                                        <Phone size={12}/> {agencyData.phone}
+                                        <Phone size={12}/> {phone}
                                     </span>
                                 )}
                             </div>

@@ -271,26 +271,45 @@ const handleAction = (e: React.MouseEvent, action: string) => {
   const finalImg = finalAlbum[0] || null;
 
   // 3. PAQUETE DE DATOS (PRECIO FRESCO + IMAGEN LIMPIA)
-  const payload = {
-    id: String(id),
-    ...props,
-    ...data,
+const payload = {
+  id: String(id),
+  ...props,
+  ...data,
 
-    // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
-    price: currentPrice,
-    formattedPrice: displayLabel,
-    priceValue: currentPrice,
-    rawPrice: currentPrice,
+  // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
+  price: currentPrice,
+  formattedPrice: displayLabel,
+  priceValue: currentPrice,
+  rawPrice: currentPrice,
 
-    // FOTOS LIMPIAS
-    img: finalImg,
-    images: finalAlbum,
+  // FOTOS LIMPIAS
+  img: finalImg,
+  images: finalAlbum,
 
-    type: type,
-    location: (city || location || address || "MADRID").toUpperCase(),
-    isFav: action === "fav" ? targetState : liked,
-    coordinates: navCoords,
-  };
+  type: type,
+  location: (city || location || address || "MADRID").toUpperCase(),
+  isFav: action === "fav" ? targetState : liked,
+  coordinates: navCoords,
+
+  user: (props?.user || data?.user)
+  ? {
+      ...(props?.user || data?.user),
+      // ✅ Asegura que user.role exista siempre
+      role:
+        (props?.user || data?.user)?.role ||
+        props?.role ||
+        data?.role ||
+        data?.user?.role ||
+        null,
+    }
+  : null,
+
+// ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
+userName: props?.userName || data?.userName || null,
+userAvatar: props?.userAvatar || data?.userAvatar || null,
+role: props?.role || data?.role || data?.user?.role || null,
+};
+
 
   // 4. DISPARO DE SEÑALES (SIN ROMPER NADA)
   if (action === "fav") {

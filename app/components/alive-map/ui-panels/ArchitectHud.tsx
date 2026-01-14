@@ -530,15 +530,15 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
 
                     {step === "VERIFY" && <StepVerify formData={formData} setStep={setStep} />}
                     
-                    {step === "SECURITY" && <StepSecurity setStep={setStep} setLoading={setLoading} />}
+                   {step === "SECURITY" && <StepSecurity setStep={setStep} setLoading={setLoading} />}
                     
-                   step === "SUCCESS" && (
+                    {/* 🔥 CORRECCIÓN: FALTABA LA LLAVE DE APERTURA AQUÍ */}
+                    {step === "SUCCESS" && (
                         <StepSuccess
                             formData={formData} 
                             handleClose={(payload: any) => {
                                 // 1. Limpieza de LocalStorage (Eliminamos residuos antiguos)
                                 if (typeof window !== "undefined") {
-                                    // 🔥 YA NO GUARDAMOS AQUÍ. EL SERVER YA LO HIZO EN savePropertyAction.
                                     // Solo emitimos señales para refrescar la vista.
                                     window.dispatchEvent(new CustomEvent("reload-profile-assets"));
                                     window.dispatchEvent(new CustomEvent("force-map-refresh"));
@@ -547,7 +547,7 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
                                 closeWizard(payload);
                             }}
                         />
-                    )
+                    )}
                 </div>
               </div>
 
@@ -1299,15 +1299,18 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                   secureImage = formData.images[0]; 
               }
 
-              // 4. EMPAQUETAMOS PARA EL MAPA (VISUAL)
+             // 4. EMPAQUETAMOS PARA EL MAPA (VISUAL)
               const mapFormat = {
                   ...serverProp,
                   coordinates: [serverProp.longitude, serverProp.latitude],
                   
-                  // Inyectamos la imagen REAL
+                  // 🔥 AÑADIDO CLAVE: Le pegamos el carnet de identidad (Agencia/Particular)
+                  // Esto hace que el panel sepa si abrirse en Negro o Blanco al instante.
+                  user: serverProp.user, 
+
+                  // Resto de datos visuales...
                   img: secureImage, 
                   images: serverProp.images?.map((i:any) => i.url) || (secureImage ? [secureImage] : []),
-                  
                   price: new Intl.NumberFormat('es-ES').format(serverProp.price || 0),
                   selectedServices: serverProp.selectedServices
               };
