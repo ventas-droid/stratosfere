@@ -184,58 +184,66 @@ export default function ProfilePanel({
   // EN: ProfilePanel.tsx
 
 // EN: ProfilePanel.tsx
-// Sustituya la función handleSaveProfile completa:
 
-const handleSaveProfile = async () => {
+// ... (código anterior)
+
+  // --- GUARDAR CAMBIOS EN NUBE ---
+  const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-        // 1. GUARDAR EN LA NUBE (Acción Blindada)
-        const result = await updateUserAction({
-            name: editForm.name,
-            avatar: editForm.avatar,
-            coverImage: editForm.cover, // Fondo
-            phone: editForm.phone,      // Fijo
-            mobile: editForm.mobile     // Móvil
-        });
+      // 1. GUARDAR EN LA NUBE (Acción Blindada)
+      const result = await updateUserAction({
+        name: editForm.name,
+        avatar: editForm.avatar,
+        coverImage: editForm.cover, // Fondo
+        phone: editForm.phone,      // Fijo
+        mobile: editForm.mobile,    // Móvil
+        // 🔥 IMPORTANTE: Enviamos también companyName y companyLogo para que
+        // getGlobalPropertiesAction funcione correctamente.
+        companyName: editForm.name, 
+        companyLogo: editForm.avatar
+      });
 
-        if (result.success) {
-            // 2. ACTUALIZAR ESTADO VISUAL
-            setUser(prev => ({ 
-                ...prev, 
-                name: editForm.name, 
-                avatar: editForm.avatar,
-                cover: editForm.cover,
-                phone: editForm.phone,
-                mobile: editForm.mobile
-            }));
-            setIsEditing(false);
-            
-            // 3. SEÑAL TÁCTICA
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('agency-profile-updated', { 
-                    detail: { 
-                        name: editForm.name, 
-                        avatar: editForm.avatar, 
-                        cover: editForm.cover,
-                        phone: editForm.phone, 
-                        mobile: editForm.mobile,
-                        email: user.email,
-                        role: user.role
-                    }
-                }));
+      if (result.success) {
+        // 2. ACTUALIZAR ESTADO VISUAL
+        setUser(prev => ({
+          ...prev,
+          name: editForm.name,
+          avatar: editForm.avatar,
+          cover: editForm.cover,
+          phone: editForm.phone,
+          mobile: editForm.mobile
+        }));
+        setIsEditing(false);
 
-                window.dispatchEvent(new CustomEvent('force-map-refresh')); 
-                window.dispatchEvent(new CustomEvent('reload-profile-assets'));
+        // 3. SEÑAL TÁCTICA
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('agency-profile-updated', {
+            detail: {
+              name: editForm.name,
+              avatar: editForm.avatar,
+              cover: editForm.cover,
+              phone: editForm.phone,
+              mobile: editForm.mobile,
+              email: user.email,
+              role: user.role
             }
-        } else { 
-            alert("Error al guardar: " + result.error); 
+          }));
+
+          window.dispatchEvent(new CustomEvent('force-map-refresh'));
+          window.dispatchEvent(new CustomEvent('reload-profile-assets'));
         }
-    } catch (error) { 
-        console.error("Error crítico:", error); 
-    } finally { 
-        setIsSaving(false); 
+      } else {
+        alert("Error al guardar: " + result.error);
+      }
+    } catch (error) {
+      console.error("Error crítico:", error);
+    } finally {
+      setIsSaving(false);
     }
-};
+  };
+
+// ... (resto del archivo)
   // --- MANEJADORES DE PROPIEDADES ---
   const handleDelete = async (e: any, id: any) => {
       e.stopPropagation();

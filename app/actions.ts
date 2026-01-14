@@ -354,30 +354,32 @@ export async function getUserMeAction() {
 }
 
 // F. ACTUALIZAR PERFIL (VERSIÓN FINAL - TODOS LOS CAMPOS)
+// EN: actions.ts
+
+// ... (código anterior)
+
+// B. PERFIL DE USUARIO (Actualización Blindada)
 export async function updateUserAction(data: any) {
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "No autorizado" };
 
   try {
+    // Mapeo directo de lo que envía el frontend a la base de datos
     const updateData: any = {};
 
-    // 1. Identidad Personal
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.avatar !== undefined) updateData.avatar = data.avatar;
-
-    // 2. Identidad Corporativa (Agencia)
-    if (data.companyName !== undefined) updateData.companyName = data.companyName;
-    if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo;
+    // Comunes
     if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
-    if (data.tagline !== undefined) updateData.tagline = data.tagline;
-    if (data.zone !== undefined) updateData.zone = data.zone;
-    if (data.licenseNumber !== undefined) updateData.licenseNumber = data.licenseNumber;
-    if (data.cif !== undefined) updateData.cif = data.cif;
-
-    // 3. Contacto & Web
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.mobile !== undefined) updateData.mobile = data.mobile;
     if (data.website !== undefined) updateData.website = data.website;
+
+    // Específicos Agencia
+    if (data.companyName !== undefined) updateData.companyName = data.companyName;
+    if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo; // 🔥 AÑADIDO
+    if (data.tagline !== undefined) updateData.tagline = data.tagline;
+    if (data.zone !== undefined) updateData.zone = data.zone;
+
+// ... (resto de la función)
 
     // Ejecutar en DB
     await prisma.user.update({
