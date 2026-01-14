@@ -178,14 +178,29 @@ export async function savePropertyAction(data: any) {
     const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
     const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
     
-    // Servicios
+        // Servicios
     let finalServices = Array.isArray(data.selectedServices) ? [...data.selectedServices] : [];
-    if (!finalServices.some((s: string) => s.startsWith('pack_'))) finalServices.push('pack_basic');
+    if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
 
     // Imágenes
     const imagesList = Array.isArray(data.images) ? data.images : [];
     if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
+
+    // --- OWNER SNAPSHOT (branding del creador, consistente cross-device) ---
+    const ownerSnapshot = {
+      id: user.id,
+      name: user.name || null,
+      companyName: user.companyName || null,
+      companyLogo: user.companyLogo || null,
+      avatar: user.avatar || null,
+      phone: user.phone || null,
+      mobile: user.mobile || null,
+      coverImage: user.coverImage || null,
+      tagline: user.tagline || null,
+      zone: user.zone || null,
+      role: user.role || null
+    };
 
     // Construcción del objeto para la BD
     const payload = {
@@ -209,7 +224,10 @@ export async function savePropertyAction(data: any) {
         selectedServices: finalServices,
         
         mainImage: mainImage,
-        status: 'PUBLICADO', 
+        status: 'PUBLICADO',
+
+        // ---- OWNER SNAPSHOT ----
+        ownerSnapshot,
 
         // MAPEO EXACTO AL ESQUEMA
         communityFees: Number(data.communityFees || 0), 
@@ -219,6 +237,7 @@ export async function savePropertyAction(data: any) {
     };
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
+
     
    // 🔥 ESTA ES LA CORRECCIÓN EN savePropertyAction:
     const includeOptions = { 
