@@ -291,15 +291,15 @@ const payload = {
   isFav: action === "fav" ? targetState : liked,
   coordinates: navCoords,
 
-   // --- OwnerSnapshot priority: use ownerSnapshot if available, else fallback to user ---
+  // --- IMPORTANT: include ownerSnapshot as top-level and prefer it for user ---
   ownerSnapshot: (data?.ownerSnapshot || props?.ownerSnapshot) ?? null,
 
   user: (data?.ownerSnapshot || props?.ownerSnapshot || props?.user || data?.user)
     ? {
-        // prefer the snapshot fields first, then fall back to user
+        // prefer snapshot fields first (snapshot may contain companyLogo, mobile, etc.)
         ...(data?.ownerSnapshot || props?.ownerSnapshot || props?.user || data?.user),
 
-        // ensure role is present
+        // ensure role exists
         role:
           (data?.ownerSnapshot || props?.user || data?.user)?.role ||
           props?.role ||
@@ -309,12 +309,12 @@ const payload = {
       }
     : null,
 
-
-// ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
-userName: props?.userName || data?.userName || null,
-userAvatar: props?.userAvatar || data?.userAvatar || null,
-role: props?.role || data?.role || data?.user?.role || null,
+  // ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
+  userName: props?.userName || data?.userName || null,
+  userAvatar: props?.userAvatar || data?.userAvatar || null,
+  role: props?.role || data?.role || data?.user?.role || null,
 };
+
 
 
   // 4. DISPARO DE SEÑALES (SIN ROMPER NADA)
