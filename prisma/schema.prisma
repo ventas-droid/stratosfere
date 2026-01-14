@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,112 +5,76 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("POSTGRES_URL")
-  // directUrl eliminado para evitar error en local
 }
-
-enum UserRole {
-  ADMIN
-  PARTICULAR
-  AGENCIA
-  DIFUSOR
-}
-
-// prisma/schema.prisma
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String?
-  name          String?   // Nombre Personal (Juan Pérez)
-  surname       String?
-  
-  // --- IDENTIDAD VISUAL ---
-  avatar        String?   // FOTO PERSONAL (Cara del agente)
-  coverImage    String?   // FONDO DE PERFIL (Agencia)
-  
-  // --- DATOS CORPORATIVOS (Separados de los personales) ---
-  role          UserRole  @default(PARTICULAR)
-  companyName   String?   // Nombre Comercial (InmoLuxury)
-  companyLogo   String?   // LOGO EMPRESA (Diferente al avatar)
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  phone         String?
+  avatar        String?
+  role          UserRole   @default(PARTICULAR)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   cif           String?
+  companyName   String?
   licenseNumber String?
-  licenseType   String?   @default("STARTER") // Nivel de Suscripción
-  
-  // --- CONTACTO Y ZONA ---
-  phone         String?   // Fijo
-  mobile        String?   // Móvil directo
+  password      String?
+  surname       String?
   website       String?
-  tagline       String?   // Eslogan (ej: "Líderes en Costa del Sol")
-  zone          String?   // Zona operativa (ej: "Marbella")
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  properties    Property[]
+  companyLogo   String?
+  coverImage    String?
+  licenseType   String?    @default("STARTER")
+  mobile        String?
+  tagline       String?
+  zone          String?
   favorites     Favorite[]
+  properties    Property[]
 }
 
 model Property {
-  id                String    @id @default(cuid())
+  id                String         @id @default(cuid())
   userId            String?
-  user              User?     @relation(fields: [userId], references: [id])
-
-  // Ubicación
   address           String
   city              String?
   region            String?
   postcode          String?
   latitude          Float?
   longitude         Float?
-
-  // Detalles Básicos
-  type              String    @default("Piso")
+  type              String         @default("Piso")
   floor             String?
   door              String?
-  elevator          Boolean   @default(false)
+  elevator          Boolean        @default(false)
   state             String?
   mBuilt            Float
   rooms             Int
   baths             Int
-
-  // Amenities
-  pool              Boolean   @default(false)
-  garage            Boolean   @default(false)
-  terrace           Boolean   @default(false)
-  garden            Boolean   @default(false)
-  storage           Boolean   @default(false)
-  ac                Boolean   @default(false)
-  security          Boolean   @default(false)
-  exterior          Boolean   @default(true)
-
-  // Datos Comerciales
+  pool              Boolean        @default(false)
+  garage            Boolean        @default(false)
+  terrace           Boolean        @default(false)
+  garden            Boolean        @default(false)
+  storage           Boolean        @default(false)
+  ac                Boolean        @default(false)
+  security          Boolean        @default(false)
+  exterior          Boolean        @default(true)
   title             String?
-  description       String?   @db.Text
-  price             Float?
-  communityFees     Float?
-
-  // Energía
+  description       String?
   energyConsumption String?
   energyEmissions   String?
-  energyPending     Boolean   @default(false)
-
-  // Multimedia y Servicios
+  energyPending     Boolean        @default(false)
   mainImage         String?
-  images            Image[]
+  price             Float?
+  communityFees     Float?
   selectedServices  String[]
-  serviceOrders     ServiceOrder[]
-
-  // Estado Sistema
-  status            String    @default("BORRADOR")
-  views             Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relaciones
+  status            String         @default("BORRADOR")
+  views             Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  ownerSnapshot     Json?
   favoritedBy       Favorite[]
-
-  // --- NUEVO: snapshot con la identidad/branding del creador ---
-  ownerSnapshot     Json?     // { id, name, companyName, companyLogo, avatar, phone, mobile, coverImage, tagline, role }
+  images            Image[]
+  user              User?          @relation(fields: [userId], references: [id])
+  serviceOrders     ServiceOrder[]
 }
 
 model Image {
@@ -129,8 +91,8 @@ model ServiceOrder {
   price      Float
   paid       Boolean  @default(false)
   propertyId String
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
 model Favorite {
@@ -138,11 +100,17 @@ model Favorite {
   userId     String
   propertyId String
   createdAt  DateTime @default(now())
-
-  user       User     @relation(fields: [userId], references: [id])
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, propertyId])
   @@index([userId])
   @@index([propertyId])
+}
+
+enum UserRole {
+  ADMIN
+  PARTICULAR
+  AGENCIA
+  DIFUSOR
 }
