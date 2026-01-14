@@ -763,8 +763,7 @@ useEffect(() => {
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end pb-8 animate-fade-in text-sans select-none">
        
      {systemMode === 'GATEWAY' && (
-           // 🔥 CORRECCIÓN: Usamos 'contents' o un div transparente para no crear el velo negro.
-           // DualGateway ya tiene su propio 'fixed inset-0 z-[50000] bg-[#F5F5F7]'
+           // 🔥 CAMBIO: Usamos 'contents' para eliminar la caja negra que oscurece todo.
            <div className="contents">
                <DualGateway 
                    onSelectMode={(m:any) => { playSynthSound('boot'); setSystemMode(m); }} 
