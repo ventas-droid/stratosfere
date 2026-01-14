@@ -638,6 +638,26 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
     };
   }, [soundEnabled, localFavs, agencyFavs, systemMode, identityVerified]);
 
+  // 🔥 SINCRONIZACIÓN EN VIVO: Si la base de datos cambia, actualiza la ficha abierta YA.
+  useEffect(() => {
+      // Solo si tengo una ficha abierta
+      if (selectedProp) {
+          // Buscamos si existe una versión más nueva de esta propiedad en las listas cargadas
+          const freshProp = localFavs.find((p: any) => String(p.id) === String(selectedProp.id)) || 
+                            agencyFavs.find((p: any) => String(p.id) === String(selectedProp.id));
+          
+          // Si la encontramos, reemplazamos la vieja (silenciosamente)
+          if (freshProp) {
+              console.log("🔄 Inyectando datos frescos en el DetailsPanel...");
+              
+              // Mantenemos el estado de apertura/inspector para no cerrar el panel
+              // Solo actualizamos los datos
+              setSelectedProp(freshProp);
+          }
+      }
+  }, [localFavs, agencyFavs]); // Se dispara cada vez que las listas cambian
+  
+  
   useEffect(() => {
       const handleEditMarket = (e: any) => {
           setMarketProp(e.detail);
