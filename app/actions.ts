@@ -60,7 +60,8 @@ export async function loginUser(formData: FormData) {
 // 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
 // =========================================================
 
-// A. MAPA GLOBAL (VERSION AUTÓNOMA DE RECUPERACIÓN)
+// EN: actions.ts
+
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -72,26 +73,26 @@ export async function getGlobalPropertiesAction() {
       include: {
         images: true,
         favoritedBy: { select: { userId: true } },
-        // 🔥 DEFINICIÓN EXPLÍCITA (Para que no dependa de constantes externas)
+        // 🔥 EXTRACCIÓN QUIRÚRGICA DE LA IDENTIDAD
         user: {
           select: {
             id: true,
-            role: true,
+            role: true,             // EL DATO CRÍTICO
             name: true,
             surname: true,
             email: true,
-            avatar: true,
-            companyName: true,
-            companyLogo: true,
-            coverImage: true,
-            phone: true,
-            mobile: true,
+            avatar: true,           // FOTO PARTICULAR
+            companyName: true,      // NOMBRE AGENCIA
+            companyLogo: true,      // LOGO AGENCIA
+            coverImage: true,       // FONDO PERFIL (AMBOS)
+            phone: true,            // FIJO
+            mobile: true,           // MÓVIL (PRIORITARIO)
             website: true,
             tagline: true,
             zone: true,
             cif: true,
             licenseNumber: true,
-            licenseType: true // El dato crítico
+            licenseType: true       // PACK DE LA AGENCIA
           }
         }
       }
@@ -108,24 +109,36 @@ export async function getGlobalPropertiesAction() {
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
 
-        // 3. Identidad (Seguridad contra nulos)
-        const creator = p.user || {};
-        
-        // Fallbacks de seguridad por si la DB devuelve nulos
-        const finalName = creator.companyName || creator.name || "Usuario Stratos";
-        const finalAvatar = creator.companyLogo || creator.avatar || null;
-        
-        // Construcción del objeto de identidad visual
-        const ownerIdentity = {
-            name: finalName,
-            avatar: finalAvatar,
-            role: creator.role || "PARTICULAR",
-            phone: creator.mobile || creator.phone || null,
-            isVerified: !!(creator.cif || creator.licenseNumber || creator.role === 'AGENCIA'),
-            licenseType: creator.licenseType || 'STARTER', 
-            tagline: creator.tagline || null,
-            zone: creator.zone || null,
-            coverImage: creator.coverImage || null
+        // 3. FUSIÓN DE IDENTIDAD (PARA QUE LA NANO CARD NO TENGA DUDAS)
+        const u = p.user || {};
+        const isAgency = u.role === 'AGENCIA';
+
+        // Lógica de "Quién soy": Si es Agencia, usa datos corporativos. Si no, personales.
+        const displayIdentity = {
+            id: u.id,
+            role: u.role || 'PARTICULAR',
+            
+            // NOMBRE: Si es agencia -> Nombre Empresa. Si no -> Nombre Persona.
+            name: isAgency ? (u.companyName || u.name || "Agencia Stratos") : (u.name || "Usuario"),
+            
+            // AVATAR: Si es agencia -> Logo Empresa. Si no -> Avatar Persona.
+            avatar: isAgency ? (u.companyLogo || null) : (u.avatar || null),
+            
+            // FONDO: Común para ambos
+            coverImage: u.coverImage || null,
+            
+            // CONTACTO: Prioridad al móvil
+            phone: u.mobile || u.phone || null,
+            email: u.email || null,
+            website: u.website || null,
+            
+            // EXTRAS AGENCIA:
+            licenseType: u.licenseType || 'STARTER',
+            tagline: isAgency ? (u.tagline || null) : null,
+            zone: isAgency ? (u.zone || null) : null,
+            
+            // VERIFICACIÓN:
+            isVerified: isAgency || !!u.cif
         };
 
         return {
@@ -135,8 +148,9 @@ export async function getGlobalPropertiesAction() {
             images: allImages,
             img: realImg || null,
             
-            // ✅ PASAMOS EL CREADOR FUSIONADO CON LA IDENTIDAD PROCESADA
-            user: { ...creator, ...ownerIdentity }, 
+            // ✅ AQUÍ ESTÁ LA CLAVE: 
+            // La propiedad ahora lleva una mochila 'user' con la identidad exacta.
+            user: displayIdentity, 
 
             // Datos Numéricos
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
@@ -151,11 +165,10 @@ export async function getGlobalPropertiesAction() {
     return { success: true, data: mappedProps };
   } catch (error) {
     console.error("Error crítico en mapa global:", error);
-    // Devuelve array vacío para que al menos la página cargue y no se quede en blanco
+    // Devuelve array vacío para seguridad
     return { success: false, data: [] };
   }
 }
-
 // B. MIS PROPIEDADES (PERFIL)
 export async function getPropertiesAction() {
   try {

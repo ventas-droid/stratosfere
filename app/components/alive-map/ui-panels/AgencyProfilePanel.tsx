@@ -41,83 +41,87 @@ export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, play
       if (isOpen) loadRealData();
   }, [isOpen]);
 
-  const loadRealData = async () => {
-      try {
-          // 1. Intentar leer extras locales (Donde guardamos el Logo de Agencia separado)
-          const localExtras = localStorage.getItem("agency_profile_extras");
-          const extras = localExtras ? JSON.parse(localExtras) : {};
+  // BUSQUE "const loadRealData" Y REEMPLÁCELA POR ESTA:
 
-          // 2. Leer datos del servidor
-          const userRes = await getUserMeAction();
+const loadRealData = async () => {
+  try {
+      // 📡 CONEXIÓN DIRECTA A BASE DE DATOS (Sin intermediarios locales)
+      const userRes = await getUserMeAction();
+      
+      if (userRes.success && userRes.data) {
+          const d = userRes.data;
+          setProfile(prev => ({
+              ...prev,
+              // Prioridad: Datos corporativos de la DB
+              name: d.companyName || d.name || "Nueva Agencia",
+              email: d.email || "",
+              
+              // 🎨 BRANDING (Mapeo crítico)
+              // La UI usa 'avatar', pero en DB leemos 'companyLogo'
+              avatar: d.companyLogo || "", 
+              cover: d.coverImage || "",   
+              
+              // 🏢 DATOS DE NEGOCIO
+              tagline: d.tagline || "",
+              zone: d.zone || "",
+              
+              // 📞 CONTACTO
+              phone: d.phone || "",      // Fijo
+              mobile: d.mobile || "",    // Móvil
+              web: d.website || "",
+              
+              licenseType: d.licenseType || 'STARTER',
+          }));
+      }
+  } catch (e) { console.error("Error cargando perfil agencia:", e); }
+};
+
+  // BUSQUE "const handleSave" Y REEMPLÁCELA POR ESTA:
+
+const handleSave = async () => {
+  setIsSaving(true);
+  if (soundEnabled) playSynthSound('click');
+  try {
+      // 💾 GUARDADO EN LA NUBE (PostgreSQL)
+      // Mapeamos el estado visual a las columnas de la Base de Datos
+      const result = await updateUserAction({
+          companyName: profile.name,     // Nombre Agencia
+          companyLogo: profile.avatar,   // Logo Agencia (viene del estado 'avatar')
+          coverImage: profile.cover,     // Fondo Perfil
+          tagline: profile.tagline,      // Slogan
+          zone: profile.zone,            // Zona Operativa
+          phone: profile.phone,          // Teléfono Fijo
+          mobile: profile.mobile,        // Móvil
+          website: profile.web,
+          // Nota: No enviamos 'avatar' ni 'name' personales aquí para no mezclarlos
+      });
+
+      if (result.success) {
+          setIsEditing(false);
           
-          if (userRes.success && userRes.data) {
-              const d = userRes.data;
-              setProfile(prev => ({
-                  ...prev,
-                  // Priorizamos el nombre de empresa, si no el del usuario
-                  name: d.companyName || d.name || prev.name,
-                  email: d.email || prev.email,
-                  
-                  // 🔥 AQUÍ LA CLAVE: Si hay logo de empresa en extras, úsalo. Si no, no pongas la foto personal.
-                  avatar: extras.logo || d.companyLogo || "", 
-                  
-                  tagline: extras.tagline || d.tagline || prev.tagline,
-                  zone: extras.zone || d.zone || prev.zone,
-                  cover: extras.cover || d.coverImage || prev.cover,
-                  phone: extras.phone || d.phone || prev.phone,
-                  mobile: extras.mobile || d.mobile || prev.mobile,
-                  web: d.website || prev.web,
-                  licenseType: d.licenseType || 'STARTER',
+          // ⚡ Señal Táctica: Actualizar la UI inmediatamente sin recargar
+          if (typeof window !== 'undefined') {
+              // Limpiamos rastros antiguos si existieran
+              localStorage.removeItem("agency_profile_extras"); 
+              
+              window.dispatchEvent(new CustomEvent('agency-profile-updated', { 
+                  detail: { 
+                      ...profile,
+                      // Aseguramos que quien escuche sepa que esto es info corporativa
+                      companyName: profile.name,
+                      companyLogo: profile.avatar 
+                  } 
               }));
           }
-      } catch (e) { console.error("Error cargando perfil:", e); }
-  };
-
-  // --- GUARDADO BLINDADO (NO TOCA PERFIL PERSONAL) ---
-  const handleSave = async () => {
-      setIsSaving(true);
-      if (soundEnabled) playSynthSound('click');
-      try {
-          // 1. Guardamos en Servidor SÓLO datos de empresa
-          const result = await updateUserAction({
-              companyName: profile.name, // Solo nombre empresa
-              website: profile.web,
-              // ❌ NO ENVIAMOS 'avatar' AQUÍ PARA NO SOBREESCRIBIR LA FOTO DE USUARIO
-          });
-
-          if (result.success) {
-              setIsEditing(false);
-              
-              // 2. Guardamos los datos visuales de Agencia en el contenedor de Extras
-              const agencyExtras = {
-                  logo: profile.avatar, // Guardamos aquí el LOGO ESPECÍFICO
-                  tagline: profile.tagline,
-                  zone: profile.zone,
-                  cover: profile.cover,
-                  phone: profile.phone,
-                  mobile: profile.mobile
-              };
-              
-              localStorage.setItem("agency_profile_extras", JSON.stringify(agencyExtras));
-
-              // 3. Emitimos señal de actualización
-              if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('agency-profile-updated', { 
-                      detail: { 
-                          ...profile, 
-                          avatar: profile.avatar // Forzamos que la UI reciba el logo nuevo
-                      } 
-                  }));
-              }
-          } else {
-              alert("Error al guardar: " + result.error);
-          }
-      } catch (error) {
-          console.error("Error crítico al guardar:", error);
-      } finally {
-          setIsSaving(false);
+      } else {
+          alert("Error al guardar en la nube: " + result.error);
       }
-  };
+  } catch (error) {
+      console.error("Error crítico al guardar:", error);
+  } finally {
+      setIsSaving(false);
+  }
+};
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'cover') => {
       const file = e.target.files?.[0];

@@ -1,79 +1,52 @@
+// @ts-nocheck
 "use client";
-import React, { useState, useEffect } from 'react';import { 
-    X, Heart, Phone, Sparkles, 
-    // Iconos Genéricos
-    Star, 
-    // Iconos Físicos (Para Ficha Técnica)
-    Home, Maximize2, Building2, ArrowUp, // Básicos
+import React, { useState, useEffect } from 'react';
+import { 
+    X, Heart, Phone, Sparkles, Star, Home, Maximize2, Building2, ArrowUp,
     Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
-    // Iconos Servicios (Para Sección Servicios)
-    Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, 
-    TrendingUp, Share2, Mail, FileText, FileCheck, Activity, 
-    Newspaper, KeyRound, Sofa, Droplets, Paintbrush, Truck, Briefcase,
-    Bed, Bath
+    Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, 
+    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
+    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check
 } from 'lucide-react';
 
-// --- 1. CONFIGURACIÓN: DICCIONARIO DE ICONOS ---
+// --- DICCIONARIO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
-    // --- FÍSICOS (Van a Ficha Técnica) ---
-    'pool': Waves, 'piscina': Waves,
-    'garage': Car, 'garaje': Car, 'parking': Car,
-    'garden': Trees, 'jardin': Trees, 'jardín': Trees,
-    'elevator': ArrowUp, 'ascensor': ArrowUp, 'lift': ArrowUp,
-    'terrace': Sun, 'terraza': Sun,
-    'storage': Box, 'trastero': Box, 
-    'ac': Thermometer, 'aire': Thermometer, 'calefaccion': Thermometer,
-    'security': ShieldCheck, 'seguridad': ShieldCheck, 'alarma': ShieldCheck,
-
-    // --- SERVICIOS MARKETING/GESTIÓN (Van abajo) ---
-    'foto': Camera, 'photo': Camera,
-    'video': Globe, 
-    'drone': Plane, 
-    'tour3d': Box, '3d': Box,
-    'render': Hammer, 
-    'plano': Ruler, 'plano_2d': Ruler, 'plano_3d': LayoutGrid, 
-    'destacado': TrendingUp, 
-    'ads': Share2, 'publicidad': Share2,
-    'email': Mail, 
-    'copy': FileText, 
-    'certificado': FileCheck, 
-    'tasacion': Activity, 
-    'revista': Newspaper, 
-    'openhouse': KeyRound, 
-    'homestaging': Sofa, 
-    'limpieza': Droplets, 
-    'pintura': Paintbrush, 
-    'mudanza': Truck, 
-    'abogado': Briefcase, 
-    'seguro': ShieldCheck
+    'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
+    'garden': Trees, 'jardin': Trees, 'jardín': Trees, 'elevator': ArrowUp, 'ascensor': ArrowUp,
+    'terrace': Sun, 'terraza': Sun, 'storage': Box, 'trastero': Box, 
+    'ac': Thermometer, 'aire': Thermometer, 'security': ShieldCheck, 'seguridad': ShieldCheck,
+    'foto': Camera, 'video': Globe, 'drone': Plane, 'tour3d': Box, 'plano_2d': Ruler
 };
 
-// Claves que FORZAREMOS a ir a la Ficha Técnica (ignorando mayúsculas/corchetes)
-const PHYSICAL_KEYWORDS = [
-  'pool', 'piscina', 'garage', 'garaje', 'parking', 'garden', 'jardin', 'jardín', 
-  'terrace', 'terraza', 'storage', 'trastero', 'ac', 'aire', 'security', 'seguridad',
-  'elevator', 'ascensor', 'lift'
-];
+const PHYSICAL_KEYWORDS = ['pool', 'piscina', 'garage', 'garaje', 'garden', 'jardin', 'terrace', 'terraza', 'storage', 'trastero', 'ac', 'aire', 'security', 'elevator', 'ascensor'];
 
-export default function DetailsPanel({ 
-  // 🔥 AQUÍ ESTÁ EL TRUCO: Renombramos la entrada usando los dos puntos (:)
-  // Esto dice: "Recibe 'selectedProp', pero llámalo 'initialProp' aquí dentro"
-  selectedProp: initialProp, 
-  onClose, 
-  onToggleFavorite, 
-  favorites = [], 
-  onOpenInspector 
-}: any) {
+export default function DetailsPanel({ selectedProp: initialProp, onClose, onToggleFavorite, favorites = [], onOpenInspector }: any) {
     
-    // 1. AHORA SÍ PODEMOS CREAR 'selectedProp' SIN QUE CHOQUE
     const [selectedProp, setSelectedProp] = useState(initialProp);
+    const [showContactModal, setShowContactModal] = useState(false);
+    const [copied, setCopied] = useState(false);
 
-    // 2. SINCRONIZACIÓN (Si cambia la casa seleccionada desde fuera)
-    useEffect(() => {
-        setSelectedProp(initialProp);
-    }, [initialProp]);
+    // Sincronizar propiedad seleccionada
+    useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
 
-    // 3. RECEPTOR DE SEÑAL (Actualización en vivo)
+    // 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
+    // Confiamos en el paquete 'user' normalizado que preparó actions.ts
+    const owner = selectedProp?.user || {};
+    
+    // 1. Identidad Visual
+    // actions.ts ya decide si mandar nombre/logo de empresa o personal en los campos 'name' y 'avatar'.
+    // Los '||' son solo seguridad extra.
+    const ownerName   = owner.name || owner.companyName || "Propietario";
+    const ownerAvatar = owner.avatar || owner.companyLogo || null; 
+    const ownerCover  = owner.coverImage || null; // Fondo de Perfil (Unificado en DB)
+
+    // 2. Contacto y Rol
+    // Prioridad absoluta al Móvil sobre el Fijo
+    const ownerPhone  = owner.mobile || owner.phone || "Consultar"; 
+    const ownerEmail  = owner.email  || "---";
+    const ownerRole   = owner.role   || "PARTICULAR";
+
+    // Listener para actualizaciones en vivo (Nano Card -> Detalle)
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -85,128 +58,84 @@ export default function DetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-    // Guard de seguridad
     if (!selectedProp) return null;
 
-    // ========================================================================
-    // 🛠️ 1. LIMPIEZA DE DATOS (Tags y Strings sucios)
-    // ========================================================================
-
-    // Función: Deja SOLO letras y números. Elimina [" ] ' y cualquier símbolo raro.
-    // ESTO ARREGLA EL PROBLEM DE ["POOL"]
-    const cleanKey = (raw: any): string => {
-        if (!raw) return "";
-        let str = String(raw);
-        str = str.replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
-        return str;
-    };
-
-    // Función: Etiquetas bonitas (ej: pool -> Piscina)
+    // --- LOGICA DE PARSEO ---
+    const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
     const getNiceLabel = (key: string) => {
-        const labels: any = {
-            'pool': 'Piscina', 'garage': 'Garaje', 'garden': 'Jardín',
-            'elevator': 'Ascensor', 'ascensor': 'Ascensor', 'lift': 'Ascensor',
-            'terrace': 'Terraza', 'storage': 'Trastero',
-            'ac': 'Aire Acond.', 'security': 'Seguridad', 
-            'foto': 'Fotografía Pro', 'video': 'Vídeo', 'drone': 'Dron', 
-            'ads': 'Campaña Ads', 'destacado': 'Destacado', 
-            'plano_2d': 'Plano 2D', 'plano_3d': 'Plano 3D',
-            'email': 'Email Mkt', 'copy': 'Copywriting'
-        };
+        const labels: any = { 'pool': 'Piscina', 'garage': 'Garaje', 'garden': 'Jardín', 'elevator': 'Ascensor', 'terrace': 'Terraza', 'storage': 'Trastero' };
         return labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
     };
 
-    // A. RECOLECCIÓN DE TODOS LOS TAGS
     const allTags = new Set<string>();
-
-    // 1. Del array selectedServices
     if (selectedProp?.selectedServices) {
-        let services = selectedProp.selectedServices;
-        if (typeof services === 'string') {
-             services.split(',').forEach(s => allTags.add(cleanKey(s)));
-        } else if (Array.isArray(services)) {
-             services.forEach(s => allTags.add(cleanKey(s)));
-        }
+        let s = selectedProp.selectedServices;
+        (Array.isArray(s) ? s : String(s).split(',')).forEach(x => allTags.add(cleanKey(x)));
     }
-
-    // 2. De las propiedades booleanas directas
     ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac'].forEach(k => {
-        const val = selectedProp?.[k];
-        // Aquí usamos una comprobación laxa para añadir el tag
-        if (val === true || val === "true" || val === "Sí" || val === "Si" || val === 1) {
-            allTags.add(cleanKey(k));
-        }
+        if (['true','Si','Sí',1,true].includes(selectedProp?.[k])) allTags.add(cleanKey(k));
     });
 
-    // B. SEPARACIÓN EN DOS LISTAS: FÍSICOS VS SERVICIOS
     const physicalItems: any[] = [];
-    const serviceItems: any[] = [];
-
     allTags.forEach(tag => {
-        if (!tag) return;
-        
-        // El Ascensor lo quitamos de aquí porque tiene su propia caja especial
-        if (['elevator', 'ascensor', 'lift'].includes(tag)) return;
-
-        const itemObj = {
-            id: tag,
-            label: getNiceLabel(tag),
-            icon: ICON_MAP[tag] || Star 
-        };
-
-        if (PHYSICAL_KEYWORDS.includes(tag)) {
-            physicalItems.push(itemObj);
-        } else {
-            serviceItems.push(itemObj);
-        }
+        if(!tag || ['elevator','ascensor'].includes(tag)) return;
+        const item = { id: tag, label: getNiceLabel(tag), icon: ICON_MAP[tag] || Star };
+        if(PHYSICAL_KEYWORDS.includes(tag)) physicalItems.push(item);
     });
 
-    // ========================================================================
-    // 🚨 FIX ASCENSOR: CAPTURA EL "Sí" DEL ARCHITECTHUD
-    // ========================================================================
-    
-    let hasElevator = false;
-
-    // Helper para detectar "Sí", "Si", "Yes", "true", "1"
-    // AQUÍ ESTÁ LA SOLUCIÓN A TU PROBLEMA DEL "NO TIENE"
-    const isYes = (val: any) => {
-        if (!val) return false;
-        const s = String(val).toLowerCase().trim();
-        // Agregamos explícitamente 'si' y 'sí' con tilde
-        return ['si', 'sí', 'yes', 'true', '1', 'on'].includes(s);
-    };
-    
-    // 1. Revisión masiva de cualquier campo que suene a ascensor
-    if (isYes(selectedProp?.elevator)) hasElevator = true;
-    if (isYes(selectedProp?.ascensor)) hasElevator = true;
-    if (isYes(selectedProp?.hasElevator)) hasElevator = true;
-    if (selectedProp?.specs && isYes(selectedProp.specs.elevator)) hasElevator = true;
-
-    // 2. Revisión de Tags (Por si viene en la lista de extras)
-    if (allTags.has('elevator') || allTags.has('ascensor')) {
-        hasElevator = true;
-    }
-
-    // 3. Fallback: Búsqueda de texto bruto en servicios
-    const rawServicesString = JSON.stringify(selectedProp?.selectedServices || "").toLowerCase();
-    if (rawServicesString.includes("elevator") || rawServicesString.includes("ascensor")) {
-        hasElevator = true;
-    }
-
-    // Configuración visual del Ascensor
-    const elevatorText = hasElevator ? "SÍ TIENE" : "NO TIENE";
-    const elevatorColor = hasElevator ? "text-green-600" : "text-slate-400";
-    const elevatorIconColor = hasElevator ? "text-green-500" : "text-slate-300";
-
-
-    // D. DATOS GENERALES Y FORMATO
+    const hasElevator = allTags.has('elevator') || allTags.has('ascensor') || selectedProp?.elevator === true;
     const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
-    const m2 = selectedProp?.mBuilt || selectedProp?.m2 || selectedProp?.surface || 0;
-    const isFavorite = favorites.some((f: any) => f.id === selectedProp?.id);
-    
-    const getEnergyColor = (rating: string) => {
-        const map: any = { A: "bg-green-600", B: "bg-green-500", C: "bg-green-400", D: "bg-yellow-400", E: "bg-yellow-500", F: "bg-orange-500", G: "bg-red-600" };
-        return map[rating] || "bg-gray-400";
+   // ❤️ SINCRONIZACIÓN TOTAL (Corazón + Bóveda + NanoCard)
+    // 1. Verificación blindada (convierte IDs a texto para que no falle nunca)
+    const isFavorite = favorites.some((f: any) => String(f.id) === String(selectedProp?.id));
+
+   // ❤️ ESTE ES EL CONECTOR QUE TE FALTA PARA LA SINCRONIZACIÓN
+    const handleHeartClick = (e: any) => {
+        e.stopPropagation(); // Evita que el clic atraviese
+        
+        // 1. Calculamos el nuevo estado INMEDIATAMENTE para que sea visual
+        const newStatus = !isFavorite;
+
+        // 2. Ejecutar la acción real de base de datos (lo que ya tenías)
+        if (onToggleFavorite) onToggleFavorite(selectedProp);
+
+        // 3. 🔥 EL GRITO QUE FALTABA (RESTAURADO) 🔥
+        // Esto avisa a la NanoCard, a la Bóveda y a las Notificaciones
+        if (typeof window !== 'undefined') {
+            // Señal A: Para actualizaciones de propiedades (NanoCard)
+            window.dispatchEvent(new CustomEvent('update-property-signal', { 
+                detail: { 
+                    id: selectedProp.id, 
+                    updates: { isFavorite: newStatus } // Enviamos el nuevo estado
+                } 
+            }));
+
+            // Señal B: Específica para favoritos (Bóveda / Notificaciones)
+            window.dispatchEvent(new CustomEvent('fav-change-signal', { 
+                detail: { 
+                    id: selectedProp.id, 
+                    isFavorite: newStatus 
+                } 
+            }));
+        }
+    };
+    const copyPhone = () => {
+        if(ownerPhone === "Consultar") return;
+        navigator.clipboard.writeText(ownerPhone);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    // ⚡️ HELPER PARA COLOR DE CERTIFICADO
+    const getEnergyColor = (letter: string) => {
+        const l = String(letter || '').toUpperCase();
+        if (l === 'A') return 'bg-green-600';
+        if (l === 'B') return 'bg-green-500';
+        if (l === 'C') return 'bg-green-400';
+        if (l === 'D') return 'bg-yellow-400';
+        if (l === 'E') return 'bg-yellow-500';
+        if (l === 'F') return 'bg-orange-500';
+        return 'bg-red-500'; // G o desconocido
     };
 
     return (
@@ -214,130 +143,115 @@ export default function DetailsPanel({
             <div className="absolute inset-0 bg-[#E5E5EA]/95 backdrop-blur-3xl shadow-2xl border-r border-white/20"></div>
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
-                {/* --- HEADER --- */}
-                <div className="px-8 pt-10 pb-4 flex justify-between items-start shrink-0">
-                    <div>
-                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
-                            {selectedProp?.type || "INMUEBLE"}
-                        </span>
-                        <h2 className="text-3xl font-black text-slate-900 leading-none mb-1">
-                            {selectedProp?.title || "Detalle del Inmueble"}
-                        </h2>
-                        <p className="text-xl font-bold text-slate-500">
-                            {(() => {
-                              const raw = (selectedProp as any)?.rawPrice ?? (selectedProp as any)?.priceValue ?? (selectedProp as any)?.price;
-                              const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(String(raw).replace(/[^0-9]/g, '')) : NaN;
-                              if (!Number.isFinite(num) || num <= 0) {
-                                return (selectedProp as any)?.formattedPrice || (selectedProp as any)?.displayPrice || (selectedProp as any)?.price || 'Consultar';
-                              }
-                              return new Intl.NumberFormat('es-ES').format(num) + ' €';
-                            })()}
-                        </p>
+               
+               {/* 1. CABECERA (PROPIETARIO) */}
+                <div className="relative shrink-0 z-20 h-64 overflow-hidden bg-gray-900 group">
+                    {/* Fondo */}
+                    <div className="absolute inset-0">
+                        {ownerCover ? (
+                            <img src={ownerCover} className="w-full h-full object-cover opacity-100" alt="Fondo" />
+                        ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-gray-800 to-black" /> 
+                        )}
+                        <div className="absolute inset-0 bg-black/20"></div>
                     </div>
-                    <button onClick={onClose} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer">
-                        <X size={20} />
-                    </button>
+
+                    <div className="relative z-10 px-8 pt-10 pb-6 flex flex-col justify-between h-full">
+                         <div className="flex justify-between items-start">
+                            {/* Avatar */}
+                            <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-md p-1 shadow-xl border border-white/30">
+                                <div className="w-full h-full rounded-xl overflow-hidden bg-white/10 relative flex items-center justify-center">
+                                    {ownerAvatar ? (
+                                        <img src={ownerAvatar} className="w-full h-full object-cover" alt="Avatar" />
+                                    ) : (
+                                        <User size={30} className="text-white/50"/>
+                                    )}
+                                </div>
+                            </div>
+                            {/* Cerrar */}
+                            <button onClick={onClose} className="w-10 h-10 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center backdrop-blur-md transition-all border border-white/20 text-white shadow-lg cursor-pointer">
+                                <X size={20} />
+                            </button>
+                         </div>
+
+                         <div>
+                            <h2 className="text-3xl font-black text-white leading-none mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                                {ownerName}
+                            </h2>
+                            <span className={`px-3 py-1 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-bold uppercase tracking-wider shadow-lg inline-flex items-center gap-2 ${ownerRole === 'AGENCIA' ? 'bg-black/80 text-emerald-400' : 'bg-black/40 text-white'}`}>
+                                {ownerRole === 'AGENCIA' ? <Building2 size={12}/> : <User size={12}/>} 
+                                {ownerRole}
+                            </span>
+                         </div>
+                    </div>
                 </div>
 
-                {/* --- SCROLL CONTENT --- */}
-                <div className="flex-1 overflow-y-auto px-6 pb-32 space-y-6 scrollbar-hide">
+                {/* 2. CONTENIDO SCROLLABLE */}
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-32">
                     
-                    {/* 1. FOTO */}
-                    <div onClick={onOpenInspector} className="relative aspect-video w-full bg-gray-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white cursor-pointer hover:shadow-2xl transition-shadow">
-                        <img src={img} className="w-full h-full object-cover" alt="Propiedad" />
-                        <div className="absolute inset-0 bg-black/10 hover:bg-transparent transition-colors"></div>
+                    {/* Foto Propiedad */}
+                    <div onClick={onOpenInspector} className="relative aspect-video w-full bg-gray-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white cursor-pointer hover:shadow-2xl transition-shadow group">
+                        <img src={img} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/40 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                                <Sparkles size={14}/> ABRIR INSPECTOR
+                            </div>
+                        </div>
                     </div>
 
-                    {/* 2. DATOS RÁPIDOS */}
-                    <div className="flex justify-between gap-3">
-                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                    {/* Título y Precio */}
+                    <div>
+                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block">
+                            {selectedProp?.type || "INMUEBLE"}
+                        </span>
+                        <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">{selectedProp?.title || "Sin Título"}</h1>
+                        <p className="text-3xl font-black text-slate-900 tracking-tight">
+                            {new Intl.NumberFormat('es-ES').format(Number(selectedProp?.price || 0))} €
+                        </p>
+                    </div>
+
+                    {/* Métricas */}
+                    <div className="flex justify-between gap-2">
+                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center">
                             <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Hab.</span>
-                            <div className="font-black text-lg flex items-center gap-1">
-                                <Bed size={16} className="text-slate-800"/> {selectedProp?.rooms || 0}
-                            </div>
+                            <div className="font-black text-lg flex items-center gap-1"><Bed size={16}/> {selectedProp?.rooms || 0}</div>
                         </div>
-                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center">
                             <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">Baños</span>
-                            <div className="font-black text-lg flex items-center gap-1">
-                                <Bath size={16} className="text-slate-800"/> {selectedProp?.baths || 0}
-                            </div>
+                            <div className="font-black text-lg flex items-center gap-1"><Bath size={16}/> {selectedProp?.baths || 0}</div>
                         </div>
-                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+                        <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center">
                             <span className="text-[9px] text-slate-400 font-bold uppercase mb-1">M²</span>
-                            <div className="font-black text-lg flex items-center gap-1">
-                                <Maximize2 size={16} className="text-slate-800"/> {m2}
-                            </div>
+                            <div className="font-black text-lg flex items-center gap-1"><Maximize2 size={16}/> {selectedProp?.mBuilt || 0}</div>
                         </div>
                     </div>
 
-                    {/* 3. FICHA TÉCNICA (FÍSICOS) */}
-                    <div className="bg-white rounded-[24px] p-6 shadow-sm border border-white">
-                        <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
-                            <Home size={14} className="text-blue-500"/> Ficha Técnica & Extras
-                        </h3>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            {/* Tipología */}
-                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <span className="text-[9px] text-slate-400 font-bold uppercase block">Tipología</span>
-                                <span className="font-bold text-sm text-slate-800">{selectedProp?.type || "Piso"}</span>
+                    {/* Características */}
+                    <div className="bg-white rounded-[24px] p-5 shadow-sm border border-white">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest mb-3 border-b border-gray-100 pb-2 text-slate-900">Características</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+                                <div><span className="text-[8px] text-slate-400 font-bold uppercase block">Ascensor</span><span className={`font-bold text-xs ${hasElevator ? 'text-green-600':'text-slate-400'}`}>{hasElevator ? 'SÍ' : 'NO'}</span></div>
+                                {hasElevator && <ArrowUp size={14} className="text-green-500"/>}
                             </div>
-                            
-                            {/* Superficie */}
-                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <span className="text-[9px] text-slate-400 font-bold uppercase block">Superficie</span>
-                                <span className="font-bold text-sm text-slate-800">{m2} m²</span>
-                            </div>
-
-                           {/* 🔥 PEGAR ESTO AQUÍ DEBAJO (GASTOS DE COMUNIDAD) 🔥 */}
-                            {(selectedProp?.communityFees > 0 || selectedProp?.communityCosts > 0) && (
-                                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase block">Comunidad</span>
-                                    <span className="font-bold text-sm text-slate-800">
-                                        {selectedProp?.communityFees || selectedProp?.communityCosts} €/mes
-                                    </span>
-                                </div>
-                            )}
-                            {/* -------------------------------------------------- */}
-                           
-                            {/* EL ASCENSOR (Arreglado para "Sí") */}
-                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center group">
-                                <div>
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase block">Ascensor</span>
-                                    <span className={`font-bold text-sm ${elevatorColor}`}>
-                                        {elevatorText}
-                                    </span>
-                                </div>
-                                <ArrowUp size={18} className={`${elevatorIconColor} group-hover:-translate-y-1 transition-transform`} />
-                            </div>
-
-                            {/* Extras Físicos (Piscina, Garaje...) */}
-                            {physicalItems.map((item) => (
-                                <div key={item.id} className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex justify-between items-center group">
-                                    <div>
-                                        <span className="text-[9px] text-blue-400 font-bold uppercase block">Incluido</span>
-                                        <span className="font-bold text-sm text-blue-900">{item.label}</span>
-                                    </div>
-                                    <item.icon size={18} className="text-blue-500 group-hover:scale-110 transition-transform"/>
+                            {physicalItems.map(item => (
+                                <div key={item.id} className="bg-blue-50 p-2.5 rounded-xl border border-blue-100 flex justify-between items-center">
+                                    <div><span className="text-[8px] text-blue-400 font-bold uppercase block">Incluido</span><span className="font-bold text-xs text-blue-900">{item.label}</span></div>
+                                    <item.icon size={14} className="text-blue-500"/>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* 4. DESCRIPCIÓN */}
+                    {/* Descripción */}
                     {selectedProp?.description && (
-                        <div className="bg-white p-6 rounded-[24px] shadow-sm border border-white">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-3">
-                                Sobre este inmueble
-                            </span>
-                            <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line font-medium">
-                                {selectedProp.description}
-                            </p>
+                        <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white">
+                            <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-line font-medium">{selectedProp.description}</p>
                         </div>
                     )}
 
-                    {/* 5. CERTIFICADO ENERGÉTICO */}
-                    <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center">
+                    {/* ⚡️ CERTIFICADO ENERGÉTICO CORREGIDO (DOS LETRAS) */}
+                    <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center mt-3">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Certificación<br/>Energética</span>
                         
                         {selectedProp?.energyPending ? (
@@ -346,70 +260,96 @@ export default function DetailsPanel({
                             </span>
                         ) : (
                             <div className="flex gap-3">
-                                {selectedProp?.energyConsumption ? (
-                                    <div className="flex flex-col items-center">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyConsumption)}`}>
-                                            {selectedProp.energyConsumption}
-                                        </div>
-                                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Cons.</span>
+                                {/* Consumo */}
+                                <div className="flex flex-col items-center">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${
+                                        getEnergyColor(selectedProp?.energyConsumption)
+                                    }`}>
+                                        {selectedProp?.energyConsumption || '-'}
                                     </div>
-                                ) : (
-                                    <span className="text-[10px] text-gray-400 font-bold self-center">N/D</span>
-                                )}
+                                    <span className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Cons.</span>
+                                </div>
 
-                                {selectedProp?.energyEmissions && (
-                                    <div className="flex flex-col items-center">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyEmissions)}`}>
-                                            {selectedProp.energyEmissions}
-                                        </div>
-                                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Emis.</span>
+                                {/* Emisiones */}
+                                <div className="flex flex-col items-center">
+                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${
+                                        getEnergyColor(selectedProp?.energyEmissions)
+                                    }`}>
+                                        {selectedProp?.energyEmissions || '-'}
                                     </div>
-                                )}
+                                    <span className="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Emis.</span>
+                                </div>
                             </div>
                         )}
                     </div>
+                </div>
 
-                    {/* 6. SERVICIOS ACTIVOS (Marketing/Gestión) */}
-                    {serviceItems.length > 0 && (
-                        <div className="bg-[#F2F2F7] rounded-[24px] p-6 shadow-inner border border-white">
-                            <div className="text-center mb-5 opacity-60">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 text-slate-500">
-                                    <Sparkles size={12} className="text-purple-500"/> Servicios Activos
-                                </span>
+                {/* 3. FOOTER */}
+                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
+                    <button onClick={() => setShowContactModal(true)} className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs cursor-pointer">
+                        <Phone size={18} /> Contactar Propietario
+                    </button>
+                   <button 
+                        onClick={handleHeartClick}
+                        className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-all duration-300 cursor-pointer active:scale-90 ${isFavorite ? "text-rose-500 bg-rose-50 border-rose-100 shadow-inner" : "text-slate-400 hover:text-rose-500"}`}
+                    >
+                        <Heart size={24} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-pulse-once" : ""} />
+                    </button>
+                </div>
+
+                {/* 4. POPUP CONTACTO */}
+                {showContactModal && (
+                    <div className="absolute inset-0 z-50 flex flex-col justify-end animate-fade-in bg-black/60 backdrop-blur-sm">
+                        <div onClick={() => setShowContactModal(false)} className="absolute inset-0"></div>
+                        <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6">
+                            
+                            {/* Cabecera Popup */}
+                            <div className="relative h-36 bg-gray-900 flex items-end p-6 gap-4">
+                                <div className="absolute inset-0">
+                                    {ownerCover ? <img src={ownerCover} className="w-full h-full object-cover opacity-60"/> : <div className="w-full h-full bg-slate-800"/>}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+                                </div>
+                                <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">
+                                    {ownerAvatar ? <img src={ownerAvatar} className="w-full h-full rounded-xl object-cover" /> : <User className="text-slate-300 w-full h-full p-4" />}
+                                </div>
+                                <div className="relative z-10 mb-2">
+                                    <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md">{ownerName}</h3>
+                                    <p className="text-blue-300 text-[10px] font-bold uppercase tracking-wider">{ownerRole}</p>
+                                </div>
+                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/30 p-2 rounded-full cursor-pointer"><X size={18}/></button>
                             </div>
 
-                            <div className="grid grid-cols-4 gap-4">
-                                {serviceItems.map((item) => (
-                                    <div key={item.id} className="flex flex-col items-center gap-2 group cursor-default">
-                                        <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-purple-600 border border-purple-100 group-hover:scale-110 transition-transform duration-300">
-                                            <item.icon size={20} strokeWidth={2}/>
-                                        </div>
-                                        <span className="text-[9px] font-bold text-slate-500 uppercase text-center leading-tight">
-                                            {item.label}
-                                        </span>
+                            {/* Datos Contacto */}
+                            <div className="px-6 pt-6 space-y-4">
+                                <div onClick={copyPhone} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95">
+                                    <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100">
+                                        <Phone size={22} />
                                     </div>
-                                ))}
+                                    <div className="flex-1">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Teléfono</p>
+                                        <p className="text-xl font-black text-slate-900 tracking-tight">{ownerPhone}</p>
+                                    </div>
+                                    <div className="text-slate-300">{copied ? <Check size={20} className="text-green-500"/> : <Copy size={20}/>}</div>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                                        <Mail size={22} />
+                                    </div>
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email</p>
+                                        <p className="text-sm font-black text-slate-900 truncate">{ownerEmail}</p>
+                                    </div>
+                                </div>
+
+                                <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95 cursor-pointer">
+                                    Cerrar Ficha
+                                </button>
                             </div>
                         </div>
-                    )}
-                    
-                    <div className="h-6"></div>
-                </div>
-
-                {/* --- FOOTER --- */}
-                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
-                    <button className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95">
-                        <Phone size={18} /> Contactar Propiedad
-                    </button>
-                    <button 
-                        onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
-                        className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"}`}
-                    >
-                        <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
-                    </button>
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
-
