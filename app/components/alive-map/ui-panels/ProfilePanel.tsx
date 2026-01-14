@@ -200,8 +200,7 @@ export default function ProfilePanel({
         mobile: editForm.mobile,    // Móvil
         // 🔥 IMPORTANTE: Enviamos también companyName y companyLogo para que
         // getGlobalPropertiesAction funcione correctamente.
-        companyName: editForm.name, 
-        companyLogo: editForm.avatar
+      
       });
 
       if (result.success) {

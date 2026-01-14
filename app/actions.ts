@@ -564,30 +564,39 @@ export async function getAgencyPortfolioAction() {
     });
 
     // 5. Formatear para el Mapa
-    const cleanList = combined.map((p: any) => {
-        if (!p) return null;
-        
-        // Extraemos el creador tal cual viene de la DB
-        const creator = p.user || {};
-        
-        return {
-            ...p,
-            id: p.id,
-            // 🔥 PASAMOS EL USUARIO COMPLETO (IDENTIDAD) AL FRONTEND
-            user: creator, 
-            
-            // Gestión de imágenes
-            images: (p.images || []).map((img: any) => img.url),
-            img: p.images?.[0]?.url || p.mainImage || null,
-            
-            // Datos numéricos y coordenadas
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            rawPrice: p.price,
-            coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
-            m2: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0
-        };
-    }).filter(Boolean);
+const cleanList = combined
+  .map((p: any) => {
+    if (!p) return null;
+
+    // ✅ ownerSnapshot (si existe) manda sobre user
+    const snapshot =
+      p.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null;
+
+    // Extraemos el creador (prioridad snapshot)
+    const creator = snapshot || p.user || {};
+
+    return {
+      ...p,
+      id: p.id,
+
+      // ✅ mantenemos snapshot arriba + user coherente
+      ownerSnapshot: snapshot,
+      user: creator,
+
+      // Gestión de imágenes
+      images: (p.images || []).map((img: any) => img.url),
+      img: p.images?.[0]?.url || p.mainImage || null,
+
+      // Datos numéricos y coordenadas
+      price: new Intl.NumberFormat("es-ES").format(p.price || 0),
+      rawPrice: p.price,
+      coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
+      m2: Number(p.mBuilt || 0),
+      communityFees: p.communityFees || 0,
+    };
+  })
+  .filter(Boolean);
+
 
     return { success: true, data: cleanList };
   } catch (error) {
