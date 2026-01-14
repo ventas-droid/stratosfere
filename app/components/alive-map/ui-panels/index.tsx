@@ -762,9 +762,10 @@ useEffect(() => {
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end pb-8 animate-fade-in text-sans select-none">
        
-      {systemMode === 'GATEWAY' && (
-           <div className="fixed inset-0 z-[50000] flex items-center justify-center pointer-events-auto bg-[#050505]/80 backdrop-blur-xl animate-fade-in duration-1000">
-               {/* 🔥 CAMBIO CRÍTICO: Pasamos 'userRole' al componente */}
+     {systemMode === 'GATEWAY' && (
+           // 🔥 CORRECCIÓN: Usamos 'contents' o un div transparente para no crear el velo negro.
+           // DualGateway ya tiene su propio 'fixed inset-0 z-[50000] bg-[#F5F5F7]'
+           <div className="contents">
                <DualGateway 
                    onSelectMode={(m:any) => { playSynthSound('boot'); setSystemMode(m); }} 
                    userRole={userRole} 
