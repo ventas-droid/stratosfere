@@ -39,14 +39,47 @@ export default function AgencyDetailsPanel({
 }: any) {
     
     const [selectedProp, setSelectedProp] = useState(initialProp);
-    const [showContactModal, setShowContactModal] = useState(false); // Estado para el Popup
+    const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
+    // 🔥 1. ESTADO PARA LOS DATOS DEL DUEÑO (LIVE)
+    // Inicializamos con lo que viene de la propiedad, pero permitimos que cambie en vivo
+    const [ownerData, setOwnerData] = useState(initialAgencyData || initialProp?.user || {});
 
-    // 🔥 DATOS DEL DUEÑO DIRECTOS (Prioridad: Props > Propiedad > Vacío)
-    const activeData = initialAgencyData || selectedProp?.user || {};
+    // Sincronizar si cambia la propiedad seleccionada (clic en el mapa)
+    useEffect(() => { 
+        setSelectedProp(initialProp); 
+        setOwnerData(initialAgencyData || initialProp?.user || {});
+    }, [initialProp, initialAgencyData]);
 
+    // 🔥 2. PUENTE DE SINCRONIZACIÓN (LA SOLUCIÓN)
+    // Escuchamos si el usuario edita su perfil en el panel derecho
+    useEffect(() => {
+        const handleProfileUpdate = (e: any) => {
+            const updatedProfile = e.detail;
+            
+            // SOLO actualizamos si la propiedad que estamos viendo es MÍA
+            // (Comparamos IDs o asumimos que si estoy editando, quiero ver mis cambios)
+            // Para simplificar: Si recibo update, fusiono los datos visuales
+            setOwnerData((prev: any) => ({
+                ...prev,
+                // Sobrescribimos con lo nuevo que viene del evento
+                companyName: updatedProfile.name,
+                companyLogo: updatedProfile.avatar, // El evento manda 'avatar' como logo
+                coverImage: updatedProfile.cover,   // El evento manda 'cover' como fondo
+                phone: updatedProfile.phone,
+                mobile: updatedProfile.mobile,
+                email: updatedProfile.email,
+                zone: updatedProfile.zone,
+                tagline: updatedProfile.tagline
+            }));
+        };
+
+        window.addEventListener('agency-profile-updated', handleProfileUpdate);
+        return () => window.removeEventListener('agency-profile-updated', handleProfileUpdate);
+    }, []);
+
+    // 3. ACTUALIZACIÓN DE PRECIOS EN VIVO (Tu código existente)
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -58,21 +91,38 @@ export default function AgencyDetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-    // --- VARIABLES DE IDENTIDAD (SIN LOCALSTORAGE) ---
-    // Si estamos en AgencyPanel, asumimos que NO es un particular.
-    const name = activeData.companyName || activeData.name || "Agencia Stratos";
-    // Mapeamos los campos reales de la DB
-    const avatar = activeData.companyLogo || activeData.avatar || null;
-    const cover = activeData.coverImage || activeData.cover || null; 
+  // --- VARIABLES DE IDENTIDAD ---
     
-    // Eliminamos la lógica que devolvía "PARTICULAR" por defecto
-    const roleLabel = activeData.licenseType 
-        ? `${activeData.licenseType} PARTNER` 
-        : "AGENCIA CERTIFICADA";
+    // Si venimos del evento de edición (live) o de la propiedad (db)
+    const activeOwner = ownerData; 
 
-    const phone = activeData.phone || activeData.mobile || "Consultar";
-    const email = activeData.email || "contacto@stratos.os";
+    // Nombre:
+    const name = activeOwner.companyName || activeOwner.name || "Usuario";
 
+    // Rol y Etiqueta (LÓGICA CORREGIDA)
+    let roleLabel = "AGENCIA"; // Default por seguridad
+    
+    if (activeOwner.role === 'PARTICULAR') {
+        roleLabel = "PARTICULAR";
+    } else {
+        // Si es agencia, miramos su licencia
+        const lic = activeOwner.licenseType;
+        if (lic === 'STARTER') roleLabel = "ESSENTIAL PARTNER";
+        else if (lic === 'PRO') roleLabel = "PRO PARTNER";
+        else if (lic === 'CORP') roleLabel = "CORPORATE";
+        else roleLabel = "AGENCIA CERTIFICADA";
+    }
+
+    // Datos visuales
+    const avatar = activeOwner.companyLogo || activeOwner.avatar || null;
+    const cover = activeOwner.coverImage || activeOwner.coverImage || null;
+    
+    // Contacto
+    const phone = activeOwner.mobile || activeOwner.phone || "";
+    
+    // Si no tiene email, se queda vacío.
+    const email = ownerData.email || "---";
+    
     // --- LÓGICA DE LIMPIEZA DE DATOS ---
     const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
     
@@ -136,24 +186,24 @@ export default function AgencyDetailsPanel({
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
                 
-                {/* --- 🔥 HEADER CORPORATIVO PREMIUM REAL --- */}
-                <div className="relative shrink-0 z-20 h-72 overflow-hidden">
-                    {/* FONDO DINÁMICO DE AGENCIA */}
-                    <div className="absolute inset-0 bg-black">
+               {/* --- 🔥 HEADER CORPORATIVO PREMIUM (CORREGIDO: SLOGAN + LICENCIA + CONTRASTE) --- */}
+                <div className="relative shrink-0 z-20 h-72 overflow-hidden bg-gray-100">
+                    {/* FONDO REAL (Sin velos, al 100%) */}
+                    <div className="absolute inset-0">
                         {cover ? (
-                            <img src={cover} className="w-full h-full object-cover opacity-60" alt="Fondo Agencia" />
+                            <img src={cover} className="w-full h-full object-cover" alt="Fondo Agencia" />
                         ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-[#0f172a] via-[#020617] to-[#1e293b]" />
+                            <div className="w-full h-full bg-slate-200" />
                         )}
-                        {/* Gradiente de legibilidad */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-black/40"></div>
                     </div>
 
+                    {/* CONTENIDO (Con sombra de texto para asegurar lectura) */}
                     <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col justify-between h-full">
-                         {/* Top Row */}
+                         
+                         {/* Fila Superior: Logo y Cerrar */}
                          <div className="flex justify-between items-start">
                             <div className="relative group">
-                                <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur-md p-1 shadow-2xl shadow-black/50 border border-white/20 rotate-1 group-hover:rotate-0 transition-transform duration-500">
+                                <div className="w-24 h-24 rounded-2xl bg-white p-1 shadow-2xl shadow-black/20 border border-white/50 rotate-1 group-hover:rotate-0 transition-transform duration-500">
                                     {avatar ? (
                                         <img src={avatar} className="w-full h-full rounded-xl object-cover bg-white" alt="Logo" />
                                     ) : (
@@ -162,29 +212,46 @@ export default function AgencyDetailsPanel({
                                         </div>
                                     )}
                                 </div>
-                                <div className="absolute -bottom-3 -right-3 bg-emerald-500 text-white px-2 py-1 rounded-full border-[3px] border-[#020617] shadow-lg flex items-center gap-1">
+                                <div className="absolute -bottom-3 -right-3 bg-emerald-500 text-white px-2 py-1 rounded-full border-[3px] border-white shadow-lg flex items-center gap-1">
                                     <ShieldCheck size={12} strokeWidth={3} />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Verificado</span>
                                 </div>
                             </div>
-                            <button onClick={onClose} className="w-10 h-10 bg-black/20 hover:bg-black/40 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/10 text-white/70 hover:text-white">
+                            <button onClick={onClose} className="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-lg">
                                 <X size={20} />
                             </button>
                          </div>
 
-                         {/* Bottom Row */}
+                         {/* Fila Inferior: Datos Agencia */}
                          <div>
-                            <h2 className="text-3xl font-black text-white leading-none mb-3 tracking-tight drop-shadow-md">
+                            {/* NOMBRE */}
+                            <h2 className="text-3xl font-black text-white leading-none mb-2 tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
                                 {name}
                             </h2>
+
+                            {/* 🔥 NUEVO: SLOGAN (Si existe, se muestra) */}
+                            {ownerData.tagline && (
+                                <p className="text-white/90 text-xs font-bold italic tracking-wide mb-4 drop-shadow-md border-l-2 border-emerald-400 pl-3">
+                                    "{ownerData.tagline}"
+                                </p>
+                            )}
+
+                            {/* ETIQUETAS (CAJITAS CON MÁS CONTRASTE) */}
                             <div className="flex flex-wrap gap-2">
-                                {/* ETIQUETA CORREGIDA: NADA DE PARTICULAR */}
-                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-blue-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg">
-                                    <Briefcase size={12}/> {roleLabel}
+                                
+                                {/* 1. LICENCIA (PACK) - Ya no pone Particular */}
+                                <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
+                                    <Briefcase size={12} className="text-emerald-400"/> 
+                                    {ownerData.licenseType === 'STARTER' ? 'ESSENTIAL PARTNER' :
+                                     ownerData.licenseType === 'PRO' ? 'PRO PARTNER' :
+                                     ownerData.licenseType === 'CORP' ? 'CORPORATE' : 
+                                     'AGENCIA CERTIFICADA'}
                                 </span>
-                               {activeData.zone && (
-                                    <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-emerald-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg">
-                                        <Globe size={12}/> {activeData.zone}
+
+                                {/* 2. ZONA OPERATIVA */}
+                               {ownerData.zone && (
+                                    <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-blue-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
+                                        <Globe size={12} className="text-blue-400"/> {ownerData.zone}
                                     </span>
                                 )}
                             </div>
@@ -328,18 +395,20 @@ export default function AgencyDetailsPanel({
                         
                         <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6">
                             
-                            {/* 1. HEADER DEL POPUP: USA EL FONDO Y AVATAR DEL AGENTE */}
-                            <div className="relative h-36 bg-black flex items-end p-6 gap-4">
+                            {/* 1. HEADER DEL POPUP (LIMPIO) */}
+                            <div className="relative h-36 bg-gray-100 flex items-end p-6 gap-4">
                                 {/* FONDO (Cover Real) */}
                                 <div className="absolute inset-0">
                                     {cover ? (
-                                        <img src={cover} className="w-full h-full object-cover opacity-60" alt="Fondo Agente" />
+                                        // ✅ FOTO AL 100%
+                                        <img src={cover} className="w-full h-full object-cover" alt="Fondo Agente" />
                                     ) : (
-                                        <div className="w-full h-full bg-gradient-to-r from-slate-900 to-slate-800" />
+                                        <div className="w-full h-full bg-slate-200" />
                                     )}
-                                    {/* Degradado para que se lea el texto */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+                                    {/* ❌ ELIMINADO GRADIENTE NEGRO */}
                                 </div>
+                                
+                                {/* ... Resto del contenido (Avatar, Textos con drop-shadow) ... */}
                                 
                                 {/* AVATAR (Logo Real) */}
                                 <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">

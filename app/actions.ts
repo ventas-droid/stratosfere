@@ -4,6 +4,29 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from './lib/prisma'; 
 import { cookies } from "next/headers";
 
+// ... imports ...
+
+// 🔥 PEGAR ESTO AL PRINCIPIO DEL ARCHIVO (DESPUÉS DE LOS IMPORTS)
+const USER_IDENTITY_SELECT = {
+    id: true,
+    role: true,            // Vital: PARTICULAR vs AGENCIA
+    name: true,
+    surname: true,
+    email: true,
+    avatar: true,          // Foto Personal
+    companyName: true,     // Nombre Agencia
+    companyLogo: true,     // Logo Agencia
+    coverImage: true,      // Fondo Perfil
+    phone: true,
+    mobile: true,
+    website: true,
+    tagline: true,         // Slogan
+    zone: true,            // Zona
+    cif: true,
+    licenseNumber: true,
+    licenseType: true      // <--- ESTE FALTABA EN EL MAPA (CRÍTICO)
+};
+
 // =========================================================
 // 🔐 1. IDENTIFICACIÓN Y SESIÓN
 // =========================================================
@@ -33,51 +56,47 @@ export async function loginUser(formData: FormData) {
     return { success: true };
 }
 
-// =========================================================
-// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
-// =========================================================
-
-// A. MAPA GLOBAL (CORREGIDO: TRAE LA IDENTIDAD COMPLETA DEL CREADOR)
+// A. MAPA GLOBAL (CORREGIDO: TRAE LA IDENTIDAD COMPLETA + LICENCIA)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
     const currentUserId = user?.id;
 
-   // actions.ts — dentro de getGlobalPropertiesAction()
-
-const properties = await prisma.property.findMany({
-  where: { status: 'PUBLICADO' },
-  orderBy: { createdAt: 'desc' },
-  include: {
-    images: true,
-    favoritedBy: { select: { userId: true } },
-   user: {
-  select: {
-    id: true,
-    role: true,
-    name: true,
-    surname: true,
-    avatar: true,
-    companyName: true,
-    companyLogo: true,
-    coverImage: true,
-    phone: true,
-    mobile: true,
-    website: true,
-    tagline: true,
-    zone: true,
-    cif: true,               // ✅ AÑADIR
-    licenseNumber: true,     // ✅ AÑADIR
-  }
-}
- }
-});
-
+    const properties = await prisma.property.findMany({
+      where: { status: 'PUBLICADO' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        images: true,
+        favoritedBy: { select: { userId: true } },
+        // 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDO licenseType
+        user: {
+          select: {
+            id: true,
+            role: true,
+            name: true,
+            surname: true,
+            email: true,
+            avatar: true,
+            companyName: true,
+            companyLogo: true,
+            coverImage: true,
+            phone: true,
+            mobile: true,
+            website: true,
+            tagline: true,
+            zone: true,
+            cif: true,
+            licenseNumber: true,
+            licenseType: true // <--- ¡ESTO FALTABA! Sin esto sale "Agencia Certificada" genérico
+          }
+        }
+      }
+    });
 
     const mappedProps = properties.map((p: any) => {
         // 1. Gestión de Fotos
         const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
-        let allImages = p.images.map((img: any) => img.url);
+        let allImages = (p.images || []).map((img: any) => img.url);
         if (allImages.length === 0 && realImg) allImages = [realImg];
 
         // 2. Gestión de Favoritos
@@ -85,22 +104,26 @@ const properties = await prisma.property.findMany({
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
 
-        // 3. 🔥 GESTIÓN DE IDENTIDAD (El arreglo visual)
+        // 3. Gestión de Identidad (Creator)
         const creator = p.user || {};
         
-        // Prioridad: Nombre Empresa > Nombre Persona > "Usuario Stratos"
+        // Prioridad visual: Nombre Empresa > Nombre Persona > "Usuario Stratos"
         const finalName = creator.companyName || creator.name || "Usuario Stratos";
-        // Prioridad: Logo Empresa > Avatar Persona > Null
         const finalAvatar = creator.companyLogo || creator.avatar || null;
-        // Teléfono: Móvil > Fijo > Null
         const finalPhone = creator.mobile || creator.phone || null;
 
+        // Construimos el objeto de identidad visual
         const ownerIdentity = {
             name: finalName,
             avatar: finalAvatar,
             role: creator.role || "PARTICULAR",
             phone: finalPhone,
-            isVerified: !!(creator.cif || creator.licenseNumber || creator.role === 'AGENCIA')
+            isVerified: !!(creator.cif || creator.licenseNumber || creator.role === 'AGENCIA'),
+            // Aseguramos que pasamos los datos clave de agencia
+            licenseType: creator.licenseType, 
+            tagline: creator.tagline,
+            zone: creator.zone,
+            coverImage: creator.coverImage
         };
 
         return {
@@ -110,15 +133,10 @@ const properties = await prisma.property.findMany({
             images: allImages,
             img: realImg || null,
             
-           // 🔥 CLAVE: NO PIERDAS LOS CAMPOS REALES DEL CREADOR
-user: { ...creator, ...ownerIdentity },
+            // 🔥 CLAVE: FUSIONAMOS EL CREADOR CON LA IDENTIDAD PROCESADA
+            // Esto asegura que el Frontend reciba licenseType, tagline, etc.
+            user: { ...creator, ...ownerIdentity }, 
 
-            
-            // Fallbacks de compatibilidad
-            userName: finalName,
-            userAvatar: finalAvatar,
-            role: creator.role || "PARTICULAR",
-            
             // Datos Numéricos
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
             rawPrice: p.price,
@@ -146,8 +164,6 @@ user: { ...creator, ...ownerIdentity },
     return { success: false, data: [] };
   }
 }
-
-
 
 // B. MIS PROPIEDADES (PERFIL)
 export async function getPropertiesAction() {
@@ -511,29 +527,59 @@ export async function getFavoritesAction() {
 // 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO)
 // =========================================================
 
-// A. OBTENER PORTAFOLIO COMPLETO (PROPIAS + FAVORITOS)
+// B. OBTENER PORTAFOLIO COMPLETO (PROPIAS + FAVORITOS)
 export async function getAgencyPortfolioAction() {
   try {
     const user = await getUserMeAction();
     if (!user.success || !user.data) return { success: false, data: [] };
 
-    // 1. Mis Propiedades (Soy dueño)
+    // 🔥 DEFINICIÓN DE LA IDENTIDAD (EL "DNI" DE LA AGENCIA)
+    const identitySelect = {
+        select: {
+            id: true,
+            role: true,        // Vital para saber si es Agencia o Particular
+            name: true,
+            companyName: true,
+            companyLogo: true, // Logo
+            coverImage: true,  // Fondo Corporativo
+            tagline: true,     // Slogan
+            zone: true,
+            licenseType: true, // El Pack (Starter, Pro...)
+            phone: true,
+            mobile: true,
+            email: true,
+            cif: true,
+            licenseNumber: true
+        }
+    };
+
+    // 1. Mis Propiedades (Soy dueño) -> INCLUIMOS EL DNI
     const myProperties = await prisma.property.findMany({
       where: { userId: user.data.id },
-      include: { images: true }
+      include: { 
+          images: true,
+          user: identitySelect // <--- AQUÍ SE CARGA LA IDENTIDAD
+      }
     });
 
-    // 2. Mis Favoritos (He dado like)
+    // 2. Mis Favoritos -> INCLUIMOS EL DNI DE SUS DUEÑOS
     const myFavorites = await prisma.favorite.findMany({
       where: { userId: user.data.id },
-      include: { property: { include: { images: true } } }
+      include: { 
+          property: { 
+              include: { 
+                  images: true,
+                  user: identitySelect // <--- AQUÍ TAMBIÉN
+              } 
+          } 
+      }
     });
 
-    // 3. Unificar listas (Normalizando datos)
+    // 3. Unificar listas
     const owned = myProperties.map((p: any) => ({ ...p, isOwner: true, isFavorited: true }));
     const favs = myFavorites.map((f: any) => ({ ...f.property, isOwner: false, isFavorited: true }));
 
-    // 4. Eliminar duplicados (Por si di like a mi propia casa)
+    // 4. Eliminar duplicados
     const combined = [...owned];
     const ownedIds = new Set(owned.map((p:any) => p.id));
     
@@ -541,20 +587,26 @@ export async function getAgencyPortfolioAction() {
         if (!ownedIds.has(f.id)) combined.push(f);
     });
 
-    // 5. Formatear para el Mapa (Precio, Fotos, Coordenadas)
+    // 5. Formatear para el Mapa
     const cleanList = combined.map((p: any) => {
         if (!p) return null;
-        let allImages = (p.images || []).map((img: any) => img.url);
-        if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
+        
+        // Extraemos el creador tal cual viene de la DB
+        const creator = p.user || {};
         
         return {
             ...p,
             id: p.id,
-            images: allImages,
-            img: allImages[0] || null,
+            // 🔥 PASAMOS EL USUARIO COMPLETO (IDENTIDAD) AL FRONTEND
+            user: creator, 
+            
+            // Gestión de imágenes
+            images: (p.images || []).map((img: any) => img.url),
+            img: p.images?.[0]?.url || p.mainImage || null,
+            
+            // Datos numéricos y coordenadas
             price: new Intl.NumberFormat('es-ES').format(p.price || 0),
             rawPrice: p.price,
-            priceValue: p.price,
             coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
             m2: Number(p.mBuilt || 0),
             communityFees: p.communityFees || 0
@@ -563,7 +615,6 @@ export async function getAgencyPortfolioAction() {
 
     return { success: true, data: cleanList };
   } catch (error) {
-    console.error("Error Stock:", error);
     return { success: false, error: "Error de conexión" };
   }
 }
