@@ -56,7 +56,11 @@ export async function loginUser(formData: FormData) {
     return { success: true };
 }
 
-// A. MAPA GLOBAL (CORREGIDO: TRAE LA IDENTIDAD COMPLETA + LICENCIA)
+// =========================================================
+// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
+// =========================================================
+
+// A. MAPA GLOBAL (VERSION AUTÓNOMA DE RECUPERACIÓN)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -68,7 +72,7 @@ export async function getGlobalPropertiesAction() {
       include: {
         images: true,
         favoritedBy: { select: { userId: true } },
-        // 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDO licenseType
+        // 🔥 DEFINICIÓN EXPLÍCITA (Para que no dependa de constantes externas)
         user: {
           select: {
             id: true,
@@ -87,7 +91,7 @@ export async function getGlobalPropertiesAction() {
             zone: true,
             cif: true,
             licenseNumber: true,
-            licenseType: true // <--- ¡ESTO FALTABA! Sin esto sale "Agencia Certificada" genérico
+            licenseType: true // El dato crítico
           }
         }
       }
@@ -99,31 +103,29 @@ export async function getGlobalPropertiesAction() {
         let allImages = (p.images || []).map((img: any) => img.url);
         if (allImages.length === 0 && realImg) allImages = [realImg];
 
-        // 2. Gestión de Favoritos
+        // 2. Favoritos
         const isFavoritedByMe = currentUserId
             ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
             : false;
 
-        // 3. Gestión de Identidad (Creator)
+        // 3. Identidad (Seguridad contra nulos)
         const creator = p.user || {};
         
-        // Prioridad visual: Nombre Empresa > Nombre Persona > "Usuario Stratos"
+        // Fallbacks de seguridad por si la DB devuelve nulos
         const finalName = creator.companyName || creator.name || "Usuario Stratos";
         const finalAvatar = creator.companyLogo || creator.avatar || null;
-        const finalPhone = creator.mobile || creator.phone || null;
-
-        // Construimos el objeto de identidad visual
+        
+        // Construcción del objeto de identidad visual
         const ownerIdentity = {
             name: finalName,
             avatar: finalAvatar,
             role: creator.role || "PARTICULAR",
-            phone: finalPhone,
+            phone: creator.mobile || creator.phone || null,
             isVerified: !!(creator.cif || creator.licenseNumber || creator.role === 'AGENCIA'),
-            // Aseguramos que pasamos los datos clave de agencia
-            licenseType: creator.licenseType, 
-            tagline: creator.tagline,
-            zone: creator.zone,
-            coverImage: creator.coverImage
+            licenseType: creator.licenseType || 'STARTER', 
+            tagline: creator.tagline || null,
+            zone: creator.zone || null,
+            coverImage: creator.coverImage || null
         };
 
         return {
@@ -133,8 +135,7 @@ export async function getGlobalPropertiesAction() {
             images: allImages,
             img: realImg || null,
             
-            // 🔥 CLAVE: FUSIONAMOS EL CREADOR CON LA IDENTIDAD PROCESADA
-            // Esto asegura que el Frontend reciba licenseType, tagline, etc.
+            // ✅ PASAMOS EL CREADOR FUSIONADO CON LA IDENTIDAD PROCESADA
             user: { ...creator, ...ownerIdentity }, 
 
             // Datos Numéricos
@@ -142,25 +143,15 @@ export async function getGlobalPropertiesAction() {
             rawPrice: p.price,
             priceValue: p.price,
             isFavorited: isFavoritedByMe,
-
-            // Extras
-            pool: p.pool,
-            garage: p.garage,
-            elevator: p.elevator,
-
-            // Datos Técnicos
             m2: Number(p.mBuilt || 0),
-            mBuilt: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0,
-            energyConsumption: p.energyConsumption,
-            energyEmissions: p.energyEmissions,
-            energyPending: p.energyPending
+            communityFees: p.communityFees || 0
         };
     });
 
     return { success: true, data: mappedProps };
   } catch (error) {
-    console.error("Error mapa global:", error);
+    console.error("Error crítico en mapa global:", error);
+    // Devuelve array vacío para que al menos la página cargue y no se quede en blanco
     return { success: false, data: [] };
   }
 }
