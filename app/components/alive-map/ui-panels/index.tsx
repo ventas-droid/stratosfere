@@ -763,8 +763,10 @@ useEffect(() => {
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end pb-8 animate-fade-in text-sans select-none">
        
      {systemMode === 'GATEWAY' && (
-           // 🔥 CAMBIO: Usamos 'contents' para eliminar la caja negra que oscurece todo.
-           <div className="contents">
+           // 🔥 SOLUCIÓN FINAL: 
+           // 1. 'pointer-events-auto': Para que el ratón NO atraviese y no salga la mano del mapa.
+           // 2. SIN 'bg-black': Para que no haya velo negro.
+           <div className="fixed inset-0 z-[50000] pointer-events-auto">
                <DualGateway 
                    onSelectMode={(m:any) => { playSynthSound('boot'); setSystemMode(m); }} 
                    userRole={userRole} 
