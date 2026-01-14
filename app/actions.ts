@@ -249,19 +249,24 @@ export async function savePropertyAction(data: any) {
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
     
-    // 🔥 ESTA ES LA CORRECCIÓN: Definimos qué queremos que nos devuelva la BD
+   // 🔥 ESTA ES LA CORRECCIÓN EN savePropertyAction:
     const includeOptions = { 
         images: true,
-        user: { // <--- AÑADIDO CRÍTICO: Devolvemos la identidad del dueño
+        user: { 
             select: {
                 id: true,
                 name: true,
                 avatar: true,
+                // DATOS AGENCIA CRÍTICOS
                 companyName: true,
                 companyLogo: true,
+                coverImage: true,   // <--- FALTABA ESTO (IMPORTANTE PARA EL FONDO)
                 role: true,
                 phone: true,
                 mobile: true,
+                website: true,      // <--- AÑADIR
+                tagline: true,      // <--- AÑADIR
+                zone: true,         // <--- AÑADIR
                 cif: true,
                 licenseNumber: true
             }

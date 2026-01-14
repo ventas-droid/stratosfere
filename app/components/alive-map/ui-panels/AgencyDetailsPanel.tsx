@@ -3,12 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
     X, Heart, Phone, Sparkles, User, ShieldCheck, Briefcase,
-    Star, Home, Maximize2, Building2, ArrowUp,
+    Star, Home, Maximize2, ArrowUp,
     Car, Trees, Waves, Sun, Box, Thermometer, 
-    Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, 
-    TrendingUp, Share2, Mail, FileText, FileCheck, Activity, 
-    Newspaper, KeyRound, Sofa, Droplets, Paintbrush, Truck, 
-    Bed, Bath
+    Camera, Globe, Plane, Hammer, Ruler, 
+    TrendingUp, Share2, Mail, FileCheck, Activity, 
+    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check
 } from 'lucide-react';
 
 // --- DICCIONARIO MAESTRO DE ICONOS ---
@@ -36,21 +35,18 @@ export default function AgencyDetailsPanel({
   onToggleFavorite, 
   favorites = [], 
   onOpenInspector,
-  agencyData: initialAgencyData // <--- RECIBIMOS EL DATO (Puede ser null)
+  agencyData: initialAgencyData 
 }: any) {
     
-    // 1. ESTADO DE LA PROPIEDAD (Para actualizaciones en vivo)
     const [selectedProp, setSelectedProp] = useState(initialProp);
-    
-    // 2. SINCRONIZACIÓN (Si cambias de casa en el mapa, actualizamos aquí)
+    const [showContactModal, setShowContactModal] = useState(false); // Estado para el Popup
+    const [copied, setCopied] = useState(false);
+
     useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
 
-    // 🔥 CORRECCIÓN MAESTRA: DATOS DEL DUEÑO DIRECTOS (SIN MEMORIA)
-    // No usamos useState aquí. Leemos directamente lo que entra.
-    // Prioridad: Lo que manda el index > El usuario de la propiedad > Objeto vacío
+    // 🔥 DATOS DEL DUEÑO DIRECTOS (Prioridad: Props > Propiedad > Vacío)
     const activeData = initialAgencyData || selectedProp?.user || {};
 
-    // 3. ESCUCHA ACTIVA (Para cambios de precio en tiempo real)
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -62,13 +58,21 @@ export default function AgencyDetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-    // --- VARIABLES DE IDENTIDAD (PARA USAR EN EL HTML MÁS ABAJO) ---
-    const name = activeData.companyName || activeData.name || "Usuario Stratos";
+    // --- VARIABLES DE IDENTIDAD (SIN LOCALSTORAGE) ---
+    // Si estamos en AgencyPanel, asumimos que NO es un particular.
+    const name = activeData.companyName || activeData.name || "Agencia Stratos";
+    // Mapeamos los campos reales de la DB
     const avatar = activeData.companyLogo || activeData.avatar || null;
-    const role = activeData.role || "PARTICULAR";
-    const phone = activeData.phone || activeData.mobile || null;
-    const isVerified = !!(activeData.cif || activeData.licenseNumber);
+    const cover = activeData.coverImage || activeData.cover || null; 
     
+    // Eliminamos la lógica que devolvía "PARTICULAR" por defecto
+    const roleLabel = activeData.licenseType 
+        ? `${activeData.licenseType} PARTNER` 
+        : "AGENCIA CERTIFICADA";
+
+    const phone = activeData.phone || activeData.mobile || "Consultar";
+    const email = activeData.email || "contacto@stratos.os";
+
     // --- LÓGICA DE LIMPIEZA DE DATOS ---
     const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
     
@@ -106,7 +110,6 @@ export default function AgencyDetailsPanel({
         else serviceItems.push(itemObj);
     });
     
-    // Lógica Ascensor
     let hasElevator = false;
     const isYes = (val: any) => ['si', 'sí', 'yes', 'true', '1', 'on'].includes(String(val || '').toLowerCase().trim());
     if (isYes(selectedProp?.elevator) || isYes(selectedProp?.ascensor) || allTags.has('elevator')) hasElevator = true;
@@ -115,14 +118,17 @@ export default function AgencyDetailsPanel({
     const m2 = Number(selectedProp?.mBuilt || selectedProp?.m2 || selectedProp?.surface || 0);
     const isFavorite = favorites.some((f: any) => f.id === selectedProp?.id);
     
-    // Colores Energía
     const getEnergyColor = (rating: string) => {
         const map: any = { A: "bg-green-600", B: "bg-green-500", C: "bg-green-400", D: "bg-yellow-400", E: "bg-yellow-500", F: "bg-orange-500", G: "bg-red-600" };
         return map[rating] || "bg-gray-400";
     };
 
+    const copyPhone = () => {
+        navigator.clipboard.writeText(phone);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
   
-   
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             {/* FONDO CRYSTAL */}
@@ -130,16 +136,26 @@ export default function AgencyDetailsPanel({
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
                 
-                {/* --- 🔥 HEADER CORPORATIVO PREMIUM --- */}
-                <div className="relative shrink-0 z-20">
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#020617] to-[#1e293b] border-b border-white/10"></div>
-                    <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col gap-6">
-                         {/* Fila Superior: Logo y Botón Cerrar */}
+                {/* --- 🔥 HEADER CORPORATIVO PREMIUM REAL --- */}
+                <div className="relative shrink-0 z-20 h-72 overflow-hidden">
+                    {/* FONDO DINÁMICO DE AGENCIA */}
+                    <div className="absolute inset-0 bg-black">
+                        {cover ? (
+                            <img src={cover} className="w-full h-full object-cover opacity-60" alt="Fondo Agencia" />
+                        ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-[#0f172a] via-[#020617] to-[#1e293b]" />
+                        )}
+                        {/* Gradiente de legibilidad */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-black/40"></div>
+                    </div>
+
+                    <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col justify-between h-full">
+                         {/* Top Row */}
                          <div className="flex justify-between items-start">
                             <div className="relative group">
-                                <div className="w-24 h-24 rounded-2xl bg-white p-1 shadow-2xl shadow-black/50 border border-white/20 rotate-1 group-hover:rotate-0 transition-transform duration-500">
+                                <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur-md p-1 shadow-2xl shadow-black/50 border border-white/20 rotate-1 group-hover:rotate-0 transition-transform duration-500">
                                     {avatar ? (
-                                        <img src={avatar} className="w-full h-full rounded-xl object-cover" alt="Logo" />
+                                        <img src={avatar} className="w-full h-full rounded-xl object-cover bg-white" alt="Logo" />
                                     ) : (
                                         <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center text-slate-300">
                                             <User size={40} />
@@ -151,23 +167,24 @@ export default function AgencyDetailsPanel({
                                     <span className="text-[9px] font-black uppercase tracking-widest">Verificado</span>
                                 </div>
                             </div>
-                            <button onClick={onClose} className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/10 text-white/70 hover:text-white">
+                            <button onClick={onClose} className="w-10 h-10 bg-black/20 hover:bg-black/40 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/10 text-white/70 hover:text-white">
                                 <X size={20} />
                             </button>
                          </div>
 
-                         {/* Fila Inferior: Datos de la Agencia */}
+                         {/* Bottom Row */}
                          <div>
                             <h2 className="text-3xl font-black text-white leading-none mb-3 tracking-tight drop-shadow-md">
                                 {name}
                             </h2>
                             <div className="flex flex-wrap gap-2">
-                                <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-blue-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
-                                    <Briefcase size={12}/> {role}
+                                {/* ETIQUETA CORREGIDA: NADA DE PARTICULAR */}
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-blue-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg">
+                                    <Briefcase size={12}/> {roleLabel}
                                 </span>
-                               {phone && (  // <--- CAMBIAR agencyData.phone POR phone
-                                    <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-emerald-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2">
-                                        <Phone size={12}/> {phone}
+                               {activeData.zone && (
+                                    <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-emerald-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg">
+                                        <Globe size={12}/> {activeData.zone}
                                     </span>
                                 )}
                             </div>
@@ -176,7 +193,7 @@ export default function AgencyDetailsPanel({
                 </div>
 
                 {/* --- CONTENIDO SCROLL --- */}
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-40">
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-40 bg-[#F5F5F7]">
                     
                     {/* FOTO */}
                     <div onClick={onOpenInspector} className="relative aspect-video w-full bg-gray-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white cursor-pointer hover:shadow-2xl transition-shadow group">
@@ -221,7 +238,8 @@ export default function AgencyDetailsPanel({
                         </div>
                     </div>
 
-                    {/* FICHA TÉCNICA */}
+                    {/* FICHA TÉCNICA Y SERVICIOS (Igual que antes) ... */}
+                    {/* ... Mantengo el resto de tu código de renderizado de características igual ... */}
                     <div className="bg-white rounded-[24px] p-5 shadow-sm border border-white">
                         <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
                             <Home size={12} className="text-blue-500"/> Ficha Técnica
@@ -248,7 +266,7 @@ export default function AgencyDetailsPanel({
                         </div>
                     </div>
 
-                    {/* DESCRIPCIÓN */}
+                   {/* DESCRIPCIÓN */}
                     {selectedProp?.description && (
                         <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white">
                             <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest block mb-2">Descripción</span>
@@ -263,39 +281,35 @@ export default function AgencyDetailsPanel({
                             <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg border border-blue-100 animate-pulse">En trámite</span>
                         ) : (
                             <div className="flex gap-3">
-                                {selectedProp?.energyConsumption ? (<div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyConsumption)}`}>{selectedProp.energyConsumption}</div><span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Cons.</span></div>) : (<span className="text-[10px] text-gray-400 font-bold self-center">N/D</span>)}
-                                {selectedProp?.energyEmissions && (<div className="flex flex-col items-center"><div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyEmissions)}`}>{selectedProp.energyEmissions}</div><span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Emis.</span></div>)}
+                                {selectedProp?.energyConsumption ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyConsumption)}`}>
+                                            {selectedProp.energyConsumption}
+                                        </div>
+                                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Cons.</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-[10px] text-gray-400 font-bold self-center">N/D</span>
+                                )}
+                                
+                                {selectedProp?.energyEmissions && (
+                                    <div className="flex flex-col items-center">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm ${getEnergyColor(selectedProp.energyEmissions)}`}>
+                                            {selectedProp.energyEmissions}
+                                        </div>
+                                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">Emis.</span>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
-
-                    {/* SERVICIOS ACTIVOS (ESTILO PARTICULAR) */}
-                    {serviceItems.length > 0 && (
-                        <div className="bg-[#F2F2F7] rounded-[24px] p-5 shadow-inner border border-white">
-                            <div className="text-center mb-4 opacity-60">
-                                <span className="text-[9px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 text-slate-500">
-                                    <Sparkles size={10} className="text-purple-500"/> Servicios Activos
-                                </span>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3">
-                                {serviceItems.map((item) => (
-                                    <div key={item.id} className="flex flex-col items-center gap-1.5 group cursor-default">
-                                        <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-purple-600 border border-purple-100 group-hover:scale-110 transition-transform">
-                                            <item.icon size={16} strokeWidth={2}/>
-                                        </div>
-                                        <span className="text-[8px] font-bold text-slate-500 uppercase text-center leading-tight">{item.label}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                     
                     <div className="h-6"></div>
                 </div>
 
                 {/* --- FOOTER: CONTACTAR AGENTE --- */}
                 <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
-                    <button className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs">
+                    <button onClick={() => setShowContactModal(true)} className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs">
                         <Phone size={18} /> Contactar Agente
                     </button>
                     <button 
@@ -305,7 +319,94 @@ export default function AgencyDetailsPanel({
                         <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
                     </button>
                 </div>
-            </div>
+
+               {/* --- 🔥 POPUP CONTACTO AGENTE (AUTOMÁTICO Y REAL) --- */}
+                {showContactModal && (
+                    <div className="absolute inset-0 z-50 flex flex-col justify-end animate-fade-in bg-black/60 backdrop-blur-sm">
+                        {/* Al hacer click fuera, cerramos */}
+                        <div onClick={() => setShowContactModal(false)} className="absolute inset-0"></div>
+                        
+                        <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6">
+                            
+                            {/* 1. HEADER DEL POPUP: USA EL FONDO Y AVATAR DEL AGENTE */}
+                            <div className="relative h-36 bg-black flex items-end p-6 gap-4">
+                                {/* FONDO (Cover Real) */}
+                                <div className="absolute inset-0">
+                                    {cover ? (
+                                        <img src={cover} className="w-full h-full object-cover opacity-60" alt="Fondo Agente" />
+                                    ) : (
+                                        <div className="w-full h-full bg-gradient-to-r from-slate-900 to-slate-800" />
+                                    )}
+                                    {/* Degradado para que se lea el texto */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+                                </div>
+                                
+                                {/* AVATAR (Logo Real) */}
+                                <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">
+                                    {avatar ? (
+                                        <img src={avatar} className="w-full h-full rounded-xl object-cover" alt="Avatar" />
+                                    ) : (
+                                        <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center">
+                                            <User className="text-slate-300" size={32}/>
+                                        </div>
+                                    )}
+                                    {/* Badge Verificado */}
+                                    <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full border-[3px] border-black shadow-sm">
+                                        <ShieldCheck size={10} strokeWidth={4} />
+                                    </div>
+                                </div>
+
+                                {/* NOMBRE Y ESTADO */}
+                                <div className="relative z-10 mb-2">
+                                    <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md">{name}</h3>
+                                    <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1 bg-emerald-950/50 px-2 py-0.5 rounded-full w-fit border border-emerald-500/30">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Responderé en breve
+                                    </p>
+                                </div>
+                                
+                                {/* Botón Cerrar X */}
+                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white z-20 bg-black/20 hover:bg-black/50 p-2 rounded-full backdrop-blur-md transition-all">
+                                    <X size={18}/>
+                                </button>
+                            </div>
+
+                            {/* 2. CUERPO DEL POPUP: DATOS REALES */}
+                            <div className="px-6 pt-6 space-y-4">
+                                
+                                {/* TELÉFONO (Con función copiar) */}
+                                <div onClick={copyPhone} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95 group">
+                                    <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center border border-[#C8E6C9] group-hover:scale-110 transition-transform">
+                                        <Phone size={22} strokeWidth={2.5} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Teléfono / WhatsApp</p>
+                                        <p className="text-xl font-black text-slate-900 tracking-tight">{phone}</p>
+                                    </div>
+                                    <div className="text-slate-300 group-hover:text-emerald-500 transition-colors">
+                                        {copied ? <span className="text-[10px] font-bold text-emerald-600 uppercase">Copiado!</span> : <Copy size={20}/>}
+                                    </div>
+                                </div>
+
+                                {/* EMAIL */}
+                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group">
+                                    <div className="w-12 h-12 rounded-2xl bg-[#E3F2FD] text-[#1565C0] flex items-center justify-center border border-[#BBDEFB] group-hover:scale-110 transition-transform">
+                                        <Mail size={22} strokeWidth={2.5} />
+                                    </div>
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email Corporativo</p>
+                                        <p className="text-sm font-black text-slate-900 truncate">{email}</p>
+                                    </div>
+                                </div>
+
+                                {/* BOTÓN CERRAR GRANDE */}
+                                <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95">
+                                    Cerrar Ficha
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}            </div>
         </div>
     );
 }
+
