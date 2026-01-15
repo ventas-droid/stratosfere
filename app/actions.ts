@@ -351,14 +351,40 @@ export async function updateUserAction(data: any) {
 
 // ... (resto de la función)
 
-    // Ejecutar en DB
-    await prisma.user.update({
-        where: { id: user.id },
-        data: updateData
-    });
+   // Ejecutar en DB (y capturamos el resultado)
+const updated = await prisma.user.update({
+  where: { id: user.id },
+  data: updateData,
+});
 
-    revalidatePath('/'); 
-    return { success: true };
+// ✅ SINCRONIZAR ownerSnapshot EN TODAS MIS PROPIEDADES (para que Details/Stock refleje el perfil editado)
+try {
+  const snap = {
+    id: updated.id,
+    name: updated.name ?? null,
+    role: updated.role ?? null,
+    zone: updated.zone ?? null,
+    phone: updated.phone ?? null,
+    mobile: updated.mobile ?? null,
+    tagline: updated.tagline ?? null,
+    coverImage: updated.coverImage ?? null,
+    companyLogo: updated.companyLogo ?? null,
+    companyName: updated.companyName ?? null,
+    avatar: updated.avatar ?? null,
+  };
+
+  await prisma.property.updateMany({
+    where: { userId: updated.id },
+    data: { ownerSnapshot: snap as any },
+  });
+} catch (err) {
+  console.warn("No se pudo sincronizar ownerSnapshot:", err);
+}
+
+revalidatePath('/');
+return { success: true, data: updated };
+
+ 
   } catch (e) {
     console.error("Error update user:", e);
     return { success: false, error: String(e) };
