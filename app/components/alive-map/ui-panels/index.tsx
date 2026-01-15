@@ -382,7 +382,13 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
                 // 🔥 FILTRO ANTI-DUPLICADOS (Por si acaso viene sucio del server)
                 const uniqueFavs = Array.from(new Map(normalized.map(item => [String(item.id), item])).values());
 
-                setLocalFavs(uniqueFavs);
+                // ✅ En EXPLORER -> localFavs | en AGENCY -> agencyLikes (server-backed)
+if (systemMode === "AGENCY") {
+  setAgencyLikes(uniqueFavs);
+} else {
+  setLocalFavs(uniqueFavs);
+}
+
 
                 // Mantenemos el espejo para las NanoCards
                 if (typeof mirrorGlobalFavsForNanoCard === 'function') {
@@ -498,12 +504,9 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
         window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
       }
 
-     // 3) Persistencia Servidor (Tabla Favorites) ✅ CON desired (evita desync)
+    // 3) Persistencia Servidor (Tabla Favorites) ✅ CON desired (evita desync)
 try {
-  // ✅ desired = intención final (lo que YA decidiste en UI)
-  // newStatus es el estado final tras tu lógica (true=añadir, false=quitar)
   const desired = newStatus;
-
   const res = await toggleFavoriteAction(String(safeId), desired);
 
   // ✅ Fuente de verdad: el servidor decide el estado final
@@ -511,7 +514,6 @@ try {
 
   // Si el server difiere (por race/duplicados/toggles previos), corregimos UI
   if (serverState !== newStatus) {
-    // Ajustar lista según el estado real
     if (serverState) {
       // asegurar que está
       if (!currentList.some((f: any) => String(f.id) === safeId)) {
@@ -530,8 +532,8 @@ try {
     }
   }
 
-  // Si quieres máxima consistencia, puedes refrescar desde DB:
-  // setDataVersion(v => v + 1);
+  // ✅ Máxima consistencia: refrescar desde DB (servidor)
+  setDataVersion((v: number) => v + 1);
 
 } catch (error) {
   console.error(error);
@@ -547,6 +549,7 @@ try {
     );
   }
 }
+
 
   };
 
@@ -672,7 +675,33 @@ try {
     };
   }, [soundEnabled, localFavs, agencyFavs, systemMode, identityVerified]);
 
-    useEffect(() => {
+    // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)
+useEffect(() => {
+  const onFly = (e: any) => {
+    try {
+      const d = e?.detail || {};
+      const center = d.center;
+      if (!map?.current || !center) return;
+
+      map.current.flyTo({
+        center,
+        zoom: typeof d.zoom === "number" ? d.zoom : 17,
+        pitch: typeof d.pitch === "number" ? d.pitch : 55,
+        bearing: typeof d.bearing === "number" ? d.bearing : -20,
+        duration: typeof d.duration === "number" ? d.duration : 1200,
+        essential: true,
+      });
+    } catch (err) {
+      console.warn("map-fly-to failed:", err);
+    }
+  };
+
+  window.addEventListener("map-fly-to", onFly as any);
+  return () => window.removeEventListener("map-fly-to", onFly as any);
+}, [map]);
+
+  
+  useEffect(() => {
       const handleEditMarket = (e: any) => {
           setMarketProp(e.detail);
           setActivePanel('MARKETPLACE');
