@@ -181,7 +181,8 @@ export default function UIPanels({
   const [localFavs, setLocalFavs] = useState<any[]>([]);
   const [agencyFavs, setAgencyFavs] = useState<any[]>([]);
  const [agencyLikes, setAgencyLikes] = useState<any[]>([]);
- const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
+const uiFavs = systemMode === "AGENCY" ? agencyLikes : localFavs;
+const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
  // --- 2. CREDENCIALES (SaaS Puro) ---
   const searchParams = useSearchParams();
   const [gateUnlocked, setGateUnlocked] = useState(false);
@@ -1061,7 +1062,7 @@ useEffect(() => {
                <VaultPanel 
                    rightPanel={rightPanel} 
                    toggleRightPanel={(p: any) => setRightPanel('NONE')} 
-                   favorites={localFavs} 
+                   favorites={uiFavs}
                    onToggleFavorite={handleToggleFavorite} 
                    map={map} 
                    soundEnabled={soundEnabled} 
@@ -1149,7 +1150,7 @@ const isAgency =
                            selectedProp={selectedProp} 
                            onClose={() => setActivePanel('NONE')} 
                            onToggleFavorite={handleToggleFavorite} 
-                           favorites={localFavs}
+                           favorites={uiFavs}
                            onOpenInspector={() => setActivePanel('INSPECTOR')}
                            agencyData={owner} // <--- CLAVE: Pasamos el dueño
                        />
@@ -1158,7 +1159,7 @@ const isAgency =
                            selectedProp={selectedProp} 
                            onClose={() => setActivePanel('NONE')} 
                            onToggleFavorite={handleToggleFavorite} 
-                           favorites={localFavs} 
+                           favorites={uiFavs}
                            soundEnabled={soundEnabled} 
                            playSynthSound={playSynthSound} 
                            onOpenInspector={() => setActivePanel('INSPECTOR')} 

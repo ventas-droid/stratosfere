@@ -85,6 +85,33 @@ export default function AgencyPortfolioPanel({
   if (!isOpen) return null;
 
   const safeList = Array.isArray(properties) ? properties : [];
+const openFromStock = (p: any) => {
+  try {
+    // 1) Abrir Details DIRECTO (esto es lo esencial)
+    window.dispatchEvent(new CustomEvent("open-details-signal", { detail: p }));
+
+    // 2) (Opcional) fijar selección para el mapa (por coherencia)
+    window.dispatchEvent(
+      new CustomEvent("select-property-signal", { detail: { id: String(p?.id) } })
+    );
+
+    // 3) (Opcional) vuelo de cámara si hay coords
+    const center =
+      Array.isArray(p?.coordinates) ? p.coordinates :
+      (p?.longitude && p?.latitude) ? [p.longitude, p.latitude] :
+      null;
+
+    if (center) {
+      window.dispatchEvent(
+        new CustomEvent("map-fly-to", {
+          detail: { center, zoom: 17, pitch: 55, duration: 1200 },
+        })
+      );
+    }
+  } catch (e) {
+    console.error("open-details from portfolio failed:", e);
+  }
+};
 
   return (
     <div className="absolute inset-y-0 right-0 w-[460px] max-w-full z-[50000] bg-[#F2F2F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
@@ -141,7 +168,8 @@ export default function AgencyPortfolioPanel({
                           {/* FOTO + BADGE ONLINE */}
                           <div 
                              className="w-24 h-24 rounded-[24px] overflow-hidden bg-gray-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity relative shadow-inner"
-                             onClick={() => onSelect && onSelect(p)}
+                             onClick={() => openFromStock(p)}
+
                           >
                              <img src={mainImg} className="w-full h-full object-cover" alt={titleDisplay}/>
                              <div className="absolute top-2 right-2 bg-emerald-100 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded shadow-sm tracking-widest uppercase">
@@ -212,7 +240,7 @@ export default function AgencyPortfolioPanel({
                           
                           {/* 1. VOLAR */}
                           <button 
-                            onClick={() => onSelect && onSelect(p)}
+onClick={() => openFromStock(p)}
                             className="w-12 h-12 flex items-center justify-center rounded-[18px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:scale-105 active:scale-95 transition-all border border-emerald-100/50"
                             title="Ver en Mapa"
                           >

@@ -100,98 +100,89 @@ export async function loginUser(formData: FormData) {
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
-    const currentUserId = user?.id;
+    const currentUserId = user?.id || null;
 
     const properties = await prisma.property.findMany({
-      where: { status: 'PUBLICADO' },
-      orderBy: { createdAt: 'desc' },
+      where: { status: "PUBLICADO" },
+      orderBy: { createdAt: "desc" },
       include: {
         images: true,
         favoritedBy: { select: { userId: true } },
 
-        // 🔥 CONEXIÓN VITAL: Traemos al usuario FRESCO de la DB
+        // ✅ Usuario “vivo” (perfil actual) para reflejar ediciones en Details
         user: {
-          select: {
-            id: true,
-            role: true,             // Rol actual
-            name: true,             // Nombre actual
-            surname: true,
-            email: true,
-            avatar: true,           // Foto actual (Particular)
-            companyName: true,      // Nombre empresa actual
-            companyLogo: true,      // Logo empresa actual
-            coverImage: true,       // Fondo actual
-            phone: true,            // Teléfono fijo actual
-            mobile: true,           // Móvil actual
-            website: true,
-            tagline: true,
-            zone: true,
-            cif: true,
-            licenseNumber: true,
-            licenseType: true       
-          }
-        }
-      }
+          select: USER_IDENTITY_SELECT,
+        },
+      },
     });
 
-    const mappedProps = properties.map((p: any) => {
-        // 1. Gestión de Fotos Propiedad
-        const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
-        let allImages = (p.images || []).map((img: any) => img.url);
-        if (allImages.length === 0 && realImg) allImages = [realImg];
+    const mappedProps = (properties || []).map((p: any) => {
+      // 1) Imágenes coherentes
+      const allImages = (p.images || [])
+        .map((img: any) => img?.url)
+        .filter(Boolean);
 
-        // 2. Favoritos
-        const isFavoritedByMe = currentUserId
-            ? p.favoritedBy.some((fav: any) => fav.userId === currentUserId)
-            : false;
+      const realImg =
+        allImages?.[0] || p.mainImage || null;
 
-        // 3. FUSIÓN DE IDENTIDAD (SIEMPRE FRESCA)
-        // Aquí usamos los datos que ACABAMOS de traer de la tabla User.
-        const u = p.user || {};
-        const isAgency = u.role === 'AGENCIA';
+      const imagesFinal =
+        allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-        const displayIdentity = {
-            id: u.id,
-            role: u.role || 'PARTICULAR',
-            
-            // NOMBRE: Si es agencia -> Empresa. Si no -> Persona.
-            name: isAgency ? (u.companyName || u.name || "Agencia Stratos") : (u.name || "Usuario"),
-            
-            // AVATAR: Si es agencia -> Logo. Si no -> Avatar.
-            avatar: isAgency ? (u.companyLogo || null) : (u.avatar || null),
-            
-            // FONDO
-            coverImage: u.coverImage || null,
-            
-            // CONTACTO
-            phone: u.mobile || u.phone || null,
-            email: u.email || null,
-            website: u.website || null,
-            
-            // EXTRAS
-            licenseType: u.licenseType || 'STARTER',
-            tagline: isAgency ? (u.tagline || null) : null,
-            zone: isAgency ? (u.zone || null) : null,
-            isVerified: isAgency || !!u.cif
-        };
+      // 2) Favoritos (estado server truth)
+      const isFavoritedByMe = currentUserId
+        ? (p.favoritedBy || []).some((fav: any) => fav?.userId === currentUserId)
+        : false;
 
-        return {
-            ...p,
-            id: p.id,
-            coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
-            images: allImages,
-            img: realImg || null,
-            
-            // ✅ MOCHILA ACTUALIZADA
-            user: displayIdentity, 
+      // 3) Identidad unificada:
+      //    - live user (DB) para ver ediciones
+      //    - snapshot como fallback si falta user o si es legacy
+      const identity = buildIdentity(p.user, p.ownerSnapshot);
 
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            rawPrice: p.price,
-            priceValue: p.price,
-            isFavorited: isFavoritedByMe,
-            m2: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0
-        };
+      // 4) Coordenadas seguras
+      const lng = p.longitude ?? -3.7038;
+      const lat = p.latitude ?? 40.4168;
+
+      // 5) Precio: mantenemos numérico + string formateado
+      const rawPrice = Number(p.price || 0);
+      const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
+
+      return {
+        ...p,
+        id: p.id,
+
+        // ✅ IMPORTANTÍSIMO: que el snapshot viaje top-level también
+        ownerSnapshot: p.ownerSnapshot ?? null,
+
+        // ✅ IMPORTANTÍSIMO: el frontend debe leer SIEMPRE `user` normalizado
+        user: identity,
+
+        // Mapa / cards
+        coordinates: [lng, lat],
+        longitude: lng,
+        latitude: lat,
+
+        // Imágenes
+        images: imagesFinal,
+        img: realImg,
+
+        // Precio
+        price: priceFormatted,   // string para UI
+        rawPrice,                // number
+        priceValue: rawPrice,    // number
+
+        // Favorito
+        isFavorited: isFavoritedByMe,
+
+        // Datos numéricos (no los pierdas)
+        m2: Number(p.mBuilt || 0),
+        mBuilt: Number(p.mBuilt || 0),
+        communityFees: Number(p.communityFees || 0),
+
+        // Energía (para no perder datos en Details)
+        energyConsumption: p.energyConsumption ?? null,
+        energyEmissions: p.energyEmissions ?? null,
+        energyPending: !!p.energyPending,
+      };
     });
 
     return { success: true, data: mappedProps };
@@ -200,6 +191,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
+
 
 // C. GUARDAR PROPIEDAD (ESCRITURA BLINDADA Y CORREGIDA)
 export async function savePropertyAction(data: any) {
@@ -301,33 +293,76 @@ export async function savePropertyAction(data: any) {
 
     let result;
 
-    if (data.id && data.id.length > 20) { 
-        // EDICIÓN
-        const existing = await prisma.property.findUnique({ where: { id: data.id }});
-        if (existing && existing.userId === user.id) {
-            await prisma.image.deleteMany({ where: { propertyId: data.id } });
-            result = await prisma.property.update({
-                where: { id: data.id },
-                data: { ...payload, images: imageCreateLogic },
-                include: includeOptions // <--- USAMOS EL INCLUDE COMPLETO
-            });
-        } else {
-             // Si el ID es raro, creamos nueva
-             result = await prisma.property.create({ 
-                 data: { ...payload, images: imageCreateLogic },
-                 include: includeOptions // <--- USAMOS EL INCLUDE COMPLETO
-             });
-        }
-    } else {
-        // CREACIÓN
-        result = await prisma.property.create({ 
-            data: { ...payload, images: imageCreateLogic },
-            include: includeOptions // <--- USAMOS EL INCLUDE COMPLETO
-        });
+if (data.id && data.id.length > 20) {
+  // ✅ EDICIÓN
+  const existing = await prisma.property.findUnique({ where: { id: data.id } });
+
+  if (existing && existing.userId === user.id) {
+    await prisma.image.deleteMany({ where: { propertyId: data.id } });
+
+    result = await prisma.property.update({
+      where: { id: data.id },
+      data: {
+        ...payload,
+        images: imageCreateLogic,
+        // ⚠️ NO TOCAR ownerSnapshot en update (branding histórico)
+      },
+      include: includeOptions,
+    });
+  } else {
+    // ✅ Si el ID es raro o no es tuyo -> lo tratamos como CREACIÓN (con anti-duplicado)
+    const recent = await prisma.property.findFirst({
+      where: {
+        userId: user.id,
+        address: payload.address,
+        createdAt: { gte: new Date(Date.now() - 10_000) }, // 10s
+      },
+      orderBy: { createdAt: "desc" },
+      include: includeOptions,
+    });
+
+    if (recent) {
+      return { success: true, property: recent, deduped: true };
     }
 
-    revalidatePath('/'); 
-    return { success: true, property: result };
+    result = await prisma.property.create({
+      data: {
+        ...payload,
+        ownerSnapshot, // ✅ SOLO en create
+        images: imageCreateLogic,
+      },
+      include: includeOptions,
+    });
+  }
+} else {
+  // ✅ CREACIÓN (con anti-duplicado)
+  const recent = await prisma.property.findFirst({
+    where: {
+      userId: user.id,
+      address: payload.address,
+      createdAt: { gte: new Date(Date.now() - 10_000) }, // 10s
+    },
+    orderBy: { createdAt: "desc" },
+    include: includeOptions,
+  });
+
+  if (recent) {
+    return { success: true, property: recent, deduped: true };
+  }
+
+  result = await prisma.property.create({
+    data: {
+      ...payload,
+      ownerSnapshot, // ✅ SOLO en create
+      images: imageCreateLogic,
+    },
+    include: includeOptions,
+  });
+}
+
+revalidatePath("/");
+return { success: true, property: result };
+
   } catch (error) {
     return { success: false, error: String(error) };
   }

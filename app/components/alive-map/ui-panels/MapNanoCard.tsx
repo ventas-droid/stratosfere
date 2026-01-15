@@ -271,81 +271,85 @@ const handleAction = (e: React.MouseEvent, action: string) => {
   const finalImg = finalAlbum[0] || null;
 
   // 3. PAQUETE DE DATOS (PRECIO FRESCO + IMAGEN LIMPIA)
-const payload = {
-  id: String(id),
-  ...props,
-  ...data,
+  const payload = {
+    id: String(id || ""),
+    title: data?.title || props?.title || "",
+    type: data?.type || props?.type || "Piso",
 
-  // 🔥 SOBRESCRITURA OBLIGATORIA (FIX PRECIO DETAILS)
-  price: currentPrice,
-  formattedPrice: displayLabel,
-  priceValue: currentPrice,
-  rawPrice: currentPrice,
+    // localización
+    address: data?.address || props?.address || "",
+    coordinates:
+      (data?.coordinates && Array.isArray(data.coordinates) ? data.coordinates : null) ||
+      (props?.coordinates && Array.isArray(props.coordinates) ? props.coordinates : null) ||
+      null,
 
-  // FOTOS LIMPIAS
-  img: finalImg,
-  images: finalAlbum,
+    // media
+    img: data?.img || props?.img || null,
+    images: data?.images || props?.images || [],
 
-  type: type,
-  location: (city || location || address || "MADRID").toUpperCase(),
-  isFav: action === "fav" ? targetState : liked,
-  coordinates: navCoords,
+    // precio + básicos
+    price: data?.price ?? props?.price ?? "",
+    rooms: data?.rooms ?? props?.rooms ?? 0,
+    baths: data?.baths ?? props?.baths ?? 0,
+    mBuilt: data?.mBuilt ?? props?.mBuilt ?? "",
 
- // --- IMPORTANT: keep ownerSnapshot top-level (durable branding at creation time) ---
-ownerSnapshot: (data?.ownerSnapshot || props?.ownerSnapshot) ?? null,
+    // --- IMPORTANT: keep ownerSnapshot top-level (durable branding at creation time) ---
+    ownerSnapshot: (data?.ownerSnapshot || (props as any)?.ownerSnapshot) ?? null,
 
-// ✅ Preferimos user “vivo” (DB) para que los edits del perfil se reflejen.
-//    Si no existe, caemos al snapshot.
-user: (() => {
-  const snap = (data?.ownerSnapshot || props?.ownerSnapshot) ?? null;
-  const live = (props as any)?.user ?? (data as any)?.user ?? null;
+    // ✅ Preferimos user “vivo” (DB) para que los edits del perfil se reflejen.
+    //    Si no existe, caemos al snapshot.
+    user: (() => {
+      const snap = (data?.ownerSnapshot || (props as any)?.ownerSnapshot) ?? null;
+      const live = (props?.user || data?.user) ?? null;
 
-  const base =
-    live && typeof live === "object"
-      ? live
-      : snap && typeof snap === "object"
-      ? snap
-      : null;
+      const base =
+        live && typeof live === "object"
+          ? live
+          : snap && typeof snap === "object"
+          ? snap
+          : null;
 
-  if (!base) return null;
+      if (!base) return null;
 
-  return {
-    ...(base as any),
+      return {
+        ...base,
+        role:
+          (base as any)?.role ??
+          (props as any)?.role ??
+          (data as any)?.role ??
+          (props as any)?.user?.role ??
+          (data as any)?.user?.role ??
+          null,
+      };
+    })(),
+
+    // ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
+    userName:
+      (props as any)?.userName ||
+      (data as any)?.userName ||
+      (props as any)?.user?.name ||
+      (data as any)?.user?.name ||
+      (data as any)?.ownerSnapshot?.companyName ||
+      (data as any)?.ownerSnapshot?.name ||
+      "Propietario",
+
+    userAvatar:
+      (props as any)?.userAvatar ||
+      (data as any)?.userAvatar ||
+      (props as any)?.user?.avatar ||
+      (data as any)?.user?.avatar ||
+      (data as any)?.ownerSnapshot?.companyLogo ||
+      (data as any)?.ownerSnapshot?.avatar ||
+      null,
+
     role:
-      (base as any)?.role ??
-      (props as any)?.role ??
-      (data as any)?.role ??
-      (props as any)?.user?.role ??
-      (data as any)?.user?.role ??
+      (props as any)?.role ||
+      (data as any)?.role ||
+      (props as any)?.user?.role ||
+      (data as any)?.user?.role ||
+      (data as any)?.ownerSnapshot?.role ||
       null,
   };
-})(),
-
-// ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
-userName:
-  (props as any)?.userName ??
-  (data as any)?.userName ??
-  (props as any)?.user?.name ??
-  (data as any)?.user?.name ??
-  null,
-
-userAvatar:
-  (props as any)?.userAvatar ??
-  (data as any)?.userAvatar ??
-  (props as any)?.user?.avatar ??
-  (data as any)?.user?.avatar ??
-  null,
-
-role:
-  (props as any)?.role ??
-  (data as any)?.role ??
-  (props as any)?.user?.role ??
-  (data as any)?.user?.role ??
-  null,
-
-};
-
-
 
   // 4. DISPARO DE SEÑALES (SIN ROMPER NADA)
   if (action === "fav") {

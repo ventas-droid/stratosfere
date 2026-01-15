@@ -217,7 +217,7 @@ const ownerRole =
                         <img src={img} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                             <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/40 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                                <Sparkles size={14}/> ABRIR INSPECTOR
+                                <Sparkles size={14}/> ABRIR FOTOS
                             </div>
                         </div>
                     </div>

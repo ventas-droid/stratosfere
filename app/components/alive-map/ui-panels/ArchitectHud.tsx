@@ -296,7 +296,8 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
         
         // 🔥 RECUPERACIÓN DE MEMORIA (AQUÍ ESTABA EL FALLO)
         // Forzamos a leer estos campos de la base de datos:
-        communityFees: initialData.communityFees || "",       
+        communityFees: (initialData.communityFees ?? ""),
+   
         energyConsumption: initialData.energyConsumption || "", 
         energyEmissions: initialData.energyEmissions || "",     
         energyPending: initialData.energyPending === true,      
