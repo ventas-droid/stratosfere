@@ -27,6 +27,41 @@ const USER_IDENTITY_SELECT = {
     licenseType: true      // <--- ESTE FALTABA EN EL MAPA (CRÍTICO)
 };
 
+const buildIdentity = (freshUser: any, snap: any) => {
+  const base = {
+    ...(snap && typeof snap === "object" ? snap : {}),
+    ...(freshUser && typeof freshUser === "object" ? freshUser : {}),
+  };
+
+  const isAgency = base.role === "AGENCIA";
+
+  return {
+    id: base.id || null,
+    role: base.role || "PARTICULAR",
+    email: base.email || null,
+
+    name: isAgency
+      ? (base.companyName || base.name || "Agencia")
+      : (base.name || "Usuario"),
+
+    companyName: base.companyName || null,
+    companyLogo: base.companyLogo || null,
+
+    avatar: isAgency ? (base.companyLogo || null) : (base.avatar || null),
+
+    coverImage: base.coverImage || null,
+    phone: base.mobile || base.phone || null,
+    mobile: base.mobile || null,
+    website: base.website || null,
+    tagline: base.tagline || null,
+    zone: base.zone || null,
+
+    licenseType: base.licenseType || null,
+    licenseNumber: base.licenseNumber || null,
+    cif: base.cif || null,
+  };
+};
+
 // =========================================================
 // 🔐 1. IDENTIFICACIÓN Y SESIÓN
 // =========================================================
@@ -73,6 +108,7 @@ export async function getGlobalPropertiesAction() {
       include: {
         images: true,
         favoritedBy: { select: { userId: true } },
+
         // 🔥 CONEXIÓN VITAL: Traemos al usuario FRESCO de la DB
         user: {
           select: {
@@ -334,62 +370,54 @@ export async function updateUserAction(data: any) {
   if (!user) return { success: false, error: "No autorizado" };
 
   try {
-    // Mapeo directo de lo que envía el frontend a la base de datos
     const updateData: any = {};
 
-    // Comunes
+    // ✅ Comunes (Particular + Agencia)
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.avatar !== undefined) updateData.avatar = data.avatar;
+
     if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.mobile !== undefined) updateData.mobile = data.mobile;
     if (data.website !== undefined) updateData.website = data.website;
 
-    // Específicos Agencia
+    // ✅ Campos Agencia (si los envías)
     if (data.companyName !== undefined) updateData.companyName = data.companyName;
-    if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo; // 🔥 AÑADIDO
+    if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo;
     if (data.tagline !== undefined) updateData.tagline = data.tagline;
     if (data.zone !== undefined) updateData.zone = data.zone;
 
-// ... (resto de la función)
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+      select: {
+        id: true,
+        role: true,
+        email: true,
+        name: true,
+        avatar: true,
+        companyName: true,
+        companyLogo: true,
+        coverImage: true,
+        phone: true,
+        mobile: true,
+        website: true,
+        tagline: true,
+        zone: true,
+        licenseType: true,
+        licenseNumber: true,
+        cif: true,
+      },
+    });
 
-   // Ejecutar en DB (y capturamos el resultado)
-const updated = await prisma.user.update({
-  where: { id: user.id },
-  data: updateData,
-});
-
-// ✅ SINCRONIZAR ownerSnapshot EN TODAS MIS PROPIEDADES (para que Details/Stock refleje el perfil editado)
-try {
-  const snap = {
-    id: updated.id,
-    name: updated.name ?? null,
-    role: updated.role ?? null,
-    zone: updated.zone ?? null,
-    phone: updated.phone ?? null,
-    mobile: updated.mobile ?? null,
-    tagline: updated.tagline ?? null,
-    coverImage: updated.coverImage ?? null,
-    companyLogo: updated.companyLogo ?? null,
-    companyName: updated.companyName ?? null,
-    avatar: updated.avatar ?? null,
-  };
-
-  await prisma.property.updateMany({
-    where: { userId: updated.id },
-    data: { ownerSnapshot: snap as any },
-  });
-} catch (err) {
-  console.warn("No se pudo sincronizar ownerSnapshot:", err);
-}
-
-revalidatePath('/');
-return { success: true, data: updated };
-
- 
+    revalidatePath("/");
+    return { success: true, data: updated };
   } catch (e) {
     console.error("Error update user:", e);
     return { success: false, error: String(e) };
   }
 }
+
 
 // actions.ts
 export async function toggleFavoriteAction(propertyId: string, desired?: boolean) {
