@@ -563,25 +563,27 @@ export async function getAgencyPortfolioAction() {
         if (!ownedIds.has(f.id)) combined.push(f);
     });
 
-    // 5. Formatear para el Mapa
+  // 5. Formatear para el Mapa (NORMALIZADO: ownerSnapshot manda)
 const cleanList = combined
   .map((p: any) => {
     if (!p) return null;
 
-    // ✅ ownerSnapshot (si existe) manda sobre user
-    const snapshot =
+    // 1) Preferimos snapshot (es lo que Details/AgencyDetails esperan)
+    const snap =
       p.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null;
 
-    // Extraemos el creador (prioridad snapshot)
-    const creator = snapshot || p.user || {};
+    // 2) Si no hay snapshot, caemos al user incluido por Prisma
+    const creator = snap || p.user || {};
 
     return {
       ...p,
       id: p.id,
 
-      // ✅ mantenemos snapshot arriba + user coherente
-      ownerSnapshot: snapshot,
-      user: creator,
+      // ✅ Mantén ambos por compatibilidad:
+      // - ownerSnapshot: para toda la lógica nueva consistente
+      // - user: para componentes legacy que aún tiran de `user`
+      ownerSnapshot: snap || (Object.keys(creator).length ? creator : null),
+      user: Object.keys(creator).length ? creator : null,
 
       // Gestión de imágenes
       images: (p.images || []).map((img: any) => img.url),
