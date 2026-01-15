@@ -1246,7 +1246,10 @@ const StepSecurity = ({ setStep, setLoading }: any) => {
 // 🏆 STEP SUCCESS: EL LANZAMIENTO FINAL (CONECTADO A BASE DE DATOS)
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
-  
+// ✅ Anti doble click + recordar ID creado (para que no duplique)
+const [isPublishing, setIsPublishing] = useState(false);
+const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
+ 
   // Preparación visual
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
@@ -1256,94 +1259,97 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
   // --- 🔥 FUNCIÓN DE GUARDADO STRICT CLOUD (SIN FOTOS FALSAS) ---
-  const handleSafeSave = async () => { 
-      
-      // 1. LIMPIEZA DE DATOS (Preparamos para enviar a la Nube)
-      const cleanPayload = {
-          ...formData,
-          // Convertimos textos a números para que la DB no proteste
-          rooms: Number(formData.rooms || 0),
-          baths: Number(formData.baths || 0),
-          mBuilt: Number(formData.mBuilt || 0),
-          price: formData.price, 
-          // Si no hay GPS, usamos Madrid centro por seguridad técnica (pero nunca visual)
-          coordinates: formData.coordinates || [-3.6883, 40.4280],
+const handleSafeSave = async () => {
+  // ✅ A) Guard anti doble click (1 línea)
+  if (isPublishing) return;
+  setIsPublishing(true);
+
+  try {
+    // 1. LIMPIEZA DE DATOS (Preparamos para enviar a la Nube)
+    const cleanPayload = {
+      ...formData,
+
+      // ✅ B) Si ya tenemos un ID creado, lo mandamos para forzar UPDATE y evitar duplicado
+      id: lastSavedIdRef.current || formData?.id || undefined,
+
+      // Convertimos textos a números para que la DB no proteste
+      rooms: Number(formData.rooms || 0),
+      baths: Number(formData.baths || 0),
+      mBuilt: Number(formData.mBuilt || 0),
+      price: formData.price,
+
+      // Si no hay GPS, usamos Madrid centro por seguridad técnica (pero nunca visual)
+      coordinates: formData.coordinates || [-3.6883, 40.4280],
+    };
+
+    console.log("📡 SUBIENDO PROPIEDAD AL SERVIDOR...", cleanPayload);
+
+    // 2. DISPARO REAL A LA BASE DE DATOS
+    const response = await savePropertyAction(cleanPayload);
+
+    if (response.success && response.property) {
+      console.log("✅ GUARDADO CONFIRMADO EN NUBE. ID:", response.property.id);
+
+      // ✅ Guardamos el ID devuelto tras crear (para futuras veces = update)
+      if (response?.property?.id) {
+        lastSavedIdRef.current = String(response.property.id);
+      }
+
+      // 3. CAPTURAMOS EL DATO FRESCO DEL SERVIDOR
+      const serverProp = response.property;
+
+      // 🔥 FIX DE IMAGEN REAL (CERO IMÁGENES DE RELLENO)
+      let secureImage = null;
+
+      if (serverProp.mainImage) {
+        secureImage = serverProp.mainImage;
+      } else if (serverProp.images && serverProp.images.length > 0) {
+        secureImage = serverProp.images[0].url;
+      } else if (formData.images && formData.images.length > 0) {
+        secureImage = formData.images[0];
+      }
+
+      // 4. EMPAQUETAMOS PARA EL MAPA (VISUAL)
+      const mapFormat = {
+        ...serverProp,
+        coordinates: [serverProp.longitude, serverProp.latitude],
+
+        // Identidad creador
+        user: serverProp.user,
+
+        img: secureImage,
+        images: serverProp.images?.map((i: any) => i.url) || (secureImage ? [secureImage] : []),
+        price: new Intl.NumberFormat("es-ES").format(serverProp.price || 0),
+        selectedServices: serverProp.selectedServices,
       };
 
-      console.log("📡 SUBIENDO PROPIEDAD AL SERVIDOR...", cleanPayload);
+      // 5. ACTUALIZACIÓN VISUAL (SIN RECARGAR LA PÁGINA)
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("add-property-signal", { detail: mapFormat }));
+        window.dispatchEvent(new CustomEvent("reload-profile-assets"));
 
-      try {
-          // 2. DISPARO REAL A LA BASE DE DATOS
-          const response = await savePropertyAction(cleanPayload);
-
-          if (response.success && response.property) {
-              console.log("✅ GUARDADO CONFIRMADO EN NUBE. ID:", response.property.id);
-              
-              // 3. CAPTURAMOS EL DATO FRESCO DEL SERVIDOR
-              const serverProp = response.property;
-              
-              // 🔥 FIX DE IMAGEN REAL (CERO IMÁGENES DE RELLENO)
-              // Lógica: 
-              // A. ¿El servidor ya me devuelve la URL procesada? -> Úsala.
-              // B. ¿El servidor aún está procesando? -> Usa la que acabamos de subir en 'formData' (que es real).
-              // C. ¿No hay foto? -> NULL (Mejor que no salga nada a que salga una foto falsa).
-              
-              let secureImage = null;
-
-              if (serverProp.mainImage) {
-                  secureImage = serverProp.mainImage;
-              } else if (serverProp.images && serverProp.images.length > 0) {
-                  secureImage = serverProp.images[0].url;
-              } else if (formData.images && formData.images.length > 0) {
-                  // Fallback a la memoria local RECIENTE (pero es la foto real del usuario)
-                  secureImage = formData.images[0]; 
-              }
-
-             // 4. EMPAQUETAMOS PARA EL MAPA (VISUAL)
-              const mapFormat = {
-                  ...serverProp,
-                  coordinates: [serverProp.longitude, serverProp.latitude],
-                  
-                  // 🔥 AÑADIDO CLAVE: Le pegamos el carnet de identidad (Agencia/Particular)
-                  // Esto hace que el panel sepa si abrirse en Negro o Blanco al instante.
-                  user: serverProp.user, 
-
-                  // Resto de datos visuales...
-                  img: secureImage, 
-                  images: serverProp.images?.map((i:any) => i.url) || (secureImage ? [secureImage] : []),
-                  price: new Intl.NumberFormat('es-ES').format(serverProp.price || 0),
-                  selectedServices: serverProp.selectedServices
-              };
-
-              // 5. ACTUALIZACIÓN VISUAL (SIN RECARGAR LA PÁGINA)
-              if (typeof window !== "undefined") {
-                  // A. Pintar chincheta nueva (Con la foto REAL)
-                  window.dispatchEvent(new CustomEvent("add-property-signal", { 
-                      detail: mapFormat 
-                  }));
-                  
-                  // B. Avisar al Panel de Agencia (Portafolio) para que recargue de la Nube
-                  window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-                  
-                  // C. Vuelo de cámara cinemático hacia la nueva propiedad
-                  setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent("map-fly-to", { 
-                        detail: { center: mapFormat.coordinates, zoom: 18, pitch: 60, duration: 3000 } 
-                    }));
-                  }, 500);
-              }
-
-              // 6. CERRAR EL ASISTENTE
-              handleClose(mapFormat);
-
-          } else {
-              alert("Error del servidor: " + response.error);
-          }
-      } catch (err) {
-          console.error("❌ Fallo de red:", err);
-          alert("Error crítico de conexión. Comprueba tu internet.");
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent("map-fly-to", {
+              detail: { center: mapFormat.coordinates, zoom: 18, pitch: 60, duration: 3000 },
+            })
+          );
+        }, 500);
       }
-  };
+
+      // 6. CERRAR EL ASISTENTE
+      handleClose(mapFormat);
+    } else {
+      alert("Error del servidor: " + response.error);
+    }
+  } catch (err) {
+    console.error("❌ Fallo de red:", err);
+    alert("Error crítico de conexión. Comprueba tu internet.");
+  } finally {
+    setIsPublishing(false);
+  }
+};
+
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
       
@@ -1381,13 +1387,15 @@ const StepSuccess = ({ handleClose, formData }: any) => {
       </div>
 
       {/* BOTÓN CON LÓGICA DE SERVIDOR */}
-      <button 
-        onClick={handleSafeSave} 
-        className="px-10 py-5 bg-[#1d1d1f] hover:bg-black text-white font-bold rounded-[24px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] active:scale-95 transition-all flex items-center gap-3 text-lg cursor-pointer"
-      >
-        <span>Publicar en el Mapa</span>
-        <ArrowRight size={20} />
-      </button>
+      <button
+  onClick={handleSafeSave}
+  disabled={isPublishing}
+  className="px-10 py-5 bg-[#1d1d1f] hover:bg-black text-white font-bold rounded-[24px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] active:scale-95 transition-all flex items-center gap-3 text-lg cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+>
+  <span>{isPublishing ? "Publicando..." : "Publicar en el Mapa"}</span>
+  <ArrowRight size={20} />
+</button>
+
     </div>
   );
 };

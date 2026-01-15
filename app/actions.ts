@@ -627,7 +627,7 @@ const cleanList = combined
       p.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null;
 
     // 2) Si no hay snapshot, caemos al user incluido por Prisma
-    const creator = snap || p.user || {};
+const creator = p.user || snap || {};
 
     return {
       ...p,

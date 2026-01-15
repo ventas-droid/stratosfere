@@ -42,7 +42,9 @@ export default function AgencyDetailsPanel({
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const [ownerData, setOwnerData] = useState(initialAgencyData || initialProp?.ownerSnapshot || initialProp?.user || {});
+const [ownerData, setOwnerData] = useState(
+  initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {}
+);
 
 useEffect(() => { 
   setSelectedProp(initialProp); 

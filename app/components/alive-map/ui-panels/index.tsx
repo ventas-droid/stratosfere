@@ -497,23 +497,56 @@ const mirrorGlobalFavsForNanoCard = (list: any[]) => {
         window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
       }
 
-      // 3) Persistencia Servidor (Tabla Favorites)
-      try {
-        await toggleFavoriteAction(String(safeId));
-        // Opcional: Si quiere asegurar consistencia total, puede disparar recarga
-        // setDataVersion(v => v + 1); 
-      } catch (error) {
-        console.error(error);
-        // Rollback UI en caso de error
-        setTargetList(prevList);
-        addNotification("❌ Error guardando en servidor");
-        // Rollback visual
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: isCurrentlyFav } })
-          );
-        }
+     // 3) Persistencia Servidor (Tabla Favorites) ✅ CON desired (evita desync)
+try {
+  // ✅ desired = intención final (lo que YA decidiste en UI)
+  // newStatus es el estado final tras tu lógica (true=añadir, false=quitar)
+  const desired = newStatus;
+
+  const res = await toggleFavoriteAction(String(safeId), desired);
+
+  // ✅ Fuente de verdad: el servidor decide el estado final
+  const serverState = !!res?.isFavorite;
+
+  // Si el server difiere (por race/duplicados/toggles previos), corregimos UI
+  if (serverState !== newStatus) {
+    // Ajustar lista según el estado real
+    if (serverState) {
+      // asegurar que está
+      if (!currentList.some((f: any) => String(f.id) === safeId)) {
+        setTargetList([...currentList, safeProp]);
       }
+    } else {
+      // asegurar que no está
+      setTargetList(currentList.filter((f: any) => String(f.id) !== safeId));
+    }
+
+    // Broadcast definitivo
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: serverState } })
+      );
+    }
+  }
+
+  // Si quieres máxima consistencia, puedes refrescar desde DB:
+  // setDataVersion(v => v + 1);
+
+} catch (error) {
+  console.error(error);
+
+  // Rollback UI en caso de error
+  setTargetList(prevList);
+  addNotification("❌ Error guardando en servidor");
+
+  // Rollback visual
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: isCurrentlyFav } })
+    );
+  }
+}
+
   };
 
   // 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)

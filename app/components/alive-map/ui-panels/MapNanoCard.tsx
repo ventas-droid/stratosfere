@@ -291,28 +291,58 @@ const payload = {
   isFav: action === "fav" ? targetState : liked,
   coordinates: navCoords,
 
-  // --- IMPORTANT: include ownerSnapshot as top-level and prefer it for user ---
-  ownerSnapshot: (data?.ownerSnapshot || props?.ownerSnapshot) ?? null,
+ // --- IMPORTANT: keep ownerSnapshot top-level (durable branding at creation time) ---
+ownerSnapshot: (data?.ownerSnapshot || props?.ownerSnapshot) ?? null,
 
-  user: (data?.ownerSnapshot || props?.ownerSnapshot || props?.user || data?.user)
-    ? {
-        // prefer snapshot fields first (snapshot may contain companyLogo, mobile, etc.)
-        ...(data?.ownerSnapshot || props?.ownerSnapshot || props?.user || data?.user),
+// ✅ Preferimos user “vivo” (DB) para que los edits del perfil se reflejen.
+//    Si no existe, caemos al snapshot.
+user: (() => {
+  const snap = (data?.ownerSnapshot || props?.ownerSnapshot) ?? null;
+  const live = (props as any)?.user ?? (data as any)?.user ?? null;
 
-        // ensure role exists
-        role:
-          (data?.ownerSnapshot || props?.user || data?.user)?.role ||
-          props?.role ||
-          data?.role ||
-          data?.user?.role ||
-          null,
-      }
-    : null,
+  const base =
+    live && typeof live === "object"
+      ? live
+      : snap && typeof snap === "object"
+      ? snap
+      : null;
 
-  // ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
-  userName: props?.userName || data?.userName || null,
-  userAvatar: props?.userAvatar || data?.userAvatar || null,
-  role: props?.role || data?.role || data?.user?.role || null,
+  if (!base) return null;
+
+  return {
+    ...(base as any),
+    role:
+      (base as any)?.role ??
+      (props as any)?.role ??
+      (data as any)?.role ??
+      (props as any)?.user?.role ??
+      (data as any)?.user?.role ??
+      null,
+  };
+})(),
+
+// ✅ Compatibilidad extra (por si algún panel usa estos campos sueltos)
+userName:
+  (props as any)?.userName ??
+  (data as any)?.userName ??
+  (props as any)?.user?.name ??
+  (data as any)?.user?.name ??
+  null,
+
+userAvatar:
+  (props as any)?.userAvatar ??
+  (data as any)?.userAvatar ??
+  (props as any)?.user?.avatar ??
+  (data as any)?.user?.avatar ??
+  null,
+
+role:
+  (props as any)?.role ??
+  (data as any)?.role ??
+  (props as any)?.user?.role ??
+  (data as any)?.user?.role ??
+  null,
+
 };
 
 

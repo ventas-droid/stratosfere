@@ -28,20 +28,45 @@ export default function DetailsPanel({ selectedProp: initialProp, onClose, onTog
 
     // Sincronizar propiedad seleccionada
     useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
+// 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
+// PRIORIDAD: ownerSnapshot -> user (y fallback seguro)
+const ownerFromSnapshot =
+  (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === "object")
+    ? selectedProp.ownerSnapshot
+    : (selectedProp?.user && typeof selectedProp.user === "object")
+      ? selectedProp.user
+      : {};
 
-    // 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
-    // Confiamos en el paquete 'user' normalizado que preparó actions.ts
-   // PRIORIDAD: ownerSnapshot -> user
-const ownerFromSnapshot = (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === 'object')
-  ? selectedProp.ownerSnapshot
-  : (selectedProp?.user || {});
+// Nombre: agencia -> companyName, particular -> name
+const ownerName =
+  (ownerFromSnapshot as any)?.companyName ||
+  (ownerFromSnapshot as any)?.name ||
+  "Propietario";
 
-const ownerName   = ownerFromSnapshot.companyName || ownerFromSnapshot.name || "Propietario";
-const ownerAvatar = ownerFromSnapshot.companyLogo || ownerFromSnapshot.avatar || null;
-const ownerCover  = ownerFromSnapshot.coverImage || ownerFromSnapshot.cover || null;
-const ownerPhone  = ownerFromSnapshot.mobile || ownerFromSnapshot.phone || "Consultar";
-const ownerEmail  = ownerFromSnapshot.email || "---";
-const ownerRole   = (ownerFromSnapshot.role || "PARTICULAR").toUpperCase();
+// Avatar: agencia -> companyLogo, particular -> avatar
+const ownerAvatar =
+  (ownerFromSnapshot as any)?.companyLogo ||
+  (ownerFromSnapshot as any)?.avatar ||
+  null;
+
+// Cover: coverImage (DB) o cover (estado local antiguo)
+const ownerCover =
+  (ownerFromSnapshot as any)?.coverImage ||
+  (ownerFromSnapshot as any)?.cover ||
+  null;
+
+// Contacto: preferimos mobile (móvil) y si no phone
+const ownerPhone =
+  (ownerFromSnapshot as any)?.mobile ||
+  (ownerFromSnapshot as any)?.phone ||
+  "Consultar";
+
+const ownerEmail =
+  (ownerFromSnapshot as any)?.email ||
+  "---";
+
+const ownerRole =
+  String((ownerFromSnapshot as any)?.role || "PARTICULAR").toUpperCase();
 
 
     // Listener para actualizaciones en vivo (Nano Card -> Detalle)
