@@ -315,10 +315,21 @@ useEffect(() => {
                                 <span className="text-[8px] text-slate-400 font-bold uppercase block">Tipología</span>
                                 <span className="font-bold text-xs text-slate-800">{selectedProp?.type || "Piso"}</span>
                             </div>
-                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                <span className="text-[8px] text-slate-400 font-bold uppercase block">Superficie</span>
-                                <span className="font-bold text-xs text-slate-800">{m2} m²</span>
-                            </div>
+                         {/* GASTOS COMUNIDAD (Prioridad sobre Superficie repetida) */}
+                            {selectedProp?.communityFees > 0 ? (
+                                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+                                    <div>
+                                        <span className="text-[8px] text-slate-400 font-bold uppercase block">Comunidad</span>
+                                        <span className="font-bold text-xs text-slate-800">{selectedProp.communityFees} €/mes</span>
+                                    </div>
+                                    <Building2 size={14} className="text-slate-400"/>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase block">Superficie</span>
+                                    <span className="font-bold text-xs text-slate-800">{m2} m²</span>
+                                </div>
+                            )}
                             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center group">
                                 <div><span className="text-[8px] text-slate-400 font-bold uppercase block">Ascensor</span><span className={`font-bold text-xs ${hasElevator ? 'text-green-600' : 'text-slate-400'}`}>{hasElevator ? 'SÍ TIENE' : 'NO TIENE'}</span></div>
                                 {hasElevator && <ArrowUp size={14} className="text-green-500" />}
