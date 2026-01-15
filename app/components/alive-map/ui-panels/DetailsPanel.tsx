@@ -257,6 +257,18 @@ const ownerRole =
                                 <div><span className="text-[8px] text-slate-400 font-bold uppercase block">Ascensor</span><span className={`font-bold text-xs ${hasElevator ? 'text-green-600':'text-slate-400'}`}>{hasElevator ? 'SÍ' : 'NO'}</span></div>
                                 {hasElevator && <ArrowUp size={14} className="text-green-500"/>}
                             </div>
+                            
+                            {/* GASTOS COMUNIDAD (CELDA NUEVA) */}
+                            {selectedProp?.communityFees > 0 && (
+                                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
+                                    <div>
+                                        <span className="text-[8px] text-slate-400 font-bold uppercase block">Comunidad</span>
+                                        <span className="font-bold text-xs text-slate-900">{selectedProp.communityFees} €/mes</span>
+                                    </div>
+                                    <Building2 size={14} className="text-slate-400"/>
+                                </div>
+                            )}
+                            
                             {physicalItems.map(item => (
                                 <div key={item.id} className="bg-blue-50 p-2.5 rounded-xl border border-blue-100 flex justify-between items-center">
                                     <div><span className="text-[8px] text-blue-400 font-bold uppercase block">Incluido</span><span className="font-bold text-xs text-blue-900">{item.label}</span></div>
