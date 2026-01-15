@@ -5,7 +5,7 @@ import {
     X, Heart, Phone, Sparkles, Star, Home, Maximize2, Building2, ArrowUp,
     Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, 
-    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
+    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, Building2,
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check
 } from 'lucide-react';
 

@@ -7,7 +7,7 @@ import {
     Car, Trees, Waves, Sun, Box, Thermometer, 
     Camera, Globe, Plane, Hammer, Ruler, 
     TrendingUp, Share2, Mail, FileCheck, Activity, 
-    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check
+    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2,
 } from 'lucide-react';
 
 // --- DICCIONARIO MAESTRO DE ICONOS ---
