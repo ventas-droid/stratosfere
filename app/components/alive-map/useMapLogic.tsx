@@ -423,6 +423,21 @@ if (src) {
       // Buscamos el dato en todas las variantes posibles para que nunca salga "0" si el dato existe
       const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
+    // 💊 HIDRATACIÓN DE IDENTIDAD (repara creador, avatar, snapshot)
+if (!p.user && p.ownerSnapshot) {
+  p.user = p.ownerSnapshot;
+}
+if (!p.ownerSnapshot && p.user) {
+  p.ownerSnapshot = p.user;
+}
+
+// Garantiza campos mínimos para Details/NanoCard
+p.description = p.description || p.desc || "";
+p.energyConsumption = p.energyConsumption || p.certificadoEnergetico || "";
+p.energyEmissions = p.energyEmissions || p.emisiones || "";
+p.energyPending = p.energyPending ?? false;
+
+  
       root.render(
         <MapNanoCard
           id={id}
