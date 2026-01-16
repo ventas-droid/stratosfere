@@ -871,7 +871,6 @@ useEffect(() => {
 
   }, [systemMode]);
  
-  // 🔥 PASO 2: sincronización visual corazones
 useEffect(() => {
   // ✅ En AGENCY usamos agencyLikes, en EXPLORER usamos localFavs
   const targetList = systemMode === "AGENCY" ? agencyLikes : localFavs;
@@ -888,9 +887,27 @@ useEffect(() => {
       const pid = String(p?.id);
       if (!pid) return;
 
+      const fav = targetIds.has(pid);
+
+      // 1) Señal clásica (NanoCards/markers)
       window.dispatchEvent(
         new CustomEvent("sync-property-state", {
-          detail: { id: pid, isFav: targetIds.has(pid) },
+          detail: { id: pid, isFav: fav },
+        })
+      );
+
+      // 2) Señal “fuerte”: actualiza TODOS los flags por compatibilidad
+      window.dispatchEvent(
+        new CustomEvent("update-property-signal", {
+          detail: {
+            id: pid,
+            updates: {
+              id: pid,
+              isFav: fav,
+              isFavorited: fav,
+              isFavorite: fav,
+            },
+          },
         })
       );
     });
