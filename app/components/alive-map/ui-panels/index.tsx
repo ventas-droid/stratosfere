@@ -214,7 +214,38 @@ const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
   // --- 5. REFERENCIAS ---
   const prevFavIdsRef = useRef<Set<string>>(new Set());
 const [dataVersion, setDataVersion] = useState(0);
-  // --- 6. ESTADOS IA ---
+ // ✅ Cache global en RAM: userId -> perfil actualizado (logo/cover/etc.)
+const userCacheRef = useRef<Record<string, any>>({});
+ 
+// ✅ Inyección de branding fresco al abrir Details (usa cache RAM)
+const applyFreshOwnerBranding = (prop: any) => {
+  if (!prop) return prop;
+
+  const ownerId =
+    prop?.user?.id ||
+    prop?.ownerSnapshot?.id ||
+    prop?.userId ||
+    prop?.ownerId ||
+    null;
+
+  if (!ownerId) return prop;
+
+  const cached = userCacheRef.current[String(ownerId)];
+  if (!cached) return prop;
+
+  return {
+    ...prop,
+    user: { ...(prop.user || {}), ...cached },
+    ownerSnapshot: { ...(prop.ownerSnapshot || {}), ...cached },
+
+    // compat por si algún panel mira root:
+    companyLogo: cached.companyLogo || cached.avatar || prop.companyLogo,
+    coverImage: cached.coverImage || cached.cover || prop.coverImage,
+    role: prop.role || cached.role || prop?.user?.role || "AGENCIA",
+  };
+};
+
+// --- 6. ESTADOS IA ---
   const [aiInput, setAiInput] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -650,8 +681,8 @@ try {
   const handleOpenDetails = (e: any) => {
     const cleanProp = sanitizePropertyData(e.detail);
     if (cleanProp) {
-      setSelectedProp(cleanProp);
-      setActivePanel("DETAILS");
+     setSelectedProp(applyFreshOwnerBranding(cleanProp));
+    setActivePanel("DETAILS");
       if (soundEnabled) playSynthSound("click");
     }
   };
@@ -666,45 +697,69 @@ try {
     setDataVersion((v) => v + 1);
   };
 
-  // ✅ NUEVO: Perfil agencia actualizado (logo/cover) -> refresca UI + Details
-  const handleAgencyProfileUpdated = (e: any) => {
-    const u = e?.detail;
-    if (!u) return;
+ // ✅ NUEVO: Perfil agencia actualizado (logo/cover) -> refresca UI + Details + cache RAM
+const handleAgencyProfileUpdated = (e: any) => {
+  const u = e?.detail;
+  if (!u) return;
 
-    // 1) Refresca panel de perfil agencia (si lo estás usando)
-    setAgencyProfileData((prev: any) => {
-      if (!prev) return prev;
-      if (u?.id && prev?.id && String(prev.id) !== String(u.id)) return prev;
-      return {
-        ...prev,
-        ...u,
-        avatar: u.companyLogo || u.avatar || prev.avatar,
-        companyLogo: u.companyLogo || u.avatar || prev.companyLogo,
-        coverImage: u.coverImage || u.cover || prev.coverImage,
-      };
-    });
+  const uid = u?.id ? String(u.id) : null;
 
-    // 2) Refresca Details abierto si el dueño coincide
-    setSelectedProp((prev: any) => {
-      if (!prev) return prev;
+  // 0) ✅ Guardar SIEMPRE en cache RAM (para futuras aperturas de Details)
+  if (uid) {
+    const prev = userCacheRef.current[uid] || {};
+    userCacheRef.current[uid] = {
+      ...prev,
+      ...u,
+      // normalizamos branding
+      companyLogo: u.companyLogo || u.avatar || prev.companyLogo || prev.avatar || null,
+      avatar: u.companyLogo || u.avatar || prev.avatar || prev.companyLogo || null,
+      coverImage: u.coverImage || u.cover || prev.coverImage || prev.cover || null,
+      cover: u.coverImage || u.cover || prev.cover || prev.coverImage || null,
+      role: u.role || prev.role || "AGENCIA",
+    };
+  }
 
-      const ownerId =
-        prev?.user?.id ||
-        prev?.ownerSnapshot?.id ||
-        prev?.userId ||
-        prev?.ownerId ||
-        null;
+  // 1) Refresca panel de perfil agencia (si lo estás usando)
+  setAgencyProfileData((prev: any) => {
+    if (!prev) return prev;
+    if (uid && prev?.id && String(prev.id) !== uid) return prev;
 
-      // si el evento trae id y no coincide con el dueño actual, no tocamos
-      if (u?.id && ownerId && String(ownerId) !== String(u.id)) return prev;
+    return {
+      ...prev,
+      ...u,
+      avatar: u.companyLogo || u.avatar || prev.avatar,
+      companyLogo: u.companyLogo || u.avatar || prev.companyLogo,
+      coverImage: u.coverImage || u.cover || prev.coverImage,
+    };
+  });
 
-      return {
-        ...prev,
-        user: { ...(prev.user || {}), ...u },
-        ownerSnapshot: { ...(prev.ownerSnapshot || {}), ...u },
-      };
-    });
-  };
+  // 2) Refresca Details abierto si el dueño coincide
+  setSelectedProp((prev: any) => {
+    if (!prev) return prev;
+
+    const ownerId =
+      prev?.user?.id ||
+      prev?.ownerSnapshot?.id ||
+      prev?.userId ||
+      prev?.ownerId ||
+      null;
+
+    // si el evento trae id y no coincide con el dueño actual, no tocamos
+    if (uid && ownerId && String(ownerId) !== uid) return prev;
+
+    return {
+      ...prev,
+      user: { ...(prev.user || {}), ...u },
+      ownerSnapshot: { ...(prev.ownerSnapshot || {}), ...u },
+
+      // compat por si algún panel mira root
+      companyLogo: u.companyLogo || u.avatar || prev.companyLogo,
+      coverImage: u.coverImage || u.cover || prev.coverImage,
+      role: prev.role || u.role || prev?.user?.role || "AGENCIA",
+    };
+  });
+};
+
 
   window.addEventListener("open-details-signal", handleOpenDetails);
   window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
