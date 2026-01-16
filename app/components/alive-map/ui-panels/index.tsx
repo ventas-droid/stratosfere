@@ -563,9 +563,6 @@ try {
     }
   }
 
-  // ✅ Máxima consistencia: refrescar desde DB (servidor)
-  setDataVersion((v: number) => v + 1);
-
 } catch (error) {
   console.error(error);
 
@@ -872,47 +869,10 @@ useEffect(() => {
   }, [systemMode]);
  
 useEffect(() => {
-  // ✅ En AGENCY usamos agencyLikes, en EXPLORER usamos localFavs
   const targetList = systemMode === "AGENCY" ? agencyLikes : localFavs;
+  mirrorGlobalFavsForNanoCard(Array.isArray(targetList) ? targetList : []);
+}, [systemMode, agencyLikes, localFavs]);
 
-  const targetIds = new Set(
-    (targetList || []).map((x: any) => String(x?.id)).filter(Boolean)
-  );
-
-  if (typeof window !== "undefined") {
-    // ✅ Universo conocido: Stock + favs explorer + favs agencia
-    const allKnown = [...agencyFavs, ...localFavs, ...agencyLikes];
-
-    allKnown.forEach((p: any) => {
-      const pid = String(p?.id);
-      if (!pid) return;
-
-      const fav = targetIds.has(pid);
-
-      // 1) Señal clásica (NanoCards/markers)
-      window.dispatchEvent(
-        new CustomEvent("sync-property-state", {
-          detail: { id: pid, isFav: fav },
-        })
-      );
-
-      // 2) Señal “fuerte”: actualiza TODOS los flags por compatibilidad
-      window.dispatchEvent(
-        new CustomEvent("update-property-signal", {
-          detail: {
-            id: pid,
-            updates: {
-              id: pid,
-              isFav: fav,
-              isFavorited: fav,
-              isFavorite: fav,
-            },
-          },
-        })
-      );
-    });
-  }
-}, [systemMode, localFavs, agencyLikes, agencyFavs]);
 
   // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {

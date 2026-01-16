@@ -231,18 +231,7 @@ const handleAction = (e: React.MouseEvent, action: string) => {
 
   if (!id) return;
 
-  // --- SAFETY BOX + TOGGLE ATÓMICO (solo para fav) ---
-  // La "verdad" ya NO viene de localStorage: viene de la última señal global (server->UI)
-  if (action === "fav") {
-    const truth = lastFavRef.current;
-
-    // Si hay desincronización visual, corregimos y NO disparamos (evita inversiones raras)
-    if (truth !== liked) {
-      setLiked(truth);
-      return;
-    }
-  }
-
+ 
   const targetState = action === "fav" ? !lastFavRef.current : liked;
 
  const navCoords =
@@ -376,30 +365,42 @@ images: finalAlbum,
       null,
   };
 
-  // 4. DISPARO DE SEÑALES (SIN ROMPER NADA)
-  if (action === "fav") {
-    // ✅ UI optimista + verdad local (SIN localStorage)
-    lastFavRef.current = targetState; // ✅ ESTA LÍNEA ES LA CLAVE
-    setLiked(targetState);
+  /// 4. DISPARO DE SEÑALES (SIN ROMPER NADA)
+if (action === "fav") {
+  // ✅ Estado objetivo (siempre basado en la verdad estable)
+  const next = !lastFavRef.current;
 
-    if (typeof window !== "undefined") {
-      // 1) Toggle favorito (server-side lo gestiona UIPanels)
-      window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: payload }));
+  // ✅ UI optimista + verdad local (SIN localStorage)
+  lastFavRef.current = next;
+  setLiked(next);
 
-      // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón (como tú necesitas)
-      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
-    }
-    return;
+  if (typeof window !== "undefined") {
+    // 1) Toggle favorito (server-side lo gestiona UIPanels)
+    window.dispatchEvent(
+      new CustomEvent("toggle-fav-signal", {
+        detail: { ...payload, isFav: next }, // ✅ intención explícita
+      })
+    );
+
+    // 2) ✅ Abrir Details SIEMPRE al pulsar el corazón
+    window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
+    window.dispatchEvent(
+      new CustomEvent("select-property-signal", { detail: { id: String(id) } })
+    );
   }
+  return;
+}
 
-  if (action === "open") {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
-    }
+if (action === "open") {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
+    window.dispatchEvent(
+      new CustomEvent("select-property-signal", { detail: { id: String(id) } })
+    );
   }
+}
 };
+
 
   useEffect(() => {
     if (cardRef.current) {
