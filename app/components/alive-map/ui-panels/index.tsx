@@ -647,35 +647,80 @@ try {
 
   // Escucha de señales (Actualizado para detectar cambios de Modo)
   useEffect(() => {
-    const handleOpenDetails = (e: any) => {
-        const cleanProp = sanitizePropertyData(e.detail);
-        if (cleanProp) {
-            setSelectedProp(cleanProp);
-            setActivePanel('DETAILS');
-            if(soundEnabled) playSynthSound('click');
-        }
-    };
+  const handleOpenDetails = (e: any) => {
+    const cleanProp = sanitizePropertyData(e.detail);
+    if (cleanProp) {
+      setSelectedProp(cleanProp);
+      setActivePanel("DETAILS");
+      if (soundEnabled) playSynthSound("click");
+    }
+  };
 
-    const handleToggleFavSignal = (e: any) => { handleToggleFavorite(e.detail); };
-    
-    // 🔥 ESTA ES LA PIEZA QUE FALTABA: EL GATILLO DE RECARGA
-    const handleReload = () => {
-        console.log("🔄 Recibida orden de recarga del servidor...");
-        setDataVersion(v => v + 1); 
-    };
+  const handleToggleFavSignal = (e: any) => {
+    handleToggleFavorite(e.detail);
+  };
 
-    window.addEventListener('open-details-signal', handleOpenDetails);
-    window.addEventListener('toggle-fav-signal', handleToggleFavSignal);
-    window.addEventListener('reload-profile-assets', handleReload); // <--- Antena conectada
-    
-    return () => {
-        window.removeEventListener('open-details-signal', handleOpenDetails);
-        window.removeEventListener('toggle-fav-signal', handleToggleFavSignal);
-        window.removeEventListener('reload-profile-assets', handleReload);
-    };
-  }, [soundEnabled, localFavs, agencyFavs, systemMode, identityVerified]);
+  // 🔥 GATILLO DE RECARGA
+  const handleReload = () => {
+    console.log("🔄 Recibida orden de recarga del servidor...");
+    setDataVersion((v) => v + 1);
+  };
 
-    // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)
+  // ✅ NUEVO: Perfil agencia actualizado (logo/cover) -> refresca UI + Details
+  const handleAgencyProfileUpdated = (e: any) => {
+    const u = e?.detail;
+    if (!u) return;
+
+    // 1) Refresca panel de perfil agencia (si lo estás usando)
+    setAgencyProfileData((prev: any) => {
+      if (!prev) return prev;
+      if (u?.id && prev?.id && String(prev.id) !== String(u.id)) return prev;
+      return {
+        ...prev,
+        ...u,
+        avatar: u.companyLogo || u.avatar || prev.avatar,
+        companyLogo: u.companyLogo || u.avatar || prev.companyLogo,
+        coverImage: u.coverImage || u.cover || prev.coverImage,
+      };
+    });
+
+    // 2) Refresca Details abierto si el dueño coincide
+    setSelectedProp((prev: any) => {
+      if (!prev) return prev;
+
+      const ownerId =
+        prev?.user?.id ||
+        prev?.ownerSnapshot?.id ||
+        prev?.userId ||
+        prev?.ownerId ||
+        null;
+
+      // si el evento trae id y no coincide con el dueño actual, no tocamos
+      if (u?.id && ownerId && String(ownerId) !== String(u.id)) return prev;
+
+      return {
+        ...prev,
+        user: { ...(prev.user || {}), ...u },
+        ownerSnapshot: { ...(prev.ownerSnapshot || {}), ...u },
+      };
+    });
+  };
+
+  window.addEventListener("open-details-signal", handleOpenDetails);
+  window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
+  window.addEventListener("reload-profile-assets", handleReload);
+  window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
+
+  return () => {
+    window.removeEventListener("open-details-signal", handleOpenDetails);
+    window.removeEventListener("toggle-fav-signal", handleToggleFavSignal);
+    window.removeEventListener("reload-profile-assets", handleReload);
+    window.removeEventListener("agency-profile-updated", handleAgencyProfileUpdated);
+  };
+}, [soundEnabled, localFavs, agencyFavs, systemMode, identityVerified]);
+
+
+   // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)
 useEffect(() => {
   const onFly = (e: any) => {
     try {

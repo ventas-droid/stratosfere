@@ -23,7 +23,24 @@ export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, play
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState({ avatar: false, cover: false });
   
-  const [profile, setProfile] = useState({
+  const [userId, setUserId] = useState<string | null>(null);
+
+const bust = (url: string | null | undefined) => {
+  if (!url) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}v=${Date.now()}`;
+};
+
+const emitAgencyProfileUpdated = (patch: any) => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("agency-profile-updated", {
+      detail: patch,
+    })
+  );
+};
+
+   const [profile, setProfile] = useState({
       name: "Nueva Agencia",
       tagline: "Slogan de Agencia",
       zone: "Zona Operativa",
@@ -50,7 +67,9 @@ const loadRealData = async () => {
       
       if (userRes.success && userRes.data) {
           const d = userRes.data;
-          setProfile(prev => ({
+         setUserId(d?.id ? String(d.id) : null);
+
+           setProfile(prev => ({
               ...prev,
               // Prioridad: Datos corporativos de la DB
               name: d.companyName || d.name || "Nueva Agencia",
@@ -123,29 +142,85 @@ const handleSave = async () => {
   }
 };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'cover') => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      setIsUploading(prev => ({ ...prev, [type]: true }));
-      try {
-          const url = await uploadToCloudinary(file);
-          if (url) setProfile(prev => ({ ...prev, [type]: url }));
-      } catch (error) { console.error("Upload error:", error); } 
-      finally { setIsUploading(prev => ({ ...prev, [type]: false })); }
-  };
+// ✅ Upload + preview inmediato + anti-cache + refresh global
+const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>,
+  type: "avatar" | "cover"
+) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-  const handleLogout = async () => {
-      if(confirm("¿Cerrar sesión de agencia?")) {
-          if (soundEnabled) playSynthSound('error');
-          await logoutAction();
-          window.location.href = "/";
-      }
-  };
+  // 1) Preview inmediato (sin esperar upload)
+  const preview = URL.createObjectURL(file);
 
-  if (!isOpen) return null;
+  // Guardamos preview en el campo visual correspondiente
+  setProfile((prev) => ({
+    ...prev,
+    [type]: preview,
+    ...(type === "avatar" ? { avatar: preview } : {}),
+    ...(type === "cover" ? { cover: preview } : {}),
+  }));
 
-  const license = LICENSE_LEVELS[profile.licenseType] || LICENSE_LEVELS['STARTER'];
-  const creditPercentage = Math.min((license.credits / license.maxCredits) * 100, 100);
+  // 2) Subiendo...
+  setIsUploading((prev) => ({ ...prev, [type]: true }));
+
+  try {
+    const url = await uploadToCloudinary(file);
+
+    if (url) {
+      // 3) Anti-cache (Cloudinary a veces tarda en servir la nueva imagen)
+      const bustedUrl = bust(url);
+
+      // 4) Guardar en estado (y mantener compatibilidad DB/UI)
+      setProfile((prev) => {
+        const next = {
+          ...prev,
+          [type]: bustedUrl,
+          ...(type === "avatar" ? { avatar: bustedUrl } : {}),
+          ...(type === "cover" ? { cover: bustedUrl } : {}),
+        };
+
+        // 5) 🔥 Evento inmediato: refresca Profile + Details + UI sin recargar
+        emitAgencyProfileUpdated({
+          id: userId,
+          companyName: next.name,
+          role: "AGENCIA",
+
+          // compatibilidad: algunos usan avatar/cover y otros companyLogo/coverImage
+          avatar: type === "avatar" ? bustedUrl : next.avatar,
+          cover: type === "cover" ? bustedUrl : next.cover,
+          companyLogo: type === "avatar" ? bustedUrl : next.avatar,
+          coverImage: type === "cover" ? bustedUrl : next.cover,
+        });
+
+        return next;
+      });
+    }
+  } catch (error) {
+    console.error("Upload error:", error);
+  } finally {
+    setIsUploading((prev) => ({ ...prev, [type]: false }));
+    try {
+      URL.revokeObjectURL(preview);
+    } catch {}
+  }
+};
+
+const handleLogout = async () => {
+  if (confirm("¿Cerrar sesión de agencia?")) {
+    if (soundEnabled) playSynthSound("error");
+    await logoutAction();
+    window.location.href = "/";
+  }
+};
+
+if (!isOpen) return null;
+
+const license = LICENSE_LEVELS[profile.licenseType] || LICENSE_LEVELS["STARTER"];
+const creditPercentage = Math.min(
+  (license.credits / license.maxCredits) * 100,
+  100
+);
 
   return (
     <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F5F5F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
