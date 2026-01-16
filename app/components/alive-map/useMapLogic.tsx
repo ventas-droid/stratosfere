@@ -423,13 +423,29 @@ if (src) {
       // Buscamos el dato en todas las variantes posibles para que nunca salga "0" si el dato existe
       const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
-    // 💊 HIDRATACIÓN DE IDENTIDAD (repara creador, avatar, snapshot)
-if (!p.user && p.ownerSnapshot) {
-  p.user = p.ownerSnapshot;
-}
-if (!p.ownerSnapshot && p.user) {
-  p.ownerSnapshot = p.user;
-}
+  // ✅ Mapbox puede degradar objetos -> rehidratamos desde JSON string si hace falta
+const parseMaybeJSON = (v: any) => {
+  if (!v) return null;
+  if (typeof v === "object") return v;
+  if (typeof v === "string") {
+    try {
+      const j = JSON.parse(v);
+      return j && typeof j === "object" ? j : null;
+    } catch {}
+  }
+  return null;
+};
+
+const snapObj = parseMaybeJSON(p.ownerSnapshot);
+const userObj = parseMaybeJSON(p.user) || snapObj;
+
+// Rehidratamos SIEMPRE a objeto si existe
+if (snapObj) p.ownerSnapshot = snapObj;
+if (userObj) p.user = userObj;
+
+// Asegura rol en root (fallback para paneles)
+p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
+
 
 // Garantiza campos mínimos para Details/NanoCard
 p.description = p.description || p.desc || "";
@@ -806,6 +822,20 @@ return visibleProps;
             // Unificación de Metros
             const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
+            // ✅ Mapbox no preserva objetos anidados -> serializamos identidad
+const identityObj =
+  (p?.user && typeof p.user === "object" ? p.user : null) ||
+  (p?.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null);
+
+const identityJson = identityObj ? JSON.stringify(identityObj) : null;
+
+// ownerSnapshot histórico (si existe) también serializado
+const ownerSnapJson =
+  (p?.ownerSnapshot && typeof p.ownerSnapshot === "object")
+    ? JSON.stringify(p.ownerSnapshot)
+    : identityJson;
+
+          
             return {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
@@ -825,8 +855,13 @@ return visibleProps;
                     communityFees: p.communityFees,
                     energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions,
-                    energyPending: p.energyPending
-                }
+                    energyPending: p.energyPending,
+               user: identityJson,
+ownerSnapshot: ownerSnapJson,
+role: p?.role ?? identityObj?.role ?? null,
+
+               
+                  }
             };
         });
 
