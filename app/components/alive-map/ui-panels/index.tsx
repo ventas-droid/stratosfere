@@ -535,7 +535,18 @@ if (systemMode === "AGENCY") {
         window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
       }
 
-    // 3) Persistencia Servidor (Tabla Favorites) ✅ CON desired (evita desync)
+    setSelectedProp((prev: any) => {
+  if (!prev) return prev;
+  if (String(prev?.id) !== String(safeId)) return prev;
+  return {
+    ...prev,
+    isFav: newStatus,
+    isFavorited: newStatus,
+    isFavorite: newStatus,
+  };
+});
+  
+      // 3) Persistencia Servidor (Tabla Favorites) ✅ CON desired (evita desync)
 try {
   const desired = newStatus;
   const res = await toggleFavoriteAction(String(safeId), desired);
@@ -769,7 +780,7 @@ const handleAgencyProfileUpdated = (e: any) => {
     window.removeEventListener("reload-profile-assets", handleReload);
     window.removeEventListener("agency-profile-updated", handleAgencyProfileUpdated);
   };
-}, [soundEnabled, localFavs, agencyFavs, systemMode, identityVerified]);
+}, [soundEnabled, localFavs, agencyFavs, agencyLikes, systemMode, identityVerified]);
 
 
    // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)

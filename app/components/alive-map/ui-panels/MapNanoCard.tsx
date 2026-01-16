@@ -94,12 +94,13 @@ export default function MapNanoCard(props: any) {
 // Buscamos el ID real hasta debajo de las piedras. Si no hay, mejor null que random.
 const id = useMemo(() => {
   const raw =
-    props?.id ??
-    data?.id ??
-    data?._id ??
-    data?.propertyId ??
-    data?.property?.id ??
-    data?.property?.propertyId;
+  props?.id ??
+  data?.propertyId ??   // ✅ primero propertyId
+  data?.id ??
+  data?._id ??
+  data?.property?.id ??
+  data?.property?.propertyId;
+
 
   return raw ? String(raw) : null;
 }, [
