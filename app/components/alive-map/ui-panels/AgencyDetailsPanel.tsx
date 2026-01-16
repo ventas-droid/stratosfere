@@ -48,7 +48,7 @@ const [ownerData, setOwnerData] = useState(
 
 useEffect(() => { 
   setSelectedProp(initialProp); 
-  setOwnerData(initialAgencyData || initialProp?.ownerSnapshot || initialProp?.user || {});
+  setOwnerData(initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {});
 }, [initialProp, initialAgencyData]);
 
     // 🔥 2. PUENTE DE SINCRONIZACIÓN (LA SOLUCIÓN)

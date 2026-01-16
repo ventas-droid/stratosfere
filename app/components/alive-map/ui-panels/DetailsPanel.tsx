@@ -31,11 +31,12 @@ export default function DetailsPanel({ selectedProp: initialProp, onClose, onTog
 // 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
 // PRIORIDAD: ownerSnapshot -> user (y fallback seguro)
 const ownerFromSnapshot =
-  (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === "object")
-    ? selectedProp.ownerSnapshot
-    : (selectedProp?.user && typeof selectedProp.user === "object")
-      ? selectedProp.user
+  (selectedProp?.user && typeof selectedProp.user === "object")
+    ? selectedProp.user
+    : (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === "object")
+      ? selectedProp.ownerSnapshot
       : {};
+
 
 // Nombre: agencia -> companyName, particular -> name
 const ownerName =

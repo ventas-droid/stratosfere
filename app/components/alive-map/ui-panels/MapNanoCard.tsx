@@ -245,12 +245,30 @@ const handleAction = (e: React.MouseEvent, action: string) => {
 
   const targetState = action === "fav" ? !lastFavRef.current : liked;
 
-  // 1. CÁLCULO DE COORDENADAS (MANTENIDO EXACTAMENTE IGUAL)
-  const navCoords =
-    props.coordinates ||
-    data.coordinates ||
-    data.geometry?.coordinates ||
-    (props.lng && props.lat ? [props.lng, props.lat] : null);
+ const navCoords =
+  props.coordinates ||
+  data.coordinates ||
+  data.geometry?.coordinates ||
+  (props.lng != null && props.lat != null ? [props.lng, props.lat] : null) ||
+  (props.longitude != null && props.latitude != null ? [props.longitude, props.latitude] : null) ||
+  (data.lng != null && data.lat != null ? [data.lng, data.lat] : null) ||
+  (data.longitude != null && data.latitude != null ? [data.longitude, data.latitude] : null);
+const normalizedCoords = (() => {
+  if (!Array.isArray(navCoords) || navCoords.length !== 2) return null;
+
+  const a = Number(navCoords[0]);
+  const b = Number(navCoords[1]);
+
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+
+  // ✅ Corrección lat/lng invertidos (España): lat ~ 40, lng ~ -3
+  // Si viene [lat, lng] -> [40, -3], lo giramos.
+  if (a > 30 && b < 0) return [b, a];
+
+  return [a, b];
+})();
+
+
 
   // 2. RECUPERACIÓN DE FOTOS (MEJORADA + SIN FOTOS FALSAS)
   let finalAlbum: string[] = [];
@@ -272,20 +290,27 @@ const handleAction = (e: React.MouseEvent, action: string) => {
 
   // 3. PAQUETE DE DATOS (PRECIO FRESCO + IMAGEN LIMPIA)
   const payload = {
+     ...data,
     id: String(id || ""),
     title: data?.title || props?.title || "",
     type: data?.type || props?.type || "Piso",
 
     // localización
     address: data?.address || props?.address || "",
-    coordinates:
-      (data?.coordinates && Array.isArray(data.coordinates) ? data.coordinates : null) ||
-      (props?.coordinates && Array.isArray(props.coordinates) ? props.coordinates : null) ||
-      null,
+   // ✅ coords completas para Vault/Details + server persistence
+coordinates: normalizedCoords,
+longitude: normalizedCoords ? normalizedCoords[0] : (data?.longitude ?? data?.lng ?? props?.longitude ?? props?.lng ?? null),
+latitude:  normalizedCoords ? normalizedCoords[1] : (data?.latitude  ?? data?.lat ?? props?.latitude  ?? props?.lat ?? null),
+lng:       normalizedCoords ? normalizedCoords[0] : (data?.lng ?? data?.longitude ?? props?.lng ?? props?.longitude ?? null),
+lat:       normalizedCoords ? normalizedCoords[1] : (data?.lat ?? data?.latitude  ?? props?.lat ?? props?.latitude  ?? null),
 
-    // media
-    img: data?.img || props?.img || null,
-    images: data?.images || props?.images || [],
+// ✅ lo que Details necesita para no salir “roto”
+selectedServices: selectedServices || [],
+communityFees: data?.communityFees ?? props?.communityFees ?? 0,
+
+
+    img: finalImg,
+images: finalAlbum,
 
     // precio + básicos
     price: data?.price ?? props?.price ?? "",

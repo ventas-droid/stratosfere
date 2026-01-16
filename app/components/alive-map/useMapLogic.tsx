@@ -426,6 +426,7 @@ if (src) {
       root.render(
         <MapNanoCard
           id={id}
+          data={p}
           // Datos Financieros
           price={p.price}
           priceValue={p.priceValue}

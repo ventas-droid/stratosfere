@@ -773,27 +773,29 @@ useEffect(() => {
  
   // 🔥 PASO 2: sincronización visual corazones
 useEffect(() => {
-  const targetList = localFavs; // ✅ SIEMPRE referencias
-  const targetIds = new Set(targetList.map((x:any) => String(x.id)));
+  // ✅ En AGENCY usamos agencyLikes, en EXPLORER usamos localFavs
+  const targetList = systemMode === "AGENCY" ? agencyLikes : localFavs;
 
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent("reload-favorites"));
+  const targetIds = new Set(
+    (targetList || []).map((x: any) => String(x?.id)).filter(Boolean)
+  );
 
-    // Apaga todo lo que no esté en referencias (si quieres limpieza)
-    // (si NO quieres apagar stock visualmente, elimina este bloque)
-    const allKnown = [...agencyFavs, ...localFavs];
-    allKnown.forEach((p:any) => {
-      if (!targetIds.has(String(p.id))) {
-        window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: false } }));
-      }
-    });
+  if (typeof window !== "undefined") {
+    // ✅ Universo conocido: Stock + favs explorer + favs agencia
+    const allKnown = [...agencyFavs, ...localFavs, ...agencyLikes];
 
-    targetList.forEach((p:any) => {
-      window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: String(p.id), isFav: true } }));
+    allKnown.forEach((p: any) => {
+      const pid = String(p?.id);
+      if (!pid) return;
+
+      window.dispatchEvent(
+        new CustomEvent("sync-property-state", {
+          detail: { id: pid, isFav: targetIds.has(pid) },
+        })
+      );
     });
   }
-}, [systemMode, localFavs, agencyFavs]);
-
+}, [systemMode, localFavs, agencyLikes, agencyFavs]);
 
   // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {
