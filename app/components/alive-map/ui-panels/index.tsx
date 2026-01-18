@@ -664,25 +664,105 @@ try {
       addNotification("Visión Nocturna Alternada");
   };
 
-  const handleAICommand = (e: any) => {
-    if (e) e.preventDefault(); 
-    if (!aiInput.trim()) return;
-    if (soundEnabled) playSynthSound('click');
-    setIsAiTyping(true); 
+ const handleAICommand = (e: any) => {
+  if (e) e.preventDefault();
+  const rawInput = String(aiInput || "").trim();
+  if (!rawInput) return;
 
-    if (searchCity) {
-        searchCity(aiInput); 
-        addNotification(`Rastreando: ${aiInput.toUpperCase()}`);
-    } else {
-        console.warn("⚠️ searchCity no conectado.");
+  if (soundEnabled) playSynthSound("click");
+
+ // --- 1) Detectar REF (o pegado con "Ref:" o incluso dentro de una URL) ---
+const extractRefCode = (input: string) => {
+  // 1) Normalizamos a MAYÚSCULA y quitamos "Ref:" si viene
+  let s = String(input || "").toUpperCase().trim();
+  s = s.replace(/^REF[^A-Z0-9]*?/i, "").trim();
+
+  // 2) Buscamos SF + separadores raros + código (acepta espacios/saltos/guiones/":", etc.)
+  //    Ejemplos que cubre:
+  //    "SF-UWNDPX"
+  //    "SF- \n CMKJQR9TS0002..."
+  //    "https://.../propiedad/... SF- CMK...."
+  const m = s.match(/SF[^A-Z0-9]*([A-Z0-9]{4,80})/);
+  if (!m?.[1]) return null;
+
+  let code = m[1].trim();
+
+  // 3) Si el pegado mezcló cosas y dentro aparece "CMK...", nos quedamos desde ahí (Prisma ids)
+  const cmkIndex = code.indexOf("CMK");
+  if (cmkIndex > 0) code = code.slice(cmkIndex);
+
+  // 4) Devolvemos formato final normalizado
+  return `SF-${code}`;
+};
+
+  const refCode = extractRefCode(rawInput);
+
+  // --- 2) Si es una REF, buscamos en LISTAS YA CARGADAS (Stock + Favoritos) ---
+  if (refCode) {
+   const pool = [
+  // ✅ STOCK REAL de agencia (tu cartera)
+  ...(Array.isArray(agencyFavs) ? agencyFavs : []),
+
+  // ✅ favoritos/likes
+  ...(Array.isArray(agencyLikes) ? agencyLikes : []),
+  ...(Array.isArray(localFavs) ? localFavs : []),
+
+  // ✅ (opcional) si tienes más listas globales, las añadiremos en el paso 2
+].filter(Boolean);
+
+
+    const found = pool.find(
+      (p: any) => String(p?.refCode || "").toUpperCase() === refCode
+    );
+
+    if (found) {
+      // A) Abrir DETAILS (tu listener ya lo maneja)
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: found }));
+
+      // B) Vuelo cinematográfico al punto
+      const coords =
+        found?.coordinates ||
+        (Number.isFinite(Number(found?.longitude)) && Number.isFinite(Number(found?.latitude))
+          ? [Number(found.longitude), Number(found.latitude)]
+          : null);
+
+      if (coords) {
+        window.dispatchEvent(
+          new CustomEvent("map-fly-to", {
+            detail: { center: coords, zoom: 19, pitch: 60, bearing: -20, duration: 2500 },
+          })
+        );
+      } else {
+        addNotification("⚠️ Encontrada, pero sin coordenadas GPS");
+      }
+
+      addNotification(`✅ Ref localizada: ${refCode}`);
+      setAiInput("");
+      return; // <- MUY IMPORTANTE: no seguimos con searchCity
     }
 
-    setTimeout(() => { 
-        setAiResponse(`Objetivo confirmado: "${aiInput}". Iniciando aproximación...`); 
-        setIsAiTyping(false); 
-        setAiInput(""); 
-    }, 1500);
-  };
+    addNotification(`⚠️ No encuentro ${refCode} en tu Stock/Favoritos`);
+    setAiInput("");
+    return;
+  }
+
+  // --- 3) Si NO es REF, comportamiento actual (búsqueda de ciudad / comando) ---
+  setIsAiTyping(true);
+
+  if (searchCity) {
+    searchCity(rawInput);
+    addNotification(`Rastreando: ${rawInput.toUpperCase()}`);
+  } else {
+    console.warn("⚠️ searchCity no conectado.");
+  }
+
+  setTimeout(() => {
+    setAiResponse(`Objetivo confirmado: "${rawInput}". Iniciando aproximación...`);
+    setIsAiTyping(false);
+    setAiInput("");
+  }, 1500);
+};
+
 
   // Escucha de señales (Actualizado para detectar cambios de Modo)
   useEffect(() => {
