@@ -62,6 +62,15 @@ export default function VaultPanel({
       return () => window.removeEventListener('update-property-signal', handleInstantUpdate);
   }, []);
 
+   // ✅ FIX #1: Etiqueta de ubicación (usa address si no hay location)
+  const getLocationLabel = (p: any) => {
+    if (typeof p?.location === "string" && p.location.trim()) return p.location;
+    if (typeof p?.address === "string" && p.address.trim()) return p.address;
+    if (typeof p?.city === "string" && p.city.trim()) return p.city;
+    if (typeof p?.zone === "string" && p.zone.trim()) return p.zone;
+    return "Ubicación desconocida";
+  };
+
   // --- AQUÍ SIGUE SU handleFlyTo Y EL RESTO DEL CÓDIGO ---
 
   // 2. LÓGICA DE VUELO TÁCTICO (BLINDADA CON SISTEMA DE RADIO) ✈️
@@ -211,7 +220,8 @@ else if (prop.location && Array.isArray(prop.location)) {
                                         {prop.title || "Propiedad sin nombre"}
                                     </h4>
                                     <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase">
-                                        {prop.location || "Ubicación desconocida"}
+                                       {getLocationLabel(prop)}
+
                                     </p>
                                 </div>
                                 

@@ -34,7 +34,8 @@ model User {
 
 model Property {
   id                String         @id @default(cuid())
-  userId            String?
+ refCode           String?        @unique
+ userId            String?
   address           String
   city              String?
   region            String?

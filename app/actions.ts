@@ -62,6 +62,11 @@ const buildIdentity = (freshUser: any, snap: any) => {
   };
 };
 
+// ✅ REF CODE (server-side) - helper estable
+const buildRefCode = (propertyId: string) => {
+  return `SF-${String(propertyId)}`; // único garantizado
+};
+
 // =========================================================
 // 🔐 1. IDENTIFICACIÓN Y SESIÓN
 // =========================================================
@@ -267,31 +272,37 @@ export async function savePropertyAction(data: any) {
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
 
     
-   // 🔥 ESTA ES LA CORRECCIÓN EN savePropertyAction:
-    const includeOptions = { 
-        images: true,
-        user: { 
-            select: {
-                id: true,
-                name: true,
-                avatar: true,
-                // DATOS AGENCIA CRÍTICOS
-                companyName: true,
-                companyLogo: true,
-                coverImage: true,   // <--- FALTABA ESTO (IMPORTANTE PARA EL FONDO)
-                role: true,
-                phone: true,
-                mobile: true,
-                website: true,      // <--- AÑADIR
-                tagline: true,      // <--- AÑADIR
-                zone: true,         // <--- AÑADIR
-                cif: true,
-                licenseNumber: true
-            }
-        }
-    };
+   // ✅ includeOptions (manual, pero completo)
+const includeOptions = { 
+  images: true,
+  user: { 
+    select: {
+      id: true,
+      role: true,
+      name: true,
+      surname: true,
+      email: true,
 
-    let result;
+      avatar: true,
+      companyName: true,
+      companyLogo: true,
+      coverImage: true,
+
+      phone: true,
+      mobile: true,
+      website: true,
+      tagline: true,
+      zone: true,
+
+      cif: true,
+      licenseNumber: true,
+      licenseType: true,
+    }
+  }
+};
+
+let result;
+
 
 if (data.id && data.id.length > 20) {
   // ✅ EDICIÓN
@@ -350,18 +361,39 @@ if (data.id && data.id.length > 20) {
     return { success: true, property: recent, deduped: true };
   }
 
-  result = await prisma.property.create({
+ result = await prisma.$transaction(async (tx: any) => {
+  // 1) CREATE normal (con includes)
+  const created = await tx.property.create({
     data: {
-      ...payload,
+      ...(payload as any),
       ownerSnapshot, // ✅ SOLO en create
       images: imageCreateLogic,
-    },
-    include: includeOptions,
+    } as any,
+    include: includeOptions as any,
   });
-}
+
+  // 2) Si ya tiene refCode, no tocamos nada
+  if (created?.refCode) return created;
+
+  // 3) Generamos refCode estable desde el id
+  const refCode = buildRefCode(String(created.id));
+
+  // 4) UPDATE solo para refCode
+  const updated = await tx.property.update({
+    where: { id: created.id },
+    data: { refCode } as any,
+    include: includeOptions as any,
+  });
+
+  return updated;
+});
+
+
+} // ✅ CIERRA EL else { ... } QUE TE FALTA
 
 revalidatePath("/");
 return { success: true, property: result };
+
 
   } catch (error) {
     return { success: false, error: String(error) };
