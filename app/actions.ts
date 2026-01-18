@@ -813,3 +813,328 @@ export async function getPropertiesAction() {
     return { success: false, data: [] };
   }
 }
+
+// ✅ CHAT GENERAL — ACTIONS (server)
+
+// helper: saca “el otro usuario” de participants
+const pickOtherUser = (participants: any[], meId: string) => {
+  const list = Array.isArray(participants) ? participants : [];
+  const other = list
+    .map((p: any) => p?.user)
+    .find((u: any) => u?.id && String(u.id) !== String(meId));
+  return other || null;
+};
+
+// helper: normaliza conversación -> thread listo para tu UI
+const normalizeThread = (conv: any, meId: string) => {
+  const last = Array.isArray(conv?.messages) && conv.messages.length ? conv.messages[0] : null;
+  const otherUser = pickOtherUser(conv?.participants, meId);
+  const prop = conv?.property || null;
+
+  const refCode = prop?.refCode || null;
+  const propertyTitle = prop?.title || null;
+
+  const otherName =
+    otherUser?.companyName ||
+    [otherUser?.name, otherUser?.surname].filter(Boolean).join(" ") ||
+    otherUser?.email ||
+    null;
+
+  const titleParts: string[] = [];
+  if (refCode) titleParts.push(refCode);
+  else if (propertyTitle) titleParts.push(propertyTitle);
+  if (otherName) titleParts.push(otherName);
+
+  const title = titleParts.join(" — ") || "Conversación";
+
+  return {
+    ...conv,
+    lastMessage: last,          // ✅ CLAVE: tu UI usa lastMessage
+    otherUser,
+    otherUserId: otherUser?.id || null,
+    refCode,
+    propertyTitle,
+    title,
+  };
+};
+
+export async function getOrCreateConversationAction(a: any, b?: any) {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    // ✅ acepta varias firmas:
+    // 1) ({ otherUserId, propertyId? })
+    // 2) ({ toUserId, propertyId? })
+    // 3) (propertyId, otherUserId)
+    let otherUserId = "";
+    let propertyId: string | null = null;
+
+    if (a && typeof a === "object") {
+      otherUserId = String(a.otherUserId || a.toUserId || a.userId || "");
+      propertyId = a.propertyId ? String(a.propertyId) : null;
+    } else {
+      propertyId = a ? String(a) : null;
+      otherUserId = b ? String(b) : "";
+    }
+
+    if (!otherUserId) return { success: false, error: "MISSING_OTHER_USER" };
+
+    const includeBase = {
+      participants: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              role: true,
+              name: true,
+              surname: true,
+              email: true,
+              avatar: true,
+              companyName: true,
+              companyLogo: true,
+              coverImage: true,
+            },
+          },
+        },
+      },
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+    } as const;
+
+    const existing = await prisma.conversation.findFirst({
+      where: {
+        ...(propertyId ? { propertyId } : {}),
+        AND: [
+          { participants: { some: { userId: me.id } } },
+          { participants: { some: { userId: otherUserId } } },
+          { participants: { every: { userId: { in: [me.id, otherUserId] } } } },
+        ],
+      },
+      include: includeBase,
+    });
+
+    if (existing) {
+      const pid = existing?.propertyId ? String(existing.propertyId) : null;
+      const prop = pid
+        ? await prisma.property.findUnique({
+            where: { id: pid },
+            select: { id: true, title: true, refCode: true },
+          })
+        : null;
+
+      // ✅ Inyectamos "property" manualmente para que normalizeThread siga igual
+      return {
+        success: true,
+        data: normalizeThread({ ...(existing as any), property: prop } as any, me.id),
+      };
+    }
+
+    const created = await prisma.$transaction(async (tx: any) => {
+      const conv = await tx.conversation.create({
+        data: { ...(propertyId ? { propertyId } : {}) },
+      });
+
+      await tx.conversationParticipant.createMany({
+        data: [
+          { conversationId: conv.id, userId: me.id },
+          { conversationId: conv.id, userId: otherUserId },
+        ],
+        skipDuplicates: true,
+      });
+
+      return tx.conversation.findUnique({
+        where: { id: conv.id },
+        include: includeBase as any,
+      });
+    });
+
+    const pid = (created as any)?.propertyId ? String((created as any).propertyId) : null;
+    const prop = pid
+      ? await prisma.property.findUnique({
+          where: { id: pid },
+          select: { id: true, title: true, refCode: true },
+        })
+      : null;
+
+    return {
+      success: true,
+      data: normalizeThread({ ...(created as any), property: prop } as any, me.id),
+    };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+export async function getMyConversationsAction() {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const items = await prisma.conversation.findMany({
+      where: { participants: { some: { userId: me.id } } },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                role: true,
+                name: true,
+                surname: true,
+                email: true,
+                avatar: true,
+                companyName: true,
+                companyLogo: true,
+                coverImage: true,
+              },
+            },
+          },
+        },
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+    });
+
+    // ✅ lookup manual de propiedades por propertyId
+    const propIds = Array.from(
+      new Set((items || []).map((c: any) => c?.propertyId).filter(Boolean).map(String))
+    );
+
+    const props = propIds.length
+      ? await prisma.property.findMany({
+          where: { id: { in: propIds } },
+          select: { id: true, title: true, refCode: true },
+        })
+      : [];
+
+    const propMap = new Map(props.map((p: any) => [String(p.id), p]));
+
+    const normalized = (items || []).map((c: any) => {
+      const pid = c?.propertyId ? String(c.propertyId) : null;
+      const prop = pid ? propMap.get(pid) : null;
+      return normalizeThread({ ...(c as any), property: prop } as any, me.id);
+    });
+
+    // ✅ orden real por lastMessage.createdAt
+    normalized.sort((a: any, b: any) => {
+      const ta = a?.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+      const tb = b?.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+      return tb - ta;
+    });
+
+    return { success: true, data: normalized };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+export async function getConversationMessagesAction(conversationId: string) {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const cid = String(conversationId || "");
+    if (!cid) return { success: false, error: "MISSING_CONVERSATION_ID" };
+
+    const allowed = await prisma.conversationParticipant.findFirst({
+      where: { conversationId: cid, userId: me.id },
+      select: { id: true },
+    });
+    if (!allowed) return { success: false, error: "FORBIDDEN" };
+
+    const msgs = await prisma.message.findMany({
+      where: { conversationId: cid },
+      orderBy: { createdAt: "asc" },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            role: true,
+            name: true,
+            surname: true,
+            avatar: true,
+            companyName: true,
+            companyLogo: true,
+          },
+        },
+      },
+    });
+
+    // ✅ compat: añadimos `content` SIN leer msg.content (que no existe en Prisma)
+    const normalized = (msgs || []).map((m: any) => ({
+      ...m,
+      content: m?.text ?? "",
+      text: m?.text ?? "",
+    }));
+
+    return { success: true, data: normalized };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+export async function sendMessageAction(a: any, b?: any) {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    // ✅ acepta:
+    // 1) ({ conversationId, text })
+    // 2) ({ conversationId, content })
+    // 3) (conversationId, text)
+    let conversationId = "";
+    let text = "";
+
+    if (typeof a === "string") {
+      conversationId = String(a || "");
+      text = String(b || "").trim();
+    } else {
+      conversationId = String(a?.conversationId || "");
+      text = String(a?.text ?? a?.content ?? "").trim();
+    }
+
+    if (!conversationId) return { success: false, error: "MISSING_CONVERSATION_ID" };
+    if (!text) return { success: false, error: "EMPTY_TEXT" };
+
+    const allowed = await prisma.conversationParticipant.findFirst({
+      where: { conversationId, userId: me.id },
+      select: { id: true },
+    });
+    if (!allowed) return { success: false, error: "FORBIDDEN" };
+
+    const msg: any = await prisma.message.create({
+      data: {
+        conversationId,
+        senderId: me.id,
+        text,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            role: true,
+            name: true,
+            surname: true,
+            avatar: true,
+            companyName: true,
+            companyLogo: true,
+          },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        ...msg,
+        content: msg?.text ?? text, // ✅ compat
+        text: msg?.text ?? text,
+      },
+    };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}

@@ -39,8 +39,14 @@ import {
   getFavoritesAction, 
   toggleFavoriteAction, 
   getUserMeAction,
-  getAgencyPortfolioAction, // <--- NUEVA: Para cargar su Stock real
-  deleteFromStockAction     // <--- NUEVA: Para borrar de verdad
+  getAgencyPortfolioAction,
+  deleteFromStockAction,
+
+  // ✅ CHAT (FIX: alias)
+getMyConversationsAction as listMyConversationsAction,
+getConversationMessagesAction,
+sendMessageAction,
+getOrCreateConversationAction
 } from '@/app/actions';
 
 // --- UTILIDADES ---
@@ -204,6 +210,7 @@ const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
   const [editingProp, setEditingProp] = useState<any>(null);
   const [marketProp, setMarketProp] = useState<any>(null);
   const [previousMode, setPreviousMode] = useState<'EXPLORER' | 'AGENCY'>('EXPLORER'); 
+const [selectedReqs, setSelectedReqs] = useState<any[]>([]);
 
   // --- 4. ESTADOS DE FLUJO ---
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
@@ -246,12 +253,122 @@ const applyFreshOwnerBranding = (prop: any) => {
 };
 
 // --- 6. ESTADOS IA ---
-  const [aiInput, setAiInput] = useState("");
-  const [aiResponse, setAiResponse] = useState<string | null>(null);
-  const [isAiTyping, setIsAiTyping] = useState(false);
-  const [selectedReqs, setSelectedReqs] = useState<string[]>([]);
+  const [chatThreads, setChatThreads] = useState<any[]>([]);
+const [chatContextProp, setChatContextProp] = useState<any>(null);
+const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+const [chatMessages, setChatMessages] = useState<any[]>([]);
+const [chatInput, setChatInput] = useState("");
+const [chatLoading, setChatLoading] = useState(false);
+const [aiInput, setAiInput] = useState("");
+const [aiResponse, setAiResponse] = useState("");
+const [isAiTyping, setIsAiTyping] = useState(false);
+// ✅ CHAT UNREAD (badge + alertas)
+const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
+const [unreadTotal, setUnreadTotal] = useState(0);
 
-  // ... (RESTO DEL CÓDIGO SIGUE IGUAL: useEffects de carga, handlers, render, etc.)
+// convId -> timestamp del último mensaje que el usuario ya “vio”
+const lastSeenAtRef = useRef<Record<string, number>>({});
+
+// convId -> timestamp del último mensaje por el que YA notificamos (para no spamear)
+const lastNotifiedAtRef = useRef<Record<string, number>>({});
+
+// recalcular total
+useEffect(() => {
+  const total = Object.values(unreadByConv || {}).reduce(
+    (acc, n) => acc + Number(n || 0),
+    0
+  );
+  setUnreadTotal(total);
+}, [unreadByConv]);
+
+const markConversationAsRead = (conversationId: string, lastAt?: number) => {
+  if (!conversationId) return;
+  const ts = Number.isFinite(Number(lastAt)) ? Number(lastAt) : Date.now();
+  lastSeenAtRef.current[String(conversationId)] = ts;
+
+  setUnreadByConv((prev) => {
+    if (!prev || !prev[String(conversationId)]) return prev;
+    const next = { ...prev };
+    delete next[String(conversationId)];
+    return next;
+  });
+};
+// ✅ calcula unread + notifica (1 por conversación) desde la lista de threads
+const updateUnreadFromThreads = (threads: any[]) => {
+  try {
+    const next: Record<string, number> = {};
+
+    (Array.isArray(threads) ? threads : []).forEach((t: any) => {
+      const id = String(t?.id || "");
+      if (!id) return;
+
+      const lastAtRaw =
+        t?.lastMessage?.createdAt ||
+        t?.lastMessage?.created_at ||
+        t?.updatedAt ||
+        t?.updated_at ||
+        null;
+
+      const lastAt = lastAtRaw ? new Date(lastAtRaw).getTime() : 0;
+      if (!lastAt) return;
+
+      const seenAt = Number(lastSeenAtRef.current[id] || 0);
+
+      // si hay mensaje posterior a lo "visto", marcamos unread
+      if (lastAt > seenAt) {
+        next[id] = 1;
+
+        // notificación 1 vez por "nuevo lastAt" (anti-spam)
+        const notifiedAt = Number(lastNotifiedAtRef.current[id] || 0);
+        if (lastAt > notifiedAt) {
+          const title =
+            t?.title || t?.propertyTitle || t?.refCode || "Nuevo mensaje";
+          addNotification(`📩 ${title}`);
+          lastNotifiedAtRef.current[id] = lastAt;
+        }
+      }
+    });
+
+    setUnreadByConv(next);
+  } catch (err) {
+    console.warn("updateUnreadFromThreads failed:", err);
+  }
+};
+
+// ✅ polling ligero para refrescar unread/alerts (cada 12s)
+useEffect(() => {
+  if (!identityVerified || !activeUserKey || activeUserKey === "anon") return;
+
+  let alive = true;
+  let timer: any = null;
+
+  const poll = async () => {
+    try {
+      const listFn = listMyConversationsAction as any;
+      if (typeof listFn !== "function") return;
+
+      const res = await listFn();
+      if (!alive) return;
+
+      if (res?.success) {
+        const threads = Array.isArray(res.data) ? res.data : [];
+        // no pisamos tu UI: solo unread + notifs
+        updateUnreadFromThreads(threads);
+      }
+    } catch (e) {
+      // silencioso (no spamear notificaciones)
+      console.warn("chat poll failed", e);
+    }
+  };
+
+  poll();
+  timer = setInterval(poll, 12000);
+
+  return () => {
+    alive = false;
+    if (timer) clearInterval(timer);
+  };
+}, [identityVerified, activeUserKey]);
 
  // --- EFECTOS INICIALES ---
 
@@ -659,12 +776,165 @@ try {
       setTimeout(() => setNotifications(prev => prev.slice(0, -1)), 4000);
   };
 
-  const handleDayNight = () => {
-      if(soundEnabled) playSynthSound('click');
-      addNotification("Visión Nocturna Alternada");
-  };
+// =======================
+// ✅ CHAT: abrir panel + cargar conversaciones
+// =======================
+const openChatPanel = async () => {
+  setActivePanel("CHAT");
+  setChatConversationId(null);
+  setChatMessages([]);
+  setChatLoading(true);
 
- const handleAICommand = (e: any) => {
+  try {
+    // ✅ Source of truth: alias importado
+    const listFn = listMyConversationsAction as any;
+
+    if (typeof listFn !== "function") {
+      addNotification("⚠️ Falta action: getMyConversationsAction (alias listMyConversationsAction)");
+      return;
+    }
+
+    const res = await listFn();
+
+    if (res?.success) {
+      const threads = Array.isArray(res.data) ? res.data : [];
+      setChatThreads(threads);
+
+      // ✅ refresca badge/unread al instante (si existe el helper)
+      if (typeof updateUnreadFromThreads === "function") {
+        updateUnreadFromThreads(threads);
+      }
+    } else {
+      addNotification("⚠️ No puedo listar conversaciones");
+    }
+  } catch (e) {
+    console.error(e);
+    addNotification("⚠️ Error cargando conversaciones");
+  } finally {
+    setChatLoading(false);
+  }
+};
+
+// ✅ abrir una conversación y cargar mensajes
+const openConversation = async (conversationId: string) => {
+  if (!conversationId) return;
+
+  setChatConversationId(conversationId);
+  setChatLoading(true);
+
+  try {
+    const res = await (getConversationMessagesAction as any)(conversationId);
+
+    if (res?.success) {
+      const msgs = Array.isArray(res.data) ? res.data : [];
+      setChatMessages(msgs);
+
+      // ✅ marca como leído (PASO 1)
+      const lastMsg = msgs[msgs.length - 1];
+      const lastAt = lastMsg?.createdAt ? new Date(lastMsg.createdAt).getTime() : Date.now();
+
+      if (typeof markConversationAsRead === "function") {
+        markConversationAsRead(conversationId, lastAt);
+      }
+    } else {
+      addNotification("⚠️ No puedo cargar mensajes");
+    }
+  } catch (e) {
+    console.error(e);
+    addNotification("⚠️ Error cargando mensajes");
+  } finally {
+    setChatLoading(false);
+  }
+};
+
+// ✅ enviar mensaje (robusto + debug)
+const handleSendChat = async () => {
+  const text = String(chatInput || "").trim();
+  if (!text || !chatConversationId) return;
+
+  setChatInput("");
+
+  // Optimista
+  const tempId = `tmp-${Date.now()}`;
+  const optimistic = {
+    id: tempId,
+    text,
+    content: text,
+    senderId: String(activeUserKey || "anon"),
+    createdAt: new Date().toISOString(),
+  };
+  setChatMessages((prev: any[]) => [...prev, optimistic]);
+
+  try {
+    let res: any = null;
+
+    // A) firma (conversationId, text)
+    try {
+      res = await (sendMessageAction as any)(chatConversationId, text);
+    } catch {}
+
+    // B) firma ({ conversationId, text })
+    if (!res?.success) {
+      try {
+        res = await (sendMessageAction as any)({ conversationId: chatConversationId, text });
+      } catch {}
+    }
+
+    // C) firma ({ conversationId, content })
+    if (!res?.success) {
+      try {
+        res = await (sendMessageAction as any)({ conversationId: chatConversationId, content: text });
+      } catch {}
+    }
+
+    // D) firma (text, conversationId) por si está al revés
+    if (!res?.success) {
+      try {
+        res = await (sendMessageAction as any)(text, chatConversationId);
+      } catch {}
+    }
+
+    console.log("sendMessageAction ->", res);
+
+    if (res?.success && res?.data) {
+      const serverMsg = res.data;
+
+      const normalized = {
+        ...serverMsg,
+        text: serverMsg?.text ?? serverMsg?.content ?? text,
+        content: serverMsg?.content ?? serverMsg?.text ?? text,
+      };
+
+      setChatMessages((prev: any[]) =>
+        prev.map((m: any) => (m.id === tempId ? normalized : m))
+      );
+
+      // ✅ al enviar, esa conversación cuenta como "vista"
+      const sentAt = normalized?.createdAt ? new Date(normalized.createdAt).getTime() : Date.now();
+      if (typeof markConversationAsRead === "function") {
+        markConversationAsRead(String(chatConversationId), sentAt);
+      }
+
+      return;
+    }
+
+    // fallo -> quitamos el optimista
+    setChatMessages((prev: any[]) => prev.filter((m: any) => m.id !== tempId));
+    addNotification(res?.error ? `❌ ${res.error}` : "❌ No se pudo enviar");
+  } catch (e) {
+    console.error(e);
+    setChatMessages((prev: any[]) => prev.filter((m: any) => m.id !== tempId));
+    addNotification("❌ Error enviando");
+  }
+};
+
+
+const handleDayNight = () => {
+  if (soundEnabled) playSynthSound("click");
+  addNotification("Visión Nocturna Alternada");
+};
+
+const handleAICommand = (e: any) => {
   if (e) e.preventDefault();
   const rawInput = String(aiInput || "").trim();
   if (!rawInput) return;
@@ -847,21 +1117,120 @@ const handleAgencyProfileUpdated = (e: any) => {
     };
   });
 };
-
-
-  window.addEventListener("open-details-signal", handleOpenDetails);
-  window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
-  window.addEventListener("reload-profile-assets", handleReload);
-  window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
-
-  return () => {
-    window.removeEventListener("open-details-signal", handleOpenDetails);
-    window.removeEventListener("toggle-fav-signal", handleToggleFavSignal);
-    window.removeEventListener("reload-profile-assets", handleReload);
-    window.removeEventListener("agency-profile-updated", handleAgencyProfileUpdated);
+// ✅ CHAT: abrir desde Details/AgencyDetails (evento global)
+const handleOpenChatSignal = async (e: any) => {
+  // helper: extrae ids robusto (string/number/object)
+  const asId = (v: any) => {
+    if (!v) return "";
+    if (typeof v === "string" || typeof v === "number") return String(v);
+    if (typeof v === "object") return String(v.id || v.userId || v.ownerId || v._id || v.uuid || "");
+    return "";
   };
-}, [soundEnabled, localFavs, agencyFavs, agencyLikes, systemMode, identityVerified]);
 
+  try {
+    const d = e?.detail || {};
+
+    // 🔥 IDs robustos
+    const propertyId = asId(d?.propertyId) || asId(d?.property?.id) || asId(d?.property) || asId(d?.id);
+    const toUserId =
+      asId(d?.toUserId) ||
+      asId(d?.userId) ||
+      asId(d?.user?.id) ||
+      asId(d?.ownerId) ||
+      asId(d?.owner?.id) ||
+      asId(d?.ownerSnapshot?.id);
+
+    if (!propertyId || !toUserId) {
+      addNotification("⚠️ Chat: faltan IDs (propertyId/toUserId)");
+      console.log("open-chat-signal detail:", d);
+      return;
+    }
+
+   // 🚫 Evitar chat contigo mismo (muy común cuando abres TU propia propiedad)
+if (String(toUserId) === String(activeUserKey)) {
+  addNotification("⚠️ No puedes abrir chat contigo mismo");
+  return;
+}
+
+// 1) Abrimos el panel (carga threads)
+await openChatPanel();
+
+// 2) Creamos/obtenemos conversación (server) — soporta varias firmas
+let res: any = null;
+
+// A) firma (propertyId, toUserId)
+try {
+  res = await (getOrCreateConversationAction as any)(propertyId, toUserId);
+} catch {}
+
+// B) firma ({ propertyId, toUserId })
+if (!res?.success && res?.error === "MISSING_OTHER_USER") {
+  try {
+    res = await (getOrCreateConversationAction as any)({ propertyId, toUserId });
+  } catch {}
+}
+
+// C) firma ({ propertyId, otherUserId })
+if (!res?.success && res?.error === "MISSING_OTHER_USER") {
+  try {
+    res = await (getOrCreateConversationAction as any)({ propertyId, otherUserId: toUserId });
+  } catch {}
+}
+
+// D) firma (toUserId, propertyId) (por si tu action lo tiene al revés)
+if (!res?.success && res?.error === "MISSING_OTHER_USER") {
+  try {
+    res = await (getOrCreateConversationAction as any)(toUserId, propertyId);
+  } catch {}
+}
+
+console.log("getOrCreateConversationAction ->", res);
+
+if (res?.success === false) {
+  addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ No puedo abrir conversación");
+  return;
+}
+
+const convId =
+  asId(res?.data?.id) ||
+  asId(res?.data?.conversationId) ||
+  asId(res?.conversationId) ||
+  asId(res?.id);
+
+if (!convId) {
+  addNotification("⚠️ No puedo abrir conversación (sin id)");
+  return;
+}
+
+// 3) Abrimos esa conversación y cargamos mensajes
+await openConversation(convId);
+
+addNotification("✅ Canal de comunicación abierto");
+} catch (err) {
+  console.error(err);
+  addNotification("⚠️ Error abriendo chat");
+}
+};
+
+window.addEventListener("open-details-signal", handleOpenDetails);
+window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
+window.addEventListener("reload-profile-assets", handleReload);
+window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
+
+// ✅ CHAT
+window.addEventListener("open-chat-signal", handleOpenChatSignal as any);
+
+return () => {
+  window.removeEventListener("open-details-signal", handleOpenDetails);
+  window.removeEventListener("toggle-fav-signal", handleToggleFavSignal);
+  window.removeEventListener("reload-profile-assets", handleReload);
+  window.removeEventListener("agency-profile-updated", handleAgencyProfileUpdated);
+
+  // ✅ CHAT
+  window.removeEventListener("open-chat-signal", handleOpenChatSignal as any);
+};
+
+}, [soundEnabled, localFavs, agencyFavs, agencyLikes, systemMode, identityVerified]);
 
    // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)
 useEffect(() => {
@@ -1178,8 +1547,36 @@ useEffect(() => {
                                {/* 2. MERCADO GLOBAL */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel === 'AGENCY_MARKET' ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}><Shield size={18} /></button>
 
-                               {/* 3. COMUNICACIONES */}
-                               <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'CHAT' ? 'NONE' : 'CHAT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'}`}><MessageCircle size={18}/></button>
+                              {/* 3. COMUNICACIONES */}
+<button
+  onClick={() => {
+    if (typeof playSynthSound === "function") playSynthSound("click");
+    if (activePanel === "CHAT") {
+      setActivePanel("NONE");
+    } else {
+      openChatPanel();
+    }
+  }}
+  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+    activePanel === "CHAT"
+      ? "text-blue-400 bg-blue-500/10"
+      : "text-white/50 hover:text-white"
+  }`}
+>
+  <span className="relative inline-flex">
+    <MessageCircle size={18} />
+    {unreadTotal > 0 && (
+      <>
+        {/* punto parpadeando tipo blackberry */}
+        <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+        {/* contador */}
+        <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
+          {unreadTotal > 9 ? "9+" : unreadTotal}
+        </span>
+      </>
+    )}
+  </span>
+</button>
 
                                {/* 4. IA */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-white/50 hover:text-white'}`}><Sparkles size={18}/></button>
@@ -1221,12 +1618,83 @@ useEffect(() => {
                         </div>
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
                         <div className="flex items-center gap-1">
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='MARKETPLACE'?'text-emerald-400':'text-white/50 hover:text-white'}`}><Store size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'CHAT' ? 'NONE' : 'CHAT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel==='CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'}`}><MessageCircle size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'}`}><Sparkles size={18} className="relative z-10"/></button>
-                            <button onClick={() => { playSynthSound('click'); toggleRightPanel('VAULT'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='VAULT'?'text-red-500':'text-white/50 hover:text-white'}`}><Heart size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); toggleRightPanel('PROFILE'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel==='PROFILE'?'text-white':'text-white/50 hover:text-white'}`}><User size={18}/></button>
-                        </div>
+ <button
+  onClick={() => {
+    playSynthSound('click');
+    setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE');
+  }}
+  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+    activePanel === 'MARKETPLACE' ? 'text-emerald-400' : 'text-white/50 hover:text-white'
+  }`}
+>
+  <Store size={18} />
+</button>
+
+<button
+  onClick={() => {
+    playSynthSound('click');
+    if (activePanel === "CHAT") {
+      setActivePanel("NONE");
+    } else {
+      openChatPanel();
+    }
+  }}
+  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+    activePanel === 'CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'
+  }`}
+>
+  <span className="relative inline-flex">
+    <MessageCircle size={18} />
+    {unreadTotal > 0 && (
+      <>
+        {/* punto parpadeando tipo blackberry */}
+        <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+        {/* contador */}
+        <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
+          {unreadTotal > 9 ? "9+" : unreadTotal}
+        </span>
+      </>
+    )}
+  </span>
+</button>
+
+<button
+  onClick={() => {
+    playSynthSound('click');
+    setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI');
+  }}
+  className={`p-3 rounded-full transition-all relative group ${
+    activePanel === 'AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'
+  }`}
+>
+  <Sparkles size={18} className="relative z-10" />
+</button>
+
+<button
+  onClick={() => {
+    playSynthSound('click');
+    toggleRightPanel('VAULT');
+  }}
+  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+    rightPanel === 'VAULT' ? 'text-red-500' : 'text-white/50 hover:text-white'
+  }`}
+>
+  <Heart size={18} />
+</button>
+
+<button
+  onClick={() => {
+    playSynthSound('click');
+    toggleRightPanel('PROFILE');
+  }}
+  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+    rightPanel === 'PROFILE' ? 'text-white' : 'text-white/50 hover:text-white'
+  }`}
+>
+  <User size={18} />
+</button>
+</div>
+
                       </div>
                   </div>
                </div>
@@ -1373,31 +1841,170 @@ const isAgency =
            Siempre flotando sobre todo lo demás.
        ================================================================= */}
        
-       {/* CHAT TÁCTICO */}
-       {activePanel === 'CHAT' && (
-           <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
-               <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
-                   <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-                       <div className="flex items-center gap-3">
-                           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                           <span className="text-xs font-bold tracking-widest text-white">COMMS LINK</span>
-                       </div>
-                       <button onClick={() => setActivePanel('NONE')} className="text-white/30 hover:text-white transition-colors p-2"><X size={16}/></button>
-                   </div>
-                   <div className="flex-grow p-4 space-y-4 overflow-y-auto custom-scrollbar">
-                       <div className="bg-white/10 p-3 rounded-2xl rounded-tl-none text-xs text-white/80 max-w-[90%] border border-white/5">
-                           Sistema listo. ¿En qué puedo ayudarle, Agente?
-                       </div>
-                   </div>
-                   <div className="p-3 border-t border-white/5 bg-black/20">
-                       <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/5">
-                           <input placeholder="Transmitir mensaje..." className="bg-transparent w-full text-xs text-white outline-none placeholder-white/20"/>
-                           <button className="text-blue-400 hover:text-blue-300"><Send size={14}/></button>
-                       </div>
-                   </div>
-               </div>
-           </div>
-       )}
+      {/* CHAT TÁCTICO (CONECTADO) */}
+{activePanel === "CHAT" && (
+  <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
+    <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
+      {/* Header */}
+      <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+          <span className="text-xs font-bold tracking-widest text-white">COMMS LINK</span>
+        </div>
+
+        <button
+          onClick={() => setActivePanel("NONE")}
+          className="text-white/30 hover:text-white transition-colors p-2"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-grow p-3 overflow-y-auto custom-scrollbar space-y-3">
+        {chatLoading && (
+          <div className="text-[10px] text-white/40 tracking-widest uppercase">
+            Cargando...
+          </div>
+        )}
+
+        {/* Si NO hay conversación seleccionada -> lista de threads */}
+        {!chatConversationId && (
+          <>
+            {(chatThreads || []).length === 0 && !chatLoading ? (
+              <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
+                No hay conversaciones todavía. Abre una desde Details con “MENSAJE”.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {(chatThreads || []).map((t: any) => {
+                  const id = String(t?.id || "");
+                  const title =
+                    t?.title ||
+                    t?.propertyTitle ||
+                    t?.refCode ||
+                    "Conversación";
+                  const snippet =
+                    t?.lastMessage?.text ||
+                    t?.lastMessage?.content ||
+                    t?.lastMessage ||
+                    "";
+
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => openConversation(id)}
+                      className="w-full text-left bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
+                          {title}
+                        </div>
+                        {t?.updatedAt && (
+                          <div className="text-[9px] text-white/30 font-mono">
+                            {String(t.updatedAt).slice(0, 10)}
+                          </div>
+                        )}
+                      </div>
+                      {snippet ? (
+                        <div className="mt-1 text-[10px] text-white/50 line-clamp-2">
+                          {snippet}
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-[10px] text-white/30">
+                          Sin mensajes aún
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Si hay conversación seleccionada -> mensajes */}
+        {chatConversationId && (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => {
+                  setChatConversationId(null);
+                  setChatMessages([]);
+                }}
+                className="text-[10px] text-white/50 hover:text-white transition-colors tracking-widest uppercase"
+              >
+                ← Volver
+              </button>
+
+              <div className="text-[9px] text-white/30 font-mono">
+                {String(chatConversationId).slice(0, 10)}...
+              </div>
+            </div>
+
+            {(chatMessages || []).length === 0 && !chatLoading ? (
+              <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
+                Aún no hay mensajes. Envía el primero.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {(chatMessages || []).map((m: any) => {
+                  const mine = String(m?.senderId || "") === String(activeUserKey || "");
+                  const text = m?.text ?? m?.content ?? "";
+
+                  return (
+                    <div
+                      key={String(m?.id || Math.random())}
+                      className={`max-w-[90%] p-3 rounded-2xl text-xs border ${
+                        mine
+                          ? "ml-auto bg-blue-500/20 border-blue-500/30 text-white"
+                          : "mr-auto bg-white/10 border-white/10 text-white/80"
+                      } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
+                    >
+                      {text || <span className="text-white/30">...</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Footer input */}
+      <div className="p-3 border-t border-white/5 bg-black/20">
+        <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/5">
+          <input
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSendChat();
+              }
+            }}
+            placeholder={
+              chatConversationId
+                ? "Transmitir mensaje..."
+                : "Selecciona una conversación..."
+            }
+            disabled={!chatConversationId}
+            className="bg-transparent w-full text-xs text-white outline-none placeholder-white/20 disabled:opacity-40"
+          />
+
+          <button
+            onClick={handleSendChat}
+            disabled={!chatConversationId || !String(chatInput || "").trim()}
+            className="text-blue-400 hover:text-blue-300 disabled:opacity-30"
+            title="Enviar"
+          >
+            <Send size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
        {/* IA / OMNI INTELLIGENCE */}
        {activePanel === 'AI' && (

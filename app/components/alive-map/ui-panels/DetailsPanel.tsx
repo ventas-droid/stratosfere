@@ -6,7 +6,7 @@ import {
     Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa,
-    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check
+    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle
 } from 'lucide-react';
 
 // --- DICCIONARIO DE ICONOS ---
@@ -166,12 +166,38 @@ const ownerRole =
             }));
         }
     };
-    const copyPhone = () => {
-        if(ownerPhone === "Consultar") return;
-        navigator.clipboard.writeText(ownerPhone);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
+   
+   // ✅ CHAT: abrir conversación con el propietario (desde DETAILS)
+const handleMessageOwner = (e: any) => {
+  if (e?.stopPropagation) e.stopPropagation();
+
+  const propertyId = String(selectedProp?.id || "");
+  const toUserId = String(
+    selectedProp?.user?.id ||
+      selectedProp?.ownerSnapshot?.id ||
+      selectedProp?.userId ||
+      selectedProp?.ownerId ||
+      ""
+  );
+
+  if (!propertyId || !toUserId) return;
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("open-chat-signal", {
+        detail: { propertyId, toUserId },
+      })
+    );
+  }
+};
+
+const copyPhone = () => {
+  if(ownerPhone === "Consultar") return;
+  navigator.clipboard.writeText(ownerPhone);
+  setCopied(true);
+  setTimeout(() => setCopied(false), 2000);
+};
+
 
     // ⚡️ HELPER PARA COLOR DE CERTIFICADO
     const getEnergyColor = (letter: string) => {
@@ -421,19 +447,66 @@ const ownerRole =
                                     <div className="text-slate-300">{copied ? <Check size={20} className="text-green-500"/> : <Copy size={20}/>}</div>
                                 </div>
 
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                                        <Mail size={22} />
-                                    </div>
-                                    <div className="flex-1 overflow-hidden">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email</p>
-                                        <p className="text-sm font-black text-slate-900 truncate">{ownerEmail}</p>
-                                    </div>
-                                </div>
+                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+    <Mail size={22} />
+  </div>
+  <div className="flex-1 overflow-hidden">
+    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email</p>
+    <p className="text-sm font-black text-slate-900 truncate">{ownerEmail}</p>
+  </div>
+</div>
 
-                                <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95 cursor-pointer">
-                                    Cerrar Ficha
-                                </button>
+{/* ✅ CHAT DIRECTO (NUEVO) */}
+<div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+    <MessageCircle size={22} />
+  </div>
+
+  <div className="flex-1 overflow-hidden">
+    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Chat</p>
+    <p className="text-sm font-black text-slate-900 truncate">Abrir conversación</p>
+  </div>
+
+  <button
+    onClick={() => {
+      const ownerId =
+        selectedProp?.user?.id ||
+        selectedProp?.ownerSnapshot?.id ||
+        selectedProp?.userId ||
+        selectedProp?.ownerId ||
+        null;
+
+      if (!ownerId) return;
+
+      window.dispatchEvent(
+        new CustomEvent("open-chat-signal", {
+          detail: {
+           propertyId: String(selectedProp?.id || selectedProp?.propertyId || selectedProp?._id || ""),
+toUserId: String(ownerId || ""),
+
+            refCode: selectedProp?.refCode || null,
+            title: selectedProp?.title || null,
+          },
+        })
+      );
+
+      // opcional: cerrar la ficha de contacto al abrir chat
+      setShowContactModal(false);
+    }}
+    className="px-4 py-2 rounded-xl bg-blue-600 text-white font-black text-[10px] tracking-widest hover:bg-blue-700 transition-all active:scale-95"
+  >
+    MENSAJE
+  </button>
+</div>
+
+<button
+  onClick={() => setShowContactModal(false)}
+  className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95 cursor-pointer"
+>
+  Cerrar Ficha
+</button>
+
                             </div>
                         </div>
                     </div>
