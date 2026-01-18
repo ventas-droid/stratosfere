@@ -61,10 +61,12 @@ const buildIdentity = (freshUser: any, snap: any) => {
     cif: base.cif || null,
   };
 };
-
-// ✅ REF CODE (server-side) - helper estable
-const buildRefCode = (propertyId: string) => {
-  return `SF-${String(propertyId)}`; // único garantizado
+// ✅ REF CODE corto y legible (sin 0/O/I/1)
+const buildRefCode = () => {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return `SF-${out}`; // ejemplo: SF-8K3Q7M
 };
 
 // =========================================================
@@ -376,7 +378,7 @@ if (data.id && data.id.length > 20) {
   if (created?.refCode) return created;
 
   // 3) Generamos refCode estable desde el id
-  const refCode = buildRefCode(String(created.id));
+const refCode = buildRefCode();
 
   // 4) UPDATE solo para refCode
   const updated = await tx.property.update({
