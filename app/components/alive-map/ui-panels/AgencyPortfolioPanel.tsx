@@ -177,19 +177,32 @@ const openFromStock = (p: any) => {
                              </div>
                           </div>
 
-                          {/* INFO TEXTO */}
-                          <div className="flex-1 min-w-0 flex flex-col justify-center">
-                              <h3 className="font-extrabold text-xl text-black leading-none mb-2 truncate" title={titleDisplay}>
-                                  {titleDisplay}
-                              </h3>
-                              <div className="flex items-center gap-1.5 text-black/40 text-[11px] font-bold mb-3 truncate">
-                                  <MapPin size={12} />
-                                  <span className="truncate">{addressDisplay}</span>
-                              </div>
-                              <div className="text-2xl font-black text-black tracking-tight leading-none">
-                                  {priceDisplay}
-                              </div>
-                          </div>
+                         {/* INFO TEXTO */}
+<div className="flex-1 min-w-0 flex flex-col justify-center">
+  <h3
+    className="font-extrabold text-xl text-black leading-none mb-2 truncate"
+    title={titleDisplay}
+  >
+    {titleDisplay}
+  </h3>
+
+  {/* ✅ REF CODE */}
+  {p?.refCode ? (
+    <div className="text-[10px] font-black text-black/40 uppercase tracking-widest mb-2">
+      Ref: <span className="font-mono text-black/60">{p.refCode}</span>
+    </div>
+  ) : null}
+
+  <div className="flex items-center gap-1.5 text-black/40 text-[11px] font-bold mb-3 truncate">
+    <MapPin size={12} />
+    <span className="truncate">{addressDisplay}</span>
+  </div>
+
+  <div className="text-2xl font-black text-black tracking-tight leading-none">
+    {priceDisplay}
+  </div>
+</div>
+
                       </div>
 
                       {/* 🔥 SECCIÓN ESTRATEGIA REAL (SERVICIOS) */}

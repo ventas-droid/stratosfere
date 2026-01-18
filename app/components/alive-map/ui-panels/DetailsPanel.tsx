@@ -23,6 +23,29 @@ const PHYSICAL_KEYWORDS = ['pool', 'piscina', 'garage', 'garaje', 'garden', 'jar
 export default function DetailsPanel({ selectedProp: initialProp, onClose, onToggleFavorite, favorites = [], onOpenInspector }: any) {
     
     const [selectedProp, setSelectedProp] = useState(initialProp);
+   const [copiedRef, setCopiedRef] = useState(false);
+
+const copyRefCode = async () => {
+  const ref = String(selectedProp?.refCode || "");
+  if (!ref) return;
+
+  try {
+    await navigator.clipboard.writeText(ref);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = ref;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+
+  setCopiedRef(true);
+  setTimeout(() => setCopiedRef(false), 2000);
+};
+
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -224,15 +247,45 @@ const ownerRole =
                     </div>
 
                     {/* Título y Precio */}
-                    <div>
-                        <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block">
-                            {selectedProp?.type || "INMUEBLE"}
-                        </span>
-                        <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">{selectedProp?.title || "Sin Título"}</h1>
-                        <p className="text-3xl font-black text-slate-900 tracking-tight">
-                            {new Intl.NumberFormat('es-ES').format(Number(selectedProp?.price || 0))} €
-                        </p>
-                    </div>
+<div>
+  <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block">
+    {selectedProp?.type || "INMUEBLE"}
+  </span>
+
+  <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">
+    {selectedProp?.title || "Sin Título"}
+  </h1>
+
+ {/* ✅ REF CODE + COPIAR */}
+{selectedProp?.refCode && (
+  <div className="text-[12px] text-slate-500 mb-2 flex items-center justify-between gap-2">
+    <div className="min-w-0">
+      Ref:{" "}
+      <span className="font-mono text-slate-700 break-all">
+        {selectedProp.refCode}
+      </span>
+    </div>
+
+    <button
+      onClick={copyRefCode}
+      className="shrink-0 w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
+      title="Copiar referencia"
+    >
+      {copiedRef ? (
+        <Check size={18} className="text-green-500" />
+      ) : (
+        <Copy size={18} className="text-slate-500" />
+      )}
+    </button>
+  </div>
+)}
+
+
+  <p className="text-3xl font-black text-slate-900 tracking-tight">
+    {new Intl.NumberFormat("es-ES").format(Number(selectedProp?.price || 0))} €
+  </p>
+</div>
+
 
                     {/* Métricas */}
                     <div className="flex justify-between gap-2">

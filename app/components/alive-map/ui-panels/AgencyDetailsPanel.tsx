@@ -41,6 +41,29 @@ export default function AgencyDetailsPanel({
     const [selectedProp, setSelectedProp] = useState(initialProp);
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
+const [copiedRef, setCopiedRef] = useState(false);
+
+const copyRefCode = async () => {
+  const ref = String(selectedProp?.refCode || "");
+  if (!ref) return;
+
+  try {
+    await navigator.clipboard.writeText(ref);
+  } catch {
+    // fallback (por si clipboard no está permitido)
+    const ta = document.createElement("textarea");
+    ta.value = ref;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+
+  setCopiedRef(true);
+  setTimeout(() => setCopiedRef(false), 2000);
+};
 
 const [ownerData, setOwnerData] = useState(
   initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {}
@@ -271,22 +294,45 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* TÍTULO Y PRECIO */}
-                    <div>
-                         <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
-                            {selectedProp?.type || "INMUEBLE"}
-                        </span>
-                        <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">
-                            {selectedProp?.title || "Sin Título"}
-                        </h1>
-                        <p className="text-3xl font-black text-slate-900 tracking-tight">
-                            {(() => {
-                              const raw = selectedProp?.rawPrice ?? selectedProp?.price;
-                              const num = Number(String(raw).replace(/[^0-9]/g, ''));
-                              return Number.isFinite(num) ? new Intl.NumberFormat('es-ES').format(num) + ' €' : 'Consultar';
-                            })()}
-                        </p>
-                    </div>
+                   {/* TÍTULO Y PRECIO */}
+<div>
+  <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
+    {selectedProp?.type || "INMUEBLE"}
+  </span>
+
+  <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">
+    {selectedProp?.title || "Sin Título"}
+  </h1>
+
+  {/* ✅ REF CODE (click para copiar) */}
+{selectedProp?.refCode && (
+  <div
+    onClick={copyRefCode}
+    className="text-[12px] text-slate-500 mb-2 flex items-center gap-2 cursor-pointer hover:text-slate-700 select-none"
+    title="Copiar referencia"
+  >
+    <span>Ref:</span>
+    <span className="font-mono text-slate-700">{selectedProp.refCode}</span>
+
+    {/* iconito estado */}
+    <span className="ml-1 text-slate-400">
+      {copiedRef ? <Check size={14} /> : <Copy size={14} />}
+    </span>
+  </div>
+)}
+
+<p className="text-3xl font-black text-slate-900 tracking-tight">
+  {(() => {
+    const raw = selectedProp?.rawPrice ?? selectedProp?.price;
+    const num = Number(String(raw).replace(/[^0-9]/g, ""));
+    return Number.isFinite(num)
+      ? new Intl.NumberFormat("es-ES").format(num) + " €"
+      : "Consultar";
+  })()}
+</p>
+</div>
+
+
 
                     {/* DATOS RÁPIDOS */}
                     <div className="flex justify-between gap-2">

@@ -278,12 +278,21 @@ const normalizedCoords = (() => {
 
   const finalImg = finalAlbum[0] || null;
 
-  // 3. PAQUETE DE DATOS (PRECIO FRESCO + IMAGEN LIMPIA)
-  const payload = {
-     ...data,
-    id: String(id || ""),
-    title: data?.title || props?.title || "",
-    type: data?.type || props?.type || "Piso",
+ // 3. PAQUETE DE DATOS (PRECIO FRESCO + IMAGEN LIMPIA)
+const payload = {
+  ...data,
+
+  id: String(id || ""),
+
+  // ✅ NUEVO: refCode viaja siempre a Details/Stock
+  refCode:
+    data?.refCode ??
+    props?.refCode ??
+    props?.data?.refCode ??
+    null,
+
+  title: data?.title || props?.title || "",
+  type: data?.type || props?.type || "Piso",
 
     // localización
     address: data?.address || props?.address || "",

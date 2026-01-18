@@ -543,17 +543,39 @@ export default function ProfilePanel({
                                     <img src={prop.img} className="w-full h-full object-cover" alt="Propiedad"/>
                                     {prop.elevator && <div className="absolute top-1 right-1 bg-green-500 p-1 rounded-md text-white shadow-sm"><ArrowUp size={8} strokeWidth={4}/></div>}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start">
-                                        <h4 className="font-bold text-slate-900 truncate text-lg group-hover:text-blue-600 transition-colors">{prop.title || "Sin título"}</h4>
-                                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-green-100 text-green-700`}>ONLINE</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                                        <MapPin size={10} />
-                                        <span className="truncate">{prop.location || prop.address}</span>
-                                    </div>
-                                    <p className="text-base font-black text-slate-900 mt-1">{prop.price}€</p>
-                                </div>
+                               <div className="flex-1 min-w-0">
+  <div className="flex justify-between items-start">
+    <h4 className="font-bold text-slate-900 truncate text-lg group-hover:text-blue-600 transition-colors">
+      {prop?.title || "Sin título"}
+    </h4>
+    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-green-100 text-green-700">
+      ONLINE
+    </span>
+  </div>
+
+  {/* ✅ REF CODE */}
+  {prop?.refCode ? (
+    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+      Ref: <span className="font-mono text-slate-600">{prop.refCode}</span>
+    </div>
+  ) : null}
+
+  <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+    <MapPin size={10} />
+    <span className="truncate">
+      {prop?.location || prop?.address || ""}
+    </span>
+  </div>
+
+  <p className="text-base font-black text-slate-900 mt-1">
+    {(() => {
+      const raw = (prop as any)?.rawPrice ?? prop?.price ?? 0;
+      const num = Number(String(raw).replace(/[^0-9]/g, ""));
+      return Number.isFinite(num) ? new Intl.NumberFormat("es-ES").format(num) + "€" : "Consultar";
+    })()}
+  </p>
+</div>
+
                             </div>
                             {/* SERVICIOS */}
                             {prop.selectedServices && serviceIds.length > 0 && (
