@@ -1211,3 +1211,66 @@ export async function sendMessageAction(a: any, b?: any) {
     return { success: false, error: String(e?.message || e) };
   }
 }
+// =========================================================
+// 🚫 CHAT MODERATION (bloquear + borrar conversación)
+// =========================================================
+
+// ✅ BLOQUEAR usuario (persistente)
+export async function blockUserAction(otherUserId: string) {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const oid = String(otherUserId || "").trim();
+    if (!oid) return { success: false, error: "MISSING_OTHER_USER" };
+    if (String(oid) === String(me.id)) return { success: false, error: "CANNOT_BLOCK_SELF" };
+
+    // Si no tienes modelo Block, lo guardamos en user.blockedUserIds (JSON) como fallback.
+    // ✅ OJO: esto requiere que exista el campo user.blockedUserIds (Json/String). Si no existe, dime y lo adaptamos.
+    const user = await prisma.user.findUnique({ where: { id: me.id }, select: { id: true, blockedUserIds: true } as any });
+    const current = Array.isArray((user as any)?.blockedUserIds) ? (user as any).blockedUserIds : [];
+
+    const next = Array.from(new Set([...current.map(String), String(oid)]));
+
+    await prisma.user.update({
+      where: { id: me.id },
+      data: { blockedUserIds: next } as any,
+    });
+
+    revalidatePath("/");
+    return { success: true, blocked: true, otherUserId: oid };
+  } catch (e: any) {
+    console.error("blockUserAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+// ✅ BORRAR conversación (solo si eres participante)
+export async function deleteConversationAction(conversationId: string) {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const cid = String(conversationId || "").trim();
+    if (!cid) return { success: false, error: "MISSING_CONVERSATION_ID" };
+
+    const allowed = await prisma.conversationParticipant.findFirst({
+      where: { conversationId: cid, userId: me.id },
+      select: { id: true },
+    });
+    if (!allowed) return { success: false, error: "FORBIDDEN" };
+
+    // ✅ borramos mensajes + participantes + conversación
+    await prisma.message.deleteMany({ where: { conversationId: cid } });
+    await prisma.conversationParticipant.deleteMany({ where: { conversationId: cid } });
+    await prisma.conversation.delete({ where: { id: cid } });
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    console.error("deleteConversationAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}

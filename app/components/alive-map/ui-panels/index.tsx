@@ -9,7 +9,7 @@ import {
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
-  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2 
+  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2 
 } from 'lucide-react';
 
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
@@ -34,20 +34,22 @@ import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
 import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
+
 // 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDAS LAS ACCIONES DE AGENCIA QUE FALTABAN
-import { 
-  getFavoritesAction, 
-  toggleFavoriteAction, 
+import {
+  getFavoritesAction,
+  toggleFavoriteAction,
   getUserMeAction,
   getAgencyPortfolioAction,
   deleteFromStockAction,
 
-  // ✅ CHAT (FIX: alias)
-getMyConversationsAction as listMyConversationsAction,
-getConversationMessagesAction,
-sendMessageAction,
-getOrCreateConversationAction
-} from '@/app/actions';
+  getMyConversationsAction as listMyConversationsAction,
+  getConversationMessagesAction,
+  sendMessageAction,
+  getOrCreateConversationAction,
+  deleteConversationAction
+} from "@/app/actions";
+
 
 // --- UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -846,6 +848,125 @@ const addNotification = (title: string) => {
 };
 
 // =======================
+// ✅ CHAT helpers (avatar/nombre + blocklist + delete thread)
+// =======================
+const getUserLabel = (u: any) => {
+  if (!u) return "Usuario";
+  const full = [u?.name, u?.surname].filter(Boolean).join(" ").trim();
+  return (u?.companyName || full || u?.email || "Usuario").trim();
+};
+
+const getUserAvatar = (u: any) => {
+  return u?.companyLogo || u?.avatar || null;
+};
+
+// intenta sacar “el otro” usuario de un thread
+const resolveOtherUser = (t: any) => {
+  if (t?.otherUser) return t.otherUser;
+
+  const parts = Array.isArray(t?.participants) ? t.participants : [];
+  const other =
+    parts
+      .map((p: any) => p?.user || p)
+      .find((u: any) => String(u?.id || "") && String(u?.id || "") !== String(activeUserKey || ""));
+
+  return other || null;
+};
+
+// title coherente
+const getThreadTitle = (t: any) => {
+  if (t?.title) return t.title;
+  const ref = t?.refCode ? String(t.refCode) : "";
+  const pt = t?.propertyTitle ? String(t.propertyTitle) : "";
+  if (ref && pt) return `${ref} — ${pt}`;
+  return ref || pt || "Conversación";
+};
+
+// ---- blocklist local (sin server, 0 riesgo)
+const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
+
+useEffect(() => {
+  try {
+    if (typeof window === "undefined") return;
+    const key = `stratos_chat_blocked_v1:${String(activeUserKey || "anon")}`;
+    const raw = localStorage.getItem(key);
+    const arr = raw ? JSON.parse(raw) : [];
+    setBlockedUsers(new Set((Array.isArray(arr) ? arr : []).map(String)));
+  } catch {}
+}, [activeUserKey]);
+
+const toggleBlockUser = (userId: string) => {
+  const uid = String(userId || "").trim();
+  if (!uid) return;
+
+  setBlockedUsers((prev) => {
+    const next = new Set(prev || []);
+    const isBlocked = next.has(uid);
+    if (isBlocked) next.delete(uid);
+    else next.add(uid);
+
+    try {
+      if (typeof window !== "undefined") {
+        const key = `stratos_chat_blocked_v1:${String(activeUserKey || "anon")}`;
+        localStorage.setItem(key, JSON.stringify(Array.from(next)));
+      }
+    } catch {}
+
+    addNotification(isBlocked ? "✅ Usuario desbloqueado" : "⛔ Usuario bloqueado");
+
+    // si estabas dentro de una conversación, vuelves a lista para evitar líos
+    setChatConversationId(null);
+    setChatMessages([]);
+
+    return next;
+  });
+};
+
+const isBlockedThread = (t: any) => {
+  const other = resolveOtherUser(t);
+  const oid = String(other?.id || "");
+  return oid ? blockedUsers.has(oid) : false;
+};
+
+const handleDeleteConversation = async (conversationId: string) => {
+  const cid = String(conversationId || "").trim();
+  if (!cid) return;
+  if (!confirm("¿Borrar esta conversación y sus mensajes?")) return;
+
+  // optimista (quita de UI)
+  setChatThreads((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((t: any) => String(t?.id) !== cid));
+  setUnreadByConv((prev) => {
+    const next = { ...(prev || {}) };
+    delete next[cid];
+    return next;
+  });
+
+  if (String(chatConversationId || "") === cid) {
+    setChatConversationId(null);
+    setChatMessages([]);
+  }
+
+  try {
+    const fn = deleteConversationAction as any;
+    if (typeof fn !== "function") {
+      addNotification("⚠️ Falta action deleteConversationAction");
+      return;
+    }
+    const res = await fn(cid);
+    if (!res?.success) {
+      addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ No pude borrar");
+      setDataVersion((v: number) => v + 1); // re-sync duro
+      return;
+    }
+    addNotification("🗑️ Conversación eliminada");
+  } catch (e) {
+    console.error(e);
+    addNotification("⚠️ Error borrando conversación");
+    setDataVersion((v: number) => v + 1);
+  }
+};
+
+// =======================
 // ✅ CHAT: abrir panel + cargar conversaciones
 // =======================
 const openChatPanel = async () => {
@@ -994,6 +1115,74 @@ const handleSendChat = async () => {
     console.error(e);
     setChatMessages((prev: any[]) => prev.filter((m: any) => m.id !== tempId));
     addNotification("❌ Error enviando");
+  }
+};
+
+// ✅ UPLOAD Cloudinary (chat adjuntos: imagen/pdf)
+const chatFileInputRef = useRef<any>(null);
+const [chatUploading, setChatUploading] = useState(false);
+
+const uploadChatFileToCloudinary = async (file: File) => {
+  const cloudName =
+    (process?.env as any)?.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn1ltrogr";
+  const uploadPreset =
+    (process?.env as any)?.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload";
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Faltan variables Cloudinary (cloud name / upload preset)");
+  }
+
+  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", uploadPreset);
+
+  const res = await fetch(endpoint, { method: "POST", body: fd });
+  const data = await res.json();
+
+  if (!res.ok) {
+    const msg = data?.error?.message || "Upload fallido";
+    throw new Error(msg);
+  }
+
+  return data?.secure_url || data?.url || "";
+};
+
+const handlePickChatFile = () => {
+  try {
+    chatFileInputRef.current?.click?.();
+  } catch {}
+};
+
+const handleChatFileSelected = async (e: any) => {
+  const file: File | null = e?.target?.files?.[0] || null;
+  // reset para poder subir el mismo archivo dos veces seguidas
+  if (e?.target) e.target.value = "";
+  if (!file) return;
+
+  // ✅ opcional: limita tamaños si quieres (ahora NO tocamos)
+  setChatUploading(true);
+  try {
+    const url = await uploadChatFileToCloudinary(file);
+
+    if (!url) {
+      addNotification("⚠️ No recibí URL del upload");
+      return;
+    }
+
+    // 👉 lo metemos en el input para que lo envíes con Enter/Enviar
+    setChatInput((prev: string) => {
+      const p = String(prev || "").trim();
+      return p ? `${p} ${url}` : url;
+    });
+
+    addNotification("✅ Archivo subido");
+  } catch (err: any) {
+    console.error(err);
+    addNotification(`❌ Upload: ${err?.message || "falló"}`);
+  } finally {
+    setChatUploading(false);
   }
 };
 
@@ -1928,172 +2117,304 @@ const isAgency =
            Siempre flotando sobre todo lo demás.
        ================================================================= */}
        
-      {/* CHAT TÁCTICO (CONECTADO) */}
+{/* CHAT TÁCTICO (CONECTADO) */}
 {chatOpen && (
+  <div className="fixed bottom-32 left-1/2 -translate-x-1/2 w-[680px] max-w-[95vw] z-[20000] pointer-events-auto">
+    <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-[520px]">
 
-  <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
-    <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
       {/* Header */}
       <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-          <span className="text-xs font-bold tracking-widest text-white">COMMS LINK</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs font-black tracking-widest text-white uppercase">COMMS LINK</span>
+            <span className="text-[10px] text-white/40 font-mono">
+              {unreadTotal > 0 ? `UNREAD ${unreadTotal}` : "ONLINE"}
+            </span>
+          </div>
         </div>
 
         <button
           onClick={() => setChatOpen(false)}
-
           className="text-white/30 hover:text-white transition-colors p-2"
+          title="Cerrar"
         >
           <X size={16} />
         </button>
       </div>
 
-      {/* Body */}
-      <div className="flex-grow p-3 overflow-y-auto custom-scrollbar space-y-3">
-        {chatLoading && (
-          <div className="text-[10px] text-white/40 tracking-widest uppercase">
-            Cargando...
-          </div>
-        )}
+      {/* Body 2-column */}
+      <div className="flex-1 min-h-0 grid grid-cols-5">
 
-        {/* Si NO hay conversación seleccionada -> lista de threads */}
-        {!chatConversationId && (
-          <>
+        {/* LEFT: threads */}
+        <div className="col-span-2 min-h-0 border-r border-white/10 overflow-y-auto custom-scrollbar">
+          <div className="p-3">
             {(chatThreads || []).length === 0 && !chatLoading ? (
               <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
                 No hay conversaciones todavía. Abre una desde Details con “MENSAJE”.
               </div>
-            ) : (
-              <div className="space-y-2">
-                {(chatThreads || []).map((t: any) => {
-                  const id = String(t?.id || "");
-                  const title =
-                    t?.title ||
-                    t?.propertyTitle ||
-                    t?.refCode ||
-                    "Conversación";
-                  const snippet =
-                    t?.lastMessage?.text ||
-                    t?.lastMessage?.content ||
-                    t?.lastMessage ||
-                    "";
+            ) : null}
+          </div>
 
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => openConversation(id)}
-                      className="w-full text-left bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 transition-all"
-                    >
+          <div className="px-3 pb-3 space-y-2">
+            {(chatThreads || []).map((t: any) => {
+              const id = String(t?.id || "");
+              if (!id) return null;
+
+              const other = resolveOtherUser(t);
+              const otherName = getUserLabel(other);
+              const avatar = getUserAvatar(other);
+              const title = getThreadTitle(t);
+
+              const snippet =
+                t?.lastMessage?.text ||
+                t?.lastMessage?.content ||
+                t?.lastMessage ||
+                "";
+
+              const blocked = isBlockedThread(t);
+              const active = String(chatConversationId || "") === id;
+              const unread = Number(unreadByConv?.[id] || 0) > 0;
+
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    if (blocked) {
+                      addNotification("⛔ Usuario bloqueado");
+                      return;
+                    }
+                    openConversation(id);
+                  }}
+                  className={`w-full text-left border rounded-2xl p-3 transition-all ${
+                    active
+                      ? "bg-blue-500/15 border-blue-500/30"
+                      : "bg-white/5 hover:bg-white/10 border-white/10"
+                  } ${blocked ? "opacity-40" : ""}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* avatar */}
+                    <div className="w-9 h-9 rounded-full overflow-hidden bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
+                      {avatar ? (
+                        <img src={avatar} className="w-full h-full object-cover" alt="" />
+                      ) : (
+                        <span className="text-[10px] font-black text-white/60">
+                          {String(otherName || "U").slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
-                          {title}
+                          {otherName}
                         </div>
-                        {t?.updatedAt && (
-                          <div className="text-[9px] text-white/30 font-mono">
-                            {String(t.updatedAt).slice(0, 10)}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          {unread && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
+                          {blocked && <span className="text-[9px] text-white/30 font-mono">BLOCK</span>}
+                        </div>
+                      </div>
+
+                      <div className="mt-0.5 text-[10px] text-white/50 font-mono truncate">
+                        {title}
+                      </div>
+
+                      <div className="mt-1 text-[10px] text-white/40 line-clamp-2">
+                        {snippet ? String(snippet) : "Sin mensajes aún"}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT: conversation */}
+        <div className="col-span-3 min-h-0 flex flex-col">
+          {/* header right */}
+          <div className="p-3 border-b border-white/10 bg-black/20 flex items-center justify-between">
+            {chatConversationId ? (
+              (() => {
+                const t = (chatThreads || []).find((x: any) => String(x?.id) === String(chatConversationId));
+                const other = resolveOtherUser(t);
+                const otherName = getUserLabel(other);
+                const avatar = getUserAvatar(other);
+                const blocked = other?.id ? blockedUsers.has(String(other.id)) : false;
+
+                return (
+                  <div className="flex items-center justify-between w-full gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full overflow-hidden bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
+                        {avatar ? (
+                          <img src={avatar} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <span className="text-[10px] font-black text-white/60">
+                            {String(otherName || "U").slice(0, 1).toUpperCase()}
+                          </span>
                         )}
                       </div>
-                      {snippet ? (
-                        <div className="mt-1 text-[10px] text-white/50 line-clamp-2">
-                          {snippet}
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
+                          {otherName}
                         </div>
-                      ) : (
-                        <div className="mt-1 text-[10px] text-white/30">
-                          Sin mensajes aún
+                        <div className="text-[10px] text-white/40 font-mono truncate">
+                          {t ? getThreadTitle(t) : "Conversación"}
                         </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Si hay conversación seleccionada -> mensajes */}
-        {chatConversationId && (
-          <>
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => {
-                  setChatConversationId(null);
-                  setChatMessages([]);
-                }}
-                className="text-[10px] text-white/50 hover:text-white transition-colors tracking-widest uppercase"
-              >
-                ← Volver
-              </button>
-
-              <div className="text-[9px] text-white/30 font-mono">
-                {String(chatConversationId).slice(0, 10)}...
-              </div>
-            </div>
-
-            {(chatMessages || []).length === 0 && !chatLoading ? (
-              <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
-                Aún no hay mensajes. Envía el primero.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {(chatMessages || []).map((m: any) => {
-                  const mine = String(m?.senderId || "") === String(activeUserKey || "");
-                  const text = m?.text ?? m?.content ?? "";
-
-                  return (
-                    <div
-                      key={String(m?.id || Math.random())}
-                      className={`max-w-[90%] p-3 rounded-2xl text-xs border ${
-                        mine
-                          ? "ml-auto bg-blue-500/20 border-blue-500/30 text-white"
-                          : "mr-auto bg-white/10 border-white/10 text-white/80"
-                      } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
-                    >
-                      {text || <span className="text-white/30">...</span>}
+                      </div>
                     </div>
-                  );
-                })}
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* bloquear / desbloquear */}
+                      {other?.id ? (
+                        <button
+                          onClick={() => toggleBlockUser(String(other.id))}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all"
+                          title={blocked ? "Desbloquear" : "Bloquear"}
+                        >
+                          {blocked ? <Unlock size={16} /> : <Lock size={16} />}
+                        </button>
+                      ) : null}
+
+                      {/* borrar conversación */}
+                      <button
+                        onClick={() => handleDeleteConversation(String(chatConversationId))}
+                        className="p-2 rounded-xl bg-white/5 hover:bg-red-500/15 border border-white/10 text-white/70 hover:text-red-300 transition-all"
+                        title="Borrar conversación"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+
+                      {/* volver */}
+                      <button
+                        onClick={() => {
+                          setChatConversationId(null);
+                          setChatMessages([]);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white transition-all"
+                        title="Volver a la lista"
+                      >
+                        ← Volver
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="text-[10px] text-white/40 tracking-widest uppercase">
+                Selecciona una conversación a la izquierda
               </div>
             )}
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* Footer input */}
-      <div className="p-3 border-t border-white/5 bg-black/20">
-        <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/5">
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleSendChat();
-              }
-            }}
-            placeholder={
-              chatConversationId
-                ? "Transmitir mensaje..."
-                : "Selecciona una conversación..."
-            }
-            disabled={!chatConversationId}
-            className="bg-transparent w-full text-xs text-white outline-none placeholder-white/20 disabled:opacity-40"
-          />
+          {/* messages */}
+          <div className="flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar space-y-2">
+            {chatLoading && (
+              <div className="text-[10px] text-white/40 tracking-widest uppercase">
+                Cargando...
+              </div>
+            )}
 
-          <button
-            onClick={handleSendChat}
-            disabled={!chatConversationId || !String(chatInput || "").trim()}
-            className="text-blue-400 hover:text-blue-300 disabled:opacity-30"
-            title="Enviar"
-          >
-            <Send size={14} />
-          </button>
+            {!chatConversationId && !chatLoading ? (
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white/60">
+                Aquí verás los mensajes. La lista de la izquierda mantiene tus threads.
+              </div>
+            ) : null}
+
+            {chatConversationId ? (
+              (chatMessages || []).length === 0 && !chatLoading ? (
+                <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
+                  Aún no hay mensajes. Envía el primero.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(chatMessages || []).map((m: any) => {
+                    const mine = String(m?.senderId || "") === String(activeUserKey || "");
+                    const text = m?.text ?? m?.content ?? "";
+
+                    return (
+                      <div
+                        key={String(m?.id || Math.random())}
+                        className={`max-w-[90%] p-3 rounded-2xl text-xs border ${
+                          mine
+                            ? "ml-auto bg-blue-500/20 border-blue-500/30 text-white"
+                            : "mr-auto bg-white/10 border-white/10 text-white/80"
+                        } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
+                      >
+                        {text || <span className="text-white/30">...</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : null}
+          </div>
+
+         {/* footer input */}
+<div className="p-3 border-t border-white/10 bg-black/20 pointer-events-auto">
+  <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/10 pointer-events-auto">
+    
+    {/* input oculto (imagen/pdf) */}
+    <input
+      ref={chatFileInputRef}
+      type="file"
+      accept="image/*,application/pdf"
+      className="hidden"
+      onChange={handleChatFileSelected}
+    />
+
+    {/* adjuntos (Cloudinary) */}
+    <button
+      type="button"
+      onClick={handlePickChatFile}
+      disabled={!chatConversationId || chatUploading}
+      className="text-white/40 hover:text-white transition-colors pointer-events-auto disabled:opacity-30"
+      title={!chatConversationId ? "Selecciona una conversación" : "Adjuntar (Cloudinary)"}
+    >
+      <Camera size={14} />
+    </button>
+
+    <input
+      autoFocus
+      value={chatInput}
+      onChange={(e) => setChatInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleSendChat();
+        }
+      }}
+      placeholder={
+        !chatConversationId
+          ? "Selecciona una conversación..."
+          : chatUploading
+          ? "Subiendo archivo..."
+          : "Transmitir mensaje..."
+      }
+      disabled={!chatConversationId || chatUploading}
+      className="pointer-events-auto bg-transparent w-full text-xs text-white outline-none placeholder-white/20 disabled:opacity-40"
+    />
+
+    <button
+      type="button"
+      onClick={handleSendChat}
+      disabled={!chatConversationId || chatUploading || !String(chatInput || "").trim()}
+      className="text-blue-400 hover:text-blue-300 disabled:opacity-30 pointer-events-auto"
+      title="Enviar"
+    >
+      <Send size={14} />
+    </button>
+  </div>
+</div>
+
+
         </div>
       </div>
+
     </div>
   </div>
 )}
+
 
        {/* IA / OMNI INTELLIGENCE */}
        {activePanel === 'AI' && (
