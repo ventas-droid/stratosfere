@@ -75,17 +75,65 @@ export const sanitizePropertyData = (p: any) => {
       base.user = p.user;
   }
 
-  // 2. GESTIÓN DE IMÁGENES (Lógica original conservada)
-  let safeImages: string[] = [];
-  if (Array.isArray(base.images) && base.images.length > 0) {
-    safeImages = base.images
-      .map((i: any) => (typeof i === "string" ? i : i?.url))
-      .filter(Boolean);
-  } else if (base.img) {
-    safeImages = [base.img].filter(Boolean);
-  } else if (base.mainImage) {
-    safeImages = [base.mainImage].filter(Boolean);
-  }
+  // 2. GESTIÓN DE IMÁGENES (FIX robusto: soporta secure_url/src/etc. sin romper nada)
+const collectUrls = (val: any): string[] => {
+  const out: string[] = [];
+
+  const push = (u: any) => {
+    if (!u) return;
+
+    if (typeof u === "string") {
+      const s = u.trim();
+      if (!s) return;
+
+      // soporta "url1,url2,url3" si algún backend lo manda así
+      if (s.includes(",") && /^https?:\/\//i.test(s.split(",")[0].trim())) {
+        s.split(",").forEach((p) => push(p));
+        return;
+      }
+
+      out.push(s);
+      return;
+    }
+
+    if (typeof u === "object") {
+      const cand =
+        u.url ||
+        u.secure_url ||
+        u.secureUrl ||
+        u.src ||
+        u.href ||
+        u.path ||
+        u.image ||
+        u.imageUrl ||
+        u.publicUrl;
+
+      if (cand) push(cand);
+    }
+  };
+
+  if (Array.isArray(val)) val.forEach(push);
+  else push(val);
+
+  return Array.from(new Set(out.filter(Boolean)));
+};
+
+let safeImages: string[] = [];
+
+// prioridad: galerías/listas típicas
+safeImages = collectUrls(base.images);
+if (safeImages.length === 0) safeImages = collectUrls(base.imageUrls);
+if (safeImages.length === 0) safeImages = collectUrls(base.photos);
+if (safeImages.length === 0) safeImages = collectUrls(base.gallery);
+if (safeImages.length === 0) safeImages = collectUrls(base.media);
+if (safeImages.length === 0) safeImages = collectUrls(base.assets);
+
+// fallback: single
+if (safeImages.length === 0) safeImages = collectUrls(base.img);
+if (safeImages.length === 0) safeImages = collectUrls(base.mainImage);
+if (safeImages.length === 0) safeImages = collectUrls(base.image);
+if (safeImages.length === 0) safeImages = collectUrls(base.coverImage);
+
 
   // 3. GESTIÓN DE PRECIOS (Lógica original conservada)
   const safePrice = Number(
