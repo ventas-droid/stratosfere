@@ -1171,8 +1171,8 @@ const chatFileInputRef = useRef<any>(null);
 const [chatUploading, setChatUploading] = useState(false);
 
 const uploadChatFileToCloudinary = async (file: File) => {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
 
   if (!cloudName || !uploadPreset) {
     throw new Error(
@@ -1180,29 +1180,24 @@ const uploadChatFileToCloudinary = async (file: File) => {
     );
   }
 
-  // ✅ OJO: v1_1 (así es Cloudinary)
   const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
 
   const fd = new FormData();
   fd.append("file", file);
   fd.append("upload_preset", uploadPreset);
-
-  // opcional (si quieres organizar)
   fd.append("folder", "stratos/chat");
-
-  // ❌ IMPORTANTÍSIMO: NO añadas api_key, signature, timestamp aquí
-  // fd.append("api_key", ...)  <-- NO
 
   const res = await fetch(url, { method: "POST", body: fd });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const msg = data?.error?.message || `Upload fallido (${res.status})`;
+    const msg = (data as any)?.error?.message || `Upload fallido (${res.status})`;
     throw new Error(msg);
   }
 
-  return String(data?.secure_url || data?.url || "");
+  return String((data as any)?.secure_url || (data as any)?.url || "");
 };
+
 
 const handlePickChatFile = () => {
   try {
