@@ -253,7 +253,8 @@ const applyFreshOwnerBranding = (prop: any) => {
 };
 
 // --- 6. ESTADOS IA ---
-  const [chatThreads, setChatThreads] = useState<any[]>([]);
+ const [chatOpen, setChatOpen] = useState(false);
+const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 const [chatMessages, setChatMessages] = useState<any[]>([]);
@@ -780,8 +781,8 @@ try {
 // ✅ CHAT: abrir panel + cargar conversaciones
 // =======================
 const openChatPanel = async () => {
-  setActivePanel("CHAT");
-  setChatConversationId(null);
+  setChatOpen(true);
+setChatConversationId(null);
   setChatMessages([]);
   setChatLoading(true);
 
@@ -1123,7 +1124,8 @@ const handleOpenChatSignal = async (e: any) => {
   const asId = (v: any) => {
     if (!v) return "";
     if (typeof v === "string" || typeof v === "number") return String(v);
-    if (typeof v === "object") return String(v.id || v.userId || v.ownerId || v._id || v.uuid || "");
+    if (typeof v === "object")
+      return String(v.id || v.userId || v.ownerId || v._id || v.uuid || "");
     return "";
   };
 
@@ -1131,7 +1133,12 @@ const handleOpenChatSignal = async (e: any) => {
     const d = e?.detail || {};
 
     // 🔥 IDs robustos
-    const propertyId = asId(d?.propertyId) || asId(d?.property?.id) || asId(d?.property) || asId(d?.id);
+    const propertyId =
+      asId(d?.propertyId) ||
+      asId(d?.property?.id) ||
+      asId(d?.property) ||
+      asId(d?.id);
+
     const toUserId =
       asId(d?.toUserId) ||
       asId(d?.userId) ||
@@ -1146,70 +1153,74 @@ const handleOpenChatSignal = async (e: any) => {
       return;
     }
 
-   // 🚫 Evitar chat contigo mismo (muy común cuando abres TU propia propiedad)
-if (String(toUserId) === String(activeUserKey)) {
-  addNotification("⚠️ No puedes abrir chat contigo mismo");
-  return;
-}
+    // 🚫 Evitar chat contigo mismo (muy común cuando abres TU propia propiedad)
+    if (String(toUserId) === String(activeUserKey)) {
+      addNotification("⚠️ No puedes abrir chat contigo mismo");
+      return;
+    }
 
-// 1) Abrimos el panel (carga threads)
-await openChatPanel();
+    // 1) Abrimos el panel (carga threads)
+    await openChatPanel();
 
-// 2) Creamos/obtenemos conversación (server) — soporta varias firmas
-let res: any = null;
+    // 2) Creamos/obtenemos conversación (server) — soporta varias firmas
+    let res: any = null;
 
-// A) firma (propertyId, toUserId)
-try {
-  res = await (getOrCreateConversationAction as any)(propertyId, toUserId);
-} catch {}
+    // A) firma (propertyId, toUserId)
+    try {
+      res = await (getOrCreateConversationAction as any)(propertyId, toUserId);
+    } catch {}
 
-// B) firma ({ propertyId, toUserId })
-if (!res?.success && res?.error === "MISSING_OTHER_USER") {
-  try {
-    res = await (getOrCreateConversationAction as any)({ propertyId, toUserId });
-  } catch {}
-}
+    // B) firma ({ propertyId, toUserId })
+    if (!res?.success) {
+      try {
+        res = await (getOrCreateConversationAction as any)({ propertyId, toUserId });
+      } catch {}
+    }
 
-// C) firma ({ propertyId, otherUserId })
-if (!res?.success && res?.error === "MISSING_OTHER_USER") {
-  try {
-    res = await (getOrCreateConversationAction as any)({ propertyId, otherUserId: toUserId });
-  } catch {}
-}
+    // C) firma ({ propertyId, otherUserId })
+    if (!res?.success) {
+      try {
+        res = await (getOrCreateConversationAction as any)({
+          propertyId,
+          otherUserId: toUserId,
+        });
+      } catch {}
+    }
 
-// D) firma (toUserId, propertyId) (por si tu action lo tiene al revés)
-if (!res?.success && res?.error === "MISSING_OTHER_USER") {
-  try {
-    res = await (getOrCreateConversationAction as any)(toUserId, propertyId);
-  } catch {}
-}
+    // D) firma (toUserId, propertyId) (por si tu action lo tiene al revés)
+    if (!res?.success) {
+      try {
+        res = await (getOrCreateConversationAction as any)(toUserId, propertyId);
+      } catch {}
+    }
 
-console.log("getOrCreateConversationAction ->", res);
+    console.log("getOrCreateConversationAction ->", res);
 
-if (res?.success === false) {
-  addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ No puedo abrir conversación");
-  return;
-}
+    // si sigue fallando:
+    if (res?.success === false) {
+      addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ No puedo abrir conversación");
+      return;
+    }
 
-const convId =
-  asId(res?.data?.id) ||
-  asId(res?.data?.conversationId) ||
-  asId(res?.conversationId) ||
-  asId(res?.id);
+    const convId =
+      asId(res?.data?.conversationId) ||
+      asId(res?.data?.id) ||
+      asId(res?.conversationId) ||
+      asId(res?.id);
 
-if (!convId) {
-  addNotification("⚠️ No puedo abrir conversación (sin id)");
-  return;
-}
+    if (!convId) {
+      addNotification("⚠️ No puedo abrir conversación (sin id)");
+      return;
+    }
 
-// 3) Abrimos esa conversación y cargamos mensajes
-await openConversation(convId);
+    // 3) Abrimos esa conversación y cargamos mensajes
+    await openConversation(convId);
 
-addNotification("✅ Canal de comunicación abierto");
-} catch (err) {
-  console.error(err);
-  addNotification("⚠️ Error abriendo chat");
-}
+    addNotification("✅ Canal de comunicación abierto");
+  } catch (err) {
+    console.error(err);
+    addNotification("⚠️ Error abriendo chat");
+  }
 };
 
 window.addEventListener("open-details-signal", handleOpenDetails);
@@ -1230,7 +1241,8 @@ return () => {
   window.removeEventListener("open-chat-signal", handleOpenChatSignal as any);
 };
 
-}, [soundEnabled, localFavs, agencyFavs, agencyLikes, systemMode, identityVerified]);
+// ✅ deps mínimos para no re-enganchar listeners por cambios de listas
+}, [soundEnabled, systemMode, identityVerified, activeUserKey]);
 
    // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)
 useEffect(() => {
@@ -1301,32 +1313,35 @@ useEffect(() => {
       setShowAdvancedConsole(false);
   };
 
-  // --------------------------------------------------------
-  // 🔥 PROTOCOLO DE DESCONTAMINACIÓN (CLEAN SLATE)
-  // --------------------------------------------------------
-  useEffect(() => {
-      // Cada vez que cambiamos de modo (GATEWAY <-> EXPLORER <-> AGENCY)
-      // Cerramos todas las compuertas para evitar cruce de datos.
-      
-      console.log(`🔄 CAMBIO DE MODO DETECTADO: ${systemMode}`);
-      
-      // 1. Cerrar Paneles Laterales
-      setRightPanel('NONE');
-      
-      // 2. Cerrar Paneles Centrales/Modales
-      setActivePanel('NONE');
-      
-      // 3. Limpiar Selecciones (Para que el mapa no brille por cosas viejas)
-      setSelectedProp(null); 
-      setEditingProp(null);
-      setMarketProp(null);
+ // --------------------------------------------------------
+// 🔥 PROTOCOLO DE DESCONTAMINACIÓN (CLEAN SLATE)
+// --------------------------------------------------------
+useEffect(() => {
+  // Cada vez que cambiamos de modo (GATEWAY <-> EXPLORER <-> AGENCY)
+  // Cerramos todas las compuertas para evitar cruce de datos.
 
-      // 4. Sonido de transición (Mecánico)
-      if (systemMode !== 'GATEWAY' && soundEnabled) {
-           playSynthSound('click'); 
-      }
+  console.log(`🔄 CAMBIO DE MODO DETECTADO: ${systemMode}`);
 
-  }, [systemMode]);
+  // 1. Cerrar Paneles Laterales
+  setRightPanel("NONE");
+
+  // 2. Cerrar Paneles Centrales/Modales
+  setActivePanel("NONE");
+
+  // ✅ 2.1 Cerrar CHAT flotante (overlay) para que no sobreviva al cambio de modo
+  setChatOpen(false);
+
+  // 3. Limpiar Selecciones (Para que el mapa no brille por cosas viejas)
+  setSelectedProp(null);
+  setEditingProp(null);
+  setMarketProp(null);
+
+  // 4. Sonido de transición (Mecánico)
+  if (systemMode !== "GATEWAY" && soundEnabled) {
+    playSynthSound("click");
+  }
+}, [systemMode]);
+
  
 useEffect(() => {
   const targetList = systemMode === "AGENCY" ? agencyLikes : localFavs;
@@ -1551,17 +1566,19 @@ useEffect(() => {
 <button
   onClick={() => {
     if (typeof playSynthSound === "function") playSynthSound("click");
-    if (activePanel === "CHAT") {
-      setActivePanel("NONE");
-    } else {
-      openChatPanel();
-    }
+   if (chatOpen) {
+  setChatOpen(false);
+} else {
+  openChatPanel();
+}
+
   }}
-  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-    activePanel === "CHAT"
-      ? "text-blue-400 bg-blue-500/10"
-      : "text-white/50 hover:text-white"
-  }`}
+ className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+  chatOpen
+    ? "text-blue-400 bg-blue-500/10"
+    : "text-white/50 hover:text-white"
+}`}
+
 >
   <span className="relative inline-flex">
     <MessageCircle size={18} />
@@ -1633,15 +1650,17 @@ useEffect(() => {
 <button
   onClick={() => {
     playSynthSound('click');
-    if (activePanel === "CHAT") {
-      setActivePanel("NONE");
-    } else {
-      openChatPanel();
-    }
+   if (chatOpen) {
+  setChatOpen(false);
+} else {
+  openChatPanel();
+}
+
   }}
-  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-    activePanel === 'CHAT' ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'
-  }`}
+ className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+  chatOpen ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'
+}`}
+
 >
   <span className="relative inline-flex">
     <MessageCircle size={18} />
@@ -1842,7 +1861,8 @@ const isAgency =
        ================================================================= */}
        
       {/* CHAT TÁCTICO (CONECTADO) */}
-{activePanel === "CHAT" && (
+{chatOpen && (
+
   <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-80 z-[20000] pointer-events-auto">
     <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-96">
       {/* Header */}
@@ -1853,7 +1873,8 @@ const isAgency =
         </div>
 
         <button
-          onClick={() => setActivePanel("NONE")}
+          onClick={() => setChatOpen(false)}
+
           className="text-white/30 hover:text-white transition-colors p-2"
         >
           <X size={16} />

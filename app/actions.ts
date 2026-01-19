@@ -994,6 +994,7 @@ export async function getMyConversationsAction() {
 
     const items = await prisma.conversation.findMany({
       where: { participants: { some: { userId: me.id } } },
+      orderBy: { updatedAt: "desc" },
       include: {
         participants: {
           include: {
@@ -1017,7 +1018,12 @@ export async function getMyConversationsAction() {
     });
 
     const propIds = Array.from(
-      new Set((items || []).map((c: any) => c?.propertyId).filter(Boolean).map(String))
+      new Set(
+        (items || [])
+          .map((c: any) => c?.propertyId)
+          .filter(Boolean)
+          .map(String)
+      )
     );
 
     const props = propIds.length
@@ -1032,7 +1038,15 @@ export async function getMyConversationsAction() {
     const normalized = (items || []).map((c: any) => {
       const pid = c?.propertyId ? String(c.propertyId) : null;
       const prop = pid ? propMap.get(pid) : null;
-      return normalizeThread({ ...(c as any), property: prop } as any, me.id);
+
+      // ✅ compat: algunos frontends miran t.lastMessage directamente
+      const lastMessage =
+        Array.isArray(c?.messages) && c.messages.length > 0 ? c.messages[0] : null;
+
+      return normalizeThread(
+        { ...(c as any), property: prop, lastMessage } as any,
+        me.id
+      );
     });
 
     normalized.sort((a: any, b: any) => {
@@ -1110,7 +1124,8 @@ export async function sendMessageAction(a: any, b?: any) {
       conversationId = String(a || "");
       text = String(b || "").trim();
     } else {
-      conversationId = String(a?.conversationId || "");
+      // ✅ compat extra: si te pasan { id } en vez de { conversationId }
+      conversationId = String(a?.conversationId || a?.id || "");
       text = String(a?.text ?? a?.content ?? "").trim();
     }
 

@@ -439,39 +439,38 @@ useEffect(() => {
   </button>
 
   {/* ✅ MENSAJE (CHAT) */}
-  <button
-    onClick={() => {
-      try {
-        const propertyId = String(selectedProp?.id || "");
-        const toUserId = String(
-          ownerData?.id ||
-            activeOwner?.id ||
-            selectedProp?.user?.id ||
-            selectedProp?.ownerSnapshot?.id ||
-            selectedProp?.userId ||
-            ""
-        );
+<button
+  onClick={(ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    try {
+      const propertyId = String(selectedProp?.id || "");
+      const toUserId = String(
+        ownerData?.id ||
+          activeOwner?.id ||
+          selectedProp?.user?.id ||
+          selectedProp?.ownerSnapshot?.id ||
+          selectedProp?.userId ||
+          ""
+      );
 
-        if (!propertyId || !toUserId) return;
+      if (!propertyId || !toUserId) return;
 
-        window.dispatchEvent(
-          new CustomEvent("open-chat-signal", {
-            detail: {
-              propertyId,
-              toUserId,
-              property: selectedProp,
-            },
-          })
-        );
-      } catch (e) {
-        console.warn("open-chat-signal failed", e);
-      }
-    }}
-    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-    title="Mensaje"
-  >
-    <MessageCircle size={22} />
-  </button>
+      window.dispatchEvent(
+        new CustomEvent("open-chat-signal", {
+          detail: { propertyId, toUserId, property: selectedProp },
+        })
+      );
+    } catch (e) {
+      console.warn("open-chat-signal failed", e);
+    }
+  }}
+  className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+  title="Mensaje"
+>
+  <MessageCircle size={22} />
+</button>
+
 
   <button
     onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
