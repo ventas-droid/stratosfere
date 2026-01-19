@@ -1123,30 +1123,37 @@ const chatFileInputRef = useRef<any>(null);
 const [chatUploading, setChatUploading] = useState(false);
 
 const uploadChatFileToCloudinary = async (file: File) => {
-  const cloudName =
-    (process?.env as any)?.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn1ltrogr";
-  const uploadPreset =
-    (process?.env as any)?.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload";
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
   if (!cloudName || !uploadPreset) {
-    throw new Error("Faltan variables Cloudinary (cloud name / upload preset)");
+    throw new Error(
+      "Cloudinary: falta NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME o NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET"
+    );
   }
 
-  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+  // ✅ OJO: v1_1 (así es Cloudinary)
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
 
   const fd = new FormData();
   fd.append("file", file);
   fd.append("upload_preset", uploadPreset);
 
-  const res = await fetch(endpoint, { method: "POST", body: fd });
-  const data = await res.json();
+  // opcional (si quieres organizar)
+  fd.append("folder", "stratos/chat");
+
+  // ❌ IMPORTANTÍSIMO: NO añadas api_key, signature, timestamp aquí
+  // fd.append("api_key", ...)  <-- NO
+
+  const res = await fetch(url, { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const msg = data?.error?.message || "Upload fallido";
+    const msg = data?.error?.message || `Upload fallido (${res.status})`;
     throw new Error(msg);
   }
 
-  return data?.secure_url || data?.url || "";
+  return String(data?.secure_url || data?.url || "");
 };
 
 const handlePickChatFile = () => {
