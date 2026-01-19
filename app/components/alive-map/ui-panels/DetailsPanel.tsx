@@ -400,17 +400,51 @@ const copyPhone = () => {
                 </div>
 
                 {/* 3. FOOTER */}
-                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
-                    <button onClick={() => setShowContactModal(true)} className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs cursor-pointer">
-                        <Phone size={18} /> Contactar Propietario
-                    </button>
-                   <button 
-                        onClick={handleHeartClick}
-                        className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-all duration-300 cursor-pointer active:scale-90 ${isFavorite ? "text-rose-500 bg-rose-50 border-rose-100 shadow-inner" : "text-slate-400 hover:text-rose-500"}`}
-                    >
-                        <Heart size={24} fill={isFavorite ? "currentColor" : "none"} className={isFavorite ? "animate-pulse-once" : ""} />
-                    </button>
-                </div>
+<div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
+  <button
+    onClick={() => setShowContactModal(true)}
+    className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs cursor-pointer"
+  >
+    <Phone size={18} /> Contactar Propietario
+  </button>
+
+  {/* ✅ MENSAJE (acceso rápido) */}
+  <button
+    onClick={() => {
+      const toUserId = String(
+        selectedProp?.user?.id || selectedProp?.ownerSnapshot?.id || ""
+      );
+      const propertyId = String(selectedProp?.id || "");
+      if (!toUserId || !propertyId) return;
+
+      window.dispatchEvent(
+        new CustomEvent("open-chat-signal", {
+          detail: { propertyId, toUserId },
+        })
+      );
+    }}
+    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 cursor-pointer active:scale-90"
+    title="Mensaje"
+  >
+    <MessageCircle size={22} />
+  </button>
+
+  <button
+    onClick={handleHeartClick}
+    className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-all duration-300 cursor-pointer active:scale-90 ${
+      isFavorite
+        ? "text-rose-500 bg-rose-50 border-rose-100 shadow-inner"
+        : "text-slate-400 hover:text-rose-500"
+    }`}
+  >
+    <Heart
+      size={24}
+      fill={isFavorite ? "currentColor" : "none"}
+      className={isFavorite ? "animate-pulse-once" : ""}
+    />
+  </button>
+</div>
+
 
                 {/* 4. POPUP CONTACTO */}
                 {showContactModal && (
