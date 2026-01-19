@@ -711,35 +711,84 @@ try {
   };
 
   // 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)
-  const handleDeleteAgencyAsset = async (asset: any) => {
-      if (!asset) return;
-      if (soundEnabled) playSynthSound('click');
-      const targetId = String(asset.id || asset);
+const handleDeleteAgencyAsset = async (asset: any) => {
+  if (!asset) return;
+  if (soundEnabled) playSynthSound("click");
 
-      // 1. Optimistic UI (Borrado inmediato en pantalla)
-      const newStock = agencyFavs.filter((item: any) => String(item.id) !== targetId);
-      setAgencyFavs(newStock);
-      addNotification("Eliminando de Base de Datos...");
+  const targetId = String(asset?.id || asset || "").trim();
+  if (!targetId) return;
 
-      // 2. LLAMADA A BASE DE DATOS (Borrado Real)
-      if (activeUserKey && activeUserKey !== 'anon') {
-          try {
-              const result = await deleteFromStockAction(targetId);
-              
-              if (result.success) {
-                  addNotification("✅ Propiedad eliminada permanentemente");
-              } else {
-                  console.warn("Fallo al borrar en servidor");
-                  addNotification("❌ Error al borrar");
-              }
-          } catch (e) { console.error(e); }
-      }
+  // 1) Optimistic UI: quitar del Stock visual (siempre)
+  setAgencyFavs((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+  );
 
-      // 3. Sincronizar Mapa
-      if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: targetId, isFav: false } }));
-      }
-  };
+  // 1.1) Si está abierto en Details, apagamos corazón para evitar desync visual
+  setSelectedProp((prev: any) => {
+    if (!prev) return prev;
+    if (String(prev?.id) !== targetId) return prev;
+    return { ...prev, isFav: false, isFavorited: false, isFavorite: false };
+  });
+
+  addNotification("Eliminando de Base de Datos...");
+
+  try {
+    // 2) Llamada real a servidor
+    const result: any = await deleteFromStockAction(targetId);
+
+    if (!result?.success) {
+      addNotification("❌ Error al borrar");
+      // re-sync duro desde server (tu effect recarga con dataVersion)
+      setDataVersion((v: number) => v + 1);
+      return;
+    }
+
+    // 2.1) Si NO eras owner -> el server quitó FAVORITO (no propiedad)
+    if (result?.type === "favorite_removed" || result?.type === "favorite_noop") {
+      // 🔥 CLAVE: limpiar también BÓVEDA AGENCIA (si no, “se resiste” / reaparece)
+      setAgencyLikes((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+      // opcional: por seguridad cross-modo
+      setLocalFavs((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+
+      addNotification("✅ Eliminado de Favoritos");
+    }
+
+    // 2.2) Si eras owner -> propiedad borrada
+    if (result?.type === "property_deleted") {
+      // si existía como favorito, fuera también
+      setAgencyLikes((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+      setLocalFavs((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+
+      // si estabas en Details de esa propiedad, cierra para evitar panel zombi
+      setActivePanel((p: any) => (p === "DETAILS" ? "NONE" : p));
+
+      addNotification("✅ Propiedad eliminada permanentemente");
+    }
+
+    // 3) Sincronizar Mapa/NanoCards (no tocamos tu sistema, solo avisamos)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("sync-property-state", { detail: { id: targetId, isFav: false } })
+      );
+    }
+
+    // 4) Re-sync final desde server
+    setDataVersion((v: number) => v + 1);
+  } catch (e) {
+    console.error(e);
+    addNotification("❌ Error al borrar");
+    setDataVersion((v: number) => v + 1);
+  }
+};
+
   
 
   const toggleRightPanel = (p: string) => { 
