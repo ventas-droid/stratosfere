@@ -1171,8 +1171,9 @@ const chatFileInputRef = useRef<any>(null);
 const [chatUploading, setChatUploading] = useState(false);
 
 const uploadChatFileToCloudinary = async (file: File) => {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "";
+ const cloudName = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn11trogr").trim();
+const uploadPreset = (process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload").trim();
+
 
   if (!cloudName || !uploadPreset) {
     throw new Error(
