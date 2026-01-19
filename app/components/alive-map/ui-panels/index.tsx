@@ -572,145 +572,158 @@ if (systemMode === "AGENCY") {
     
   }, [activeUserKey, systemMode, identityVerified, dataVersion]);
   
-  // 3. TOGGLE FAVORITE (BIFURCADO: Agency Likes vs Private Likes)
-  const handleToggleFavorite = async (prop: any) => {
-      // A. Validaciones iniciales
-      if (!prop || activeUserKey === null) return;
-      if (soundEnabled) playSynthSound("click");
+ // 3. TOGGLE FAVORITE (BIFURCADO: Agency Likes vs Private Likes)
+const handleToggleFavorite = async (prop: any) => {
+  // A. Validaciones iniciales
+  if (!prop || activeUserKey === null) return;
+  if (soundEnabled) playSynthSound("click");
 
-      const userKey = activeUserKey;
+  const userKey = activeUserKey;
 
-      // 🚫 SaaS puro: Validación de identidad
-      if (!identityVerified || userKey === "anon") {
-        addNotification("Inicia sesión para guardar Referencias");
-        return;
-      }
-
-      // B. Limpieza de datos (Sanitización robusta)
-      const cleaned = sanitizePropertyData(prop) || prop;
-      
-      // 🚫 Validación de ID seguro
-      const safeIdRaw = cleaned?.id || prop?.id;
-      if (!safeIdRaw) {
-        console.warn("handleToggleFavorite: sin id real, abortado");
-        return;
-      }
-      const safeId = String(safeIdRaw);
-
-      // C. SELECCIÓN DE BÓVEDA (CRUCIAL PARA NO MEZCLAR)
-      // Si es AGENCIA -> Usamos 'agencyLikes' (Bóveda de Vigilancia)
-      // Si es EXPLORER -> Usamos 'localFavs' (Favoritos Personales)
-      const isAgencyMode = systemMode === 'AGENCY';
-      
-      // ⚠️ Si no creó 'agencyLikes' arriba, cambie 'agencyLikes' por 'localFavs' aquí, pero se mezclarán.
-      const currentList = isAgencyMode ? agencyLikes : localFavs; 
-      const setTargetList = isAgencyMode ? setAgencyLikes : setLocalFavs;
-      const targetName = isAgencyMode ? "Bóveda de Agencia" : "Favoritos Personales";
-
-      // D. Comprobar estado actual en la lista correspondiente
-      const isCurrentlyFav = currentList.some((f: any) => String(f.id) === safeId);
-
-      // ✅ Intención (respetar prop.isFav si viene forzado)
-      let shouldAdd = !isCurrentlyFav;
-      if (typeof prop?.isFav === "boolean") {
-        shouldAdd = prop.isFav;
-        if (shouldAdd === isCurrentlyFav) {
-           console.log("🛡️ Acción redundante ignorada.");
-           return;
-        }
-      }
-
-      // Construimos el objeto seguro para guardar
-      const safeProp = {
-        ...cleaned,
-        id: safeId,
-        title: cleaned?.title || prop?.title || "Propiedad",
-        formattedPrice: cleaned?.formattedPrice || cleaned?.price || "Consultar",
-        savedAt: Date.now(),
-        isFavorited: true 
-      };
-
-      // E. Lógica Optimista (Actualizamos la lista correcta)
-      const prevList = currentList; // Backup para rollback
-      let newList: any[] = [];
-      let newStatus = false;
-
-      if (!shouldAdd) {
-        newList = currentList.filter((f: any) => String(f.id) !== safeId);
-        addNotification(`Eliminado de ${targetName}`);
-        newStatus = false;
-      } else {
-        newList = [...currentList, safeProp];
-        addNotification(`Guardado en ${targetName}`);
-        newStatus = true;
-      }
-
-      // 1) Aplicar cambio visual a la lista
-      setTargetList(newList);
-
-      // 2) Broadcast visual inmediato para NanoCards
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: newStatus } }));
-      }
-
-    setSelectedProp((prev: any) => {
-  if (!prev) return prev;
-  if (String(prev?.id) !== String(safeId)) return prev;
-  return {
-    ...prev,
-    isFav: newStatus,
-    isFavorited: newStatus,
-    isFavorite: newStatus,
-  };
-});
-  
-      // 3) Persistencia Servidor (Tabla Favorites) ✅ CON desired (evita desync)
-try {
-  const desired = newStatus;
-  const res = await toggleFavoriteAction(String(safeId), desired);
-
-  // ✅ Fuente de verdad: el servidor decide el estado final
-  const serverState = !!res?.isFavorite;
-
-  // Si el server difiere (por race/duplicados/toggles previos), corregimos UI
-  if (serverState !== newStatus) {
-    if (serverState) {
-      // asegurar que está
-      if (!currentList.some((f: any) => String(f.id) === safeId)) {
-        setTargetList([...currentList, safeProp]);
-      }
-    } else {
-      // asegurar que no está
-      setTargetList(currentList.filter((f: any) => String(f.id) !== safeId));
-    }
-
-    // Broadcast definitivo
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: serverState } })
-      );
-    }
+  // 🚫 SaaS puro: Validación de identidad
+  if (!identityVerified || userKey === "anon") {
+    addNotification("Inicia sesión para guardar Referencias");
+    return;
   }
 
-} catch (error) {
-  console.error(error);
+  // B. Limpieza de datos (Sanitización robusta)
+  const cleaned = sanitizePropertyData(prop) || prop;
 
-  // Rollback UI en caso de error
-  setTargetList(prevList);
-  addNotification("❌ Error guardando en servidor");
+  // 🚫 Validación de ID seguro
+  const safeIdRaw = cleaned?.id || prop?.id;
+  if (!safeIdRaw) {
+    console.warn("handleToggleFavorite: sin id real, abortado");
+    return;
+  }
+  const safeId = String(safeIdRaw);
 
-  // Rollback visual
-  if (typeof window !== "undefined") {
+  // C. Selección de bóveda
+  const isAgencyMode = systemMode === "AGENCY";
+  const currentList = isAgencyMode ? agencyLikes : localFavs;
+  const setTargetList = isAgencyMode ? setAgencyLikes : setLocalFavs;
+  const targetName = isAgencyMode ? "Bóveda de Agencia" : "Favoritos Personales";
+
+  // D. Estado actual (en la lista activa)
+  const isCurrentlyFav = (Array.isArray(currentList) ? currentList : []).some(
+    (f: any) => String(f?.id) === safeId
+  );
+
+  // ✅ Intención: si viene forzada (isFav), se respeta SIEMPRE (sin “redundante”)
+  const desired =
+    typeof prop?.isFav === "boolean" ? prop.isFav : !isCurrentlyFav;
+
+  // Construimos el objeto seguro para guardar (solo si desired=true)
+  const safeProp = {
+    ...cleaned,
+    id: safeId,
+    title: cleaned?.title || prop?.title || "Propiedad",
+    formattedPrice: cleaned?.formattedPrice || cleaned?.price || "Consultar",
+    savedAt: Date.now(),
+    isFavorited: true,
+    isFav: true,
+    isFavorite: true,
+  };
+
+  const dedupeById = (list: any[]) => {
+    const m = new Map<string, any>();
+    (Array.isArray(list) ? list : []).forEach((x: any) => {
+      const id = x?.id != null ? String(x.id) : "";
+      if (!id) return;
+      m.set(id, x);
+    });
+    return Array.from(m.values());
+  };
+
+  // ✅ Broadcast TRIPLE (Details + NanoCard + Vault)
+  const broadcastFav = (status: boolean) => {
+    if (typeof window === "undefined") return;
+
+    // 1) NanoCards / mapa (tu canal principal)
     window.dispatchEvent(
-      new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: isCurrentlyFav } })
+      new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: status } })
     );
-  }
-}
 
+    // 2) Live update genérico (Details escucha esto en tu panel)
+    window.dispatchEvent(
+      new CustomEvent("update-property-signal", {
+        detail: { id: safeId, updates: { isFav: status, isFavorite: status, isFavorited: status } },
+      })
+    );
 
+    // 3) Canal específico de favoritos (por si tu bóveda/notifs lo usan)
+    window.dispatchEvent(
+      new CustomEvent("fav-change-signal", { detail: { id: safeId, isFavorite: status } })
+    );
   };
 
-  // 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)
+  // E. Snapshot para rollback
+  const prevListSnapshot = Array.isArray(currentList) ? [...currentList] : [];
+
+  // 1) Optimistic UI (lista)
+  setTargetList((prev: any[]) => {
+    const base = Array.isArray(prev) ? prev : [];
+    if (desired) return dedupeById([...base, safeProp]);
+    return base.filter((x: any) => String(x?.id) !== safeId);
+  });
+
+  // 2) Optimistic UI (Details si está abierta esa prop)
+  setSelectedProp((prev: any) => {
+    if (!prev) return prev;
+    if (String(prev?.id) !== safeId) return prev;
+    return { ...prev, isFav: desired, isFavorited: desired, isFavorite: desired };
+  });
+
+  addNotification(desired ? `Guardado en ${targetName}` : `Eliminado de ${targetName}`);
+  broadcastFav(!!desired);
+
+  // 3) Servidor (source of truth)
+  try {
+    const res: any = await toggleFavoriteAction(String(safeId), !!desired);
+
+    const serverState =
+      typeof res?.isFavorite === "boolean"
+        ? res.isFavorite
+        : typeof res?.data?.isFavorite === "boolean"
+        ? res.data.isFavorite
+        : !!desired;
+
+    // Corrección si el server decide distinto
+    if (serverState !== !!desired) {
+      setTargetList((prev: any[]) => {
+        const base = Array.isArray(prev) ? prev : [];
+        if (serverState) return dedupeById([...base, safeProp]);
+        return base.filter((x: any) => String(x?.id) !== safeId);
+      });
+
+      setSelectedProp((prev: any) => {
+        if (!prev) return prev;
+        if (String(prev?.id) !== safeId) return prev;
+        return { ...prev, isFav: serverState, isFavorited: serverState, isFavorite: serverState };
+      });
+
+      broadcastFav(!!serverState);
+    } else {
+      // re-broadcast para “resucitar” sync si algún panel se quedó atrás
+      broadcastFav(!!serverState);
+    }
+  } catch (error) {
+    console.error(error);
+
+    // Rollback UI
+    setTargetList(prevListSnapshot);
+    setSelectedProp((prev: any) => {
+      if (!prev) return prev;
+      if (String(prev?.id) !== safeId) return prev;
+      return { ...prev, isFav: isCurrentlyFav, isFavorited: isCurrentlyFav, isFavorite: isCurrentlyFav };
+    });
+
+    broadcastFav(!!isCurrentlyFav);
+    addNotification("❌ Error guardando en servidor");
+  }
+};
+
+
+// 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)
 const handleDeleteAgencyAsset = async (asset: any) => {
   if (!asset) return;
   if (soundEnabled) playSynthSound("click");
@@ -718,12 +731,14 @@ const handleDeleteAgencyAsset = async (asset: any) => {
   const targetId = String(asset?.id || asset || "").trim();
   if (!targetId) return;
 
-  // 1) Optimistic UI: quitar del Stock visual (siempre)
+  const isOwnerHint = asset?.isOwner === true; // si tu lista unificada marca owner, mejor
+
+  // 1) Optimistic UI: quitar del Stock visual
   setAgencyFavs((prev: any[]) =>
     (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
   );
 
-  // 1.1) Si está abierto en Details, apagamos corazón para evitar desync visual
+  // 1.1) Si está abierto en Details, apagamos corazón/estado para evitar desync visual
   setSelectedProp((prev: any) => {
     if (!prev) return prev;
     if (String(prev?.id) !== targetId) return prev;
@@ -738,18 +753,20 @@ const handleDeleteAgencyAsset = async (asset: any) => {
 
     if (!result?.success) {
       addNotification("❌ Error al borrar");
-      // re-sync duro desde server (tu effect recarga con dataVersion)
       setDataVersion((v: number) => v + 1);
       return;
     }
 
-    // 2.1) Si NO eras owner -> el server quitó FAVORITO (no propiedad)
-    if (result?.type === "favorite_removed" || result?.type === "favorite_noop") {
-      // 🔥 CLAVE: limpiar también BÓVEDA AGENCIA (si no, “se resiste” / reaparece)
+    // 2.x) Interpretación robusta (si tu action no devuelve type)
+    const type =
+      result?.type ||
+      (isOwnerHint ? "property_deleted" : "favorite_removed");
+
+    // 2.1) Si fue “quitar favorito” (no borrar propiedad)
+    if (type === "favorite_removed" || type === "favorite_noop") {
       setAgencyLikes((prev: any[]) =>
         (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
       );
-      // opcional: por seguridad cross-modo
       setLocalFavs((prev: any[]) =>
         (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
       );
@@ -757,9 +774,9 @@ const handleDeleteAgencyAsset = async (asset: any) => {
       addNotification("✅ Eliminado de Favoritos");
     }
 
-    // 2.2) Si eras owner -> propiedad borrada
-    if (result?.type === "property_deleted") {
-      // si existía como favorito, fuera también
+    // 2.2) Si fue “borrar propiedad”
+    if (type === "property_deleted") {
+      // fuera también de favoritos (por si estaba)
       setAgencyLikes((prev: any[]) =>
         (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
       );
@@ -767,13 +784,17 @@ const handleDeleteAgencyAsset = async (asset: any) => {
         (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
       );
 
-      // si estabas en Details de esa propiedad, cierra para evitar panel zombi
-      setActivePanel((p: any) => (p === "DETAILS" ? "NONE" : p));
+      // cerrar Details SOLO si estabas viendo esa misma propiedad
+      setActivePanel((p: any) => {
+        const isThisOpen = String(selectedProp?.id || "") === targetId;
+        if (p === "DETAILS" && isThisOpen) return "NONE";
+        return p;
+      });
 
       addNotification("✅ Propiedad eliminada permanentemente");
     }
 
-    // 3) Sincronizar Mapa/NanoCards (no tocamos tu sistema, solo avisamos)
+    // 3) Sincronizar Mapa/NanoCards (manteniendo tu sistema)
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("sync-property-state", { detail: { id: targetId, isFav: false } })
@@ -789,42 +810,40 @@ const handleDeleteAgencyAsset = async (asset: any) => {
   }
 };
 
-  
+const toggleRightPanel = (p: string) => {
+  if (soundEnabled) playSynthSound("click");
+  const nextState = rightPanel === p ? "NONE" : p;
+  setRightPanel(nextState);
+  if (nextState !== "NONE" && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("close-radar-signal"));
+  }
+};
 
-  const toggleRightPanel = (p: string) => { 
-      if(soundEnabled) playSynthSound('click'); 
-      const nextState = rightPanel === p ? 'NONE' : p;
-      setRightPanel(nextState); 
-      if (nextState !== 'NONE' && typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('close-radar-signal'));
-      }
-  };
+const toggleMainPanel = (p: string) => {
+  if (soundEnabled) playSynthSound("click");
+  if (p === "ARCHITECT") {
+    setPreviousMode(systemMode as "EXPLORER" | "AGENCY");
+    setEditingProp(null);
+    setRightPanel("NONE");
+    setSystemMode("ARCHITECT");
+  } else {
+    setActivePanel(activePanel === p ? "NONE" : p);
+  }
+};
 
- const toggleMainPanel = (p: string) => { 
-      if(soundEnabled) playSynthSound('click'); 
-      if (p === 'ARCHITECT') {
-          setPreviousMode(systemMode as 'EXPLORER' | 'AGENCY'); // <-- AÑADIR ESTO
-          setEditingProp(null); 
-          setRightPanel('NONE');
-          setSystemMode('ARCHITECT');
-      } else {
-          setActivePanel(activePanel === p ? 'NONE' : p); 
-      }
-  };
+const handleEditAsset = (asset: any) => {
+  if (soundEnabled) playSynthSound("click");
+  setPreviousMode(systemMode as "EXPLORER" | "AGENCY");
+  setEditingProp(asset);
+  setRightPanel("NONE");
+  setActivePanel("NONE");
+  setSystemMode("ARCHITECT");
+};
 
- const handleEditAsset = (asset: any) => {
-      if(soundEnabled) playSynthSound('click');
-      setPreviousMode(systemMode as 'EXPLORER' | 'AGENCY'); // <-- AÑADIR ESTO
-      setEditingProp(asset);      
-      setRightPanel('NONE');      
-      setActivePanel('NONE');
-      setSystemMode('ARCHITECT'); 
-  };
-
-  const addNotification = (title: string) => {
-      setNotifications(prev => [{title}, ...prev].slice(0, 3));
-      setTimeout(() => setNotifications(prev => prev.slice(0, -1)), 4000);
-  };
+const addNotification = (title: string) => {
+  setNotifications((prev) => [{ title }, ...prev].slice(0, 3));
+  setTimeout(() => setNotifications((prev) => prev.slice(0, -1)), 4000);
+};
 
 // =======================
 // ✅ CHAT: abrir panel + cargar conversaciones

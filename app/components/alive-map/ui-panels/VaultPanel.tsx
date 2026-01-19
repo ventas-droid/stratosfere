@@ -157,7 +157,7 @@ else if (prop.location && Array.isArray(prop.location)) {
                 <h2 className="text-3xl font-black tracking-tighter text-slate-900 mb-0.5">Favoritos.</h2>
                 <div className="flex items-center gap-2">
                     <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">COLECCIÓN PRIVADA</span>
-                    <span className="text-xs font-bold text-slate-400">{favorites.length} Activos</span>
+                   <span className="text-xs font-bold text-slate-400">{localFavorites.length} Activos</span>
                 </div>
             </div>
             <button 
@@ -172,7 +172,7 @@ else if (prop.location && Array.isArray(prop.location)) {
         <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide pb-20">
             
             {/* CASO VACÍO */}
-            {favorites.length === 0 ? (
+            {localFavorites.length === 0 ? (
                 <div className="h-[60vh] flex flex-col items-center justify-center text-slate-400 opacity-60">
                     <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mb-4 animate-pulse">
                         <Heart size={32} className="text-slate-400" />
@@ -225,25 +225,32 @@ else if (prop.location && Array.isArray(prop.location)) {
                                     </p>
                                 </div>
                                 
-                                {/* BOTONES DE ACCIÓN (LOCALIZAR Y BORRAR) */}
-                                <div className="flex items-center gap-2 mt-auto">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleFlyTo(prop); }} 
-                                        className="flex-1 bg-[#1c1c1e] text-white h-7 rounded-[10px] text-[9px] font-bold uppercase tracking-wide flex items-center justify-center gap-1.5 hover:bg-black hover:scale-105 transition-all shadow-md active:scale-95"
-                                    >
-                                        <MapPin size={10} /> LOCALIZAR
-                                    </button>
-                                    
-                                    <button 
-                                        onClick={(e) => { 
-                                            e.stopPropagation(); // Evita que vuele al hacer clic en borrar
-                                            onToggleFavorite(prop); // Llama a la función de borrado de UIPanels
-                                        }} 
-                                        className="w-7 h-7 rounded-[10px] bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-90 border border-red-100 hover:border-red-500"
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
-                                </div>
+                               {/* BOTONES DE ACCIÓN (LOCALIZAR Y BORRAR) */}
+<div className="flex items-center gap-2 mt-auto">
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      handleFlyTo(prop);
+    }}
+    className="flex-1 bg-[#1c1c1e] text-white h-7 rounded-[10px] text-[9px] font-bold uppercase tracking-wide flex items-center justify-center gap-1.5 hover:bg-black hover:scale-105 transition-all shadow-md active:scale-95"
+  >
+    <MapPin size={10} /> LOCALIZAR
+  </button>
+
+  <button
+    onClick={(e) => {
+      e.stopPropagation(); // Evita que vuele al hacer clic en borrar
+
+      // ✅ BORRAR favorito (intención explícita)
+      if (onToggleFavorite) onToggleFavorite({ ...prop, isFav: false });
+    }}
+    className="w-7 h-7 rounded-[10px] bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-90 border border-red-100 hover:border-red-500"
+    title="Eliminar de Favoritos"
+  >
+    <Trash2 size={12} />
+  </button>
+</div>
+
                             </div>
                         </div>
                     </div>
