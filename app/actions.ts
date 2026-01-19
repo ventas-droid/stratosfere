@@ -310,15 +310,17 @@ if (data.id && data.id.length > 20) {
   // ✅ EDICIÓN
   const existing = await prisma.property.findUnique({ where: { id: data.id } });
 
+  // ✅ IMPORTANTÍSIMO: en UPDATE NO debemos tocar ownerSnapshot
+  const { ownerSnapshot: _dontTouch, ...payloadNoSnap } = payload as any;
+
   if (existing && existing.userId === user.id) {
     await prisma.image.deleteMany({ where: { propertyId: data.id } });
 
     result = await prisma.property.update({
       where: { id: data.id },
       data: {
-        ...payload,
+        ...payloadNoSnap,     // ✅ aquí SIN ownerSnapshot
         images: imageCreateLogic,
-        // ⚠️ NO TOCAR ownerSnapshot en update (branding histórico)
       },
       include: includeOptions,
     });
@@ -363,60 +365,79 @@ if (data.id && data.id.length > 20) {
     return { success: true, property: recent, deduped: true };
   }
 
- result = await prisma.$transaction(async (tx: any) => {
-  // 1) CREATE normal (con includes)
-  const created = await tx.property.create({
-    data: {
-      ...(payload as any),
-      ownerSnapshot, // ✅ SOLO en create
-      images: imageCreateLogic,
-    } as any,
-    include: includeOptions as any,
+  result = await prisma.$transaction(async (tx: any) => {
+    // 1) CREATE normal (con includes)
+    const created = await tx.property.create({
+      data: {
+        ...(payload as any),
+        ownerSnapshot, // ✅ SOLO en create
+        images: imageCreateLogic,
+      } as any,
+      include: includeOptions as any,
+    });
+
+    // 2) Si ya tiene refCode, no tocamos nada
+    if (created?.refCode) return created;
+
+    // 3) Generamos refCode
+    const refCode = buildRefCode();
+
+    // 4) UPDATE solo para refCode
+    const updated = await tx.property.update({
+      where: { id: created.id },
+      data: { refCode } as any,
+      include: includeOptions as any,
+    });
+
+    return updated;
   });
 
-  // 2) Si ya tiene refCode, no tocamos nada
-  if (created?.refCode) return created;
-
-  // 3) Generamos refCode estable desde el id
-const refCode = buildRefCode();
-
-  // 4) UPDATE solo para refCode
-  const updated = await tx.property.update({
-    where: { id: created.id },
-    data: { refCode } as any,
-    include: includeOptions as any,
-  });
-
-  return updated;
-});
-
-
-} // ✅ CIERRA EL else { ... } QUE TE FALTA
+} // ✅ CIERRA EL else { ... }
 
 revalidatePath("/");
 return { success: true, property: result };
 
-
-  } catch (error) {
-    return { success: false, error: String(error) };
-  }
+} catch (error) {
+  console.error("savePropertyAction error:", error);
+  return { success: false, error: String(error) };
 }
+} // ✅ CIERRA savePropertyAction COMPLETA
 
-// D. BORRAR PROPIEDAD (AÑADIR ESTO PARA ARREGLAR EL ERROR)
+
+// D. BORRAR PROPIEDAD (SAFE CLEANUP)
 export async function deletePropertyAction(id: string) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
-    
-    // Borramos solo si pertenece al usuario actual
-    await prisma.property.deleteMany({ where: { id: id, userId: user.id } });
-    
-    revalidatePath('/');
+
+    const pid = String(id || "").trim();
+    if (!pid) return { success: false, error: "MISSING_ID" };
+
+    // ✅ SOLO si la propiedad es tuya (si no, NO borramos imágenes/favoritos de otros)
+    const owned = await prisma.property.findFirst({
+      where: { id: pid, userId: user.id },
+      select: { id: true },
+    });
+
+    if (!owned) {
+      return { success: false, error: "No tienes permisos sobre esta propiedad." };
+    }
+
+    // ✅ limpieza segura (solo tras verificar propiedad)
+    await prisma.image.deleteMany({ where: { propertyId: pid } });
+    await prisma.favorite.deleteMany({ where: { propertyId: pid } });
+
+    await prisma.property.delete({ where: { id: pid } });
+
+    revalidatePath("/");
     return { success: true };
   } catch (error) {
+    console.error("deletePropertyAction error:", error);
     return { success: false, error: String(error) };
   }
 }
+
+
 // =========================================================
 // ❤️ 3. USUARIO Y FAVORITOS (FUNCIONES QUE FALTABAN)
 // =========================================================
