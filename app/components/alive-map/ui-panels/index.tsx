@@ -1178,11 +1178,22 @@ const handleChatFileSelected = async (e: any) => {
       return;
     }
 
-    // 👉 lo metemos en el input para que lo envíes con Enter/Enviar
-    setChatInput((prev: string) => {
-      const p = String(prev || "").trim();
-      return p ? `${p} ${url}` : url;
-    });
+    // ✅ En vez de meter el link en el input, lo enviamos como “mensaje adjunto”
+try {
+  // Asegura conversación seleccionada
+  if (!chatConversationId) {
+    addNotification("⚠️ Selecciona una conversación");
+    return;
+  }
+
+  // Envía el adjunto como mensaje (texto = url)
+  await (sendMessageAction as any)(chatConversationId, url);
+
+  addNotification("✅ Archivo enviado");
+} catch (e:any) {
+  console.error(e);
+  addNotification(`❌ No pude enviar adjunto`);
+}
 
     addNotification("✅ Archivo subido");
   } catch (err: any) {
@@ -2314,48 +2325,94 @@ const isAgency =
             )}
           </div>
 
-          {/* messages */}
-          <div className="flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar space-y-2">
-            {chatLoading && (
-              <div className="text-[10px] text-white/40 tracking-widest uppercase">
-                Cargando...
-              </div>
-            )}
+       {/* messages */}
+<div className="flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar space-y-2">
+  {chatLoading && (
+    <div className="text-[10px] text-white/40 tracking-widest uppercase">
+      Cargando...
+    </div>
+  )}
 
-            {!chatConversationId && !chatLoading ? (
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white/60">
-                Aquí verás los mensajes. La lista de la izquierda mantiene tus threads.
-              </div>
-            ) : null}
+  {!chatConversationId && !chatLoading ? (
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white/60">
+      Aquí verás los mensajes. La lista de la izquierda mantiene tus threads.
+    </div>
+  ) : null}
 
-            {chatConversationId ? (
-              (chatMessages || []).length === 0 && !chatLoading ? (
-                <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
-                  Aún no hay mensajes. Envía el primero.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {(chatMessages || []).map((m: any) => {
-                    const mine = String(m?.senderId || "") === String(activeUserKey || "");
-                    const text = m?.text ?? m?.content ?? "";
+  {chatConversationId ? (
+    (chatMessages || []).length === 0 && !chatLoading ? (
+      <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
+        Aún no hay mensajes. Envía el primero.
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {(chatMessages || []).map((m: any) => {
+          const mine = String(m?.senderId || "") === String(activeUserKey || "");
+          const text = m?.text ?? m?.content ?? "";
 
-                    return (
-                      <div
-                        key={String(m?.id || Math.random())}
-                        className={`max-w-[90%] p-3 rounded-2xl text-xs border ${
-                          mine
-                            ? "ml-auto bg-blue-500/20 border-blue-500/30 text-white"
-                            : "mr-auto bg-white/10 border-white/10 text-white/80"
-                        } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
-                      >
-                        {text || <span className="text-white/30">...</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )
-            ) : null}
-          </div>
+          return (
+            <div
+              key={String(m?.id || Math.random())}
+              className={`max-w-[90%] p-3 rounded-2xl text-xs border ${
+                mine
+                  ? "ml-auto bg-blue-500/20 border-blue-500/30 text-white"
+                  : "mr-auto bg-white/10 border-white/10 text-white/80"
+              } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
+            >
+              {(() => {
+                const s = String(text || "").trim();
+
+                const isUrl = /^https?:\/\/\S+$/i.test(s);
+                const isImg = isUrl && /\.(png|jpe?g|webp|gif)$/i.test(s);
+                const isPdf = isUrl && /\.pdf$/i.test(s);
+
+                if (isImg) {
+                  return (
+                    <a href={s} target="_blank" rel="noreferrer" className="block">
+                      <img
+                        src={s}
+                        className="max-w-full rounded-xl border border-white/10"
+                        alt="Adjunto"
+                      />
+                    </a>
+                  );
+                }
+
+                if (isPdf) {
+                  return (
+                    <a
+                      href={s}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10"
+                    >
+                      📄 PDF adjunto (abrir)
+                    </a>
+                  );
+                }
+
+                if (isUrl) {
+                  return (
+                    <a
+                      href={s}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline text-white/90 break-all"
+                    >
+                      {s}
+                    </a>
+                  );
+                }
+
+                return s || <span className="text-white/30">...</span>;
+              })()}
+            </div>
+          );
+        })}
+      </div>
+    )
+  ) : null}
+</div>
 
          {/* footer input */}
 <div className="p-3 border-t border-white/10 bg-black/20 pointer-events-auto">
