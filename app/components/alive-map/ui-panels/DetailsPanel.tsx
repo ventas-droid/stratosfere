@@ -132,40 +132,45 @@ const ownerRole =
 
     const hasElevator = allTags.has('elevator') || allTags.has('ascensor') || selectedProp?.elevator === true;
     const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
-   // ❤️ SINCRONIZACIÓN TOTAL (Corazón + Bóveda + NanoCard)
-    // 1. Verificación blindada (convierte IDs a texto para que no falle nunca)
-    const isFavorite = favorites.some((f: any) => String(f.id) === String(selectedProp?.id));
+  
+  
+  // ❤️ SINCRONIZACIÓN TOTAL (Corazón + Bóveda + NanoCard)
+// 1. Verificación blindada (convierte IDs a texto para que no falle nunca)
+const isFavorite = (favorites || []).some(
+  (f: any) => String(f?.id) === String(selectedProp?.id)
+);
 
-   // ❤️ ESTE ES EL CONECTOR QUE TE FALTA PARA LA SINCRONIZACIÓN
-    const handleHeartClick = (e: any) => {
-        e.stopPropagation(); // Evita que el clic atraviese
-        
-        // 1. Calculamos el nuevo estado INMEDIATAMENTE para que sea visual
-        const newStatus = !isFavorite;
+// ❤️ CONECTOR DE SINCRONIZACIÓN (Detalles -> UI global)
+const handleHeartClick = (e: any) => {
+  if (e?.stopPropagation) e.stopPropagation();
 
-        // 2. Ejecutar la acción real de base de datos (lo que ya tenías)
-        if (onToggleFavorite) onToggleFavorite(selectedProp);
+  if (!selectedProp?.id) return;
 
-        // 3. 🔥 EL GRITO QUE FALTABA (RESTAURADO) 🔥
-        // Esto avisa a la NanoCard, a la Bóveda y a las Notificaciones
-        if (typeof window !== 'undefined') {
-            // Señal A: Para actualizaciones de propiedades (NanoCard)
-            window.dispatchEvent(new CustomEvent('update-property-signal', { 
-                detail: { 
-                    id: selectedProp.id, 
-                    updates: { isFavorite: newStatus } // Enviamos el nuevo estado
-                } 
-            }));
+  // 1) Nuevo estado deseado
+  const newStatus = !isFavorite;
 
-            // Señal B: Específica para favoritos (Bóveda / Notificaciones)
-            window.dispatchEvent(new CustomEvent('fav-change-signal', { 
-                detail: { 
-                    id: selectedProp.id, 
-                    isFavorite: newStatus 
-                } 
-            }));
-        }
-    };
+  // 2) Acción real (pasamos intención explícita)
+  if (onToggleFavorite) onToggleFavorite({ ...selectedProp, isFav: newStatus });
+
+  // 3) Broadcast a NanoCard / Vault / UI
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("update-property-signal", {
+        detail: {
+          id: selectedProp.id,
+          updates: { isFav: newStatus, isFavorite: newStatus, isFavorited: newStatus },
+        },
+      })
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("fav-change-signal", {
+        detail: { id: selectedProp.id, isFavorite: newStatus },
+      })
+    );
+  }
+};
+
    
    // ✅ CHAT: abrir conversación con el propietario (desde DETAILS)
 const handleMessageOwner = (e: any) => {

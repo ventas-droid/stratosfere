@@ -267,18 +267,48 @@ onClick={() => openFromStock(p)}
                           >
                               <Edit3 size={14} /> GESTIONAR
                           </button>
+{/* 3. BORRAR */}
+<button
+  onClick={(e) => {
+    e.stopPropagation();
 
-                          {/* 3. BORRAR */}
-                          <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if(confirm("¿Eliminar propiedad permanentemente?")) onDelete(p);
-                            }}
-                            className="w-12 h-12 flex items-center justify-center rounded-[18px] bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 hover:scale-105 active:scale-95 transition-all border border-red-100/50"
-                            title="Eliminar"
-                          >
-                              <Trash2 size={18} strokeWidth={2.5}/>
-                          </button>
+    const pid = String(p?.id || "").trim();
+    if (!pid) return;
+
+    // ✅ Mensaje correcto según sea tuya o sea solo favorito
+    const msg = p?.isOwner
+      ? "¿Eliminar propiedad permanentemente?"
+      : "¿Quitar este activo de tu Stock? (solo se elimina de favoritos)";
+
+    if (!confirm(msg)) return;
+
+    // ✅ Enviamos id string garantizado (sin romper tu firma actual)
+    if (onDelete) onDelete({ ...p, id: pid });
+
+    // ✅ Señales para sincronizar corazones/NanoCard/Bóveda al instante
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("update-property-signal", {
+          detail: {
+            id: pid,
+            updates: { isFav: false, isFavorited: false, isFavorite: false },
+          },
+        })
+      );
+
+      window.dispatchEvent(
+        new CustomEvent("fav-change-signal", {
+          detail: { id: pid, isFavorite: false },
+        })
+      );
+    }
+  }}
+  className="w-12 h-12 flex items-center justify-center rounded-[18px] bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 hover:scale-105 active:scale-95 transition-all border border-red-100/50"
+  title="Eliminar"
+>
+  <Trash2 size={18} strokeWidth={2.5} />
+</button>
+
 
                       </div>
                   </div>

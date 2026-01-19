@@ -522,7 +522,9 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
   }
 
   try {
-    const where = { userId_propertyId: { userId: user.id, propertyId: safePropertyId } };
+    const where = {
+      userId_propertyId: { userId: user.id, propertyId: safePropertyId },
+    };
 
     const existing = await prisma.favorite.findUnique({ where });
     const exists = !!existing;
@@ -534,20 +536,18 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
 
     // Si me piden un estado que ya es el actual -> no hago nada
     if (shouldAdd === exists) {
-      return {
-        success: true,
-        isFavorite: exists,
-        action: "noop",
-      };
+      return { success: true, isFavorite: exists, action: "noop" };
     }
 
     if (shouldAdd) {
       await prisma.favorite.create({
         data: { userId: user.id, propertyId: safePropertyId },
       });
+      revalidatePath("/"); // ✅ IMPORTANTE
       return { success: true, isFavorite: true, action: "added" };
     } else {
       await prisma.favorite.delete({ where });
+      revalidatePath("/"); // ✅ IMPORTANTE
       return { success: true, isFavorite: false, action: "removed" };
     }
   } catch (e) {
@@ -555,7 +555,6 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
     return { success: false, error: "SERVER_ERROR" };
   }
 }
-
 
 // H. LEER FAVORITOS (BÓVEDA) ✅ UNIFICADO CON GLOBAL/PERFIL
 export async function getFavoritesAction() {
@@ -695,9 +694,31 @@ export async function getAgencyPortfolioAction() {
       }
     });
 
-    // 3. Unificar listas
-    const owned = myProperties.map((p: any) => ({ ...p, isOwner: true, isFavorited: true }));
-    const favs = myFavorites.map((f: any) => ({ ...f.property, isOwner: false, isFavorited: true }));
+   // 3. Unificar listas (✅ favorito REAL incluso si es propiedad mía)
+const favIdSet = new Set(
+  (myFavorites || [])
+    .map((f: any) => String(f?.propertyId || f?.property?.id || ""))
+    .filter(Boolean)
+);
+
+const owned = (myProperties || []).map((p: any) => {
+  const isFav = favIdSet.has(String(p?.id));
+  return {
+    ...p,
+    isOwner: true,
+    isFavorited: isFav,
+    isFavorite: isFav,
+    isFav: isFav,
+  };
+});
+
+const favs = (myFavorites || []).map((f: any) => ({
+  ...(f?.property || {}),
+  isOwner: false,
+  isFavorited: true,
+  isFavorite: true,
+  isFav: true,
+}));
 
     // 4. Eliminar duplicados
     const combined = [...owned];
@@ -750,43 +771,54 @@ const creator = p.user || snap || {};
   }
 }
 
-// B. BORRAR DEL STOCK (LÓGICA PRIORITARIA)
+// B. BORRAR DEL STOCK (✅ idempotente + borra favorito por clave compuesta)
 export async function deleteFromStockAction(propertyId: string) {
-    try {
-        const user = await getUserMeAction();
-        if (!user.success || !user.data) return { success: false };
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
 
-        // 1. ¿SOY EL DUEÑO? -> BORRADO TOTAL
-        const ownedProp = await prisma.property.findFirst({
-            where: { id: propertyId, userId: user.data.id }
-        });
+    const pid = String(propertyId || "").trim();
+    if (!pid) return { success: false, error: "MISSING_PROPERTY_ID" };
 
-        if (ownedProp) {
-            // Prisma se encarga de borrar las imágenes y favoritos asociados si está configurado en Cascade
-            // Pero por seguridad, borramos imágenes primero
-            await prisma.image.deleteMany({ where: { propertyId } });
-            await prisma.property.delete({ where: { id: propertyId } });
-            
-            revalidatePath('/');
-            return { success: true, type: 'property_deleted' };
-        }
+    // 1) ¿SOY EL DUEÑO? -> BORRADO TOTAL
+    const ownedProp = await prisma.property.findFirst({
+      where: { id: pid, userId: me.id },
+      select: { id: true },
+    });
 
-        // 2. NO SOY DUEÑO -> BORRAR SOLO MI FAVORITO
-        const fav = await prisma.favorite.findUnique({
-            where: { userId_propertyId: { userId: user.data.id, propertyId } }
-        });
+    if (ownedProp) {
+      // ✅ limpieza segura (sin depender de cascade)
+      await prisma.image.deleteMany({ where: { propertyId: pid } });
+      await prisma.favorite.deleteMany({ where: { propertyId: pid } });
+      await prisma.property.delete({ where: { id: pid } });
 
-        if (fav) {
-            await prisma.favorite.delete({ where: { id: fav.id } });
-            revalidatePath('/');
-            return { success: true, type: 'favorite_removed' };
-        }
-
-        return { success: false, error: "No tienes permisos sobre este activo." };
-    } catch (e) {
-        return { success: false, error: String(e) };
+      revalidatePath("/");
+      return { success: true, type: "property_deleted" };
     }
-}// --- AÑADIR AL FINAL DE actions.ts ---
+
+    // 2) NO SOY DUEÑO -> BORRAR SOLO MI FAVORITO (✅ por clave compuesta)
+    const where = {
+      userId_propertyId: { userId: me.id, propertyId: pid },
+    };
+
+    const existing = await prisma.favorite.findUnique({ where });
+    if (!existing) {
+      // ✅ idempotente: si ya no existe, no “falla”
+      return { success: true, type: "favorite_noop" };
+    }
+
+    await prisma.favorite.delete({ where });
+
+    revalidatePath("/");
+    return { success: true, type: "favorite_removed" };
+  } catch (e: any) {
+    console.error("deleteFromStockAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+// --- AÑADIR AL FINAL DE actions.ts ---
 
 // B. MIS PROPIEDADES (PERFIL) - Recuperada
 export async function getPropertiesAction() {

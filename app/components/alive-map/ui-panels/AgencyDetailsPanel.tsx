@@ -188,7 +188,10 @@ useEffect(() => {
     
     const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
     const m2 = Number(selectedProp?.mBuilt || selectedProp?.m2 || selectedProp?.surface || 0);
-    const isFavorite = favorites.some((f: any) => f.id === selectedProp?.id);
+  const isFavorite = (favorites || []).some(
+  (f: any) => String(f?.id) === String(selectedProp?.id)
+);
+
     
     const getEnergyColor = (rating: string) => {
         const map: any = { A: "bg-green-600", B: "bg-green-500", C: "bg-green-400", D: "bg-yellow-400", E: "bg-yellow-500", F: "bg-orange-500", G: "bg-red-600" };
@@ -473,13 +476,17 @@ useEffect(() => {
 
 
   <button
-    onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
-    className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
-      isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"
-    }`}
-  >
-    <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
-  </button>
+  onClick={() =>
+    onToggleFavorite &&
+    onToggleFavorite({ ...selectedProp, isFav: !isFavorite })
+  }
+  className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
+    isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"
+  }`}
+>
+  <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
+</button>
+
 </div>
 
 
