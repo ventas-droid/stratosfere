@@ -6,7 +6,7 @@ import {
     Star, Home, Maximize2, ArrowUp,
     Car, Trees, Waves, Sun, Box, Thermometer, 
     Camera, Globe, Plane, Hammer, Ruler, 
-    TrendingUp, Share2, Mail, FileCheck, Activity, 
+    TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
     Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2,
 } from 'lucide-react';
 
@@ -137,7 +137,7 @@ useEffect(() => {
 
     // Datos visuales
     const avatar = activeOwner.companyLogo || activeOwner.avatar || null;
-    const cover = activeOwner.coverImage || activeOwner.coverImage || null;
+    const cover = activeOwner.coverImage || null;
     
     // Contacto
     const phone = activeOwner.mobile || activeOwner.phone || "";
@@ -429,19 +429,60 @@ useEffect(() => {
                     
                     <div className="h-6"></div>
                 </div>
+{/* --- FOOTER: CONTACTAR AGENTE --- */}
+<div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
+  <button
+    onClick={() => setShowContactModal(true)}
+    className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs"
+  >
+    <Phone size={18} /> Contactar Agente
+  </button>
 
-                {/* --- FOOTER: CONTACTAR AGENTE --- */}
-                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
-                    <button onClick={() => setShowContactModal(true)} className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs">
-                        <Phone size={18} /> Contactar Agente
-                    </button>
-                    <button 
-                        onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
-                        className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"}`}
-                    >
-                        <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
-                    </button>
-                </div>
+  {/* ✅ MENSAJE (CHAT) */}
+  <button
+    onClick={() => {
+      try {
+        const propertyId = String(selectedProp?.id || "");
+        const toUserId = String(
+          ownerData?.id ||
+            activeOwner?.id ||
+            selectedProp?.user?.id ||
+            selectedProp?.ownerSnapshot?.id ||
+            selectedProp?.userId ||
+            ""
+        );
+
+        if (!propertyId || !toUserId) return;
+
+        window.dispatchEvent(
+          new CustomEvent("open-chat-signal", {
+            detail: {
+              propertyId,
+              toUserId,
+              property: selectedProp,
+            },
+          })
+        );
+      } catch (e) {
+        console.warn("open-chat-signal failed", e);
+      }
+    }}
+    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+    title="Mensaje"
+  >
+    <MessageCircle size={22} />
+  </button>
+
+  <button
+    onClick={() => onToggleFavorite && onToggleFavorite(selectedProp)}
+    className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
+      isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"
+    }`}
+  >
+    <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
+  </button>
+</div>
+
 
                {/* --- 🔥 POPUP CONTACTO AGENTE (AUTOMÁTICO Y REAL) --- */}
                 {showContactModal && (

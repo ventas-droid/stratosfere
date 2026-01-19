@@ -849,7 +849,7 @@ const normalizeThread = (conv: any, meId: string) => {
 
   return {
     ...conv,
-    lastMessage: last,          // ✅ CLAVE: tu UI usa lastMessage
+    lastMessage: last,
     otherUser,
     otherUserId: otherUser?.id || null,
     refCode,
@@ -923,7 +923,6 @@ export async function getOrCreateConversationAction(a: any, b?: any) {
           })
         : null;
 
-      // ✅ Inyectamos "property" manualmente para que normalizeThread siga igual
       return {
         success: true,
         data: normalizeThread({ ...(existing as any), property: prop } as any, me.id),
@@ -996,7 +995,6 @@ export async function getMyConversationsAction() {
       },
     });
 
-    // ✅ lookup manual de propiedades por propertyId
     const propIds = Array.from(
       new Set((items || []).map((c: any) => c?.propertyId).filter(Boolean).map(String))
     );
@@ -1016,7 +1014,6 @@ export async function getMyConversationsAction() {
       return normalizeThread({ ...(c as any), property: prop } as any, me.id);
     });
 
-    // ✅ orden real por lastMessage.createdAt
     normalized.sort((a: any, b: any) => {
       const ta = a?.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
       const tb = b?.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
@@ -1062,7 +1059,7 @@ export async function getConversationMessagesAction(conversationId: string) {
       },
     });
 
-    // ✅ compat: añadimos `content` SIN leer msg.content (que no existe en Prisma)
+    // ✅ compat: añadimos `content` SIN leer msg.content (no existe en Prisma)
     const normalized = (msgs || []).map((m: any) => ({
       ...m,
       content: m?.text ?? "",
@@ -1126,11 +1123,19 @@ export async function sendMessageAction(a: any, b?: any) {
       },
     });
 
+    // ✅ opcional pero MUY útil: fuerza “updatedAt” para ordenar hilos
+    try {
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() } as any,
+      });
+    } catch {}
+
     return {
       success: true,
       data: {
         ...msg,
-        content: msg?.text ?? text, // ✅ compat
+        content: msg?.text ?? text,
         text: msg?.text ?? text,
       },
     };
