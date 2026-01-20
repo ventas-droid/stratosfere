@@ -342,6 +342,7 @@ const [unreadTotal, setUnreadTotal] = useState(0);
 
 // convId -> timestamp del último mensaje por el que YA notificamos (para no spamear)
 const lastNotifiedAtRef = useRef<Record<string, number>>({});
+const lastSeenAtRef = useRef<Record<string, number>>({});
 
 // recalcular total
 useEffect(() => {
@@ -1116,8 +1117,13 @@ const openConversation = async (conversationId: string) => {
       const lastMsg = msgs[msgs.length - 1];
       const lastAt = lastMsg?.createdAt ? new Date(lastMsg.createdAt).getTime() : Date.now();
 
-      if (typeof markConversationAsRead === "function") {
-        markConversationAsRead(conversationId, lastAt);
+      // IMPORTANT: non-blocking
+      try {
+        if (typeof markConversationAsRead === "function") {
+          markConversationAsRead(conversationId, lastAt);
+        }
+      } catch (err) {
+        console.warn("markConversationAsRead failed (non-blocking):", err);
       }
 
       // ✅ marca como leído SERVER (multi-dispositivo)
@@ -1205,8 +1211,13 @@ const handleSendChat = async () => {
       // ✅ al enviar, esa conversación cuenta como "vista" (LOCAL + SERVER)
       const sentAt = normalized?.createdAt ? new Date(normalized.createdAt).getTime() : Date.now();
 
-      if (typeof markConversationAsRead === "function") {
-        markConversationAsRead(String(chatConversationId), sentAt);
+      // IMPORTANT: no dejes que un bug en markConversationAsRead convierta un envío OK en "Error enviando"
+      try {
+        if (typeof markConversationAsRead === "function") {
+          markConversationAsRead(String(chatConversationId), sentAt);
+        }
+      } catch (err) {
+        console.warn("markConversationAsRead failed (non-blocking):", err);
       }
 
       try {
@@ -1236,6 +1247,7 @@ const scrollChatToBottom = () => {
     });
   }, 0);
 };
+
 
 // ✅ UPLOAD Cloudinary (chat adjuntos: imagen/pdf)
 const chatFileInputRef = useRef<any>(null);
