@@ -35,7 +35,7 @@ import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
 import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
 
-// 🔥 AQUÍ ESTÁ LA CORRECCIÓN: AÑADIDAS LAS ACCIONES DE AGENCIA QUE FALTABAN
+// 🔥 IMPORTS ACTIONS (chat + favoritos + agency)
 import {
   getFavoritesAction,
   toggleFavoriteAction,
@@ -43,11 +43,18 @@ import {
   getAgencyPortfolioAction,
   deleteFromStockAction,
 
+  // ✅ unread/read
+  markConversationReadAction,
+
+  // ✅ threads/messages
   getMyConversationsAction as listMyConversationsAction,
   getConversationMessagesAction,
   sendMessageAction,
   getOrCreateConversationAction,
-  deleteConversationAction
+  deleteConversationAction,
+
+  // ✅ DETAILS desde thread (PASO 2)
+  getPropertyByIdAction,
 } from "@/app/actions";
 
 
@@ -215,6 +222,21 @@ user: (base.user || p.user)
 
   };
 };
+const extractFirstUrl = (s: string) => {
+  const m = String(s || "").match(/(https?|blob):\/\/[^\s]+/i);
+  if (!m?.[0]) return "";
+  return m[0].replace(/[)\],.]+$/g, "");
+};
+
+const isPdfUrl = (u: string) =>
+  /\/raw\/upload\//i.test(u) || /\.pdf(\?|#|$)/i.test(u);
+
+const isImageUrl = (u: string) =>
+  /^blob:/i.test(u) ||
+  /^data:image\//i.test(u) ||
+  /\/image\/upload\//i.test(u) ||
+  (/res\.cloudinary\.com\/.+\/upload\//i.test(u) && !/\.pdf(\?|#|$)/i.test(u)) ||
+  /\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(u);
 
 export default function UIPanels({ 
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
@@ -317,8 +339,6 @@ const [isAiTyping, setIsAiTyping] = useState(false);
 const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
 const [unreadTotal, setUnreadTotal] = useState(0);
 
-// convId -> timestamp del último mensaje que el usuario ya “vio”
-const lastSeenAtRef = useRef<Record<string, number>>({});
 
 // convId -> timestamp del último mensaje por el que YA notificamos (para no spamear)
 const lastNotifiedAtRef = useRef<Record<string, number>>({});
@@ -334,17 +354,23 @@ useEffect(() => {
 
 const markConversationAsRead = (conversationId: string, lastAt?: number) => {
   if (!conversationId) return;
+
   const ts = Number.isFinite(Number(lastAt)) ? Number(lastAt) : Date.now();
   lastSeenAtRef.current[String(conversationId)] = ts;
 
+  // ✅ UI instantánea: quita badge local
   setUnreadByConv((prev) => {
     if (!prev || !prev[String(conversationId)]) return prev;
-    const next = { ...prev };
+    const next = { ...(prev || {}) };
     delete next[String(conversationId)];
     return next;
   });
+
+  // ✅ evita notificar de nuevo por el mismo último mensaje
+  lastNotifiedAtRef.current[String(conversationId)] = ts;
 };
-// ✅ calcula unread + notifica (1 por conversación) desde la lista de threads
+
+// ✅ calcula unread + notifica (server-truth)
 const updateUnreadFromThreads = (threads: any[]) => {
   try {
     const next: Record<string, number> = {};
@@ -353,27 +379,23 @@ const updateUnreadFromThreads = (threads: any[]) => {
       const id = String(t?.id || "");
       if (!id) return;
 
-      const lastAtRaw =
-        t?.lastMessage?.createdAt ||
-        t?.lastMessage?.created_at ||
-        t?.updatedAt ||
-        t?.updated_at ||
-        null;
+      // ✅ si estás dentro de esa conversación, no mostramos unread
+      if (String(chatConversationId || "") === id) {
+        return;
+      }
 
-      const lastAt = lastAtRaw ? new Date(lastAtRaw).getTime() : 0;
-      if (!lastAt) return;
+      // ✅ SERVER TRUTH: ya viene de actions.ts (normalizeThread)
+      const isUnread = !!t?.unread;
 
-      const seenAt = Number(lastSeenAtRef.current[id] || 0);
-
-      // si hay mensaje posterior a lo "visto", marcamos unread
-      if (lastAt > seenAt) {
+      if (isUnread) {
         next[id] = 1;
 
-        // notificación 1 vez por "nuevo lastAt" (anti-spam)
+        // ✅ notificación 1 vez por "nuevo lastMessageAt"
+        const lastAt = Number(t?.lastMessageAt || 0);
         const notifiedAt = Number(lastNotifiedAtRef.current[id] || 0);
-        if (lastAt > notifiedAt) {
-          const title =
-            t?.title || t?.propertyTitle || t?.refCode || "Nuevo mensaje";
+
+        if (lastAt && lastAt > notifiedAt) {
+          const title = t?.title || t?.propertyTitle || t?.refCode || "Nuevo mensaje";
           addNotification(`📩 ${title}`);
           lastNotifiedAtRef.current[id] = lastAt;
         }
@@ -403,7 +425,6 @@ useEffect(() => {
 
       if (res?.success) {
         const threads = Array.isArray(res.data) ? res.data : [];
-        // no pisamos tu UI: solo unread + notifs
         updateUnreadFromThreads(threads);
       }
     } catch (e) {
@@ -419,7 +440,8 @@ useEffect(() => {
     alive = false;
     if (timer) clearInterval(timer);
   };
-}, [identityVerified, activeUserKey]);
+}, [identityVerified, activeUserKey, chatConversationId]);
+
 
  // --- EFECTOS INICIALES ---
 
@@ -1014,12 +1036,35 @@ const handleDeleteConversation = async (conversationId: string) => {
   }
 };
 
+// ✅ Threads -> abre Details SIEMPRE con property COMPLETA (sin stub)
+const tryOpenDetailsFromThread = async (t: any) => {
+  try {
+    if (typeof window === "undefined") return;
+    if (!t) return;
+
+    const pidRaw = t?.propertyId || t?.property?.id || null;
+    const pid = pidRaw ? String(pidRaw).trim() : "";
+    if (!pid) return;
+
+    const res = await (getPropertyByIdAction as any)(pid);
+    if (!res?.success || !res?.data) return;
+
+    window.dispatchEvent(
+      new CustomEvent("open-details-signal", { detail: res.data })
+    );
+  } catch (e) {
+    console.warn("tryOpenDetailsFromThread failed:", e);
+  }
+};
+
+
+
 // =======================
 // ✅ CHAT: abrir panel + cargar conversaciones
 // =======================
 const openChatPanel = async () => {
   setChatOpen(true);
-setChatConversationId(null);
+  setChatConversationId(null);
   setChatMessages([]);
   setChatLoading(true);
 
@@ -1067,13 +1112,21 @@ const openConversation = async (conversationId: string) => {
       const msgs = Array.isArray(res.data) ? res.data : [];
       setChatMessages(msgs);
 
-      // ✅ marca como leído (PASO 1)
+      // ✅ marca como leído LOCAL (UI instantánea)
       const lastMsg = msgs[msgs.length - 1];
       const lastAt = lastMsg?.createdAt ? new Date(lastMsg.createdAt).getTime() : Date.now();
 
       if (typeof markConversationAsRead === "function") {
         markConversationAsRead(conversationId, lastAt);
       }
+
+      // ✅ marca como leído SERVER (multi-dispositivo)
+      try {
+        await (markConversationReadAction as any)(String(conversationId));
+      } catch {}
+
+      // ✅ baja al final para ver lo último
+      scrollChatToBottom();
     } else {
       addNotification("⚠️ No puedo cargar mensajes");
     }
@@ -1101,7 +1154,9 @@ const handleSendChat = async () => {
     senderId: String(activeUserKey || "anon"),
     createdAt: new Date().toISOString(),
   };
-  setChatMessages((prev: any[]) => [...prev, optimistic]);
+
+  setChatMessages((prev: any[]) => [...(Array.isArray(prev) ? prev : []), optimistic]);
+  scrollChatToBottom();
 
   try {
     let res: any = null;
@@ -1144,61 +1199,119 @@ const handleSendChat = async () => {
       };
 
       setChatMessages((prev: any[]) =>
-        prev.map((m: any) => (m.id === tempId ? normalized : m))
+        (Array.isArray(prev) ? prev : []).map((m: any) => (m.id === tempId ? normalized : m))
       );
 
-      // ✅ al enviar, esa conversación cuenta como "vista"
+      // ✅ al enviar, esa conversación cuenta como "vista" (LOCAL + SERVER)
       const sentAt = normalized?.createdAt ? new Date(normalized.createdAt).getTime() : Date.now();
+
       if (typeof markConversationAsRead === "function") {
         markConversationAsRead(String(chatConversationId), sentAt);
       }
 
+      try {
+        await (markConversationReadAction as any)(String(chatConversationId));
+      } catch {}
+
+      scrollChatToBottom();
       return;
     }
 
     // fallo -> quitamos el optimista
-    setChatMessages((prev: any[]) => prev.filter((m: any) => m.id !== tempId));
+    setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((m: any) => m.id !== tempId));
     addNotification(res?.error ? `❌ ${res.error}` : "❌ No se pudo enviar");
   } catch (e) {
     console.error(e);
-    setChatMessages((prev: any[]) => prev.filter((m: any) => m.id !== tempId));
+    setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((m: any) => m.id !== tempId));
     addNotification("❌ Error enviando");
   }
+};
+
+const scrollChatToBottom = () => {
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(".chat-scroll") as HTMLElement | null;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }, 0);
 };
 
 // ✅ UPLOAD Cloudinary (chat adjuntos: imagen/pdf)
 const chatFileInputRef = useRef<any>(null);
 const [chatUploading, setChatUploading] = useState(false);
+const [chatUploadProgress, setChatUploadProgress] = useState(0); // 0-100
+const chatUploadTempIdRef = useRef<string | null>(null); // para “enganchar” el mensaje optimista
 
-const uploadChatFileToCloudinary = async (file: File) => {
- const cloudName = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn11trogr").trim();
-const uploadPreset = (process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload").trim();
-
+const uploadChatFileToCloudinary = (file: File) => {
+  const cloudName = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn11trogr").trim();
+  const uploadPreset = (process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload").trim();
 
   if (!cloudName || !uploadPreset) {
-    throw new Error(
-      "Cloudinary: falta NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME o NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET"
-    );
+    throw new Error("Cloudinary: falta NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME o NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET");
   }
 
-  const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+  // ✅ auto/upload (Cloudinary decide image/raw)
+  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
 
   const fd = new FormData();
   fd.append("file", file);
   fd.append("upload_preset", uploadPreset);
   fd.append("folder", "stratos/chat");
 
-  const res = await fetch(url, { method: "POST", body: fd });
-  const data = await res.json().catch(() => ({}));
+  setChatUploadProgress(0);
 
-  if (!res.ok) {
-    const msg = (data as any)?.error?.message || `Upload fallido (${res.status})`;
-    throw new Error(msg);
-  }
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", endpoint);
 
-  return String((data as any)?.secure_url || (data as any)?.url || "");
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+      setChatUploadProgress(pct);
+
+      // ✅ engancha progreso al mensaje temporal (si existe)
+      const tempId = chatUploadTempIdRef.current; // ✅ FIX (antes: uploadTempIdRef)
+      if (tempId) {
+        setChatMessages((prev: any[]) =>
+          (Array.isArray(prev) ? prev : []).map((m: any) =>
+            String(m?.id) === String(tempId) ? { ...m, __progress: pct } : m
+          )
+        );
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Upload fallido (network)"));
+
+    xhr.onload = () => {
+      try {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        const data = JSON.parse(xhr.responseText || "{}");
+
+        if (!ok) {
+          return reject(new Error(data?.error?.message || `Upload fallido (${xhr.status})`));
+        }
+
+        const delivered = String(data?.secure_url || "").trim();
+        console.log("CLOUDINARY_DELIVERY_URL:", delivered);
+
+        if (!delivered) return reject(new Error("Cloudinary no devolvió secure_url"));
+
+        // si no es un delivery público, ni lo mandamos al chat
+        if (!/^https?:\/\/res\.cloudinary\.com\//i.test(delivered)) {
+          return reject(new Error("Cloudinary devolvió una URL no pública (no es res.cloudinary.com)"));
+        }
+
+        setChatUploadProgress(100);
+        resolve(delivered);
+      } catch (e: any) {
+        reject(new Error(e?.message || "Upload: respuesta inválida"));
+      }
+    };
+
+    xhr.send(fd);
+  });
 };
-
 
 const handlePickChatFile = () => {
   try {
@@ -1208,44 +1321,146 @@ const handlePickChatFile = () => {
 
 const handleChatFileSelected = async (e: any) => {
   const file: File | null = e?.target?.files?.[0] || null;
-  // reset para poder subir el mismo archivo dos veces seguidas
   if (e?.target) e.target.value = "";
   if (!file) return;
 
-  // ✅ opcional: limita tamaños si quieres (ahora NO tocamos)
-  setChatUploading(true);
-  try {
-    const url = await uploadChatFileToCloudinary(file);
-
-    if (!url) {
-      addNotification("⚠️ No recibí URL del upload");
-      return;
-    }
-
-    // ✅ En vez de meter el link en el input, lo enviamos como “mensaje adjunto”
-try {
-  // Asegura conversación seleccionada
   if (!chatConversationId) {
     addNotification("⚠️ Selecciona una conversación");
     return;
   }
 
-  // Envía el adjunto como mensaje (texto = url)
-  await (sendMessageAction as any)(chatConversationId, url);
+  setChatUploading(true);
+  setChatUploadProgress(0);
 
-  addNotification("✅ Archivo enviado");
-} catch (e:any) {
-  console.error(e);
-  addNotification(`❌ No pude enviar adjunto`);
-}
+  // ✅ PREVIEW INMEDIATO (miniatura local) mientras sube
+const localPreview =
+  file.type?.startsWith("image/") ? URL.createObjectURL(file) : null;
 
-    addNotification("✅ Archivo subido");
-  } catch (err: any) {
-    console.error(err);
-    addNotification(`❌ Upload: ${err?.message || "falló"}`);
-  } finally {
-    setChatUploading(false);
+const tempId = `tmp-upload-${Date.now()}`;
+chatUploadTempIdRef.current = tempId;
+
+setChatMessages((prev: any[]) => [
+  ...(Array.isArray(prev) ? prev : []),
+  {
+    id: tempId,
+    // si es imagen -> preview ya; si no -> texto "subiendo..."
+    text: localPreview ? localPreview : `⏳ Subiendo: ${file.name}`,
+    content: localPreview ? localPreview : `⏳ Subiendo: ${file.name}`,
+    senderId: String(activeUserKey || "anon"),
+    createdAt: new Date().toISOString(),
+    __uploading: true,
+    __filename: file.name,
+    __progress: 0,
+  },
+]);
+
+// ✅ auto-scroll para ver el preview al instante
+scrollChatToBottom();
+
+// ✅ fuerza a pintar ya el preview (por si React agrupa updates)
+await Promise.resolve();
+
+try {
+  const url = await uploadChatFileToCloudinary(file);
+
+  if (!url) {
+    setChatMessages((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).filter((m: any) => m?.id !== tempId)
+    );
+    addNotification("⚠️ No recibí URL del upload");
+    return;
   }
+
+  // ✅ sustituye el preview local por la URL real (sin recargar)
+  setChatMessages((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).map((m: any) =>
+      m.id === tempId
+        ? { ...m, text: url, content: url, __uploading: false, __progress: 100 }
+        : m
+    )
+  );
+
+  // ✅ al reemplazar por URL, baja otra vez (por si el layout cambió)
+  scrollChatToBottom();
+
+  // ✅ libera blob (evita leaks)
+  if (localPreview) {
+    try {
+      URL.revokeObjectURL(localPreview);
+    } catch {}
+  }
+
+  // enviar al servidor (firma simple)
+  let res: any = null;
+  try {
+    res = await (sendMessageAction as any)(chatConversationId, url);
+  } catch {}
+
+  // fallback por si tu action usa objeto
+  if (!res?.success) {
+    try {
+      res = await (sendMessageAction as any)({
+        conversationId: chatConversationId,
+        text: url,
+      });
+    } catch {}
+  }
+  if (!res?.success) {
+    try {
+      res = await (sendMessageAction as any)({
+        conversationId: chatConversationId,
+        content: url,
+      });
+    } catch {}
+  }
+
+  // si el server devuelve mensaje, reemplazamos el temp por el real
+  if (res?.success && res?.data) {
+    const serverMsg = res.data;
+    const normalized = {
+      ...serverMsg,
+      text: serverMsg?.text ?? serverMsg?.content ?? url,
+      content: serverMsg?.content ?? serverMsg?.text ?? url,
+      __uploading: false,
+      __progress: 100,
+    };
+
+    setChatMessages((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).map((m: any) =>
+        m.id === tempId ? normalized : m
+      )
+    );
+
+    // ✅ scroll final al quedar el mensaje real
+    scrollChatToBottom();
+
+    const sentAt = normalized?.createdAt
+      ? new Date(normalized.createdAt).getTime()
+      : Date.now();
+    markConversationAsRead(String(chatConversationId), sentAt);
+
+    addNotification("✅ Archivo enviado");
+    return;
+  }
+
+  addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ Subido pero no pude enviar");
+} catch (err: any) {
+  console.error(err);
+
+  // limpia el mensaje temp
+  setChatMessages((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).filter((m: any) => m?.id !== tempId)
+  );
+
+  // libera blob si existía
+  if (localPreview) {
+    try {
+      URL.revokeObjectURL(localPreview);
+    } catch {}
+  }
+
+  addNotification(`❌ Upload: ${err?.message || "falló"}`);
+}
 };
 
 
@@ -2241,13 +2456,21 @@ const isAgency =
               return (
                 <button
                   key={id}
-                  onClick={() => {
-                    if (blocked) {
-                      addNotification("⛔ Usuario bloqueado");
-                      return;
-                    }
-                    openConversation(id);
-                  }}
+               onClick={async () => {
+  if (blocked) {
+    addNotification("⛔ Usuario bloqueado");
+    return;
+  }
+
+  // ✅ 1) abre Details (si hay property) y espera a que cargue del server si hace falta
+  await tryOpenDetailsFromThread(t);
+
+  // ✅ 2) abre el chat
+  openConversation(id);
+}}
+
+
+
                   className={`w-full text-left border rounded-2xl p-3 transition-all ${
                     active
                       ? "bg-blue-500/15 border-blue-500/30"
@@ -2369,8 +2592,8 @@ const isAgency =
             )}
           </div>
 
-       {/* messages */}
-<div className="flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar space-y-2">
+   {/* messages */}
+<div className="chat-scroll flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar space-y-2">
   {chatLoading && (
     <div className="text-[10px] text-white/40 tracking-widest uppercase">
       Cargando...
@@ -2394,6 +2617,17 @@ const isAgency =
           const mine = String(m?.senderId || "") === String(activeUserKey || "");
           const text = m?.text ?? m?.content ?? "";
 
+          const uploading = !!m?.__uploading;
+          const pct = Math.max(0, Math.min(100, Number(m?.__progress || 0)));
+
+          const s = String(text || "").trim();
+          const media = extractFirstUrl(s) || s;
+          const isImg = isImageUrl(media);
+          const isUrl =
+            /^https?:\/\//i.test(media) ||
+            /^blob:/i.test(media) ||
+            /^data:image\//i.test(media);
+
           return (
             <div
               key={String(m?.id || Math.random())}
@@ -2403,53 +2637,42 @@ const isAgency =
                   : "mr-auto bg-white/10 border-white/10 text-white/80"
               } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
             >
-              {(() => {
-                const s = String(text || "").trim();
+              {/* contenido */}
+              {isImg ? (
+                <a href={media} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={media}
+                    className="max-w-full rounded-xl border border-white/10"
+                    alt="Adjunto"
+                  />
+                </a>
+              ) : isUrl ? (
+                <a
+                  href={media}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-white/90 break-all"
+                >
+                  {media}
+                </a>
+              ) : (
+                s || <span className="text-white/30">...</span>
+              )}
 
-                const isUrl = /^https?:\/\/\S+$/i.test(s);
-                const isImg = isUrl && /\.(png|jpe?g|webp|gif)$/i.test(s);
-                const isPdf = isUrl && /\.pdf$/i.test(s);
-
-                if (isImg) {
-                  return (
-                    <a href={s} target="_blank" rel="noreferrer" className="block">
-                      <img
-                        src={s}
-                        className="max-w-full rounded-xl border border-white/10"
-                        alt="Adjunto"
-                      />
-                    </a>
-                  );
-                }
-
-                if (isPdf) {
-                  return (
-                    <a
-                      href={s}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10"
-                    >
-                      📄 PDF adjunto (abrir)
-                    </a>
-                  );
-                }
-
-                if (isUrl) {
-                  return (
-                    <a
-                      href={s}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline text-white/90 break-all"
-                    >
-                      {s}
-                    </a>
-                  );
-                }
-
-                return s || <span className="text-white/30">...</span>;
-              })()}
+              {/* progreso moderno */}
+              {uploading && (
+                <div className="mt-2">
+                  <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-1.5 rounded-full bg-blue-400 transition-all"
+                      style={{ width: `${Math.max(2, pct)}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[10px] text-white/50 font-mono">
+                    Subiendo… {pct}%
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -2458,10 +2681,9 @@ const isAgency =
   ) : null}
 </div>
 
-         {/* footer input */}
+{/* footer input */}
 <div className="p-3 border-t border-white/10 bg-black/20 pointer-events-auto">
   <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/10 pointer-events-auto">
-    
     {/* input oculto (imagen/pdf) */}
     <input
       ref={chatFileInputRef}
@@ -2475,7 +2697,7 @@ const isAgency =
     <button
       type="button"
       onClick={handlePickChatFile}
-      disabled={!chatConversationId || chatUploading}
+disabled={chatUploading}
       className="text-white/40 hover:text-white transition-colors pointer-events-auto disabled:opacity-30"
       title={!chatConversationId ? "Selecciona una conversación" : "Adjuntar (Cloudinary)"}
     >

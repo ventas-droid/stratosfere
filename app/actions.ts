@@ -199,6 +199,75 @@ export async function getGlobalPropertiesAction() {
   }
 }
 
+// ✅ Obtener UNA propiedad completa (para abrir Details desde Threads sin stub)
+export async function getPropertyByIdAction(propertyId: string) {
+  try {
+    const id = String(propertyId || "").trim();
+    if (!id) return { success: false, error: "MISSING_PROPERTY_ID" };
+
+    const p: any = await prisma.property.findUnique({
+      where: { id },
+      include: {
+        images: true,
+        user: { select: USER_IDENTITY_SELECT },
+      },
+    });
+
+    if (!p) return { success: false, error: "NOT_FOUND" };
+
+    // 1) Imágenes coherentes (igual que global)
+    const allImages = (p.images || [])
+      .map((img: any) => img?.url)
+      .filter(Boolean);
+
+    const realImg = allImages?.[0] || p.mainImage || null;
+    const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
+
+    // 2) Identidad unificada (igual que global)
+    const identity = buildIdentity(p.user, p.ownerSnapshot);
+
+    // 3) Coordenadas seguras
+    const lng = p.longitude ?? -3.7038;
+    const lat = p.latitude ?? 40.4168;
+
+    // 4) Precio
+    const rawPrice = Number(p.price || 0);
+    const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
+
+    // ✅ devolvemos en el MISMO formato que Details/Map ya saben manejar
+    const mapped = {
+      ...p,
+      id: p.id,
+      ownerSnapshot: p.ownerSnapshot ?? null,
+      user: identity,
+
+      coordinates: [lng, lat],
+      longitude: lng,
+      latitude: lat,
+
+      images: imagesFinal,
+      img: realImg,
+
+      price: priceFormatted,
+      rawPrice,
+      priceValue: rawPrice,
+
+      m2: Number(p.mBuilt || 0),
+      mBuilt: Number(p.mBuilt || 0),
+      communityFees: Number(p.communityFees || 0),
+
+      energyConsumption: p.energyConsumption ?? null,
+      energyEmissions: p.energyEmissions ?? null,
+      energyPending: !!p.energyPending,
+    };
+
+    return { success: true, data: mapped };
+  } catch (e: any) {
+    console.error("getPropertyByIdAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
 
 // C. GUARDAR PROPIEDAD (ESCRITURA BLINDADA Y CORREGIDA)
 export async function savePropertyAction(data: any) {
@@ -884,6 +953,17 @@ const normalizeThread = (conv: any, meId: string) => {
   const otherUser = pickOtherUser(conv?.participants, meId);
   const prop = conv?.property || null;
 
+  const lastMessageAt = last?.createdAt ? new Date(last.createdAt).getTime() : 0;
+
+  const myPart = Array.isArray(conv?.participants)
+    ? conv.participants.find((p: any) => String(p?.userId) === String(meId))
+    : null;
+
+  const myLastReadAt = myPart?.lastReadAt ? new Date(myPart.lastReadAt).getTime() : 0;
+
+  // ✅ unread REAL: último msg > mi lastReadAt (y que no sea mi propio msg)
+  const unread = lastMessageAt > myLastReadAt && String(last?.senderId || "") !== String(meId);
+
   const refCode = prop?.refCode || null;
   const propertyTitle = prop?.title || null;
 
@@ -908,8 +988,14 @@ const normalizeThread = (conv: any, meId: string) => {
     refCode,
     propertyTitle,
     title,
+
+    // ✅ server truth para badges
+    myLastReadAt,
+    lastMessageAt,
+    unread,
   };
 };
+
 
 export async function getOrCreateConversationAction(a: any, b?: any) {
   try {
@@ -1138,6 +1224,29 @@ export async function getConversationMessagesAction(conversationId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
+// ✅ CHAT: marcar conversación como leída (persistente multi-dispositivo)
+export async function markConversationReadAction(conversationId: string) {
+  try {
+    const meRes = await getUserMeAction();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const cid = String(conversationId || "").trim();
+    if (!cid) return { success: false, error: "MISSING_CONVERSATION_ID" };
+
+    // ✅ solo si soy participante
+    await prisma.conversationParticipant.updateMany({
+      where: { conversationId: cid, userId: me.id },
+      data: { lastReadAt: new Date() },
+    });
+
+    return { success: true };
+  } catch (e: any) {
+    console.error("markConversationReadAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
 
 export async function sendMessageAction(a: any, b?: any) {
   try {
