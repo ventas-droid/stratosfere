@@ -895,38 +895,55 @@ export async function getPropertiesAction() {
     const user = await getCurrentUser();
     if (!user) return { success: false, data: [] };
 
-    // Buscamos las propiedades donde el userId coincida con el usuario actual
     const properties = await prisma.property.findMany({
-      where: { userId: user.id }, 
-      orderBy: { createdAt: 'desc' },
-      include: { images: true } 
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        images: true,
+        // ✅ CLAVE: identidad “viva” del owner (tú) para avatar/cover cross-device
+        user: { select: USER_IDENTITY_SELECT },
+      },
     });
 
     const mappedProps = properties.map((p: any) => {
-        // Gestión de imagen principal
-        const realImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
-        let allImages = (p.images || []).map((img: any) => img.url);
-        if (allImages.length === 0 && realImg) allImages = [realImg];
+      // Gestión de imagen principal
+      const realImg =
+        (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
 
-        return {
-            ...p,
-            id: p.id,
-            coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
-            images: allImages,
-            img: realImg || null,
-            price: new Intl.NumberFormat('es-ES').format(p.price || 0),
-            rawPrice: p.price,
-            
-            // Datos normalizados
-            m2: Number(p.mBuilt || 0),
-            mBuilt: Number(p.mBuilt || 0),
-            communityFees: p.communityFees || 0,
-            
-            // Booleanos seguros
-            pool: !!p.pool,
-            garage: !!p.garage,
-            elevator: !!p.elevator
-        };
+      let allImages = (p.images || []).map((img: any) => img.url);
+      if (allImages.length === 0 && realImg) allImages = [realImg];
+
+      // ✅ Identidad unificada (igual que global)
+      const identity = buildIdentity(p.user, p.ownerSnapshot);
+
+      // ✅ ownerSnapshot siempre disponible (para legacy sin snapshot)
+      const safeOwnerSnapshot =
+        (p.ownerSnapshot && typeof p.ownerSnapshot === "object") ? p.ownerSnapshot : identity;
+
+      return {
+        ...p,
+        id: p.id,
+
+        // ✅ CLAVE: ahora DetailsPanel SIEMPRE tendrá avatar/cover
+        ownerSnapshot: safeOwnerSnapshot,
+        user: identity,
+
+        coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
+        images: allImages,
+        img: realImg || null,
+        price: new Intl.NumberFormat("es-ES").format(p.price || 0),
+        rawPrice: p.price,
+
+        // Datos normalizados
+        m2: Number(p.mBuilt || 0),
+        mBuilt: Number(p.mBuilt || 0),
+        communityFees: p.communityFees || 0,
+
+        // Booleanos seguros
+        pool: !!p.pool,
+        garage: !!p.garage,
+        elevator: !!p.elevator,
+      };
     });
 
     return { success: true, data: mappedProps };
@@ -935,6 +952,7 @@ export async function getPropertiesAction() {
     return { success: false, data: [] };
   }
 }
+
 
 // ✅ CHAT GENERAL — ACTIONS (server)
 
