@@ -91,12 +91,18 @@ export const parseOmniSearch = (text: string) => {
       else if (query.match(/casa|hogar|vivienda/)) context = 'VIVIENDA';
   }
 
-  // E. LIMPIEZA GEOGRÁFICA (Para que Mapbox entienda la dirección)
+   // E. LIMPIEZA GEOGRÁFICA (Para que Mapbox entienda la dirección)
   let locationQuery = query
     .replace(/(\d+[.,]?\d*)\s*(m|k|€|eur|euro|euros)/g, '')
     .replace(/(\d{1,3}([.,]\d{3})+)/g, '')
     .replace(/(\d+)\s*(m2|mts|metro|met|m²)/g, '')
-    .replace(/pisos?|casas?|aticos?|chalets?|villas?|bungalows?|trasteros?|garajes?|solares?|fincas?|naves?|locales?|oficinas?|de|en|por|menos|maximo/g, '')
+
+    // ✅ Tipos SOLO si son palabra completa (evita romper seVILLA, jaEN, etc.)
+    .replace(/\b(pisos?|casas?|áticos?|aticos?|chalets?|villas?|bungalows?|trasteros?|garajes?|solares?|fincas?|naves?|locales?|oficinas?)\b/g, '')
+
+    // ✅ Stopwords SOLO si son palabra completa (evita cortar dentro de ciudades)
+    .replace(/\b(de|en|por|menos|maximo|máximo)\b/g, '')
+
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -110,5 +116,4 @@ export const parseOmniSearch = (text: string) => {
     } 
   };
 };
-
 
