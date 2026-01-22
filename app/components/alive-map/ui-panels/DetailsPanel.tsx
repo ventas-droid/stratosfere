@@ -412,27 +412,36 @@ const copyPhone = () => {
   >
     <Phone size={18} /> Contactar Propietario
   </button>
+{/* ✅ MENSAJE (acceso rápido) */}
+<button
+  onClick={(e) => {
+    if (e?.stopPropagation) e.stopPropagation();
 
-  {/* ✅ MENSAJE (acceso rápido) */}
-  <button
-    onClick={() => {
-      const toUserId = String(
-        selectedProp?.user?.id || selectedProp?.ownerSnapshot?.id || ""
-      );
-      const propertyId = String(selectedProp?.id || "");
-      if (!toUserId || !propertyId) return;
+    const propertyId = String(
+      selectedProp?.id || selectedProp?.propertyId || selectedProp?._id || ""
+    );
 
-      window.dispatchEvent(
-        new CustomEvent("open-chat-signal", {
-          detail: { propertyId, toUserId },
-        })
-      );
-    }}
-    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 cursor-pointer active:scale-90"
-    title="Mensaje"
-  >
-    <MessageCircle size={22} />
-  </button>
+    const toUserId = String(
+      selectedProp?.user?.id ||
+        selectedProp?.ownerSnapshot?.id ||
+        selectedProp?.userId ||
+        selectedProp?.ownerId ||
+        ""
+    );
+
+    if (!toUserId || !propertyId) return;
+
+    window.dispatchEvent(
+      new CustomEvent("open-chat-signal", {
+        detail: { propertyId, toUserId, otherUserId: toUserId },
+      })
+    );
+  }}
+  className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 cursor-pointer active:scale-90"
+  title="Mensaje"
+>
+  <MessageCircle size={22} />
+</button>
 
   <button
     onClick={handleHeartClick}

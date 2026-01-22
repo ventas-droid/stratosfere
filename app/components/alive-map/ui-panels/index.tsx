@@ -1683,23 +1683,26 @@ const handleOpenChatSignal = async (e: any) => {
       asId(d?.propertyId) ||
       asId(d?.property?.id) ||
       asId(d?.property) ||
-      asId(d?.id);
+      asId(d?.id) ||
+      "";
 
     const toUserId =
       asId(d?.toUserId) ||
+      asId(d?.otherUserId) ||
       asId(d?.userId) ||
       asId(d?.user?.id) ||
       asId(d?.ownerId) ||
       asId(d?.owner?.id) ||
       asId(d?.ownerSnapshot?.id);
 
-    if (!propertyId || !toUserId) {
-      addNotification("⚠️ Chat: faltan IDs (propertyId/toUserId)");
+    // ✅ solo exigimos toUserId (propertyId puede ser opcional)
+    if (!toUserId) {
+      addNotification("⚠️ Chat: falta toUserId");
       console.log("open-chat-signal detail:", d);
       return;
     }
 
-    // 🚫 Evitar chat contigo mismo (muy común cuando abres TU propia propiedad)
+    // 🚫 Evitar chat contigo mismo
     if (String(toUserId) === String(activeUserKey)) {
       addNotification("⚠️ No puedes abrir chat contigo mismo");
       return;
@@ -1711,15 +1714,17 @@ const handleOpenChatSignal = async (e: any) => {
     // 2) Creamos/obtenemos conversación (server) — soporta varias firmas
     let res: any = null;
 
-    // A) firma (propertyId, toUserId)
-    try {
-      res = await (getOrCreateConversationAction as any)(propertyId, toUserId);
-    } catch {}
+    // A) firma (propertyId, toUserId) SOLO si hay propertyId
+    if (propertyId) {
+      try {
+        res = await (getOrCreateConversationAction as any)(propertyId, toUserId);
+      } catch {}
+    }
 
     // B) firma ({ propertyId, toUserId })
     if (!res?.success) {
       try {
-        res = await (getOrCreateConversationAction as any)({ propertyId, toUserId });
+        res = await (getOrCreateConversationAction as any)({ propertyId: propertyId || null, toUserId });
       } catch {}
     }
 
@@ -1727,14 +1732,14 @@ const handleOpenChatSignal = async (e: any) => {
     if (!res?.success) {
       try {
         res = await (getOrCreateConversationAction as any)({
-          propertyId,
+          propertyId: propertyId || null,
           otherUserId: toUserId,
         });
       } catch {}
     }
 
     // D) firma (toUserId, propertyId) (por si tu action lo tiene al revés)
-    if (!res?.success) {
+    if (!res?.success && propertyId) {
       try {
         res = await (getOrCreateConversationAction as any)(toUserId, propertyId);
       } catch {}
@@ -1742,15 +1747,16 @@ const handleOpenChatSignal = async (e: any) => {
 
     console.log("getOrCreateConversationAction ->", res);
 
-    // si sigue fallando:
     if (res?.success === false) {
       addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ No puedo abrir conversación");
       return;
     }
 
+    const thread = res?.data || null;
+
     const convId =
-      asId(res?.data?.conversationId) ||
-      asId(res?.data?.id) ||
+      asId(thread?.conversationId) ||
+      asId(thread?.id) ||
       asId(res?.conversationId) ||
       asId(res?.id);
 
@@ -1759,8 +1765,21 @@ const handleOpenChatSignal = async (e: any) => {
       return;
     }
 
+    // ✅ CLAVE: inyecta/actualiza el thread en la lista para que se vea el usuario a la PRIMERA
+    try {
+      if (thread) {
+        setChatThreads((prev: any[]) => {
+          const arr = Array.isArray(prev) ? prev : [];
+          const filtered = arr.filter((t: any) => String(t?.id) !== String(convId));
+          return [thread, ...filtered];
+        });
+      }
+    } catch (err) {
+      console.warn("setChatThreads merge failed (non-blocking):", err);
+    }
+
     // 3) Abrimos esa conversación y cargamos mensajes
-    await openConversation(convId);
+    await openConversation(String(convId));
 
     addNotification("✅ Canal de comunicación abierto");
   } catch (err) {
@@ -1768,6 +1787,7 @@ const handleOpenChatSignal = async (e: any) => {
     addNotification("⚠️ Error abriendo chat");
   }
 };
+
 
 window.addEventListener("open-details-signal", handleOpenDetails);
 window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
