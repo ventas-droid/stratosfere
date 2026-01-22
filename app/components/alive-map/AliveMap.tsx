@@ -25,11 +25,13 @@ export default function AliveMap({ onMapLoad, systemMode, onRegisterSearch }) {
     setShowRadar(true);
   };
 
-  useEffect(() => {
-    if (isMapLoaded && searchCity && onRegisterSearch) {
-       onRegisterSearch(() => searchCity);
-    }
-  }, [isMapLoaded, onRegisterSearch]);
+ useEffect(() => {
+  if (isMapLoaded && typeof searchCity === "function" && typeof onRegisterSearch === "function") {
+    // ✅ Registramos la función REAL
+    onRegisterSearch(searchCity);
+  }
+}, [isMapLoaded, searchCity, onRegisterSearch]);
+
 
  // --- FIX VISUAL: EL DEFIBRILADOR ---
   useEffect(() => {
