@@ -35,6 +35,9 @@ import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
 import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
 
+import PlanOverlay from "@/app/components/billing/PlanOverlay";
+import { useMyPlan } from "@/app/components/billing/useMyPlan";
+
 // 🔥 IMPORTS ACTIONS (chat + favoritos + agency)
 import {
   getFavoritesAction,
@@ -323,26 +326,49 @@ const applyFreshOwnerBranding = (prop: any) => {
     role: prop.role || cached.role || prop?.user?.role || "AGENCIA",
   };
 };
-
 // --- 6. ESTADOS IA ---
- const [chatOpen, setChatOpen] = useState(false);
+const [chatOpen, setChatOpen] = useState(false);
 const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 const [chatMessages, setChatMessages] = useState<any[]>([]);
 const [chatInput, setChatInput] = useState("");
 const [chatLoading, setChatLoading] = useState(false);
+
 const [aiInput, setAiInput] = useState("");
 const [aiResponse, setAiResponse] = useState("");
 const [isAiTyping, setIsAiTyping] = useState(false);
+
 // ✅ CHAT UNREAD (badge + alertas)
 const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
 const [unreadTotal, setUnreadTotal] = useState(0);
 
-
 // convId -> timestamp del último mensaje por el que YA notificamos (para no spamear)
 const lastNotifiedAtRef = useRef<Record<string, number>>({});
 const lastSeenAtRef = useRef<Record<string, number>>({});
+
+// ✅ BILLING / PLAN OVERLAY (nuevo - mínimo)
+const [planOpen, setPlanOpen] = useState(false);
+
+// ⬇️ RECOMENDADO: que el hook devuelva también "loading"
+const { plan, isActive, loading: planLoading } = useMyPlan();
+const planDismissedRef = useRef(false);
+
+const closePlanOverlay = () => {
+  planDismissedRef.current = true; // evita que se reabra en esta sesión
+  setPlanOpen(false);
+};
+
+// ✅ Mostrar PlanOverlay automáticamente si el usuario entra y NO tiene plan activo
+useEffect(() => {
+  if (!gateUnlocked) return;
+  if (planOpen) return;
+  if (planDismissedRef.current) return;
+
+  // ✅ IMPORTANTÍSIMO: solo abre si isActive ES FALSE (no si es undefined)
+  if (isActive === false) setPlanOpen(true);
+}, [gateUnlocked, isActive, planOpen]);
+
 
 // recalcular total
 useEffect(() => {
@@ -1036,23 +1062,41 @@ const handleDeleteConversation = async (conversationId: string) => {
     setDataVersion((v: number) => v + 1);
   }
 };
-
 // ✅ Threads -> abre Details SIEMPRE con property COMPLETA (sin stub)
 const tryOpenDetailsFromThread = async (t: any) => {
   try {
     if (typeof window === "undefined") return;
     if (!t) return;
 
-    const pidRaw = t?.propertyId || t?.property?.id || null;
+    // 1) propertyId robusto (por si tu normalizeThread cambia forma)
+    const pidRaw =
+      t?.propertyId ||
+      t?.property?.id ||
+      t?.property?.propertyId ||
+      t?.property?.uuid ||
+      null;
+
     const pid = pidRaw ? String(pidRaw).trim() : "";
     if (!pid) return;
 
-    const res = await (getPropertyByIdAction as any)(pid);
+    // 2) evita llamadas repetidas si ya estás viendo esa misma prop
+    if (String(selectedProp?.id || "") === pid) {
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: selectedProp }));
+      return;
+    }
+
+    // 3) action existente
+    const fn = getPropertyByIdAction as any;
+    if (typeof fn !== "function") {
+      console.warn("tryOpenDetailsFromThread: falta getPropertyByIdAction");
+      return;
+    }
+
+    const res = await fn(pid);
     if (!res?.success || !res?.data) return;
 
-    window.dispatchEvent(
-      new CustomEvent("open-details-signal", { detail: res.data })
-    );
+    // 4) dispara tu canal global (tu listener ya sanitiza y abre DETAILS)
+    window.dispatchEvent(new CustomEvent("open-details-signal", { detail: res.data }));
   } catch (e) {
     console.warn("tryOpenDetailsFromThread failed:", e);
   }
@@ -1896,6 +1940,7 @@ useEffect(() => {
 
   // ✅ 2.1 Cerrar CHAT flotante (overlay) para que no sobreviva al cambio de modo
   setChatOpen(false);
+setPlanOpen(false);
 
   // 3. Limpiar Selecciones (Para que el mapa no brille por cosas viejas)
   setSelectedProp(null);
@@ -1915,31 +1960,100 @@ useEffect(() => {
 }, [systemMode, agencyLikes, localFavs]);
 
 
-  // --- PROTOCOLO DE SEGURIDAD (GATE) ---
-  if (!gateUnlocked) {
-    return (
-      <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none overflow-hidden">
-        <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none opacity-80" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
-            <path d="M-100,1200 C 400,900 600,1100 1100,700 C 1400,500 1500,450 1650,250" fill="none" stroke="black" strokeWidth="1.5" strokeDasharray="10 10" className="opacity-40" />
-            <path d="M-200,1300 C 350,850 550,1000 1050,650 C 1450,450 1550,400 1680,280" fill="none" stroke="black" strokeWidth="2" strokeLinecap="round"/>
-            <g transform="translate(1680, 250) rotate(40) scale(0.9)">
-                <path d="M0,-80 C 25,-50 25,50 20,80 L -20,80 C -25,50 -25,-50 0,-80 Z" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
-                <path d="M-20,60 L -40,90 L -20,80" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
-                <path d="M20,60 L 40,90 L 20,80" fill="white" stroke="black" strokeWidth="2.5" strokeLinejoin="round"/>
-                <path d="M0,60 L 0,90" stroke="black" strokeWidth="2" />
-                <circle cx="0" cy="-20" r="10" fill="white" stroke="black" strokeWidth="2" />
-                <path d="M0,-80 L 0,-100" stroke="black" strokeWidth="2" />
-            </g>
-        </svg>
-        <div className="relative z-10 text-center mb-24 cursor-default">
-            <h1 className="text-7xl md:text-9xl font-extrabold tracking-tighter leading-none text-black">Stratosfere OS.</h1>
-        </div>
-        <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); window.location.href = "/register"; }} className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white cursor-pointer uppercase">
-            CREAR CUENTA
-        </button>
+ // --- PROTOCOLO DE SEGURIDAD (GATE) ---
+if (!gateUnlocked) {
+  return (
+    <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center pointer-events-auto animate-fade-in select-none overflow-hidden">
+      <svg
+        className="absolute inset-0 w-full h-full z-0 pointer-events-none opacity-80"
+        viewBox="0 0 1920 1080"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <path
+          d="M-100,1200 C 400,900 600,1100 1100,700 C 1400,500 1500,450 1650,250"
+          fill="none"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeDasharray="10 10"
+          className="opacity-40"
+        />
+        <path
+          d="M-200,1300 C 350,850 550,1000 1050,650 C 1450,450 1550,400 1680,280"
+          fill="none"
+          stroke="black"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        <g transform="translate(1680, 250) rotate(40) scale(0.9)">
+          <path
+            d="M0,-80 C 25,-50 25,50 20,80 L -20,80 C -25,50 -25,-50 0,-80 Z"
+            fill="white"
+            stroke="black"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M-20,60 L -40,90 L -20,80"
+            fill="white"
+            stroke="black"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M20,60 L 40,90 L 20,80"
+            fill="white"
+            stroke="black"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <path d="M0,60 L 0,90" stroke="black" strokeWidth="2" />
+          <circle cx="0" cy="-20" r="10" fill="white" stroke="black" strokeWidth="2" />
+          <path d="M0,-80 L 0,-100" stroke="black" strokeWidth="2" />
+        </g>
+      </svg>
+
+      {/* Centro */}
+      <div className="relative z-10 text-center mb-10 md:mb-14 cursor-default">
+        <h1 className="text-7xl md:text-9xl font-extrabold tracking-tighter leading-none text-black">
+          Stratosfere OS.
+        </h1>
       </div>
-    );
-  }
+
+      <button
+        onClick={() => {
+          if (typeof playSynthSound === "function") playSynthSound("click");
+          window.location.href = "/register";
+        }}
+        className="group relative z-10 px-16 py-6 bg-[#0071e3] border-4 border-black text-white font-extrabold text-sm tracking-wider transition-all duration-200 shadow-[10px_10px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] hover:bg-black hover:text-white cursor-pointer uppercase"
+      >
+        CREAR CUENTA
+      </button>
+
+      {/* Footer legal pegado abajo (más visible) */}
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 pointer-events-auto flex flex-col items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] md:text-sm text-black/70">
+          <a className="underline underline-offset-4 hover:text-black" href="/pricing">
+            Pricing
+          </a>
+          <a className="underline underline-offset-4 hover:text-black" href="/terms">
+            Términos
+          </a>
+          <a className="underline underline-offset-4 hover:text-black" href="/privacy">
+            Privacidad
+          </a>
+          <a className="underline underline-offset-4 hover:text-black" href="/refunds">
+            Reembolsos
+          </a>
+        </div>
+
+        <div className="text-[11px] md:text-[12px] text-black/40">
+          © {new Date().getFullYear()} Stratosfere
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
   // --- RENDERIZADO PRINCIPAL ---
   return (
@@ -2120,46 +2234,67 @@ useEffect(() => {
 
                            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                     {/* DERECHA: ARSENAL TÁCTICO DE AGENCIA (DOBLE CANAL) */}
-                           <div className="flex items-center gap-1">
-                               {/* 1. RADAR */}
-                               <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('ping'); if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-radar-signal')); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"><Crosshair size={18} /></button>
-                               
-                               {/* 2. MERCADO GLOBAL */}
-                               <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AGENCY_MARKET' ? 'NONE' : 'AGENCY_MARKET'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${activePanel === 'AGENCY_MARKET' ? 'text-white bg-white/10' : 'text-white/50 hover:text-white'}`}><Shield size={18} /></button>
+                 {/* DERECHA: ARSENAL TÁCTICO DE AGENCIA (DOBLE CANAL) */}
+<div className="flex items-center gap-1">
+  {/* 1. RADAR */}
+  <button
+    onClick={() => {
+      if (typeof playSynthSound === "function") playSynthSound("ping");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("open-radar-signal"));
+      }
+    }}
+    className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all hover:scale-105 active:scale-95"
+  >
+    <Crosshair size={18} />
+  </button>
 
-                              {/* 3. COMUNICACIONES */}
-<button
-  onClick={() => {
-    if (typeof playSynthSound === "function") playSynthSound("click");
-   if (chatOpen) {
-  setChatOpen(false);
-} else {
-  openChatPanel();
-}
+  {/* 2. MERCADO GLOBAL (gated por plan) */}
+  <button
+    onClick={() => {
+      if (typeof playSynthSound === "function") playSynthSound("click");
 
-  }}
- className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-  chatOpen
-    ? "text-blue-400 bg-blue-500/10"
-    : "text-white/50 hover:text-white"
-}`}
+      // ✅ si no hay plan activo -> abre overlay y NO abre el panel
+      if (!isActive) {
+        setPlanOpen(true);
+        addNotification("⚡ Activa un plan para desbloquear Mercado");
+        return;
+      }
 
->
-  <span className="relative inline-flex">
-    <MessageCircle size={18} />
-    {unreadTotal > 0 && (
-      <>
-        {/* punto parpadeando tipo blackberry */}
-        <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-        {/* contador */}
-        <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
-          {unreadTotal > 9 ? "9+" : unreadTotal}
-        </span>
-      </>
-    )}
-  </span>
-</button>
+      setActivePanel(activePanel === "AGENCY_MARKET" ? "NONE" : "AGENCY_MARKET");
+    }}
+    className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+      activePanel === "AGENCY_MARKET"
+        ? "text-white bg-white/10"
+        : "text-white/50 hover:text-white"
+    }`}
+  >
+    <Shield size={18} />
+  </button>
+
+  {/* 3. COMUNICACIONES */}
+  <button
+    onClick={() => {
+      if (typeof playSynthSound === "function") playSynthSound("click");
+      if (chatOpen) setChatOpen(false);
+      else openChatPanel();
+    }}
+    className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+      chatOpen ? "text-blue-400 bg-blue-500/10" : "text-white/50 hover:text-white"
+    }`}
+  >
+    <span className="relative inline-flex">
+      <MessageCircle size={18} />
+      {unreadTotal > 0 && (
+        <>
+          <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+          <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
+            {unreadTotal > 9 ? "9+" : unreadTotal}
+          </span>
+        </>
+      )}
+    </span>
+  </button>
 
                                {/* 4. IA */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-white/50 hover:text-white'}`}><Sparkles size={18}/></button>
@@ -2774,6 +2909,17 @@ disabled={chatUploading}
       </div>
 
     </div>
+  </div>
+)}
+{/* ✅ BILLING OVERLAY */}
+{planOpen && (
+  <div className="fixed inset-0 z-[26000] pointer-events-auto">
+    <PlanOverlay
+      isOpen={planOpen}
+     onClose={closePlanOverlay}
+      plan={plan}
+      isActive={isActive}
+    />
   </div>
 )}
 

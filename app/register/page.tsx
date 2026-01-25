@@ -84,7 +84,7 @@ function AuthContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center p-4 font-sans">
+<div className="w-full h-full bg-[#F5F5F7] flex items-center justify-center p-4 font-sans">
       <div className="max-w-4xl w-full">
         
         {/* CABECERA DINÁMICA */}
@@ -244,13 +244,42 @@ function AuthContent() {
 // 2. EXPORTAMOS POR DEFECTO EL WRAPPER CON SUSPENSE
 export default function AuthPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">
-        <Loader2 className="animate-spin text-gray-400" size={32} />
-      </div>
-    }>
-      <AuthContent />
-    </Suspense>
-  )
-}
+    <div className="min-h-screen bg-[#F5F5F7] font-sans flex flex-col">
+      <main className="flex-1 flex items-center justify-center p-4">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center">
+              <Loader2 className="animate-spin text-gray-400" size={32} />
+            </div>
+          }
+        >
+          <AuthContent />
+        </Suspense>
+      </main>
 
+      {/* ✅ FOOTER LEGAL ABAJO */}
+      <footer className="pb-10 pt-6">
+        <div className="mx-auto max-w-4xl px-6 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] md:text-sm text-black/70">
+            <a className="underline underline-offset-4 hover:text-black" href="/pricing">
+              Pricing
+            </a>
+            <a className="underline underline-offset-4 hover:text-black" href="/terms">
+              Términos
+            </a>
+            <a className="underline underline-offset-4 hover:text-black" href="/privacy">
+              Privacidad
+            </a>
+            <a className="underline underline-offset-4 hover:text-black" href="/refunds">
+              Reembolsos
+            </a>
+          </div>
+
+          <div className="mt-3 text-[11px] md:text-[12px] text-black/40">
+            © {new Date().getFullYear()} Stratosfere
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
