@@ -18,16 +18,34 @@ export default function TermsPage() {
           </Link>
         </header>
 
-        <div className="mt-6 text-sm text-zinc-600">
-          <p>
-            Titular: <strong className="text-black">SF Urban S.L.</strong> (CIF{" "}
-            <strong className="text-black">B-75965723</strong>) · Contacto:{" "}
-            <a className="underline text-black" href="mailto:info@stratosfere.com">
-              info@stratosfere.com
-            </a>
-          </p>
-          <p className="mt-2">Última actualización: {new Date().toLocaleDateString("es-ES")}</p>
-        </div>
+       <div className="mt-6 text-sm text-zinc-600">
+  <p>
+    Titular / Operador legal:{" "}
+    <strong className="text-black">SF Urban S.L.</strong> (CIF{" "}
+    <strong className="text-black">B-75965723</strong>) · Marca comercial:{" "}
+    <strong className="text-black">Stratosfere</strong>
+  </p>
+
+  <p className="mt-2">
+    Domicilio social:{" "}
+    <strong className="text-black">
+      [AVENIDA DE LAS CUMBRES 13 - 29604 -  MARBELLA, ESPAÑA]
+    </strong>
+  </p>
+
+  <p className="mt-2">
+    Contacto:{" "}
+    <a className="underline text-black" href="mailto:info@stratosfere.com">
+      info@stratosfere.com
+    </a>
+  </p>
+
+  <p className="mt-2">
+    Última actualización:{" "}
+    <strong className="text-black">25/01/2026</strong>
+  </p>
+</div>
+
 
         <section className="mt-10 space-y-8 text-sm text-zinc-700 leading-6">
           <Block title="1. Qué es Stratosfere">
@@ -85,11 +103,13 @@ export default function TermsPage() {
           </Block>
         </section>
 
-        <footer className="mt-12 border-t border-zinc-200 pt-6 text-sm text-zinc-600">
-          <Link href="/privacy" className="underline text-black">Privacidad</Link>{" "}
-          · <Link href="/refunds" className="underline text-black">Reembolsos</Link>{" "}
-          · <Link href="/pricing" className="underline text-black">Pricing</Link>
-        </footer>
+       <footer className="mt-12 border-t border-zinc-200 pt-6 text-sm text-zinc-600">
+  <Link href="/terms" className="underline text-black">Términos</Link>{" "}
+  · <Link href="/privacy" className="underline text-black">Privacidad</Link>{" "}
+  · <Link href="/refunds" className="underline text-black">Reembolsos</Link>{" "}
+  · <Link href="/pricing" className="underline text-black">Pricing</Link>
+</footer>
+
       </div>
     </main>
   );

@@ -13,31 +13,36 @@ export default function RefundsPage() {
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
             Política de reembolso
           </h1>
-          <Link href="/pricing" className="text-sm font-bold tracking-widest uppercase text-zinc-600 hover:text-black">
+          <Link
+            href="/pricing"
+            className="text-sm font-bold tracking-widest uppercase text-zinc-600 hover:text-black"
+          >
             Pricing
           </Link>
         </header>
 
         <div className="mt-6 text-sm text-zinc-600">
           <p>
-            SF Urban S.L. (CIF B-75965723) ·{" "}
+            Responsable: <strong className="text-black">SF Urban S.L.</strong> (CIF{" "}
+            <strong className="text-black">B-75965723</strong>) ·{" "}
             <a className="underline text-black" href="mailto:info@stratosfere.com">
               info@stratosfere.com
             </a>
           </p>
+          <p className="mt-2">Última actualización: 25/01/2026</p>
         </div>
 
         <section className="mt-10 space-y-6 text-sm text-zinc-700 leading-6">
           <p>
-            Stratosfere es un servicio digital por suscripción. Por defecto, los pagos cubren el acceso
-            al servicio durante el periodo contratado.
+            Stratosfere es un servicio digital por suscripción. Por defecto, los pagos cubren el acceso al servicio
+            durante el periodo contratado.
           </p>
 
           <div className="border border-zinc-200 rounded-2xl p-5">
             <h2 className="font-extrabold text-black">Regla general</h2>
             <p className="mt-2">
-              Puedes cancelar en cualquier momento y conservarás acceso hasta el final del ciclo pagado.
-              No se realizan reembolsos por periodos ya iniciados salvo excepciones.
+              Puedes cancelar en cualquier momento y conservarás acceso hasta el final del ciclo pagado. No se realizan
+              reembolsos por periodos ya iniciados salvo excepciones.
             </p>
           </div>
 
@@ -74,6 +79,14 @@ export default function RefundsPage() {
             .
           </p>
         </section>
+
+        {/* Footer legal (navegación clara para Paddle) */}
+        <footer className="mt-12 border-t border-zinc-200 pt-6 text-sm text-zinc-600">
+          <Link href="/terms" className="underline text-black">Términos</Link>{" "}
+          · <Link href="/privacy" className="underline text-black">Privacidad</Link>{" "}
+          · <Link href="/refunds" className="underline text-black">Reembolsos</Link>{" "}
+          · <Link href="/pricing" className="underline text-black">Pricing</Link>
+        </footer>
       </div>
     </main>
   );

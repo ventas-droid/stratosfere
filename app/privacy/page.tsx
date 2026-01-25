@@ -13,7 +13,10 @@ export default function PrivacyPage() {
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
             Política de privacidad
           </h1>
-          <Link href="/terms" className="text-sm font-bold tracking-widest uppercase text-zinc-600 hover:text-black">
+          <Link
+            href="/terms"
+            className="text-sm font-bold tracking-widest uppercase text-zinc-600 hover:text-black"
+          >
             Términos
           </Link>
         </header>
@@ -26,6 +29,7 @@ export default function PrivacyPage() {
               info@stratosfere.com
             </a>
           </p>
+          <p className="mt-2">Última actualización: 25/01/2026</p>
         </div>
 
         <section className="mt-10 space-y-8 text-sm text-zinc-700 leading-6">
@@ -67,6 +71,14 @@ export default function PrivacyPage() {
             .
           </Block>
         </section>
+
+        {/* Footer legal (navegación clara para Paddle) */}
+        <footer className="mt-12 border-t border-zinc-200 pt-6 text-sm text-zinc-600">
+          <Link href="/terms" className="underline text-black">Términos</Link>{" "}
+          · <Link href="/privacy" className="underline text-black">Privacidad</Link>{" "}
+          · <Link href="/refunds" className="underline text-black">Reembolsos</Link>{" "}
+          · <Link href="/pricing" className="underline text-black">Pricing</Link>
+        </footer>
       </div>
     </main>
   );
