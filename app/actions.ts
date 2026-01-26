@@ -1353,16 +1353,10 @@ export async function blockUserAction(otherUserId: string) {
     if (!oid) return { success: false, error: "MISSING_OTHER_USER" };
     if (String(oid) === String(me.id)) return { success: false, error: "CANNOT_BLOCK_SELF" };
 
-    // Si no tienes modelo Block, lo guardamos en user.blockedUserIds (JSON) como fallback.
-    // ✅ OJO: esto requiere que exista el campo user.blockedUserIds (Json/String). Si no existe, dime y lo adaptamos.
-    const user = await prisma.user.findUnique({ where: { id: me.id }, select: { id: true, blockedUserIds: true } as any });
-    const current = Array.isArray((user as any)?.blockedUserIds) ? (user as any).blockedUserIds : [];
-
-    const next = Array.from(new Set([...current.map(String), String(oid)]));
-
-    await prisma.user.update({
-      where: { id: me.id },
-      data: { blockedUserIds: next } as any,
+    await prisma.userBlock.upsert({
+      where: { blockerId_blockedId: { blockerId: me.id, blockedId: oid } },
+      update: {},
+      create: { blockerId: me.id, blockedId: oid },
     });
 
     revalidatePath("/");
@@ -1372,6 +1366,7 @@ export async function blockUserAction(otherUserId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
+
 
 // ✅ BORRAR conversación (solo si eres participante)
 export async function deleteConversationAction(conversationId: string) {
@@ -1398,6 +1393,278 @@ export async function deleteConversationAction(conversationId: string) {
     return { success: true };
   } catch (e: any) {
     console.error("deleteConversationAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+// =========================================================
+// 📡 RADAR/COMMS SaaS — Campaigns + límites de Plan (sin localStorage)
+// =========================================================
+
+const getPeriodKey = () => {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}`; // "2026-01"
+};
+
+const getMyPlanInternal = async (userId: string) => {
+  const sub = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { plan: true, status: true },
+  });
+
+  // Si no hay subscription -> STARTER
+  const plan = (sub?.plan as any) || "STARTER";
+  const status = sub?.status || "ACTIVE";
+  return { plan, status };
+};
+
+const getUsageInternal = async (userId: string, period: string) => {
+  const usage = await prisma.planUsage.findUnique({
+    where: { userId_period: { userId, period } },
+    select: { campaignsSent: true },
+  });
+  return { campaignsSent: usage?.campaignsSent ?? 0 };
+};
+
+// ✅ Para pintar “procesado” en la lista (server truth)
+export async function getMyAgencyCampaignPropertyIdsAction() {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, data: [] as string[] };
+
+    const items = await prisma.campaign.findMany({
+      where: { agencyId: me.id },
+      select: { propertyId: true },
+    });
+
+    const ids = Array.from(
+      new Set((items || []).map((c: any) => String(c.propertyId)))
+    );
+
+    return { success: true, data: ids };
+  } catch (e: any) {
+    return { success: false, data: [], error: String(e?.message || e) };
+  }
+}
+
+// ✅ Obtener mi campaña (si existe) para una propiedad
+export async function getCampaignByPropertyAction(propertyId: string) {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, data: null as any, error: "UNAUTH" };
+
+    const pid = String(propertyId || "").trim();
+    if (!pid) return { success: false, data: null, error: "MISSING_PROPERTY_ID" };
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { propertyId_agencyId: { propertyId: pid, agencyId: me.id } },
+    });
+
+    return { success: true, data: campaign };
+  } catch (e: any) {
+    return { success: false, data: null, error: String(e?.message || e) };
+  }
+}
+
+// ✅ ENVIAR PROPUESTA (crea/actualiza Campaign + conversa + usage)
+// Nota: en tu UI lo llamabas “aceptarEncargo”, pero esto es “enviar propuesta”.
+export async function sendCampaignAction(input: {
+  propertyId: string;
+  message?: string;
+  serviceIds?: string[];
+  status?: string; // "SENT" | "ACCEPTED" | "DRAFT" etc
+}) {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const pid = String(input?.propertyId || "").trim();
+    if (!pid) return { success: false, error: "MISSING_PROPERTY_ID" };
+
+    const message = String(input?.message || "").trim();
+    const serviceIds = Array.isArray(input?.serviceIds)
+      ? input!.serviceIds!.map((s) => String(s).trim()).filter(Boolean)
+      : [];
+
+    // 1) Plan + límites
+    const period = getPeriodKey();
+    const { plan } = await getMyPlanInternal(me.id);
+
+    // STARTER = 0 propuestas
+    if (plan === "STARTER") {
+      return { success: false, error: "PLAN_NOT_ALLOWED" };
+    }
+
+    // Miramos si ya había campaña (para idempotencia / no contar doble)
+    const existing = await prisma.campaign.findUnique({
+      where: { propertyId_agencyId: { propertyId: pid, agencyId: me.id } },
+      select: { id: true, status: true, conversationId: true },
+    });
+
+    const isFirstSend = !existing || String(existing.status || "") === "DRAFT";
+
+    if (plan === "PRO" && isFirstSend) {
+      const usage = await getUsageInternal(me.id, period);
+      const limit = 5;
+      if ((usage.campaignsSent || 0) >= limit) {
+        return { success: false, error: "PLAN_LIMIT_REACHED" };
+      }
+    }
+
+    // 2) Propiedad -> dueño para abrir conversación
+    const prop = await prisma.property.findUnique({
+      where: { id: pid },
+      select: { id: true, userId: true, refCode: true, title: true },
+    });
+
+    let conversationId: string | null = existing?.conversationId || null;
+
+    // Si hay owner, creamos/obtenemos chat
+    if (prop?.userId) {
+      const convRes: any = await getOrCreateConversationAction({
+        toUserId: prop.userId,
+        propertyId: pid,
+      });
+
+      if (convRes?.success && convRes?.data?.id) {
+        conversationId = convRes.data.id;
+
+        // Guardamos propertyRef si quieres (campo existe en Conversation)
+        try {
+          await prisma.conversation.update({
+            where: { id: conversationId },
+            data: { propertyRef: prop.refCode || null } as any,
+          });
+        } catch {}
+      }
+    }
+
+    // ✅ 2.2 JUSTO AQUÍ: status controlado (para no romper Prisma)
+    const rawStatus = String(input?.status || "SENT").toUpperCase().trim();
+    const desiredStatus = (["SENT", "ACCEPTED", "DRAFT"].includes(rawStatus)
+      ? rawStatus
+      : "SENT") as any;
+
+    // 3) Upsert Campaign (SENT/ACCEPTED/DRAFT)
+    const campaign = await prisma.campaign.upsert({
+      where: { propertyId_agencyId: { propertyId: pid, agencyId: me.id } },
+      update: {
+        status: desiredStatus,
+        message: message || null,
+        serviceIds,
+        conversationId,
+      },
+      create: {
+        propertyId: pid,
+        agencyId: me.id,
+        status: desiredStatus,
+        message: message || null,
+        serviceIds,
+        conversationId,
+      },
+    });
+
+    // 4) Increment usage SOLO si era primer envío (tu lógica actual)
+    if (isFirstSend && plan === "PRO") {
+      await prisma.planUsage.upsert({
+        where: { userId_period: { userId: me.id, period } },
+        update: { campaignsSent: { increment: 1 } },
+        create: { userId: me.id, period, campaignsSent: 1 },
+      });
+    }
+
+    // 5) Opcional MUY útil: mensaje inicial en chat para dejar rastro
+    if (conversationId) {
+      const txt =
+        message ||
+        `Propuesta enviada para ${prop?.refCode || "la propiedad"} (${serviceIds.length} servicios).`;
+
+      await prisma.message.create({
+        data: {
+          conversationId,
+          senderId: me.id,
+          text: txt,
+        },
+      });
+
+      // forzamos updatedAt para orden de threads
+      try {
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() } as any,
+        });
+      } catch {}
+    }
+
+    return {
+      success: true,
+      data: { campaign, conversationId, property: prop || null },
+    };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
+// ✅ (Para cuando implementes el lado propietario)
+// Aceptar campaña = asignación + tasks + status ACCEPTED
+export async function acceptCampaignByOwnerAction(campaignId: string) {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const cid = String(campaignId || "").trim();
+    if (!cid) return { success: false, error: "MISSING_CAMPAIGN_ID" };
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: cid },
+      include: { property: { select: { id: true, userId: true } } },
+    });
+
+    if (!campaign) return { success: false, error: "NOT_FOUND" };
+    if (String(campaign.property?.userId || "") !== String(me.id)) {
+      return { success: false, error: "FORBIDDEN" };
+    }
+
+    const updated = await prisma.campaign.update({
+      where: { id: cid },
+      data: { status: "ACCEPTED" as any },
+    });
+
+    // Assignment (1 por property)
+    await prisma.propertyAssignment.upsert({
+      where: { propertyId: campaign.propertyId },
+      update: {
+        agencyId: campaign.agencyId,
+        campaignId: campaign.id,
+        status: "ACTIVE",
+      },
+      create: {
+        propertyId: campaign.propertyId,
+        agencyId: campaign.agencyId,
+        campaignId: campaign.id,
+        status: "ACTIVE",
+      },
+    });
+
+    // Tasks desde serviceIds (type = serviceId)
+    const sids = Array.isArray(campaign.serviceIds) ? campaign.serviceIds : [];
+    if (sids.length) {
+      // limpiamos tareas previas del campaign por seguridad
+      await prisma.task.deleteMany({ where: { campaignId: campaign.id } });
+
+      await prisma.task.createMany({
+        data: sids.map((sid: string) => ({
+          propertyId: campaign.propertyId,
+          agencyId: campaign.agencyId,
+          campaignId: campaign.id,
+          type: sid,
+          status: "TODO",
+        })),
+      });
+    }
+
+    return { success: true, data: updated };
+  } catch (e: any) {
     return { success: false, error: String(e?.message || e) };
   }
 }

@@ -1,99 +1,326 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  X, Navigation, ChevronLeft, Search, Check, ShieldCheck, 
+import {
+  X, Navigation, ChevronLeft, Search, Check, ShieldCheck,
   MessageSquare, User, Loader2, Send, CheckCircle2, FileText, MapPin
 } from "lucide-react";
 
-// Eliminamos dependencias de "juego" o "demos". 
-// Usamos lógica directa de negocio.
+import {
+  getUserMeAction,
+  getMyAgencyCampaignPropertyIdsAction,
+
+  // ✅ Radar/Comms real
+  getCampaignByPropertyAction,
+  sendCampaignAction,
+
+  // ✅ Chat real
+  getConversationMessagesAction,
+  sendMessageAction,
+  markConversationReadAction,
+
+  // ✅ Abrir Details con snapshot completo
+  getPropertyByIdAction,
+} from "@/app/actions";
 
 export default function TacticalRadarController({ targets = [], onClose }: any) {
-  
+
   // --- 1. ESTADOS ---
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
   const [msgStatus, setMsgStatus] = useState<"IDLE" | "SENDING" | "SENT">("IDLE");
-  
+
   // Chat Real
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [inputMsg, setInputMsg] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ✅ Estado “procesado” (SERVER TRUTH, ya no localStorage)
+  const [processedIds, setProcessedIds] = useState<string[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [meId, setMeId] = useState<string | null>(null);
+// Búsqueda y Navegación
+const [searchTerm, setSearchTerm] = useState("");
+const [isFlying, setIsFlying] = useState(false);
+const [activeTab, setActiveTab] = useState<"RADAR" | "COMMS">("RADAR");
+
+// ✅ Propuesta de campaña (SERVICIOS = selección de la AGENCIA, NO propietario, NO localStorage)
+const [servicesTab, setServicesTab] = useState<"ONLINE" | "OFFLINE">("ONLINE");
+const [proposalServiceIds, setProposalServiceIds] = useState<string[]>([]);
+
+// ✅ Comisión + IVA gestión
+const [commissionPct, setCommissionPct] = useState<number>(3); // % gestión
+const [commissionIvaPct, setCommissionIvaPct] = useState<number>(21); // IVA por defecto
+const [commissionSharePct, setCommissionSharePct] = useState<number>(0); // % del total (privado entre agencias)
+type CommissionShareVisibility = "PRIVATE" | "AGENCIES" | "PUBLIC";
+const [commissionShareVisibility, setCommissionShareVisibility] =
+  useState<CommissionShareVisibility>("AGENCIES");
+
+// ✅ Mandato / Exclusividad (VISIBLE AL CLIENTE)
+const [exclusiveMandate, setExclusiveMandate] = useState<boolean>(true);
+const [exclusiveMonths, setExclusiveMonths] = useState<number>(6);
+
+const toggleProposalService = (id: string) => {
+  const sid = String(id || "").trim();
+  if (!sid) return;
+  setProposalServiceIds((prev) => {
+    const list = Array.isArray(prev) ? prev : [];
+    return list.includes(sid) ? list.filter((x) => x !== sid) : [...list, sid];
+  });
+};
+
+// ✅ Catálogo ONLINE/OFFLINE (sin precios aquí; esto es SOLO para proponer acciones)
+const RADAR_SERVICES = [
+  // ONLINE
+  { id: "foto", name: "FOTOGRAFÍA HDR", category: "ONLINE" },
+  { id: "video", name: "VÍDEO CINE", category: "ONLINE" },
+  { id: "drone", name: "FOTOGRAFÍA DRONE", category: "ONLINE" },
+  { id: "tour3d", name: "TOUR VIRTUAL 3D", category: "ONLINE" },
+  { id: "destacado", name: "POSICIONAMIENTO", category: "ONLINE" },
+  { id: "ads", name: "PAID SOCIAL ADS", category: "ONLINE" },
+  { id: "plano_2d", name: "PLANO TÉCNICO", category: "ONLINE" },
+  { id: "plano_3d", name: "PLANO 3D", category: "ONLINE" },
+  { id: "email", name: "EMAIL INVERSORES", category: "ONLINE" },
+  { id: "copy", name: "COPYWRITING PRO", category: "ONLINE" },
+
+  // OFFLINE
+  { id: "certificado", name: "CERTIFICADO ENERG.", category: "OFFLINE" },
+  { id: "cedula", name: "CÉDULA HABITAB.", category: "OFFLINE" },
+  { id: "nota_simple", name: "NOTA SIMPLE", category: "OFFLINE" },
+  { id: "tasacion", name: "TASACIÓN OFICIAL", category: "OFFLINE" },
+  { id: "lona", name: "LONA FACHADA XL", category: "OFFLINE" },
+  { id: "buzoneo", name: "BUZONEO PREMIUM", category: "OFFLINE" },
+  { id: "revista", name: "REVISTA LUXURY", category: "OFFLINE" },
+  { id: "openhouse", name: "OPEN HOUSE VIP", category: "OFFLINE" },
+  { id: "homestaging", name: "HOME STAGING", category: "OFFLINE" },
+  { id: "limpieza", name: "LIMPIEZA PRO", category: "OFFLINE" },
+  { id: "pintura", name: "LAVADO DE CARA", category: "OFFLINE" },
+  { id: "mudanza", name: "MUDANZA", category: "OFFLINE" },
+  { id: "seguro", name: "SEGURO IMPAGO", category: "OFFLINE" },
+] as const;
+
+const RADAR_SERVICE_MAP: Record<string, { id: string; name: string; category: string }> =
+  Object.fromEntries(
+    RADAR_SERVICES.map((s) => [String(s.id), { id: String(s.id), name: String(s.name), category: String(s.category) }])
+  );
+
+const getServiceLabel = (id: string) =>
+  RADAR_SERVICE_MAP[String(id)]?.name || String(id);
+
+// ✅ SOLO lo que selecciona la agencia para esta propuesta (ONLINE/OFFLINE)
+const getServiceIdsForCampaign = () => {
+  return (Array.isArray(proposalServiceIds) ? proposalServiceIds : [])
+    .map((x) => String(x).trim())
+    .filter(Boolean)
+    .filter((id) => !String(id).startsWith("pack_"));
+};
+
+// ✅ Mensaje por defecto (propuesta) + mandato + exclusividad + total comisión (si hay precio)
+const buildDefaultProposalMessage = (opts?: { agencyRole?: string; refCode?: string; price?: any }) => {
+  const roleTxt = opts?.agencyRole ? `Rol: ${opts.agencyRole}. ` : "";
+  const sids = getServiceIdsForCampaign();
+  const count = sids.length;
+  const list = sids.map(getServiceLabel).join(", ");
+
+  const mandateTxt = exclusiveMandate
+    ? `Mandato: Exclusiva (${exclusiveMonths} meses). `
+    : `Mandato: No exclusiva. `;
+
+  const rawPrice = String(opts?.price ?? "").trim();
+  const priceNum = rawPrice
+    ? Number(
+        rawPrice
+          .replace(/\s/g, "")
+          .replace(/€/g, "")
+          .replace(/\./g, "")
+          .replace(/,/g, ".")
+      )
+    : NaN;
+
+  const base = Number.isFinite(priceNum) ? priceNum * (commissionPct / 100) : NaN;
+  const iva = Number.isFinite(base) ? base * (commissionIvaPct / 100) : NaN;
+  const total = Number.isFinite(base) && Number.isFinite(iva) ? base + iva : NaN;
+
+   const moneyTxt = Number.isFinite(total)
+    ? `Importe comisión: ${base.toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}€ + IVA ${iva.toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}€ = ${total.toLocaleString("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}€. `
+    : "";
+
+  const sharePct = Math.max(0, Math.min(100, Number(commissionSharePct || 0)));
+  const shareAmount = Number.isFinite(total) ? total * (sharePct / 100) : NaN;
+
+  const shareTxt =
+    commissionShareVisibility === "PUBLIC" && Number.isFinite(shareAmount) && sharePct > 0
+      ? `Reparto agente: ${sharePct}% del total (${shareAmount.toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}€). `
+      : "";
+
+  return (
+    `Propuesta de gestión (${opts?.refCode || "SF"}). ` +
+    mandateTxt +
+    `${roleTxt}` +
+    `Comisión ${commissionPct}% + IVA ${commissionIvaPct}%. ` +
+    moneyTxt +
+    shareTxt +
+    `\nServicios incluidos (${count}): ${list || "—"}.` +
+    `\nSi aceptas, abrimos expediente y chat directo.`
+  );
+};
+
+// --- helpers comisión total + reparto (solo UI) ---
+const parsePriceNumber = (val: any) => {
+  const raw = String(val ?? "").trim();
+  if (!raw) return 0;
+
+  const cleaned = raw
+    .replace(/[^\d.,-]/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const propertyPriceEur = parsePriceNumber(selectedTarget?.price);
+const commissionBaseEur = propertyPriceEur * (Number(commissionPct || 0) / 100);
+const commissionTotalEur = commissionBaseEur * (1 + Number(commissionIvaPct || 0) / 100);
+
+const sharedPct = Math.max(0, Math.min(100, Number(commissionSharePct || 0)));
+const sharedAmountEur = commissionTotalEur * (sharedPct / 100);
+
+
+// UI chat espera { sender: 'me'|'other', text }
+const normalizeMessagesForUI = (msgs: any[], myId: string | null) => {
+  const list = Array.isArray(msgs) ? msgs : [];
+  return list.map((m: any) => {
+    const senderId = String(m?.senderId || m?.sender?.id || "");
+    const isMe = !!myId && senderId && String(senderId) === String(myId);
+    return { sender: isMe ? "me" : "other", text: String(m?.text ?? m?.content ?? "") };
+  });
+};
+
   
-  // Memoria Local (Simulando Base de Datos del Navegador)
-  const [processedIds, setProcessedIds] = useState<string[]>([]); 
-
-  // Búsqueda y Navegación
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isFlying, setIsFlying] = useState(false); // Estado de vuelo del mapa
-  const [activeTab, setActiveTab] = useState<'RADAR' | 'COMMS'>('RADAR');
-
-  // --- 2. MEMORIA (Persistencia Real Local) ---
+  // --- 2. MEMORIA (SERVER) ---
   useEffect(() => {
-    const saved = localStorage.getItem('stratos_processed_leads');
-    if (saved) {
-        setProcessedIds(JSON.parse(saved));
-    }
+    (async () => {
+      try {
+        const meRes: any = await getUserMeAction();
+        if (meRes?.success && meRes?.data?.id) setMeId(String(meRes.data.id));
+
+        const idsRes: any = await getMyAgencyCampaignPropertyIdsAction();
+        if (idsRes?.success && Array.isArray(idsRes?.data)) {
+          setProcessedIds(idsRes.data.map((x: any) => String(x)));
+        }
+      } catch (e) {
+        console.error("Radar init error:", e);
+      }
+    })();
   }, []);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, activeTab]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, activeTab]);
+// ✅ Normaliza mensajes DB -> UI actual ({sender:'me'|'other', text})
+const mapDbMessagesToUi = (msgs: any[]) => {
+  const list = Array.isArray(msgs) ? msgs : [];
+  return list.map((m: any) => ({
+    sender: String(m?.senderId || "") === String(meId) ? "me" : "other",
+    text: String(m?.text ?? m?.content ?? ""),
+  }));
+};
+
+const openConversation = async (cid: string) => {
+  const safe = String(cid || "").trim();
+  if (!safe) return;
+
+  setConversationId(safe);
+  setActiveTab("COMMS");
+
+  const msgsRes: any = await getConversationMessagesAction(safe);
+  if (msgsRes?.success) {
+    setChatHistory(mapDbMessagesToUi(msgsRes.data || []));
+  }
+
+  // ✅ unread real
+  try {
+    await markConversationReadAction(safe);
+  } catch {}
+};
 
   // --- 3. MOTOR DE BÚSQUEDA (SIN FILTRAR LA LISTA - SOLO VUELO) ---
   const performGlobalSearch = async () => {
     if (!searchTerm) return;
-    
-    setIsFlying(true); // Activamos indicador de vuelo
-    
-    // 1. No filtramos la lista local. Dejamos que el usuario vea lo que hay o lo que vendrá.
-    // 2. Buscamos coordenadas y movemos el mapa.
+
+    setIsFlying(true);
+
     try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}`);
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-            const location = data[0];
-            const lat = parseFloat(location.lat);
-            const lon = parseFloat(location.lon);
-            
-            if (typeof window !== "undefined") {
-                // Evento de vuelo real
-                window.dispatchEvent(new CustomEvent("fly-to-location", { 
-                    detail: { center: [lon, lat], zoom: 14, pitch: 45 } 
-                }));
-                
-                // Disparamos señal de escaneo para cargar propiedades REALES de esa zona
-                setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('trigger-scan-signal'));
-                    setIsFlying(false);
-                }, 2000);
-            }
-        } else {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}`
+      );
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        const location = data[0];
+        const lat = parseFloat(location.lat);
+        const lon = parseFloat(location.lon);
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("fly-to-location", {
+              detail: { center: [lon, lat], zoom: 14, pitch: 45 },
+            })
+          );
+
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("trigger-scan-signal"));
             setIsFlying(false);
+          }, 2000);
         }
-    } catch (error) {
-        console.error("Error navegación:", error);
+      } else {
         setIsFlying(false);
+      }
+    } catch (error) {
+      console.error("Error navegación:", error);
+      setIsFlying(false);
     }
   };
 
   // --- 4. LÓGICA DE NEGOCIO (LEER NANOCARD) ---
-  const handleTrabajar = (target: any) => {
-    setSelectedTarget(target);
-    const isProcessed = processedIds.includes(String(target.id));
-    
-    // Si ya existe historial, lo cargamos (Lógica real, no demo)
-    if (isProcessed) {
-        setMsgStatus("SENT");
-        setActiveTab("COMMS");
-        // Aquí conectaría con su base de datos real para traer el chat
-        const savedChat = localStorage.getItem(`chat_${target.id}`);
-        setChatHistory(savedChat ? JSON.parse(savedChat) : []);
-    } else {
-        setMsgStatus("IDLE");    
-        setActiveTab("RADAR");
-        setChatHistory([]);
-    }
-  };
+ const handleTrabajar = async (target: any) => {
+  setSelectedTarget(target);
 
+  const pid = String(target?.id || "").trim();
+  const isProcessed = processedIds.includes(pid);
+
+  if (isProcessed) {
+    setMsgStatus("SENT");
+
+    // ✅ Server truth: buscamos Campaign y abrimos su conversación
+    const campRes: any = await getCampaignByPropertyAction(pid);
+    const cid = campRes?.success ? campRes?.data?.conversationId : null;
+
+    if (cid) {
+      await openConversation(String(cid));
+    } else {
+      // fallback suave: abre COMMS sin historial (no rompe)
+      setActiveTab("COMMS");
+      setChatHistory([]);
+    }
+  } else {
+    setMsgStatus("IDLE");
+    setActiveTab("RADAR");
+    setConversationId(null);
+    setChatHistory([]);
+  }
+};
   const handleVolarAPropiedad = (e: any, target: any) => {
     e.stopPropagation(); 
     if (typeof window !== "undefined") {
@@ -102,46 +329,150 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       }));
     }
   };
+const openDetailsAndFlyFromTarget = async (target: any) => {
+  const pid = String(target?.id || "").trim();
+  if (!pid) return;
 
-  // --- 5. ACEPTAR ENCARGO (REAL) ---
-  const aceptarEncargo = () => {
-    if (!selectedTarget) return;
-    setMsgStatus("SENDING");
-    
-    // Simulamos la latencia de red de una petición real
-    setTimeout(() => {
-        setMsgStatus("SENT");
-        
-        // 1. Guardar en "Mis Expedientes"
-        const newProcessed = [...processedIds, String(selectedTarget.id)];
-        setProcessedIds(newProcessed);
-        localStorage.setItem('stratos_processed_leads', JSON.stringify(newProcessed));
+  // Intento: traer snapshot completo (por si targets es “stub”)
+  let prop: any = target;
+  try {
+    const res: any = await getPropertyByIdAction(pid);
+    if (res?.success && res?.data) prop = res.data;
+  } catch {}
 
-        // 2. Iniciar Chat Real
-        setActiveTab('COMMS');
-        const initialChat = [
-            { sender: 'me', text: `Hola, he revisado su propiedad en ${selectedTarget.address}. Acepto las condiciones de la campaña.` }
-        ];
-        setChatHistory(initialChat);
-        localStorage.setItem(`chat_${selectedTarget.id}`, JSON.stringify(initialChat));
+  // Coordenadas seguras
+  const lng =
+    prop?.lng ?? prop?.longitude ?? (Array.isArray(prop?.coordinates) ? prop.coordinates[0] : null);
+  const lat =
+    prop?.lat ?? prop?.latitude ?? (Array.isArray(prop?.coordinates) ? prop.coordinates[1] : null);
 
-    }, 800);
-  };
+  // 1) Vuelo
+  if (typeof window !== "undefined" && lng != null && lat != null) {
+    window.dispatchEvent(
+      new CustomEvent("fly-to-location", {
+        detail: { center: [lng, lat], zoom: 18, pitch: 60 },
+      })
+    );
+  }
 
-  const enviarMensaje = () => {
-      if(!inputMsg.trim()) return;
-      
-      const newMsg = { sender: 'me', text: inputMsg };
-      const updatedChat = [...chatHistory, newMsg];
-      
-      setChatHistory(updatedChat);
-      setInputMsg("");
-      
-      // Guardado persistente real
-      if (selectedTarget) {
-          localStorage.setItem(`chat_${selectedTarget.id}`, JSON.stringify(updatedChat));
+  // 2) Abrir Details
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("open-details-signal", {
+        detail: {
+          propertyId: pid,
+          propertySnapshot: prop,
+          property: prop,
+          id: pid,
+        },
+      })
+    );
+  }
+};
+
+// --- 5. ACEPTAR/PROPONER ENCARGO (REAL) ---
+const aceptarEncargo = async () => {
+  if (!selectedTarget) return;
+
+  const pid = String(selectedTarget?.id || "").trim();
+  if (!pid) return;
+
+  setMsgStatus("SENDING");
+
+  try {
+    // ✅ serviceIds = selección del AGENTE (ONLINE + OFFLINE), sin packs
+    const serviceIds = Array.from(
+      new Set(
+        (Array.isArray(proposalServiceIds) ? proposalServiceIds : [])
+          .map((s: any) => String(s).trim())
+          .filter(Boolean)
+          .filter((id) => !id.startsWith("pack_"))
+      )
+    );
+
+    const defaultMsg = buildDefaultProposalMessage({
+  agencyRole: undefined,
+  refCode: selectedTarget?.refCode,
+  price: selectedTarget?.price,
+});
+
+const res: any = await sendCampaignAction({
+  propertyId: pid,
+  message: defaultMsg,
+  serviceIds,
+  // ✅ IMPORTANTE: si tu backend NO tiene "PROPOSED", deja "ACCEPTED"
+  status: "PROPOSED",
+});
+
+if (!res?.success) {
+  console.error("sendCampaignAction failed:", res?.error);
+  setMsgStatus("IDLE");
+  return;
+}
+
+const convId = res?.data?.conversationId ? String(res.data.conversationId) : null;
+
+
+    // ✅ refrescar procesados desde server truth
+    try {
+      const idsRes: any = await getMyAgencyCampaignPropertyIdsAction();
+      if (idsRes?.success && Array.isArray(idsRes?.data)) {
+        setProcessedIds(idsRes.data.map((x: any) => String(x)));
       }
-  };
+    } catch {}
+
+    setMsgStatus("SENT");
+
+    if (convId) {
+      setConversationId(convId);
+      setActiveTab("COMMS");
+
+      const msgsRes: any = await getConversationMessagesAction(convId);
+      const msgs = msgsRes?.success && Array.isArray(msgsRes.data) ? msgsRes.data : [];
+
+      setChatHistory(
+        msgs.map((m: any) => ({
+          sender: String(m?.senderId || "") === String(meId || "") ? "me" : "other",
+          text: String(m?.text ?? m?.content ?? ""),
+        }))
+      );
+
+      try {
+        await markConversationReadAction(convId);
+      } catch {}
+    } else {
+      setActiveTab("COMMS");
+    }
+  } catch (e) {
+    console.error("aceptarEncargo error:", e);
+    setMsgStatus("IDLE");
+  }
+};
+
+ const enviarMensaje = async () => {
+  const text = String(inputMsg || "").trim();
+  if (!text) return;
+
+  const cid = conversationId ? String(conversationId) : "";
+  if (!cid) return; // si no hay conversación, no enviamos (no rompe)
+
+  setInputMsg("");
+
+  const res: any = await sendMessageAction({ conversationId: cid, text });
+  if (!res?.success) {
+    console.error("sendMessage failed:", res?.error);
+    return;
+  }
+
+  // ✅ Añadimos al UI sin recargar todo
+  setChatHistory((prev) => [...(Array.isArray(prev) ? prev : []), { sender: "me", text }]);
+
+  // ✅ unread real (tuya = leída)
+  try {
+    await markConversationReadAction(cid);
+  } catch {}
+};
+
 
   // --- RENDERIZADO ---
   return (
@@ -234,41 +565,218 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                             </div>
                         ) : (
                             <>
-                                {/* LECTURA DE LA NANOCARD (REQUISITOS REALES) */}
+                                                                {/* PROPUESTA DE CAMPAÑA (SERVICIOS QUE OFRECE LA AGENCIA) */}
                                 <div className="mb-4">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Requisitos del Cliente</p>
-                                    
-                                    <div className="bg-white border border-slate-100 rounded-2xl p-1 shadow-sm">
-                                        {/* Aquí leemos lo que trae el TARGET (target.services o target.requirements) */}
-                                        {/* Si no trae nada, mostramos mensaje de "Sin requisitos especiales" */}
-                                        {selectedTarget.requirements && selectedTarget.requirements.length > 0 ? (
-                                            selectedTarget.requirements.map((req: string, i: number) => (
-                                                <div key={i} className="flex items-center gap-3 p-3 border-b border-slate-50 last:border-0">
-                                                    <div className="w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                                                        <Check size={12} strokeWidth={3}/>
-                                                    </div>
-                                                    <span className="text-xs font-bold text-slate-700">{req}</span>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            /* Si la NanoCard viene vacía de requisitos, mostramos los estándar */
-                                            <div className="p-4 text-center">
-                                                <p className="text-xs text-slate-500 font-medium mb-2">Este cliente solicita gestión estándar:</p>
-                                                <div className="flex flex-wrap gap-2 justify-center">
-                                                    <span className="bg-slate-50 px-2 py-1 rounded-md text-[10px] font-bold text-slate-600 border border-slate-200">Nota Simple</span>
-                                                    <span className="bg-slate-50 px-2 py-1 rounded-md text-[10px] font-bold text-slate-600 border border-slate-200">Reportaje Foto</span>
-                                                    <span className="bg-slate-50 px-2 py-1 rounded-md text-[10px] font-bold text-slate-600 border border-slate-200">Cert. Energético</span>
-                                                </div>
-                                            </div>
-                                        )}
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Servicios de la Agencia</p>
+
+                                    {/* Tabs ONLINE / OFFLINE */}
+                                    <div className="bg-slate-100 p-1 rounded-xl flex text-center mb-3">
+                                        <button
+                                            onClick={() => setServicesTab("ONLINE")}
+                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${servicesTab === "ONLINE" ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                                        >
+                                            Online
+                                        </button>
+                                        <button
+                                            onClick={() => setServicesTab("OFFLINE")}
+                                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${servicesTab === "OFFLINE" ? "bg-white shadow-sm text-slate-900" : "text-slate-400"}`}
+                                        >
+                                            Offline
+                                        </button>
                                     </div>
+
+                                    {/* Lista seleccionable */}
+                                    <div className="bg-white border border-slate-100 rounded-2xl p-1 shadow-sm">
+                                        {RADAR_SERVICES
+  .filter((s) => String(s?.category) === String(servicesTab))
+  .map((item, i) => {
+    const sid = String(item?.id || "");
+    const isOn = proposalServiceIds.includes(sid);
+    return (
+      <button
+        key={`${sid}_${i}`}
+        type="button"
+        onClick={() => toggleProposalService(sid)}
+        className="w-full text-left flex items-center gap-3 p-3 border-b border-slate-50 last:border-0"
+      >
+        <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all ${isOn ? "bg-blue-600 border-blue-600" : "bg-white border-slate-200"}`}>
+          {isOn && <Check size={12} strokeWidth={4} className="text-white" />}
+        </div>
+        <span className="text-xs font-bold text-slate-700">{String(item?.name || sid)}</span>
+      </button>
+    );
+  })}
+
+                                    </div>
+
+                                  {/* ✅ Mandato + Exclusividad (VISIBLE AL CLIENTE) */}
+<div className="mt-3 bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
+  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+    Mandato
+  </p>
+
+  <div className="grid grid-cols-2 gap-2">
+    <button
+      type="button"
+      onClick={() => setExclusiveMandate(true)}
+      className={`h-10 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all
+        ${exclusiveMandate ? "bg-blue-600 text-white border-blue-600" : "bg-slate-50 text-slate-700 border-slate-200"}
+      `}
+    >
+      Exclusiva
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setExclusiveMandate(false)}
+      className={`h-10 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all
+        ${!exclusiveMandate ? "bg-blue-600 text-white border-blue-600" : "bg-slate-50 text-slate-700 border-slate-200"}
+      `}
+    >
+      No exclusiva
+    </button>
+  </div>
+
+  <div className="mt-2">
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+      Tiempo (meses)
+    </p>
+    <input
+      type="number"
+      min={0}
+      step={1}
+      value={exclusiveMonths}
+      onChange={(e) => setExclusiveMonths(Number(e.target.value || 0))}
+      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none"
+    />
+  </div>
+</div>
+
+{/* Comisión + IVA */}
+<div className="mt-3 grid grid-cols-2 gap-2">
+  <div className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Comisión %</p>
+    <input
+      type="number"
+      step="0.1"
+      value={commissionPct}
+      onChange={(e) => setCommissionPct(Number(e.target.value))}
+      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none"
+    />
+  </div>
+
+  <div className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">IVA %</p>
+    <input
+      type="number"
+      step="0.1"
+      value={commissionIvaPct}
+      onChange={(e) => setCommissionIvaPct(Number(e.target.value))}
+      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none"
+    />
+  </div>
+</div>
+{/* Comisión total + reparto (privado entre agencias) */}
+<div className="mt-2 grid grid-cols-2 gap-2">
+  <div className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+      Comisión total €
+    </p>
+    <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-black text-slate-900">
+      {commissionTotalEur.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+    </div>
+
+       <div className="mt-3">
+      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">
+        Reparto estimado €
+      </p>
+      <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-black text-slate-900 text-center">
+        {sharedAmountEur.toLocaleString("es-ES", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}€
+      </div>
+    </div>
+  </div>
+
+  <div className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
+    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+      Reparto agente %
+    </p>
+
+    <div className="mt-2 bg-slate-50 border border-slate-200 rounded-xl p-1 grid grid-cols-3 gap-1">
+      <button
+        type="button"
+        onClick={() => setCommissionShareVisibility("PRIVATE")}
+        className={`py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all
+          ${commissionShareVisibility === "PRIVATE" ? "bg-blue-600 text-white" : "text-slate-500"}
+        `}
+      >
+        Privado
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setCommissionShareVisibility("AGENCIES")}
+        className={`py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all
+          ${commissionShareVisibility === "AGENCIES" ? "bg-blue-600 text-white" : "text-slate-500"}
+        `}
+      >
+        Agencias
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setCommissionShareVisibility("PUBLIC")}
+        className={`py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all
+          ${commissionShareVisibility === "PUBLIC" ? "bg-blue-600 text-white" : "text-slate-500"}
+        `}
+      >
+        Público
+      </button>
+    </div>
+
+    <p className="mt-2 text-[9px] text-slate-400 font-bold">
+      {commissionShareVisibility === "PRIVATE"
+        ? "Solo tú (no se muestra)."
+        : commissionShareVisibility === "AGENCIES"
+        ? "Solo agencias (no lo ve el cliente)."
+        : "Cliente + agencias (visible)."}
+    </p>
+
+    <input
+      type="number"
+      step="0.1"
+      min={0}
+      max={100}
+      value={commissionSharePct}
+      onChange={(e) => setCommissionSharePct(Number(e.target.value))}
+      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none"
+    />
+  </div>
+</div>
+
+{/* Total servicios seleccionados */}
+<p className="mt-4 text-center text-[12px] font-black uppercase tracking-widest text-slate-500">
+  TOTAL SERVICIOS SELECCIONADOS:{" "}
+  <span className="text-[12px] font-black text-slate-900">
+    {proposalServiceIds.length}
+  </span>
+</p>
+
+
                                 </div>
 
-                                <button onClick={aceptarEncargo} disabled={msgStatus === "SENDING"} className="w-full bg-slate-900 text-white font-bold text-xs py-4 rounded-2xl shadow-xl hover:bg-black active:scale-95 transition-all flex items-center justify-center gap-2">
-                                    {msgStatus === "SENDING" ? <Loader2 size={14} className="animate-spin"/> : "ACEPTAR CAMPAÑA"}
+                                <button
+                                    onClick={aceptarEncargo}
+                                    disabled={msgStatus === "SENDING" || proposalServiceIds.length === 0}
+                                    className="w-full bg-slate-900 text-white font-bold text-xs py-4 rounded-2xl shadow-xl hover:bg-black active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {msgStatus === "SENDING" ? <Loader2 size={14} className="animate-spin" /> : "ENVIAR PROPUESTA"}
                                 </button>
-                                <p className="text-[9px] text-center text-slate-400 mt-3">Al aceptar, se abrirá un canal directo con el propietario.</p>
+                                <p className="text-[9px] text-center text-slate-400 mt-3">Al enviar propuesta, se abrirá un canal directo con el propietario.</p>
                             </>
+
                         )}
                     </div>
                 )}
@@ -327,11 +835,15 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                             const isProcessed = processedIds.includes(String(t.id));
                             return (
                                 <div 
-                                    key={t.id} 
-                                    onClick={() => handleTrabajar(t)} 
-                                    className={`group flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all border border-transparent
-                                        ${isProcessed ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white hover:border-slate-200 hover:shadow-md'}
-                                    `}
+                                   key={t.id}
+onClick={() => {
+  handleTrabajar(t);
+  openDetailsAndFlyFromTarget(t);
+}}
+className={`group flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all border border-transparent
+  ${isProcessed ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white hover:border-slate-200 hover:shadow-md'}
+`}
+
                                 >
                                     <div className="flex-1 min-w-0 pr-3">
                                         <div className="flex items-center gap-2 mb-1.5">

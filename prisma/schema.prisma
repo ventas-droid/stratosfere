@@ -32,9 +32,15 @@ model User {
   properties               Property[]
   conversationParticipants ConversationParticipant[]
   messagesSent             Message[]
-blocksOut UserBlock[] @relation("UserBlocksOut")
-blocksIn  UserBlock[] @relation("UserBlocksIn")
+  blocksOut                UserBlock[]               @relation("UserBlocksOut")
+  blocksIn                 UserBlock[]               @relation("UserBlocksIn")
 
+  // ✅ Opposite relations (SaaS / Radar)
+  subscription      Subscription?
+  agencyContacts    AgencyContact[]
+  agencyCampaigns   Campaign[]
+  agencyAssignments PropertyAssignment[]
+  agencyTasks       Task[]
 }
 
 model Property {
@@ -81,6 +87,11 @@ model Property {
   images            Image[]
   user              User?          @relation(fields: [userId], references: [id])
   serviceOrders     ServiceOrder[]
+
+  // ✅ Opposite relations (Radar / Campañas)
+  campaigns  Campaign[]
+  assignment PropertyAssignment?
+  tasks      Task[]
 }
 
 model Image {
@@ -135,10 +146,10 @@ model Conversation {
 }
 
 model ConversationParticipant {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
   userId         String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
   lastReadAt     DateTime? @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -168,8 +179,8 @@ model UserBlock {
   blockedId String
   createdAt DateTime @default(now())
 
-  blocker   User @relation("UserBlocksOut", fields: [blockerId], references: [id], onDelete: Cascade)
-  blocked   User @relation("UserBlocksIn",  fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker User @relation("UserBlocksOut", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("UserBlocksIn", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
@@ -181,4 +192,120 @@ enum UserRole {
   PARTICULAR
   AGENCIA
   DIFUSOR
+}
+
+model Subscription {
+  id                 String    @id @default(cuid())
+  userId             String    @unique // agencia = User
+  plan               PlanCode  @default(STARTER)
+  status             String    @default("ACTIVE") // ACTIVE|PAST_DUE|CANCELED
+  provider           String? // PADDLE
+  providerSubId      String? // paddle subscription id
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([plan])
+  @@index([status])
+}
+
+model PlanUsage {
+  id            String   @id @default(cuid())
+  userId        String // agencia
+  period        String // "2026-01"
+  campaignsSent Int      @default(0) // contador mensual
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, period])
+  @@index([userId])
+}
+
+model AgencyContact {
+  id        String   @id @default(cuid())
+  userId    String // agencia (User)
+  name      String
+  email     String?
+  phone     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Campaign {
+  id         String         @id @default(cuid())
+  propertyId String
+  agencyId   String // User.id con role AGENCIA
+  status     CampaignStatus @default(DRAFT)
+
+  message    String? // propuesta
+  serviceIds String[] // ids de tu catálogo (plano_3d, foto, etc.)
+  signature  Json? // firma/aceptación (opcional, luego)
+
+  conversationId String? // conecta con tu chat general
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agency   User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, agencyId]) // 1 campaña activa por propiedad+agencia (mínimo)
+  @@index([propertyId])
+  @@index([agencyId])
+  @@index([status])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model PropertyAssignment {
+  id         String   @id @default(cuid())
+  propertyId String   @unique
+  agencyId   String
+  campaignId String?
+  status     String   @default("ACTIVE") // ACTIVE|ENDED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agency   User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
+}
+
+model Task {
+  id         String    @id @default(cuid())
+  propertyId String
+  agencyId   String
+  campaignId String?
+  type       String // "VISITA" | "PLANO_3D" | ...
+  status     String    @default("TODO") // TODO|DOING|DONE
+  dueAt      DateTime?
+  payload    Json? // notas, ficheros, etc.
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agency   User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([agencyId])
+}
+
+enum PlanCode {
+  STARTER
+  PRO
+  AGENCY
 }
