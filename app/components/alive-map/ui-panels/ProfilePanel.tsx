@@ -425,10 +425,11 @@ export default function ProfilePanel({
                 {/* BOTÓN ESPECIAL: SOLO PARA AGENCIA */}
                 {(user.role === 'AGENCIA' || user.companyName) && (
                     <button 
-                        onClick={() => { 
-                            if(soundEnabled) playSynthSound('click'); 
-                            if(toggleMainPanel) toggleMainPanel('AGENCY_STOCK'); 
-                        }} 
+                       onClick={() => { 
+  if(soundEnabled) playSynthSound('click'); 
+  toggleRightPanel('OWNER_PROPOSALS');
+}}
+
                         className="w-full bg-[#1d1d1f] text-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-xl cursor-pointer relative overflow-hidden"
                     >
                         <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>

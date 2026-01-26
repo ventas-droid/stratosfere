@@ -24,6 +24,7 @@ import ExplorerHud from "./ExplorerHud";
 import ArchitectHud from "./ArchitectHud";     
 import MarketPanel from './MarketPanel';      
 import DualSlider from './DualSlider';
+import OwnerProposalsPanel from "./OwnerProposalsPanel";
 
 // --- 4. COMPONENTES LÓGICOS ---
 import DetailsPanel from "./DetailsPanel"; 
@@ -281,7 +282,9 @@ const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
   // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
-  const [selectedProp, setSelectedProp] = useState<any>(null); 
+ // ✅ Propuestas (Campaign) en columna derecha
+const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+ const [selectedProp, setSelectedProp] = useState<any>(null); 
   const [editingProp, setEditingProp] = useState<any>(null);
   const [marketProp, setMarketProp] = useState<any>(null);
   const [previousMode, setPreviousMode] = useState<'EXPLORER' | 'AGENCY'>('EXPLORER'); 
@@ -912,11 +915,19 @@ const handleDeleteAgencyAsset = async (asset: any) => {
 const toggleRightPanel = (p: string) => {
   if (soundEnabled) playSynthSound("click");
   const nextState = rightPanel === p ? "NONE" : p;
+
+  // ✅ Si abrimos Propuestas desde el HUD, es modo LISTA (sin campaignId)
+  if (nextState === "OWNER_PROPOSALS") {
+    setActiveCampaignId(null);
+  }
+
   setRightPanel(nextState);
+
   if (nextState !== "NONE" && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("close-radar-signal"));
   }
 };
+
 
 const toggleMainPanel = (p: string) => {
   if (soundEnabled) playSynthSound("click");
@@ -1721,6 +1732,20 @@ const handleOpenChatSignal = async (e: any) => {
 
   try {
     const d = e?.detail || {};
+// ✅ NUEVO: soporta abrir chat DIRECTO por conversationId (sin toUserId)
+const passedConversationId =
+  asId(d?.conversationId) ||
+  asId(d?.convId) ||
+  asId(d?.conversation?.id) ||
+  "";
+
+// ✅ NUEVO: campaña/propuesta (para abrir columna derecha)
+const campaignId =
+  asId(d?.campaignId) ||
+  asId(d?.campaign?.id) ||
+  "";
+
+const openProposal = !!d?.openProposal || !!campaignId;
 
     // 🔥 IDs robustos
     const propertyId =
@@ -1739,12 +1764,21 @@ const handleOpenChatSignal = async (e: any) => {
       asId(d?.owner?.id) ||
       asId(d?.ownerSnapshot?.id);
 
-    // ✅ solo exigimos toUserId (propertyId puede ser opcional)
-    if (!toUserId) {
-      addNotification("⚠️ Chat: falta toUserId");
-      console.log("open-chat-signal detail:", d);
-      return;
-    }
+    // ✅ Si ya me pasan conversationId, abro directamente y no exijo toUserId
+if (passedConversationId) {
+  await openChatPanel();
+  await openConversation(String(passedConversationId));
+
+  // 🔥 abre columna derecha "Propuestas" si lo piden
+  if (openProposal) {
+    setActiveCampaignId(campaignId || null);
+    setRightPanel("OWNER_PROPOSALS");
+  }
+
+  addNotification("✅ Canal de comunicación abierto");
+  return;
+}
+
 
     // 🚫 Evitar chat contigo mismo
     if (String(toUserId) === String(activeUserKey)) {
@@ -2456,7 +2490,19 @@ if (!gateUnlocked) {
                    playSynthSound={playSynthSound} 
                />
            )}
-           
+        {rightPanel === "OWNER_PROPOSALS" && (
+  <OwnerProposalsPanel
+    rightPanel={rightPanel}
+    toggleRightPanel={toggleRightPanel}
+    activeCampaignId={activeCampaignId}
+    setActiveCampaignId={setActiveCampaignId}
+proposals={[]}
+    soundEnabled={soundEnabled}
+    playSynthSound={playSynthSound}
+  />
+)}
+
+
            {/* 4. PANELES DE AGENCIA (CONECTADOS AL BORRADO REAL) */}
            {/* Aquí estaba el duplicado. Esta es la versión ÚNICA y CORRECTA. */}
            <AgencyProfilePanel isOpen={rightPanel === 'AGENCY_PROFILE'} onClose={() => toggleRightPanel('NONE')} />
@@ -2913,15 +2959,14 @@ disabled={chatUploading}
 )}
 {/* ✅ BILLING OVERLAY */}
 {planOpen && (
-  <div className="fixed inset-0 z-[26000] pointer-events-auto">
-    <PlanOverlay
-      isOpen={planOpen}
-     onClose={closePlanOverlay}
-      plan={plan}
-      isActive={isActive}
-    />
-  </div>
+  <PlanOverlay
+    isOpen={planOpen}
+    onClose={closePlanOverlay}
+    userEmail={agencyProfileData?.email}
+    userId={activeUserKey || undefined}
+  />
 )}
+
 
 
        {/* IA / OMNI INTELLIGENCE */}
