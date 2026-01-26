@@ -170,18 +170,27 @@ export default function OwnerProposalsPanel({
     if (setActiveCampaignId) setActiveCampaignId(String(id));
   };
 
-  const openChat = (p: OwnerProposal) => {
-    if (soundEnabled && playSynthSound) playSynthSound("click");
-    const toUserId = p?.agency?.id || "";
-    const propertyId = p?.property?.id || "";
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("open-chat-signal", {
-          detail: { toUserId, propertyId, campaignId: p.id },
-        })
-      );
-    }
-  };
+ const openChat = (p: OwnerProposal) => {
+  if (soundEnabled && playSynthSound) playSynthSound("click");
+
+  const toUserId = p?.agency?.id || "";
+  const propertyId = p?.property?.id || "";
+  const conversationId = String((p as any)?.conversationId || "").trim(); // ✅ si existe, mejor
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("open-chat-signal", {
+        detail: {
+          conversationId, // ✅ clave para abrir directo
+          toUserId,
+          propertyId,
+          campaignId: p.id,
+        },
+      })
+    );
+  }
+};
+
 
   const accept = async (id: string) => {
     if (soundEnabled && playSynthSound) playSynthSound("success");

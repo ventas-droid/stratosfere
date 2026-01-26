@@ -207,36 +207,38 @@ const normalizeMessagesForUI = (msgs: any[], myId: string | null) => {
   });
 };
 
-  
-  // --- 2. MEMORIA (SERVER) ---
-  useEffect(() => {
-    (async () => {
-      try {
-        const meRes: any = await getUserMeAction();
-        if (meRes?.success && meRes?.data?.id) setMeId(String(meRes.data.id));
+// --- 2. MEMORIA (SERVER) ---
+useEffect(() => {
+  (async () => {
+    try {
+      const meRes: any = await getUserMeAction();
+      if (meRes?.success && meRes?.data?.id) setMeId(String(meRes.data.id));
 
-        const idsRes: any = await getMyAgencyCampaignPropertyIdsAction();
-        if (idsRes?.success && Array.isArray(idsRes?.data)) {
-          setProcessedIds(idsRes.data.map((x: any) => String(x)));
-        }
-      } catch (e) {
-        console.error("Radar init error:", e);
+      const idsRes: any = await getMyAgencyCampaignPropertyIdsAction();
+      if (idsRes?.success && Array.isArray(idsRes?.data)) {
+        setProcessedIds(idsRes.data.map((x: any) => String(x)));
       }
-    })();
-  }, []);
+    } catch (e) {
+      console.error("Radar init error:", e);
+    }
+  })();
+}, []);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory, activeTab]);
-// ✅ Normaliza mensajes DB -> UI actual ({sender:'me'|'other', text})
+useEffect(() => {
+  chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+}, [chatHistory, activeTab]);
+
+// ✅ Normaliza mensajes DB -> UI ({ sender:'me'|'other', text })
 const mapDbMessagesToUi = (msgs: any[]) => {
   const list = Array.isArray(msgs) ? msgs : [];
+  const my = String(meId || "");
   return list.map((m: any) => ({
-    sender: String(m?.senderId || "") === String(meId) ? "me" : "other",
+    sender: String(m?.senderId || "") === my ? "me" : "other",
     text: String(m?.text ?? m?.content ?? ""),
   }));
 };
 
+// ✅ Abrir conversación + marcar leída
 const openConversation = async (cid: string) => {
   const safe = String(cid || "").trim();
   if (!safe) return;
@@ -249,13 +251,41 @@ const openConversation = async (cid: string) => {
     setChatHistory(mapDbMessagesToUi(msgsRes.data || []));
   }
 
-  // ✅ unread real
   try {
     await markConversationReadAction(safe);
   } catch {}
 };
 
-  // --- 3. MOTOR DE BÚSQUEDA (SIN FILTRAR LA LISTA - SOLO VUELO) ---
+// ✅ polling mensajes conversación (Radar) cada 6s cuando está en COMMS
+useEffect(() => {
+  if (!conversationId) return;
+  if (activeTab !== "COMMS") return;
+
+  let alive = true;
+  const cid = String(conversationId || "").trim();
+  if (!cid) return;
+
+  const tick = async () => {
+    try {
+      const msgsRes: any = await getConversationMessagesAction(cid);
+      if (!alive) return;
+      if (msgsRes?.success) setChatHistory(mapDbMessagesToUi(msgsRes.data || []));
+    } catch (e) {
+      console.warn("radar chat poll failed", e);
+    }
+  };
+
+  tick();
+  const t = setInterval(tick, 6000);
+
+  return () => {
+    alive = false;
+    clearInterval(t);
+  };
+}, [conversationId, activeTab, meId]);
+
+
+// --- 3. MOTOR DE BÚSQUEDA (SIN FILTRAR LA LISTA - SOLO VUELO) ---
   const performGlobalSearch = async () => {
     if (!searchTerm) return;
 
@@ -400,8 +430,7 @@ const res: any = await sendCampaignAction({
   propertyId: pid,
   message: defaultMsg,
   serviceIds,
-  // ✅ IMPORTANTE: si tu backend NO tiene "PROPOSED", deja "ACCEPTED"
-  status: "PROPOSED",
+status: "SENT",
 });
 
 if (!res?.success) {
@@ -412,6 +441,23 @@ if (!res?.success) {
 
 const convId = res?.data?.conversationId ? String(res.data.conversationId) : null;
 
+// ✅ fuerza abrir columna OWNER_PROPOSALS en UIPanels + seleccionar campaña
+const campaignId = String(
+  res?.data?.id || res?.data?.campaignId || res?.data?.campaign?.id || ""
+).trim();
+
+if (typeof window !== "undefined") {
+  window.dispatchEvent(
+    new CustomEvent("open-chat-signal", {
+      detail: {
+        conversationId: convId || "",   // chat de la campaña
+        campaignId,                     // ID campaign real
+        openProposal: true,             // fuerza la columna HUD/Propuestas
+        propertyId: pid,                // opcional pero útil
+      },
+    })
+  );
+}
 
     // ✅ refrescar procesados desde server truth
     try {

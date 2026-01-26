@@ -1909,3 +1909,202 @@ export async function acceptCampaignByOwnerAction(campaignId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
+export async function getOwnerProposalsAction() {
+  "use server";
+  try {
+    // ✅ usamos tu action existente para identidad (ya la tienes en actions.ts)
+    const meRes: any = await (getUserMeAction as any)();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "NOT_AUTH" };
+
+const prismaAny: any = prisma;
+
+    // 1) IDs de mis propiedades (propietario)
+    const myProps = await prismaAny.property.findMany({
+where: { userId: String(me.id) },
+      select: { id: true },
+    });
+    const myPropIds = (Array.isArray(myProps) ? myProps : []).map((p: any) => String(p.id));
+
+    if (!myPropIds.length) return { success: true, data: [] };
+
+    // 2) Campaigns para mis propiedades
+    const campaigns = await prismaAny.campaign.findMany({
+      where: { propertyId: { in: myPropIds } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // 3) Enriquecemos: property + agency user (marca)
+    const agencyIds = Array.from(
+      new Set(
+        (Array.isArray(campaigns) ? campaigns : [])
+          .map((c: any) => c?.agencyId || c?.agencyUserId)
+          .filter(Boolean)
+          .map((x: any) => String(x))
+      )
+    );
+
+    const props = await prismaAny.property.findMany({
+      where: { id: { in: myPropIds } },
+      select: {
+        id: true,
+        title: true,
+        refCode: true,
+        mainImage: true,
+        location: true,
+        address: true,
+        rawPrice: true,
+        price: true,
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    const agencies = agencyIds.length
+      ? await prismaAny.user.findMany({
+          where: { id: { in: agencyIds } },
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+            companyName: true,
+            companyLogo: true,
+            licenseNumber: true,
+            phone: true,
+            mobile: true,
+            email: true,
+            coverImage: true,
+            website: true,
+          },
+        })
+      : [];
+
+    const propById = new Map(props.map((p: any) => [String(p.id), p]));
+    const agencyById = new Map(agencies.map((a: any) => [String(a.id), a]));
+
+    const data = (Array.isArray(campaigns) ? campaigns : []).map((c: any) => {
+      const property = propById.get(String(c.propertyId)) || null;
+      const agencyId = String(c?.agencyId || c?.agencyUserId || "");
+      const agency = agencyById.get(agencyId) || null;
+
+      return {
+        id: String(c.id),
+        status: c.status || "SENT",
+        createdAt: c.createdAt || null,
+
+        // campaña
+        message: c.message || c.note || c.text || "",
+        serviceIds: c.serviceIds || c.requiredServiceIds || c.selectedServiceIds || [],
+        commissionPct: Number(c.commissionPct ?? 0),
+        vatPct: Number(c.vatPct ?? c.ivaPct ?? 0),
+        sharePct: Number(c.sharePct ?? 0),
+        shareVisibility: c.shareVisibility || c.visibility || "PRIVATE",
+
+        // contexto
+        propertyId: c.propertyId ? String(c.propertyId) : "",
+        conversationId: c.conversationId ? String(c.conversationId) : (c.chatConversationId ? String(c.chatConversationId) : ""),
+
+        // property snapshot
+        property,
+
+        // agency brand snapshot
+        agency,
+agencyUserId: (agency as any)?.id || agencyId || "",     
+ };
+    });
+
+    return { success: true, data };
+  } catch (e: any) {
+    console.error("getOwnerProposalsAction failed:", e);
+    return { success: false, error: e?.message || "FAILED" };
+  }
+}
+
+export async function respondOwnerProposalAction(input: {
+  campaignId: string;
+  decision: "ACCEPT" | "REJECT";
+  note?: string;
+}) {
+  "use server";
+  try {
+    const meRes: any = await (getUserMeAction as any)();
+    const me = meRes?.data;
+    if (!me?.id) return { success: false, error: "NOT_AUTH" };
+
+    // ✅ usa el prisma importado arriba (ya lo tienes)
+    const prismaAny: any = prisma;
+
+    // ✅ tipado fuerte para evitar "unknown"
+    const campaign: any = await prismaAny.campaign.findUnique({
+      where: { id: String(input.campaignId) },
+    });
+
+    if (!campaign?.id) return { success: false, error: "NOT_FOUND" };
+
+    // ✅ seguridad: la campaña debe ser de UNA propiedad cuya userId sea el owner (tú)
+    const prop: any = await prismaAny.property.findUnique({
+      where: { id: String(campaign.propertyId) },
+      select: { userId: true }, // ✅ ANTES tenías ownerId
+    });
+
+    if (!prop?.userId || String(prop.userId) !== String(me.id)) {
+      return { success: false, error: "FORBIDDEN" };
+    }
+
+    const nextStatus = input.decision === "ACCEPT" ? "ACCEPTED" : "REJECTED";
+
+    const updated: any = await prismaAny.campaign.update({
+      where: { id: String(input.campaignId) },
+      data: {
+        status: nextStatus,
+        ownerDecisionAt: new Date(),
+        ownerNote: input.note || null,
+      },
+    });
+
+    // ✅ si aceptas, intentamos activar assignment (si existe)
+    if (input.decision === "ACCEPT") {
+      try {
+        await prismaAny.propertyAssignment.upsert({
+          where: { propertyId: String(campaign.propertyId) },
+          update: {
+            status: "ACTIVE",
+            agencyId: String(campaign.agencyId || campaign.agencyUserId),
+            campaignId: String(campaign.id),
+          },
+          create: {
+            propertyId: String(campaign.propertyId),
+            agencyId: String(campaign.agencyId || campaign.agencyUserId),
+            campaignId: String(campaign.id),
+            status: "ACTIVE",
+          },
+        });
+      } catch (e) {
+        console.warn("propertyAssignment upsert skipped:", e);
+      }
+    }
+
+    // ✅ Mensaje automático al chat (si hay conversación)
+    const convId = String(campaign.conversationId || campaign.chatConversationId || "");
+    if (convId) {
+      try {
+        const msg =
+          input.decision === "ACCEPT"
+            ? "✅ El propietario ha ACEPTADO la propuesta. Podéis coordinar próximos pasos aquí."
+            : "❌ El propietario ha RECHAZADO la propuesta. Gracias por la propuesta.";
+
+        const sendFn = sendMessageAction as any;
+        if (typeof sendFn === "function") {
+          await sendFn({ conversationId: convId, text: msg });
+        }
+      } catch (e) {
+        console.warn("auto chat message skipped:", e);
+      }
+    }
+
+    return { success: true, data: updated };
+  } catch (e: any) {
+    console.error("respondOwnerProposalAction failed:", e);
+    return { success: false, error: e?.message || "FAILED" };
+  }
+}

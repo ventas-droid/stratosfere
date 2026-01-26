@@ -13,22 +13,22 @@ import {
 } from 'lucide-react';
 
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
-import { CONTEXT_CONFIG } from '../smart-search'; 
+import { CONTEXT_CONFIG } from "../smart-search";
 
 // --- 3. IMPORTACIONES DE SUS PANELES ---
 import ProfilePanel from "./ProfilePanel";
 import DualGateway from "./DualGateway";
-import VaultPanel from "./VaultPanel";         
-import HoloInspector from "./HoloInspector";   
-import ExplorerHud from "./ExplorerHud";       
-import ArchitectHud from "./ArchitectHud";     
-import MarketPanel from './MarketPanel';      
-import DualSlider from './DualSlider';
+import VaultPanel from "./VaultPanel";
+import HoloInspector from "./HoloInspector";
+import ExplorerHud from "./ExplorerHud";
+import ArchitectHud from "./ArchitectHud";
+import MarketPanel from "./MarketPanel";
+import DualSlider from "./DualSlider";
 import OwnerProposalsPanel from "./OwnerProposalsPanel";
 
 // --- 4. COMPONENTES LÓGICOS ---
-import DetailsPanel from "./DetailsPanel"; 
-import { playSynthSound } from './audio';
+import DetailsPanel from "./DetailsPanel";
+import { playSynthSound } from "./audio";
 import StratosConsole from "./StratosConsole";
 import LandingWaitlist from "./LandingWaitlist";
 import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
@@ -56,11 +56,11 @@ import {
   sendMessageAction,
   getOrCreateConversationAction,
   deleteConversationAction,
+getPropertyByIdAction,
 
-  // ✅ DETAILS desde thread (PASO 2)
-  getPropertyByIdAction,
+  // ✅ OWNER proposals
+  getOwnerProposalsAction,
 } from "@/app/actions";
-
 
 // --- UTILIDADES ---
 export const LUXURY_IMAGES = [
@@ -262,10 +262,11 @@ export default function UIPanels({
   const [agencyProfileData, setAgencyProfileData] = useState<any>(null);
   const [localFavs, setLocalFavs] = useState<any[]>([]);
   const [agencyFavs, setAgencyFavs] = useState<any[]>([]);
- const [agencyLikes, setAgencyLikes] = useState<any[]>([]);
-const uiFavs = systemMode === "AGENCY" ? agencyLikes : localFavs;
-const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
- // --- 2. CREDENCIALES (SaaS Puro) ---
+  const [agencyLikes, setAgencyLikes] = useState<any[]>([]);
+  const uiFavs = systemMode === "AGENCY" ? agencyLikes : localFavs;
+  const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
+
+  // --- 2. CREDENCIALES (SaaS Puro) ---
   const searchParams = useSearchParams();
   const [gateUnlocked, setGateUnlocked] = useState(false);
 
@@ -282,19 +283,118 @@ const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
   // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
- // ✅ Propuestas (Campaign) en columna derecha
+
+   // ✅ Propuestas (Campaign) en columna derecha
 const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
- const [selectedProp, setSelectedProp] = useState<any>(null); 
+const [ownerProposals, setOwnerProposals] = useState<any[]>([]);
+const [ownerProposalsLoading, setOwnerProposalsLoading] = useState(false);
+
+// ✅ loader robusto (Owner Proposals) — con mapping COMPLETO (comisión/terms) + anti-duplicados + anti-stale
+const ownerProposalsReqRef = useRef(0);
+
+const loadOwnerProposals = async () => {
+  // 🚫 sin sesión
+  // ✅ IMPORTANTE: NO bloquear por identityVerified (si no, el particular nunca ve propuestas)
+  if (!activeUserKey || activeUserKey === "anon") return;
+
+  // ✅ evita doble llamada si ya está cargando
+  if (ownerProposalsLoading) return;
+
+  const reqId = ++ownerProposalsReqRef.current;
+
+  try {
+    setOwnerProposalsLoading(true);
+
+    const fn = getOwnerProposalsAction as any;
+    if (typeof fn !== "function") {
+      console.warn("getOwnerProposalsAction is not a function");
+      if (reqId === ownerProposalsReqRef.current) setOwnerProposals([]);
+      return;
+    }
+
+    const r = await fn();
+    if (reqId !== ownerProposalsReqRef.current) return;
+
+    if (!r?.success) {
+      console.warn("getOwnerProposalsAction failed:", r?.error);
+      setOwnerProposals([]);
+      return;
+    }
+
+    const rawList = Array.isArray(r?.data) ? r.data : [];
+
+    // ✅ anti-duplicados por id
+    const dedup = new Map<string, any>();
+    for (const x of rawList) {
+      const id = String(x?.id || "").trim();
+      if (!id) continue;
+      if (!dedup.has(id)) dedup.set(id, x);
+    }
+
+    const normalized = Array.from(dedup.values()).map((raw: any) => {
+      const services = (Array.isArray(raw?.serviceIds) ? raw.serviceIds : [])
+        .map((sid: any) => String(sid).trim())
+        .filter(Boolean)
+        .map((sid: string) => {
+          const hit = (SERVICES_CATALOG as any[]).find((s: any) => String(s?.id) === sid);
+          return hit
+            ? { id: String(hit.id), label: String(hit.label || hit.name || sid), mode: hit.mode || hit.category }
+            : { id: sid, label: sid, mode: undefined };
+        });
+
+      return {
+        id: String(raw?.id || ""),
+        status: raw?.status || "SENT",
+        createdAt: raw?.createdAt || null,
+
+        property: raw?.property || null,
+        agency: raw?.agency || null,
+
+        message: raw?.message || "",
+        conversationId: raw?.conversationId ? String(raw.conversationId) : "",
+
+        services,
+
+        // ✅ terms COMPLETOS (según tu schema actual Campaign)
+        terms: {
+          exclusive: !!raw?.exclusiveMandate,
+          months: Number(raw?.exclusiveMonths ?? 0),
+
+          commissionPct: Number(raw?.commissionPct ?? 0),
+          ivaPct: Number(raw?.commissionIvaPct ?? 0),
+
+          commissionBaseEur: Number(raw?.commissionBaseEur ?? 0),
+          ivaAmountEur: Number(raw?.commissionIvaEur ?? 0),
+          commissionTotalEur: Number(raw?.commissionTotalEur ?? 0),
+
+          sharePct: Number(raw?.commissionSharePct ?? 0),
+          shareVisibility: raw?.commissionShareVisibility ?? "AGENCIES",
+          shareEstimatedEur: Number(raw?.commissionShareEur ?? 0),
+        },
+      };
+    });
+
+    setOwnerProposals(normalized);
+  } catch (e) {
+    console.error("loadOwnerProposals error:", e);
+    if (reqId === ownerProposalsReqRef.current) setOwnerProposals([]);
+  } finally {
+    if (reqId === ownerProposalsReqRef.current) setOwnerProposalsLoading(false);
+  }
+};
+
+  const [selectedProp, setSelectedProp] = useState<any>(null);
   const [editingProp, setEditingProp] = useState<any>(null);
   const [marketProp, setMarketProp] = useState<any>(null);
-  const [previousMode, setPreviousMode] = useState<'EXPLORER' | 'AGENCY'>('EXPLORER'); 
-const [selectedReqs, setSelectedReqs] = useState<any[]>([]);
+  const [previousMode, setPreviousMode] = useState<"EXPLORER" | "AGENCY">("EXPLORER");
+  const [selectedReqs, setSelectedReqs] = useState<any[]>([]);
 
   // --- 4. ESTADOS DE FLUJO ---
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
-  const [landingComplete, setLandingComplete] = useState(false); 
+  const [landingComplete, setLandingComplete] = useState(false);
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
   
   // --- 5. REFERENCIAS ---
   const prevFavIdsRef = useRef<Set<string>>(new Set());
@@ -334,6 +434,21 @@ const [chatOpen, setChatOpen] = useState(false);
 const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+
+// ✅ Paso 2: cuando abrimos OWNER_PROPOSALS desde un thread/chat,
+// auto-selecciona el expediente correcto en cuanto lleguen proposals.
+useEffect(() => {
+  if (rightPanel !== "OWNER_PROPOSALS") return;
+  if (!chatConversationId) return;
+  if (activeCampaignId) return;
+
+  const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
+    (p: any) => String(p?.conversationId || "") === String(chatConversationId)
+  );
+
+  if (match?.id) setActiveCampaignId(String(match.id));
+}, [rightPanel, chatConversationId, ownerProposals, activeCampaignId]);
+
 const [chatMessages, setChatMessages] = useState<any[]>([]);
 const [chatInput, setChatInput] = useState("");
 const [chatLoading, setChatLoading] = useState(false);
@@ -362,6 +477,7 @@ const closePlanOverlay = () => {
   setPlanOpen(false);
 };
 
+
 // ✅ Mostrar PlanOverlay automáticamente si el usuario entra y NO tiene plan activo
 useEffect(() => {
   if (!gateUnlocked) return;
@@ -371,7 +487,6 @@ useEffect(() => {
   // ✅ IMPORTANTÍSIMO: solo abre si isActive ES FALSE (no si es undefined)
   if (isActive === false) setPlanOpen(true);
 }, [gateUnlocked, isActive, planOpen]);
-
 
 // recalcular total
 useEffect(() => {
@@ -398,6 +513,14 @@ const markConversationAsRead = (conversationId: string, lastAt?: number) => {
 
   // ✅ evita notificar de nuevo por el mismo último mensaje
   lastNotifiedAtRef.current[String(conversationId)] = ts;
+
+  // ✅ server-truth (blindado para no romper nada)
+  try {
+    const fn = markConversationReadAction as any;
+    if (typeof fn === "function") fn(String(conversationId), ts);
+  } catch (e) {
+    // silencioso
+  }
 };
 
 // ✅ calcula unread + notifica (server-truth)
@@ -438,7 +561,7 @@ const updateUnreadFromThreads = (threads: any[]) => {
   }
 };
 
-// ✅ polling ligero para refrescar unread/alerts (cada 12s)
+// ✅ polling ligero: refresca threads/unread y, si estás dentro, mensajes (cada 12s)
 useEffect(() => {
   if (!identityVerified || !activeUserKey || activeUserKey === "anon") return;
 
@@ -447,15 +570,63 @@ useEffect(() => {
 
   const poll = async () => {
     try {
+      // 1) Threads + unread
       const listFn = listMyConversationsAction as any;
-      if (typeof listFn !== "function") return;
+      if (typeof listFn === "function") {
+        const res = await listFn();
+        if (!alive) return;
 
-      const res = await listFn();
-      if (!alive) return;
+        if (res?.success) {
+          const threads = Array.isArray(res.data) ? res.data : [];
+          setChatThreads(threads);
+          if (typeof updateUnreadFromThreads === "function") {
+            updateUnreadFromThreads(threads);
+          }
+        }
+      }
 
-      if (res?.success) {
-        const threads = Array.isArray(res.data) ? res.data : [];
-        updateUnreadFromThreads(threads);
+      // 2) Si hay conversación abierta, refrescamos mensajes
+      if (chatOpen && chatConversationId) {
+        const msgFn = getConversationMessagesAction as any;
+        if (typeof msgFn === "function") {
+          const r2 = await msgFn(String(chatConversationId));
+          if (!alive) return;
+
+          if (r2?.success) {
+            const nextMsgs = Array.isArray(r2.data) ? r2.data : [];
+
+            // evita re-render inútil si no cambió nada
+            setChatMessages((prev: any[]) => {
+              const prevArr = Array.isArray(prev) ? prev : [];
+              const prevLast = prevArr[prevArr.length - 1];
+              const nextLast = nextMsgs[nextMsgs.length - 1];
+
+              const prevKey = prevLast
+                ? `${prevLast.id || ""}|${prevLast.createdAt || ""}`
+                : "";
+              const nextKey = nextLast
+                ? `${nextLast.id || ""}|${nextLast.createdAt || ""}`
+                : "";
+
+              if (prevArr.length === nextMsgs.length && prevKey === nextKey) return prevArr;
+              return nextMsgs;
+            });
+
+            // marca como leído por si llegó algo nuevo
+            try {
+              const last = nextMsgs[nextMsgs.length - 1];
+              const lastAt = last?.createdAt ? new Date(last.createdAt).getTime() : Date.now();
+              if (typeof markConversationAsRead === "function") {
+                markConversationAsRead(String(chatConversationId), lastAt);
+              }
+            } catch {}
+
+            // scroll suave al final si hubo novedades
+            try {
+              scrollChatToBottom();
+            } catch {}
+          }
+        }
       }
     } catch (e) {
       // silencioso (no spamear notificaciones)
@@ -470,10 +641,9 @@ useEffect(() => {
     alive = false;
     if (timer) clearInterval(timer);
   };
-}, [identityVerified, activeUserKey, chatConversationId]);
+}, [identityVerified, activeUserKey, chatConversationId, chatOpen]);
 
-
- // --- EFECTOS INICIALES ---
+// --- EFECTOS INICIALES ---
 
   // 1. Cargador Ligero de Perfil (FUSIONADO)
   useEffect(() => {
@@ -2490,17 +2660,19 @@ if (!gateUnlocked) {
                    playSynthSound={playSynthSound} 
                />
            )}
-        {rightPanel === "OWNER_PROPOSALS" && (
+      {rightPanel === "OWNER_PROPOSALS" && (
   <OwnerProposalsPanel
     rightPanel={rightPanel}
     toggleRightPanel={toggleRightPanel}
     activeCampaignId={activeCampaignId}
     setActiveCampaignId={setActiveCampaignId}
-proposals={[]}
+    proposals={ownerProposals}
+    loading={ownerProposalsLoading}
     soundEnabled={soundEnabled}
     playSynthSound={playSynthSound}
   />
 )}
+
 
 
            {/* 4. PANELES DE AGENCIA (CONECTADOS AL BORRADO REAL) */}
@@ -2668,61 +2840,79 @@ const isAgency =
 
               return (
                 <button
-                  key={id}
-               onClick={async () => {
-  if (blocked) {
-    addNotification("⛔ Usuario bloqueado");
-    return;
-  }
+  key={id}
+  onClick={async () => {
+    if (blocked) {
+      addNotification("⛔ Usuario bloqueado");
+      return;
+    }
 
-  // ✅ 1) abre Details (si hay property) y espera a que cargue del server si hace falta
-  await tryOpenDetailsFromThread(t);
+    // ✅ 1) abre Details (si hay property) y espera a que cargue del server si hace falta
+    await tryOpenDetailsFromThread(t);
 
-  // ✅ 2) abre el chat
-  openConversation(id);
-}}
+    // ✅ 2) abre el chat
+    await openConversation(id);
 
+    // ✅ 3) si esta conversación viene de una propiedad/campaña, abre la columna de propuestas
+    const hasPropCtx = !!(
+      t?.propertyId ||
+      t?.property?.id ||
+      t?.refCode ||
+      t?.propertyRef ||
+      /\bSF-[A-Z0-9-]+\b/i.test(String(title || ""))
+    );
 
+    if (hasPropCtx) {
+      setRightPanel("OWNER_PROPOSALS");
 
-                  className={`w-full text-left border rounded-2xl p-3 transition-all ${
-                    active
-                      ? "bg-blue-500/15 border-blue-500/30"
-                      : "bg-white/5 hover:bg-white/10 border-white/10"
-                  } ${blocked ? "opacity-40" : ""}`}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* avatar */}
-                    <div className="w-9 h-9 rounded-full overflow-hidden bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
-                      {avatar ? (
-                        <img src={avatar} className="w-full h-full object-cover" alt="" />
-                      ) : (
-                        <span className="text-[10px] font-black text-white/60">
-                          {String(otherName || "U").slice(0, 1).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
+      // si ya está en memoria, abre directamente el expediente correcto
+      const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
+        (p: any) => String(p?.conversationId || "") === String(id)
+      );
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
-                          {otherName}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {unread && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
-                          {blocked && <span className="text-[9px] text-white/30 font-mono">BLOCK</span>}
-                        </div>
-                      </div>
+      setActiveCampaignId(match?.id ? String(match.id) : null);
+    }
+  }}
+  className={`w-full text-left border rounded-2xl p-3 transition-all ${
+    active
+      ? "bg-blue-500/15 border-blue-500/30"
+      : "bg-white/5 hover:bg-white/10 border-white/10"
+  } ${blocked ? "opacity-40" : ""}`}
+>
+  <div className="flex items-center gap-3">
+    {/* avatar */}
+    <div className="w-9 h-9 rounded-full overflow-hidden bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
+      {avatar ? (
+        <img src={avatar} className="w-full h-full object-cover" alt="" />
+      ) : (
+        <span className="text-[10px] font-black text-white/60">
+          {String(otherName || "U").slice(0, 1).toUpperCase()}
+        </span>
+      )}
+    </div>
 
-                      <div className="mt-0.5 text-[10px] text-white/50 font-mono truncate">
-                        {title}
-                      </div>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
+          {otherName}
+        </div>
+        <div className="flex items-center gap-2">
+          {unread && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
+          {blocked && <span className="text-[9px] text-white/30 font-mono">BLOCK</span>}
+        </div>
+      </div>
 
-                      <div className="mt-1 text-[10px] text-white/40 line-clamp-2">
-                        {snippet ? String(snippet) : "Sin mensajes aún"}
-                      </div>
-                    </div>
-                  </div>
-                </button>
+      <div className="mt-0.5 text-[10px] text-white/50 font-mono truncate">
+        {title}
+      </div>
+
+      <div className="mt-1 text-[10px] text-white/40 line-clamp-2">
+        {snippet ? String(snippet) : "Sin mensajes aún"}
+      </div>
+    </div>
+  </div>
+</button>
+
               );
             })}
           </div>
