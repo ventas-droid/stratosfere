@@ -239,6 +239,12 @@ model AgencyContact {
   @@index([userId])
 }
 
+enum CommissionShareVisibility {
+  PRIVATE
+  AGENCIES
+  PUBLIC
+}
+
 model Campaign {
   id         String         @id @default(cuid())
   propertyId String
@@ -260,6 +266,24 @@ model Campaign {
   @@index([propertyId])
   @@index([agencyId])
   @@index([status])
+
+  // ✅ Términos de propuesta (persistentes en BD)
+  priceAtProposal        Float @default(0)
+  commissionPct          Float @default(0)
+  commissionIvaPct       Float @default(0)
+
+  commissionSharePct     Float @default(0)
+  commissionShareVisibility CommissionShareVisibility @default(AGENCIES)
+
+  exclusiveMandate       Boolean @default(true)
+  exclusiveMonths        Int @default(6)
+
+  // ✅ Importes calculados (snapshot)
+  commissionBaseEur      Float @default(0)
+  commissionIvaEur       Float @default(0)
+  commissionTotalEur     Float @default(0)
+  commissionShareEur     Float @default(0)
+
 }
 
 enum CampaignStatus {

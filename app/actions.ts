@@ -1400,6 +1400,49 @@ export async function deleteConversationAction(conversationId: string) {
 // 📡 RADAR/COMMS SaaS — Campaigns + límites de Plan (sin localStorage)
 // =========================================================
 
+// ✅ TRIAL: activar 15 días sin Paddle (server truth)
+export async function startTrialAction(plan: "PRO" | "AGENCY") {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    // Seguridad mínima: Agency trial solo para cuentas AGENCIA
+    if (plan === "AGENCY" && me.role !== "AGENCIA") {
+      return { success: false, error: "ONLY_AGENCY_CAN_START_AGENCY_TRIAL" };
+    }
+
+    const now = new Date();
+    const end = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // 15 días
+
+    const sub = await prisma.subscription.upsert({
+      where: { userId: me.id },
+      update: {
+        plan: plan as any,
+        status: "TRIAL",
+        currentPeriodStart: now,
+        currentPeriodEnd: end,
+        provider: null,
+        providerSubId: null,
+      },
+      create: {
+        userId: me.id,
+        plan: plan as any,
+        status: "TRIAL",
+        currentPeriodStart: now,
+        currentPeriodEnd: end,
+        provider: null,
+        providerSubId: null,
+      },
+    });
+
+    revalidatePath("/");
+    return { success: true, data: sub };
+  } catch (e: any) {
+    console.error("startTrialAction error:", e);
+    return { success: false, error: String(e?.message || e) };
+  }
+}
+
 const getPeriodKey = () => {
   const d = new Date();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -1407,16 +1450,79 @@ const getPeriodKey = () => {
 };
 
 const getMyPlanInternal = async (userId: string) => {
+  // 1) Si existe Subscription, manda ella (incluye TRIAL)
   const sub = await prisma.subscription.findUnique({
     where: { userId },
-    select: { plan: true, status: true },
+    select: { plan: true, status: true, currentPeriodEnd: true },
   });
 
-  // Si no hay subscription -> STARTER
-  const plan = (sub?.plan as any) || "STARTER";
-  const status = sub?.status || "ACTIVE";
-  return { plan, status };
+  if (sub?.plan) {
+    // ✅ Si TRIAL expiró, cae a STARTER
+    if (String(sub.status || "").toUpperCase() === "TRIAL" && sub.currentPeriodEnd) {
+      const end = new Date(sub.currentPeriodEnd).getTime();
+      if (Date.now() > end) {
+        return { plan: "STARTER" as any, status: "EXPIRED" };
+      }
+      return { plan: sub.plan as any, status: "TRIAL" };
+    }
+
+    // ✅ Activo / otros estados: devolvemos tal cual
+    return { plan: sub.plan as any, status: sub.status || "ACTIVE" };
+  }
+
+  // 2) Fallback provisional (hasta Paddle): usar licenseType del User
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { licenseType: true },
+  });
+
+  const lt = String(u?.licenseType || "STARTER").toUpperCase().trim();
+
+  // ✅ Mapeo licenseType -> PlanCode
+  const plan =
+    lt === "PRO"
+      ? "PRO"
+      : (lt === "AGENCY" || lt === "CORP")
+      ? "AGENCY"
+      : "STARTER";
+
+  return { plan: plan as any, status: "ACTIVE" };
 };
+
+// ✅ PASO 2: Gate del paywall (TRIAL = acceso, EXPIRED/STARTER = paywall)
+export async function getBillingGateAction() {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    const { plan, status } = await getMyPlanInternal(me.id);
+
+    // showPaywall SOLO si STARTER o trial expirado
+    const showPaywall =
+      String(plan || "").toUpperCase() === "STARTER" ||
+      String(status || "").toUpperCase() === "EXPIRED";
+
+    // Info extra útil para UI (contador de días)
+    const sub = await prisma.subscription.findUnique({
+      where: { userId: me.id },
+      select: { currentPeriodEnd: true },
+    });
+
+    return {
+      success: true,
+      data: {
+        plan,
+        status,
+        showPaywall,
+        trialEndsAt: sub?.currentPeriodEnd
+          ? new Date(sub.currentPeriodEnd).toISOString()
+          : null,
+      },
+    };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || e) };
+  }
+}
 
 const getUsageInternal = async (userId: string, period: string) => {
   const usage = await prisma.planUsage.findUnique({
@@ -1473,6 +1579,17 @@ export async function sendCampaignAction(input: {
   message?: string;
   serviceIds?: string[];
   status?: string; // "SENT" | "ACCEPTED" | "DRAFT" etc
+
+  // ✅ Términos de propuesta (persisten en BD)
+  priceAtProposal?: number;
+  commissionPct?: number;
+  commissionIvaPct?: number;
+
+  commissionSharePct?: number;
+  commissionShareVisibility?: "PRIVATE" | "AGENCIES" | "PUBLIC";
+
+  exclusiveMandate?: boolean;
+  exclusiveMonths?: number;
 }) {
   try {
     const me = await getCurrentUser();
@@ -1487,18 +1604,54 @@ export async function sendCampaignAction(input: {
       : [];
 
     // 1) Plan + límites
-    const period = getPeriodKey();
-    const { plan } = await getMyPlanInternal(me.id);
+const period = getPeriodKey();
+const { plan, status } = await getMyPlanInternal(me.id);
 
-    // STARTER = 0 propuestas
-    if (plan === "STARTER") {
-      return { success: false, error: "PLAN_NOT_ALLOWED" };
-    }
+// ✅ seguridad: solo AGENCIA puede enviar campañas
+if (String(me.role || "").toUpperCase() !== "AGENCIA") {
+  return {
+    success: false,
+    error: "ONLY_AGENCY",
+    debug: { plan, status, userId: me.id },
+  };
+}
 
-    // Miramos si ya había campaña (para idempotencia / no contar doble)
+// ✅ trial expirado (o cualquier estado que quieras tratar como bloqueo)
+if (String(status || "").toUpperCase() === "EXPIRED") {
+  return {
+    success: false,
+    error: "TRIAL_EXPIRED",
+    debug: { plan, status, userId: me.id },
+  };
+}
+
+// ✅ STARTER no puede enviar campañas
+if (String(plan || "").toUpperCase() === "STARTER") {
+  return {
+    success: false,
+    error: "PLAN_NOT_ALLOWED",
+    debug: { plan, status, userId: me.id },
+  };
+}
+
+
+    // ✅ Traemos existing con términos para poder hacer fallback si input no los manda
     const existing = await prisma.campaign.findUnique({
       where: { propertyId_agencyId: { propertyId: pid, agencyId: me.id } },
-      select: { id: true, status: true, conversationId: true },
+      select: {
+        id: true,
+        status: true,
+        conversationId: true,
+
+        // términos existentes (fallback)
+        priceAtProposal: true,
+        commissionPct: true,
+        commissionIvaPct: true,
+        commissionSharePct: true,
+        commissionShareVisibility: true,
+        exclusiveMandate: true,
+        exclusiveMonths: true,
+      },
     });
 
     const isFirstSend = !existing || String(existing.status || "") === "DRAFT";
@@ -1514,12 +1667,11 @@ export async function sendCampaignAction(input: {
     // 2) Propiedad -> dueño para abrir conversación
     const prop = await prisma.property.findUnique({
       where: { id: pid },
-      select: { id: true, userId: true, refCode: true, title: true },
+      select: { id: true, userId: true, refCode: true, title: true, price: true },
     });
 
     let conversationId: string | null = existing?.conversationId || null;
 
-    // Si hay owner, creamos/obtenemos chat
     if (prop?.userId) {
       const convRes: any = await getOrCreateConversationAction({
         toUserId: prop.userId,
@@ -1539,13 +1691,81 @@ export async function sendCampaignAction(input: {
       }
     }
 
-    // ✅ 2.2 JUSTO AQUÍ: status controlado (para no romper Prisma)
+    // 2.2 Status controlado
     const rawStatus = String(input?.status || "SENT").toUpperCase().trim();
     const desiredStatus = (["SENT", "ACCEPTED", "DRAFT"].includes(rawStatus)
       ? rawStatus
       : "SENT") as any;
 
-    // 3) Upsert Campaign (SENT/ACCEPTED/DRAFT)
+    // ✅ Helpers
+    const safeNum = (v: any, def = 0) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : def;
+    };
+    const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+    const clampInt = (v: any, def: number, min: number, max: number) => {
+      const n = Math.round(safeNum(v, def));
+      return clamp(n, min, max);
+    };
+
+    // ✅ Server truth: términos (input -> existing -> fallback)
+    const priceAtProposal = clamp(
+      input?.priceAtProposal !== undefined
+        ? safeNum(input.priceAtProposal, 0)
+        : (existing?.priceAtProposal ?? safeNum(prop?.price, 0)),
+      0,
+      1e12
+    );
+
+    const commissionPct = clamp(
+      input?.commissionPct !== undefined ? safeNum(input.commissionPct, 0) : (existing?.commissionPct ?? 0),
+      0,
+      100
+    );
+
+    const commissionIvaPct = clamp(
+      input?.commissionIvaPct !== undefined ? safeNum(input.commissionIvaPct, 0) : (existing?.commissionIvaPct ?? 0),
+      0,
+      100
+    );
+
+    const commissionSharePct = clamp(
+      input?.commissionSharePct !== undefined
+        ? safeNum(input.commissionSharePct, 0)
+        : (existing?.commissionSharePct ?? 0),
+      0,
+      100
+    );
+
+    const visRaw = String(
+      input?.commissionShareVisibility ??
+        existing?.commissionShareVisibility ??
+        "AGENCIES"
+    ).toUpperCase().trim();
+
+    const commissionShareVisibility = (["PRIVATE", "AGENCIES", "PUBLIC"].includes(visRaw)
+      ? visRaw
+      : "AGENCIES") as any;
+
+    const exclusiveMandate =
+      typeof input?.exclusiveMandate === "boolean"
+        ? input.exclusiveMandate
+        : (existing?.exclusiveMandate ?? true);
+
+    const exclusiveMonths =
+      input?.exclusiveMonths !== undefined
+        ? clampInt(input.exclusiveMonths, 6, 0, 60)
+        : (existing?.exclusiveMonths ?? 6);
+
+    // ✅ Importes snapshot (server truth)
+    const commissionBaseEur = priceAtProposal * (commissionPct / 100);
+    const commissionIvaEur = commissionBaseEur * (commissionIvaPct / 100);
+    const commissionTotalEur = commissionBaseEur + commissionIvaEur;
+
+    // Share sobre TOTAL (base+iva). Si prefieres share sobre base, cambia aquí.
+    const commissionShareEur = commissionTotalEur * (commissionSharePct / 100);
+
+    // 3) Upsert Campaign (SENT/ACCEPTED/DRAFT) + términos + snapshot €
     const campaign = await prisma.campaign.upsert({
       where: { propertyId_agencyId: { propertyId: pid, agencyId: me.id } },
       update: {
@@ -1553,6 +1773,19 @@ export async function sendCampaignAction(input: {
         message: message || null,
         serviceIds,
         conversationId,
+
+        // ✅ términos + snapshot €
+        priceAtProposal,
+        commissionPct,
+        commissionIvaPct,
+        commissionSharePct,
+        commissionShareVisibility,
+        exclusiveMandate,
+        exclusiveMonths,
+        commissionBaseEur,
+        commissionIvaEur,
+        commissionTotalEur,
+        commissionShareEur,
       },
       create: {
         propertyId: pid,
@@ -1561,6 +1794,19 @@ export async function sendCampaignAction(input: {
         message: message || null,
         serviceIds,
         conversationId,
+
+        // ✅ términos + snapshot €
+        priceAtProposal,
+        commissionPct,
+        commissionIvaPct,
+        commissionSharePct,
+        commissionShareVisibility,
+        exclusiveMandate,
+        exclusiveMonths,
+        commissionBaseEur,
+        commissionIvaEur,
+        commissionTotalEur,
+        commissionShareEur,
       },
     });
 
@@ -1573,21 +1819,16 @@ export async function sendCampaignAction(input: {
       });
     }
 
-    // 5) Opcional MUY útil: mensaje inicial en chat para dejar rastro
-    if (conversationId) {
+    // 5) Mensaje automático: solo si es primer envío o si el usuario escribió message
+    if (conversationId && (isFirstSend || !!message)) {
       const txt =
         message ||
         `Propuesta enviada para ${prop?.refCode || "la propiedad"} (${serviceIds.length} servicios).`;
 
       await prisma.message.create({
-        data: {
-          conversationId,
-          senderId: me.id,
-          text: txt,
-        },
+        data: { conversationId, senderId: me.id, text: txt },
       });
 
-      // forzamos updatedAt para orden de threads
       try {
         await prisma.conversation.update({
           where: { id: conversationId },

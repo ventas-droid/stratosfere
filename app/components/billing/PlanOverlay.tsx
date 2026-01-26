@@ -1,5 +1,7 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
+import { startTrialAction, getBillingGateAction } from "@/app/actions";
+
 
 type Plan = {
   id: string;
@@ -20,6 +22,31 @@ type Props = {
 
 export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Props) {
   if (!isOpen) return null;
+
+ const [gateLoading, setGateLoading] = useState(true);
+const [showPaywall, setShowPaywall] = useState(true);
+
+useEffect(() => {
+  let alive = true;
+
+  (async () => {
+    try {
+      const res: any = await getBillingGateAction();
+      if (!alive) return;
+
+      if (res?.success && res?.data) {
+        setShowPaywall(!!res.data.showPaywall);
+      }
+    } finally {
+      if (alive) setGateLoading(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, []);
+
 
   const plans: Plan[] = useMemo(
     () => [
