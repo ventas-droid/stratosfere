@@ -1,18 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getBillingGateAction } from "@/app/actions";
 
+type BillingGate = {
+  plan?: string;
+  status?: string;
+  showPaywall?: boolean;
+  trialEndsAt?: string | null;
+};
+
 export function useMyPlan() {
-  const [plan, setPlan] = useState<any>(null);
+  const [plan, setPlan] = useState<BillingGate | null>(null);
   const [isActive, setIsActive] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       const res: any = await getBillingGateAction();
+
       if (res?.success && res?.data) {
-        setPlan(res.data);
+        setPlan(res.data as BillingGate);
         // ✅ Activo = NO paywall (TRIAL cuenta como acceso)
         setIsActive(!res.data.showPaywall);
       } else {
@@ -25,26 +34,22 @@ export function useMyPlan() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let alive = true;
-
-    const run = async () => {
-      if (!alive) return;
-      await load();
-    };
-    run();
+    void load();
 
     // ✅ refresh server-truth (sin localStorage)
-    const onRefresh = () => load();
+    const onRefresh = () => {
+      void load();
+    };
+
     window.addEventListener("billing-refresh-signal", onRefresh as any);
 
     return () => {
-      alive = false;
       window.removeEventListener("billing-refresh-signal", onRefresh as any);
     };
-  }, []);
+  }, [load]);
 
   return { plan, isActive, loading };
 }

@@ -1,7 +1,6 @@
-// app/components/billing/PlanOverlay.tsx
 "use client";
 
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { startTrialAction } from "@/app/actions";
 
 type Plan = {
@@ -15,7 +14,7 @@ type Plan = {
 
 type Props = {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: () => void; // (en STARTER/paywall NO lo usamos para que no se “salten” el gate)
   userEmail?: string;
   userId?: string;
 };
@@ -30,6 +29,23 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
   const [countdown, setCountdown] = useState(5);
   const [trialPlanName, setTrialPlanName] = useState<string | null>(null);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+
+  // para resetear limpio cuando ABRE el modal (sin pisar TRIAL_OK)
+  const prevOpenRef = useRef(false);
+
+  useEffect(() => {
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = isOpen;
+
+    // ✅ al abrir (transición false->true), resetea a SELECT limpio
+    if (!wasOpen && isOpen) {
+      setPhase("SELECT");
+      setCountdown(5);
+      setTrialPlanName(null);
+      setTrialEndsAt(null);
+      setTrialBusy(null);
+    }
+  }, [isOpen]);
 
   const plans: Plan[] = useMemo(
     () => [
@@ -79,11 +95,11 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
     });
   };
 
-    const startTrial = async (planCode: "PRO" | "AGENCY") => {
+  const startTrial = async (planCode: "PRO" | "AGENCY") => {
     try {
       setTrialBusy(planCode);
-      const res: any = await startTrialAction(planCode);
 
+      const res: any = await startTrialAction(planCode);
       if (!res?.success) {
         alert(res?.error || "No se pudo iniciar el trial");
         return;
@@ -95,31 +111,12 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
       setTrialPlanName(planCode === "AGENCY" ? "Agency" : "Pro");
       setPhase("TRIAL_OK");
       setCountdown(5);
-
-      // ✅ refresca plan en segundo plano (server truth) SIN recargar
-      try {
-        window.dispatchEvent(new CustomEvent("billing-refresh-signal"));
-      } catch {}
     } finally {
       setTrialBusy(null);
     }
   };
 
-  // ✅ autocierre publicitario 5s
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // ✅ si el modal se vuelve a abrir, arrancamos limpio en SELECT
-    if (phase === "TRIAL_OK") {
-      // dejamos que termine su ciclo normal
-    } else {
-      setCountdown(5);
-    }
-
-    return () => {};
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
+  // ✅ autocierre publicitario 5s (sin recargar / sin volver a “la puerta”)
   useEffect(() => {
     if (!isOpen) return;
     if (phase !== "TRIAL_OK") return;
@@ -134,15 +131,17 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
     const closeT = setTimeout(() => {
       if (!alive) return;
 
-      // ✅ antes de cerrar, dejamos el modal preparado para próxima vez
-      setPhase("SELECT");
-      setTrialPlanName(null);
-      setTrialEndsAt(null);
-      setCountdown(5);
-
+      // ✅ AQUÍ VA EXACTAMENTE TU LÍNEA:
+      // ✅ refresca plan server-truth sin recargar
       try {
-        onClose();
+        window.dispatchEvent(new CustomEvent("billing-refresh-signal"));
       } catch {}
+
+      // ✅ No forzamos onClose aquí: tu index.tsx cerrará el modal
+      // automáticamente cuando showPaywall pase a false.
+      //
+      // (Dejamos onClose solo por compatibilidad, pero no lo usamos para
+      // evitar que se “salten” el paywall cerrando manualmente.)
     }, 5000);
 
     return () => {
@@ -150,7 +149,7 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
       clearInterval(t);
       clearTimeout(closeT);
     };
-  }, [isOpen, phase, onClose]);
+  }, [isOpen, phase]);
 
   if (!isOpen) return null;
 
@@ -179,19 +178,33 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
       <div className="absolute left-1/2 top-1/2 w-[min(1080px,94vw)] -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white text-black">
         <div className="flex items-center justify-between px-10 py-7 border-b border-black/10">
           <div>
-            <div className="text-xs font-black tracking-[0.28em] text-black/50">BILLING / PLAN</div>
+            <div className="text-xs font-black tracking-[0.28em] text-black/50">
+              BILLING / PLAN
+            </div>
             <div className="text-2xl font-black tracking-tight">
               {phase === "TRIAL_OK" ? "Prueba activa" : "Activa tu acceso"}
             </div>
           </div>
 
+          {/* ✅ No permitimos cerrar en SELECT (paywall real) */}
           <button
-            onClick={onClose}
-            disabled={lockUI}
+            onClick={() => {
+              // Solo dejamos cerrar si estás en TRIAL_OK (y aun así se cierra solo)
+              if (phase === "TRIAL_OK") {
+                try {
+                  onClose();
+                } catch {}
+              }
+            }}
+            disabled={phase !== "TRIAL_OK"}
             className="h-10 px-5 rounded-xl border border-black/15 font-black tracking-wide hover:bg-black/5 disabled:opacity-30"
-            title={lockUI ? "Cerrando automáticamente..." : "Cerrar"}
+            title={
+              phase !== "TRIAL_OK"
+                ? "Activa un trial o completa el pago para continuar"
+                : "Se cerrará automáticamente"
+            }
           >
-            {lockUI ? `CERRANDO (${countdown}s)` : "CERRAR"}
+            {phase === "TRIAL_OK" ? `CERRANDO (${countdown}s)` : "CERRAR"}
           </button>
         </div>
 
@@ -208,8 +221,9 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
               </div>
 
               <div className="text-sm text-black/70 leading-relaxed">
-                Has activado <b>{trialPlanName || "tu plan"}</b>. Durante los próximos <b>15 días</b> podrás
-                usar la plataforma. Al finalizar, eliges y activas tu plan de pago.
+                Has activado <b>{trialPlanName || "tu plan"}</b>. Durante los próximos{" "}
+                <b>15 días</b> podrás usar la plataforma. Al finalizar, eliges y activas tu
+                plan de pago.
               </div>
 
               <div className="mt-4 text-sm text-black/60">
@@ -220,7 +234,9 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
                 ) : (
                   <>Tu trial ya está guardado en BD.</>
                 )}
-                <span className="ml-2 text-black/40">Se cerrará automáticamente en {countdown}s.</span>
+                <span className="ml-2 text-black/40">
+                  Se cerrará automáticamente en {countdown}s.
+                </span>
               </div>
             </div>
           )}
@@ -300,7 +316,8 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
           </div>
 
           <div className="mt-6 text-[12px] text-black/45">
-            Sistema SaaS (server-truth): el trial y su fecha fin se guardan en BD (Subscription.currentPeriodEnd).
+            Sistema SaaS (server-truth): el trial y su fecha fin se guardan en BD
+            (Subscription.currentPeriodEnd).
           </div>
         </div>
       </div>
