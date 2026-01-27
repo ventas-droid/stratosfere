@@ -503,19 +503,16 @@ const processedConversationRef = useRef<string | null>(null);
 
 // En app/components/alive/index.tsx
 
+// ✅ Mostrar PlanOverlay automáticamente SOLO en AGENCY (no bloquear EXPLORER)
 useEffect(() => {
+  if (systemMode !== "AGENCY") return;      // <- clave
   if (!gateUnlocked) return;
-  
-  // 👇👇 AÑADA ESTA LÍNEA DE BLINDAJE AQUI 👇👇
-  if (systemMode === 'GATEWAY') return; 
-
+  if (planLoading) return;                  // <- evita abrir por estados intermedios
   if (planOpen) return;
   if (planDismissedRef.current) return;
 
   if (isActive === false) setPlanOpen(true);
-  
-  // 👇 Y AÑADA 'systemMode' AQUÍ AL FINAL
-}, [gateUnlocked, isActive, planOpen, systemMode]);
+}, [systemMode, gateUnlocked, planLoading, isActive, planOpen]);
 
 // recalcular total
 useEffect(() => {
@@ -3184,8 +3181,7 @@ disabled={chatUploading}
     </div>
   </div>
 )}
-{/* ✅ BILLING OVERLAY */}
-{planOpen && (
+{systemMode === "AGENCY" && planOpen && (
   <PlanOverlay
     isOpen={planOpen}
     onClose={closePlanOverlay}
