@@ -529,7 +529,7 @@ useEffect(() => {
 }, [activeUserKey]);
 
 // ✅ Mostrar PlanOverlay SOLO si hay PAYWALL real (STARTER o EXPIRED)
-// Fuente de verdad: plan.showPaywall (server truth)
+// Fuente de verdad: plan.showPaywall (server-truth via getBillingGateAction)
 useEffect(() => {
   if (!gateUnlocked) return;
   if (planLoading) return;
@@ -537,12 +537,16 @@ useEffect(() => {
 
   const showPaywall = !!(plan as any)?.showPaywall;
 
-  // si ya está abierto, no tocamos nada (lo controla el propio modal)
-  if (planOpen) return;
+  // Si está abierto y ya NO toca, lo cerramos
+  if (planOpen) {
+    if (!showPaywall) setPlanOpen(false);
+    return;
+  }
 
-  // evitar reabrir si lo cerraste en esta sesión
+  // Evitar reabrir si el usuario lo cerró manualmente en esta sesión
   if (planDismissedRef.current) return;
 
+  // STARTER / EXPIRED => modal
   if (showPaywall) setPlanOpen(true);
 }, [gateUnlocked, planLoading, plan, planOpen]);
 
