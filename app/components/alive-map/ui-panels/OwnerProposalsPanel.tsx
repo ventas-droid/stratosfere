@@ -332,14 +332,11 @@ const processedServices = useMemo(() => {
 }, [selected]);
 
 
-  // --- RENDER ---
+ // --- RENDER ---
   return (
     <>
-      <div
-        className="fixed inset-0 z-[64000] bg-black/10 backdrop-blur-[2px]"
-        onClick={() => toggleRightPanel("NONE")}
-      />
-
+      {/* 🟢 CORRECCIÓN: Velo eliminado para permitir tocar el mapa */}
+      
       <div className="fixed inset-y-2 right-2 w-full md:w-[420px] z-[65000] flex flex-col pointer-events-auto animate-slide-in-right bg-[#F2F2F7]/95 backdrop-blur-xl shadow-2xl rounded-[24px] border border-white/50 overflow-hidden text-slate-900 font-sans">
         
      {/* HEADER */}
