@@ -516,6 +516,8 @@ const [planOpen, setPlanOpen] = useState(false);
 
 // ⬇️ RECOMENDADO: que el hook devuelva también "loading"
 const { plan, isActive, loading: planLoading } = useMyPlan();
+
+// ✅ evita reabrir en esta sesión si el usuario lo cierra
 const planDismissedRef = useRef(false);
 
 const closePlanOverlay = () => {
@@ -526,25 +528,26 @@ const closePlanOverlay = () => {
 // ✅ Mostrar PlanOverlay automáticamente SOLO si el plan en BD está en TRIAL (ENSAYO)
 // Fuente de verdad: plan.estado (DB). NO usamos env ni isActive aquí.
 useEffect(() => {
-  // ✅ No abrir hasta que esté listo
   if (!gateUnlocked) return;
   if (planLoading) return;
-  if (!plan) return;
 
-  // ✅ Si está abierto y ya NO es ENSAYO, lo cerramos (permite “des-zombificar”)
+  const estado = plan?.estado;
+  if (!estado) return;
+
+  // ✅ si está abierto y dejó de ser ENSAYO => cerramos (anti "zombie")
   if (planOpen) {
-    if (plan.estado !== "ENSAYO") setPlanOpen(false);
+    if (estado !== "ENSAYO") setPlanOpen(false);
     return;
   }
 
-  // ✅ Evitar reabrir
+  // ✅ Evitar reabrir si ya lo cerraste manualmente
   if (planDismissedRef.current) return;
 
-  // ✅ TRIAL FULL (ENSAYO): mostramos overlay informativo
-  if (plan.estado === "ENSAYO") {
+  // ✅ Solo abre automáticamente si estás en ENSAYO
+  if (estado === "ENSAYO") {
     setPlanOpen(true);
   }
-}, [gateUnlocked, planLoading, plan, planOpen]);
+}, [gateUnlocked, planLoading, plan?.estado, planOpen]);
 
 
 // recalcular total
