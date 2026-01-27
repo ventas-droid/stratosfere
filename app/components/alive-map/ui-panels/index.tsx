@@ -503,16 +503,25 @@ const processedConversationRef = useRef<string | null>(null);
 
 // En app/components/alive/index.tsx
 
-// ✅ Mostrar PlanOverlay automáticamente SOLO en AGENCY (no bloquear EXPLORER)
+// ✅ Mostrar PlanOverlay automáticamente SOLO cuando billing esté ON (Paddle) y el plan NO esté activo
 useEffect(() => {
-  if (systemMode !== "AGENCY") return;      // <- clave
+  const BILLING_ENABLED = process.env.NEXT_PUBLIC_PADDLE_ENABLED === "true";
+
+  // ✅ Si Paddle está OFF (free trial global), jamás mostramos el velo
+  if (!BILLING_ENABLED) {
+    if (planOpen) setPlanOpen(false); // por si quedó "zombie"
+    return;
+  }
+
+  // ✅ No abrir hasta que esté listo
   if (!gateUnlocked) return;
-  if (planLoading) return;                  // <- evita abrir por estados intermedios
+  if (planLoading) return; // evita estados intermedios
   if (planOpen) return;
   if (planDismissedRef.current) return;
 
+  // ✅ Solo si realmente NO está activo
   if (isActive === false) setPlanOpen(true);
-}, [systemMode, gateUnlocked, planLoading, isActive, planOpen]);
+}, [gateUnlocked, planLoading, isActive, planOpen]);
 
 // recalcular total
 useEffect(() => {
@@ -3181,7 +3190,7 @@ disabled={chatUploading}
     </div>
   </div>
 )}
-{systemMode === "AGENCY" && planOpen && (
+{process.env.NEXT_PUBLIC_PADDLE_ENABLED === "true" && planOpen && (
   <PlanOverlay
     isOpen={planOpen}
     onClose={closePlanOverlay}
@@ -3189,6 +3198,7 @@ disabled={chatUploading}
     userId={activeUserKey || undefined}
   />
 )}
+
 
 
 
