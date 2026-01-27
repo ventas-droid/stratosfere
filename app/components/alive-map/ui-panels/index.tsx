@@ -501,15 +501,21 @@ const closePlanOverlay = () => {
 // Añada esto junto a sus otros useRef:
 const processedConversationRef = useRef<string | null>(null);
 
-// ✅ Mostrar PlanOverlay automáticamente si el usuario entra y NO tiene plan activo
+// En app/components/alive/index.tsx
+
 useEffect(() => {
   if (!gateUnlocked) return;
+  
+  // 👇👇 AÑADA ESTA LÍNEA DE BLINDAJE AQUI 👇👇
+  if (systemMode === 'GATEWAY') return; 
+
   if (planOpen) return;
   if (planDismissedRef.current) return;
 
-  // ✅ IMPORTANTÍSIMO: solo abre si isActive ES FALSE (no si es undefined)
   if (isActive === false) setPlanOpen(true);
-}, [gateUnlocked, isActive, planOpen]);
+  
+  // 👇 Y AÑADA 'systemMode' AQUÍ AL FINAL
+}, [gateUnlocked, isActive, planOpen, systemMode]);
 
 // recalcular total
 useEffect(() => {
