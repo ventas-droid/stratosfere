@@ -454,22 +454,46 @@ const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 
-// ✅ CÓDIGO CORREGIDO (COPIAR Y PEGAR ESTE BLOQUE)
+const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+
+// ✅ Añádelo aquí (una sola vez) para el anti-loop definitivo:
+const processedConversationRef = useRef<string | null>(null);
+
+// ✅ Auto-select SOLO 1 vez por conversación (anti-loop definitivo)
 useEffect(() => {
   if (rightPanel !== "OWNER_PROPOSALS") return;
   if (!chatConversationId) return;
 
+  const cid = String(chatConversationId);
+
+  // ✅ si ya procesamos esta conversación, no re-seleccionamos aunque cambie ownerProposals
+  if (processedConversationRef.current === cid) return;
+
   const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
-    (p: any) => String(p?.conversationId || "") === String(chatConversationId)
+    (p: any) => String(p?.conversationId || "") === cid
   );
 
   // Solo auto-seleccionamos si NO hay nada seleccionado
   if (match?.id && !activeCampaignId) {
-     setActiveCampaignId(String(match.id));
+    processedConversationRef.current = cid; // ✅ marcamos como “ya procesado”
+    setActiveCampaignId(String(match.id));
   }
-  
-  // 👇 HE QUITADO activeCampaignId DE AQUÍ PARA ROMPER EL BUCLE
+  // ⚠️ mantenemos activeCampaignId fuera del deps para no re-disparar por el set
 }, [rightPanel, chatConversationId, ownerProposals]);
+
+// ✅ (A) Reset al cerrar/salir de OWNER_PROPOSALS
+useEffect(() => {
+  if (rightPanel !== "OWNER_PROPOSALS") {
+    processedConversationRef.current = null;
+  }
+}, [rightPanel]);
+
+// ✅ (B) Reset al cerrar el Chat
+useEffect(() => {
+  if (!chatOpen) {
+    processedConversationRef.current = null;
+  }
+}, [chatOpen]);
 
 const [chatMessages, setChatMessages] = useState<any[]>([]);
 const [chatInput, setChatInput] = useState("");
@@ -498,30 +522,30 @@ const closePlanOverlay = () => {
   planDismissedRef.current = true; // evita que se reabra en esta sesión
   setPlanOpen(false);
 };
-// Añada esto junto a sus otros useRef:
-const processedConversationRef = useRef<string | null>(null);
 
-// En app/components/alive/index.tsx
-
-// ✅ Mostrar PlanOverlay automáticamente SOLO cuando billing esté ON (Paddle) y el plan NO esté activo
+// ✅ Mostrar PlanOverlay automáticamente SOLO si el plan en BD está en TRIAL (ENSAYO)
+// Fuente de verdad: plan.estado (DB). NO usamos env ni isActive aquí.
 useEffect(() => {
-  const BILLING_ENABLED = process.env.NEXT_PUBLIC_PADDLE_ENABLED === "true";
+  // ✅ No abrir hasta que esté listo
+  if (!gateUnlocked) return;
+  if (planLoading) return;
+  if (!plan) return;
 
-  // ✅ Si Paddle está OFF (free trial global), jamás mostramos el velo
-  if (!BILLING_ENABLED) {
-    if (planOpen) setPlanOpen(false); // por si quedó "zombie"
+  // ✅ Si está abierto y ya NO es ENSAYO, lo cerramos (permite “des-zombificar”)
+  if (planOpen) {
+    if (plan.estado !== "ENSAYO") setPlanOpen(false);
     return;
   }
 
-  // ✅ No abrir hasta que esté listo
-  if (!gateUnlocked) return;
-  if (planLoading) return; // evita estados intermedios
-  if (planOpen) return;
+  // ✅ Evitar reabrir
   if (planDismissedRef.current) return;
 
-  // ✅ Solo si realmente NO está activo
-  if (isActive === false) setPlanOpen(true);
-}, [gateUnlocked, planLoading, isActive, planOpen]);
+  // ✅ TRIAL FULL (ENSAYO): mostramos overlay informativo
+  if (plan.estado === "ENSAYO") {
+    setPlanOpen(true);
+  }
+}, [gateUnlocked, planLoading, plan, planOpen]);
+
 
 // recalcular total
 useEffect(() => {
