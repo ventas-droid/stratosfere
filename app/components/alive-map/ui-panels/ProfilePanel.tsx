@@ -103,52 +103,61 @@ export default function ProfilePanel({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   // --- CARGA DE DATOS ---
-  const loadData = async () => {
-      if (typeof window === 'undefined') return;
-      try {
-          const userRes = await getUserMeAction();
-          if (userRes.success && userRes.data) {
-              const d = userRes.data;
-              setUser({
-                  name: d.name || "Usuario Stratos",
-                  role: String(d.role || "PARTICULAR"),
-                  email: d.email || "",
-                  avatar: d.avatar || "",
-                  cover: d.coverImage || "", // Leemos Cover
-                  phone: d.phone || "",      // Leemos Fijo
-                  mobile: d.mobile || "",    // Leemos Móvil
-                  companyName: d.companyName || "",
-                  licenseNumber: d.licenseNumber || "",
-                  website: d.website || ""
-              } as any);
-          }
+const loadData = async () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const userRes = await getUserMeAction();
 
-          const response = await getPropertiesAction();
-          if (response.success && response.data) {
-             const dbProperties = response.data.map((p: any) => ({
-                 ...p,
-                 img: p.mainImage || (p.images && p.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
-                 selectedServices: [
-                    ...(p.selectedServices || []),
-                    p.pool ? 'pool' : null, p.garage ? 'garage' : null,
-                    p.elevator ? 'elevator' : null, p.terrace ? 'terrace' : null,
-                    p.garden ? 'garden' : null, p.storage ? 'storage' : null,
-                    p.ac ? 'ac' : null, p.security ? 'security' : null
-                 ].filter(Boolean),
-                 mBuilt: Number(p.mBuilt || 0),
-                 price: p.rawPrice 
-                    ? new Intl.NumberFormat('es-ES').format(p.rawPrice)
-                    : (typeof p.price === 'number' ? new Intl.NumberFormat('es-ES').format(p.price) : p.price),
-                 coordinates: [p.longitude, p.latitude]
-             }));
-             setMyProperties(dbProperties);
-          } else {
-             setMyProperties([]); 
-          }
-      } catch (e) { console.error("Error cargando perfil:", e); }
-  };
+    // ✅ DEBUG (no rompe nada)
+    console.log("getUserMeAction ->", userRes);
+    console.log("ME.data keys ->", Object.keys((userRes as any)?.data || {}));
 
-  useEffect(() => { if (rightPanel === 'PROFILE') loadData(); }, [rightPanel]);
+    if (userRes.success && userRes.data) {
+      const d = userRes.data;
+      setUser({
+        name: d.name || "Usuario Stratos",
+        role: String(d.role || "PARTICULAR"),
+        email: d.email || "",
+        avatar: d.avatar || "",
+        cover: d.coverImage || "", // Leemos Cover
+        phone: d.phone || "",      // Leemos Fijo
+        mobile: d.mobile || "",    // Leemos Móvil
+        companyName: d.companyName || "",
+        licenseNumber: d.licenseNumber || "",
+        website: d.website || ""
+      } as any);
+    }
+
+    const response = await getPropertiesAction();
+    if (response.success && response.data) {
+      const dbProperties = response.data.map((p: any) => ({
+        ...p,
+        img: p.mainImage || (p.images && p.images[0]?.url) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3",
+        selectedServices: [
+          ...(p.selectedServices || []),
+          p.pool ? 'pool' : null, p.garage ? 'garage' : null,
+          p.elevator ? 'elevator' : null, p.terrace ? 'terrace' : null,
+          p.garden ? 'garden' : null, p.storage ? 'storage' : null,
+          p.ac ? 'ac' : null, p.security ? 'security' : null
+        ].filter(Boolean),
+        mBuilt: Number(p.mBuilt || 0),
+        price: p.rawPrice
+          ? new Intl.NumberFormat('es-ES').format(p.rawPrice)
+          : (typeof p.price === 'number' ? new Intl.NumberFormat('es-ES').format(p.price) : p.price),
+        coordinates: [p.longitude, p.latitude]
+      }));
+      setMyProperties(dbProperties);
+    } else {
+      setMyProperties([]);
+    }
+  } catch (e) {
+    console.error("Error cargando perfil:", e);
+  }
+};
+
+useEffect(() => {
+  if (rightPanel === 'PROFILE') loadData();
+}, [rightPanel]);
 
   // --- LÓGICA DE EDICIÓN ---
   const startEditing = () => {
@@ -421,30 +430,37 @@ export default function ProfilePanel({
            {/* MENÚ DE ACCESO TÁCTICO */}
             <div className="space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4 mb-1">Centro de Mando</p>
-                
-                {/* BOTÓN ESPECIAL: SOLO PARA AGENCIA */}
-                {(user.role === 'AGENCIA' || user.companyName) && (
-                    <button 
-                       onClick={() => { 
-  if(soundEnabled) playSynthSound('click'); 
-  toggleRightPanel('OWNER_PROPOSALS');
-}}
+          
+        {/* BOTÓN AGENCY HUD — SOLO PARA PARTICULAR / COMPRADOR */}
+{user?.role === 'PARTICULAR' && (
+  <button
+    type="button"
+    onClick={() => {
+      if (soundEnabled) playSynthSound('click');
+      toggleRightPanel('OWNER_PROPOSALS');
+    }}
+    className="w-full bg-[#1d1d1f] text-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-xl cursor-pointer relative overflow-hidden"
+  >
+    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-                        className="w-full bg-[#1d1d1f] text-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-xl cursor-pointer relative overflow-hidden"
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="flex items-center gap-4 relative z-10">
-                            <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400 backdrop-blur-sm">
-                                <Briefcase size={18}/>
-                            </div>
-                            <div className="text-left">
-                                <span className="block font-black text-sm tracking-wide">AGENCY HUD</span>
-                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Gestión Profesional</span>
-                            </div>
-                        </div>
-                        <ChevronRight size={16} className="text-white/30 group-hover:text-white relative z-10 transition-colors"/>
-                    </button>
-                )}
+    <div className="flex items-center gap-4 relative z-10">
+      <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400 backdrop-blur-sm">
+        <Briefcase size={18} />
+      </div>
+      <div className="text-left">
+        <span className="block font-black text-sm tracking-wide">AGENCY HUD</span>
+        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+          Gestión Profesional
+        </span>
+      </div>
+    </div>
+
+    <ChevronRight
+      size={16}
+      className="text-white/30 group-hover:text-white relative z-10 transition-colors"
+    />
+  </button>
+)}
 
                 {/* BOTÓN: MIS PROPIEDADES */}
                 <button onClick={() => setInternalView('PROPERTIES')} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-100 cursor-pointer">

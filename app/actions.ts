@@ -1944,21 +1944,23 @@ where: { userId: String(me.id) },
       )
     );
 
-    const props = await prismaAny.property.findMany({
-      where: { id: { in: myPropIds } },
-      select: {
-        id: true,
-        title: true,
-        refCode: true,
-        mainImage: true,
-        location: true,
-        address: true,
-        rawPrice: true,
-        price: true,
-        latitude: true,
-        longitude: true,
-      },
-    });
+   const props = await prismaAny.property.findMany({
+  where: { id: { in: myPropIds } },
+  select: {
+    id: true,
+    title: true,
+    refCode: true,
+    mainImage: true,
+    address: true,
+    city: true,
+    region: true,
+    postcode: true,
+    price: true,
+    latitude: true,
+    longitude: true,
+  },
+});
+
 
     const agencies = agencyIds.length
       ? await prismaAny.user.findMany({
@@ -1979,39 +1981,63 @@ where: { userId: String(me.id) },
         })
       : [];
 
-    const propById = new Map(props.map((p: any) => [String(p.id), p]));
-    const agencyById = new Map(agencies.map((a: any) => [String(a.id), a]));
+   const propById = new Map<string, any>((props || []).map((p: any) => [String(p.id), p]));
+const agencyById = new Map<string, any>((agencies || []).map((a: any) => [String(a.id), a]));
 
-    const data = (Array.isArray(campaigns) ? campaigns : []).map((c: any) => {
-      const property = propById.get(String(c.propertyId)) || null;
-      const agencyId = String(c?.agencyId || c?.agencyUserId || "");
-      const agency = agencyById.get(agencyId) || null;
+const data = (Array.isArray(campaigns) ? campaigns : []).map((c: any) => {
+  const rawProperty = propById.get(String(c.propertyId)) ?? null;
 
-      return {
-        id: String(c.id),
-        status: c.status || "SENT",
-        createdAt: c.createdAt || null,
+  // ✅ SOLO permitimos objetos (evita spread sobre unknown / null / string)
+  const property: any =
+    rawProperty && typeof rawProperty === "object" ? rawProperty : null;
 
-        // campaña
-        message: c.message || c.note || c.text || "",
-        serviceIds: c.serviceIds || c.requiredServiceIds || c.selectedServiceIds || [],
-        commissionPct: Number(c.commissionPct ?? 0),
-        vatPct: Number(c.vatPct ?? c.ivaPct ?? 0),
-        sharePct: Number(c.sharePct ?? 0),
-        shareVisibility: c.shareVisibility || c.visibility || "PRIVATE",
+  // ✅ price normalizado (sin rawPrice inventado)
+  const priceValue = Number(property?.price ?? 0);
+  const priceFormatted = new Intl.NumberFormat("es-ES").format(priceValue);
 
-        // contexto
-        propertyId: c.propertyId ? String(c.propertyId) : "",
-        conversationId: c.conversationId ? String(c.conversationId) : (c.chatConversationId ? String(c.chatConversationId) : ""),
+  const agencyId = String(c?.agencyId || c?.agencyUserId || "");
+  const agency = agencyById.get(agencyId) ?? null;
 
-        // property snapshot
-        property,
+  return {
+    id: String(c.id),
+    status: c.status || "SENT",
+    createdAt: c.createdAt || null,
 
-        // agency brand snapshot
-        agency,
-agencyUserId: (agency as any)?.id || agencyId || "",     
- };
-    });
+    message: String(c.message || ""),
+    serviceIds: Array.isArray(c.serviceIds) ? c.serviceIds : [],
+
+    commissionPct: Number(c.commissionPct ?? 0),
+    commissionIvaPct: Number(c.commissionIvaPct ?? 0),
+    commissionSharePct: Number(c.commissionSharePct ?? 0),
+    commissionShareVisibility: String(c.commissionShareVisibility || "AGENCIES"),
+
+    exclusiveMandate: Boolean(c.exclusiveMandate ?? true),
+    exclusiveMonths: Number(c.exclusiveMonths ?? 6),
+
+    priceAtProposal: Number(c.priceAtProposal ?? priceValue ?? 0),
+    commissionBaseEur: Number(c.commissionBaseEur ?? 0),
+    commissionIvaEur: Number(c.commissionIvaEur ?? 0),
+    commissionTotalEur: Number(c.commissionTotalEur ?? 0),
+    commissionShareEur: Number(c.commissionShareEur ?? 0),
+
+    propertyId: String(c.propertyId || ""),
+    conversationId: c.conversationId ? String(c.conversationId) : "",
+
+    // ✅ ahora el spread solo ocurre si property es objeto real
+    property: property
+      ? {
+          ...(property as any),
+          priceValue,
+          priceFormatted,
+        }
+      : null,
+
+    agency,
+    agencyUserId: (agency as any)?.id || agencyId || "",
+  };
+});
+
+
 
     return { success: true, data };
   } catch (e: any) {

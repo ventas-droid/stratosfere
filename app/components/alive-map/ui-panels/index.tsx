@@ -283,18 +283,27 @@ export default function UIPanels({
   // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
   const [rightPanel, setRightPanel] = useState('NONE');   
+useEffect(() => {
+  if (systemMode === "AGENCY" && rightPanel === "OWNER_PROPOSALS") {
+    setRightPanel("NONE");
+    setActiveCampaignId(null);
+  }
+}, [systemMode, rightPanel]);
 
    // ✅ Propuestas (Campaign) en columna derecha
 const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
 const [ownerProposals, setOwnerProposals] = useState<any[]>([]);
 const [ownerProposalsLoading, setOwnerProposalsLoading] = useState(false);
+const [ownerProposalsManualList, setOwnerProposalsManualList] = useState(false);
 
 // ✅ loader robusto (Owner Proposals) — con mapping COMPLETO (comisión/terms) + anti-duplicados + anti-stale
 const ownerProposalsReqRef = useRef(0);
 
 const loadOwnerProposals = async () => {
+  // ✅ PRIVACIDAD: OwnerProposals SOLO en EXPLORER (particular)
+  if (systemMode !== "EXPLORER") return;
+
   // 🚫 sin sesión
-  // ✅ IMPORTANTE: NO bloquear por identityVerified (si no, el particular nunca ve propuestas)
   if (!activeUserKey || activeUserKey === "anon") return;
 
   // ✅ evita doble llamada si ya está cargando
@@ -315,6 +324,8 @@ const loadOwnerProposals = async () => {
     const r = await fn();
     if (reqId !== ownerProposalsReqRef.current) return;
 
+    console.log("getOwnerProposalsAction ->", r);
+
     if (!r?.success) {
       console.warn("getOwnerProposalsAction failed:", r?.error);
       setOwnerProposals([]);
@@ -322,6 +333,7 @@ const loadOwnerProposals = async () => {
     }
 
     const rawList = Array.isArray(r?.data) ? r.data : [];
+    console.log("OwnerProposals rawList:", rawList.length, rawList?.map((x: any) => x?.id));
 
     // ✅ anti-duplicados por id
     const dedup = new Map<string, any>();
@@ -331,12 +343,20 @@ const loadOwnerProposals = async () => {
       if (!dedup.has(id)) dedup.set(id, x);
     }
 
+    // ✅ BLINDAJE: si SERVICES_CATALOG no existe, no rompe
+    const catalog: any[] =
+      (globalThis as any)?.SERVICES_CATALOG && Array.isArray((globalThis as any).SERVICES_CATALOG)
+        ? (globalThis as any).SERVICES_CATALOG
+        : (typeof (SERVICES_CATALOG as any) !== "undefined" && Array.isArray(SERVICES_CATALOG as any))
+        ? (SERVICES_CATALOG as any[])
+        : [];
+
     const normalized = Array.from(dedup.values()).map((raw: any) => {
       const services = (Array.isArray(raw?.serviceIds) ? raw.serviceIds : [])
         .map((sid: any) => String(sid).trim())
         .filter(Boolean)
         .map((sid: string) => {
-          const hit = (SERVICES_CATALOG as any[]).find((s: any) => String(s?.id) === sid);
+          const hit = catalog.find((s: any) => String(s?.id) === sid);
           return hit
             ? { id: String(hit.id), label: String(hit.label || hit.name || sid), mode: hit.mode || hit.category }
             : { id: sid, label: sid, mode: undefined };
@@ -354,34 +374,33 @@ const loadOwnerProposals = async () => {
         conversationId: raw?.conversationId ? String(raw.conversationId) : "",
 
         services,
-
-        // ✅ terms COMPLETOS (según tu schema actual Campaign)
-        terms: {
-          exclusive: !!raw?.exclusiveMandate,
-          months: Number(raw?.exclusiveMonths ?? 0),
-
-          commissionPct: Number(raw?.commissionPct ?? 0),
-          ivaPct: Number(raw?.commissionIvaPct ?? 0),
-
-          commissionBaseEur: Number(raw?.commissionBaseEur ?? 0),
-          ivaAmountEur: Number(raw?.commissionIvaEur ?? 0),
-          commissionTotalEur: Number(raw?.commissionTotalEur ?? 0),
-
-          sharePct: Number(raw?.commissionSharePct ?? 0),
-          shareVisibility: raw?.commissionShareVisibility ?? "AGENCIES",
-          shareEstimatedEur: Number(raw?.commissionShareEur ?? 0),
-        },
       };
     });
 
     setOwnerProposals(normalized);
   } catch (e) {
     console.error("loadOwnerProposals error:", e);
-    if (reqId === ownerProposalsReqRef.current) setOwnerProposals([]);
+    setOwnerProposals([]);
   } finally {
     if (reqId === ownerProposalsReqRef.current) setOwnerProposalsLoading(false);
   }
 };
+
+
+/// ✅ CARGA AUTOMÁTICA de propuestas SOLO en EXPLORER (particular)
+useEffect(() => {
+  if (systemMode !== "EXPLORER") return;
+  if (!activeUserKey || activeUserKey === "anon") return;
+
+  // Cargar cuando:
+  // - abres la columna OWNER_PROPOSALS
+  // - o hay un campaign seleccionado
+  if (rightPanel === "OWNER_PROPOSALS" || !!activeCampaignId) {
+    loadOwnerProposals();
+  }
+}, [systemMode, activeUserKey, rightPanel, activeCampaignId]);
+
+
 
   const [selectedProp, setSelectedProp] = useState<any>(null);
   const [editingProp, setEditingProp] = useState<any>(null);
@@ -435,19 +454,32 @@ const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 
-// ✅ Paso 2: cuando abrimos OWNER_PROPOSALS desde un thread/chat,
-// auto-selecciona el expediente correcto en cuanto lleguen proposals.
+// ✅ Paso 2 BLINDADO: Auto-selección INTELIGENTE (solo una vez por chat)
 useEffect(() => {
-  if (rightPanel !== "OWNER_PROPOSALS") return;
-  if (!chatConversationId) return;
-  if (activeCampaignId) return;
+  // 1. Si no estamos en el panel o no hay chat, reseteamos la memoria y salimos.
+  if (rightPanel !== "OWNER_PROPOSALS" || !chatConversationId) {
+     processedConversationRef.current = null;
+     return;
+  }
 
+  // 2. 🛑 EL MURO: Si ya procesamos este chat ID, ¡NO HAGAS NADA MÁS!
+  // Esto es lo que evita que al volver atrás te re-capture.
+  if (processedConversationRef.current === chatConversationId) {
+    return;
+  }
+
+  // 3. Buscamos coincidencia
   const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
     (p: any) => String(p?.conversationId || "") === String(chatConversationId)
   );
 
-  if (match?.id) setActiveCampaignId(String(match.id));
-}, [rightPanel, chatConversationId, ownerProposals, activeCampaignId]);
+  // 4. Si encontramos match, lo abrimos Y MARCAMOS COMO PROCESADO
+  if (match?.id) {
+    setActiveCampaignId(String(match.id));
+    processedConversationRef.current = chatConversationId; // ✅ "Ya cumplí, no molesto más"
+  }
+
+}, [rightPanel, chatConversationId, ownerProposals]);
 
 const [chatMessages, setChatMessages] = useState<any[]>([]);
 const [chatInput, setChatInput] = useState("");
@@ -476,7 +508,8 @@ const closePlanOverlay = () => {
   planDismissedRef.current = true; // evita que se reabra en esta sesión
   setPlanOpen(false);
 };
-
+// Añada esto junto a sus otros useRef:
+const processedConversationRef = useRef<string | null>(null);
 
 // ✅ Mostrar PlanOverlay automáticamente si el usuario entra y NO tiene plan activo
 useEffect(() => {
@@ -670,9 +703,12 @@ useEffect(() => {
 
     (async () => {
       try {
-        // A. LLAMADA AL SERVIDOR
-        const me = await getUserMeAction();
-        if (!alive) return;
+       // A. LLAMADA AL SERVIDOR
+const me = await getUserMeAction();
+if (!alive) return;
+
+console.log("🧠 getUserMeAction ->", me);
+
 
         // B. OBTENCIÓN DE ID
         const key = me?.success && me?.data?.id ? String(me.data.id) : "anon";
@@ -1939,8 +1975,7 @@ if (passedConversationId) {
   await openChatPanel();
   await openConversation(String(passedConversationId));
 
-  // 🔥 abre columna derecha "Propuestas" si lo piden
-  if (openProposal) {
+    if (openProposal && systemMode === "EXPLORER") {
     setActiveCampaignId(campaignId || null);
     setRightPanel("OWNER_PROPOSALS");
   }
@@ -2660,18 +2695,21 @@ if (!gateUnlocked) {
                    playSynthSound={playSynthSound} 
                />
            )}
-      {rightPanel === "OWNER_PROPOSALS" && (
-  <OwnerProposalsPanel
-    rightPanel={rightPanel}
-    toggleRightPanel={toggleRightPanel}
-    activeCampaignId={activeCampaignId}
-    setActiveCampaignId={setActiveCampaignId}
-    proposals={ownerProposals}
-    loading={ownerProposalsLoading}
-    soundEnabled={soundEnabled}
-    playSynthSound={playSynthSound}
-  />
+     {systemMode === "EXPLORER" && rightPanel === "OWNER_PROPOSALS" && (
+<OwnerProposalsPanel
+  rightPanel={rightPanel}
+  toggleRightPanel={toggleRightPanel}
+  proposals={ownerProposals}
+  activeCampaignId={activeCampaignId}
+  setActiveCampaignId={setActiveCampaignId}
+  setOwnerProposalsManualList={setOwnerProposalsManualList}
+  ownerProposalsManualList={ownerProposalsManualList}
+  soundEnabled={soundEnabled}
+  playSynthSound={playSynthSound}
+/>
+
 )}
+
 
 
 
@@ -2853,25 +2891,28 @@ const isAgency =
     // ✅ 2) abre el chat
     await openConversation(id);
 
-    // ✅ 3) si esta conversación viene de una propiedad/campaña, abre la columna de propuestas
-    const hasPropCtx = !!(
-      t?.propertyId ||
-      t?.property?.id ||
-      t?.refCode ||
-      t?.propertyRef ||
-      /\bSF-[A-Z0-9-]+\b/i.test(String(title || ""))
+    // ✅ 3) SOLO en EXPLORER (particular) podemos abrir OwnerProposalsPanel
+if (systemMode === "EXPLORER") {
+  const hasPropCtx = !!(
+    t?.propertyId ||
+    t?.property?.id ||
+    t?.refCode ||
+    t?.propertyRef ||
+    /\bSF-[A-Z0-9-]+\b/i.test(String(title || ""))
+  );
+
+  if (hasPropCtx) {
+    setRightPanel("OWNER_PROPOSALS");
+
+    // si ya está en memoria, abre directamente el expediente correcto
+    const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
+      (p: any) => String(p?.conversationId || "") === String(id)
     );
 
-    if (hasPropCtx) {
-      setRightPanel("OWNER_PROPOSALS");
+    setActiveCampaignId(match?.id ? String(match.id) : null);
+  }
+}
 
-      // si ya está en memoria, abre directamente el expediente correcto
-      const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
-        (p: any) => String(p?.conversationId || "") === String(id)
-      );
-
-      setActiveCampaignId(match?.id ? String(match.id) : null);
-    }
   }}
   className={`w-full text-left border rounded-2xl p-3 transition-all ${
     active
