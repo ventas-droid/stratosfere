@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getBillingGateAction } from "@/app/actions";
 
 export function useMyPlan() {
   const [plan, setPlan] = useState<any>(null);
@@ -13,13 +14,20 @@ export function useMyPlan() {
 
     (async () => {
       try {
-        // TODO: aquí tu fetch real (server action / api)
-        // const res = await getMyPlanAction()
-        // if (!alive) return
-        // setPlan(res.data)
-        // setIsActive(!!res.data?.isActive)
+        const res: any = await getBillingGateAction();
+        if (!alive) return;
 
-        // placeholder mínimo seguro:
+        if (res?.success && res?.data) {
+          // res.data = { plan, status, showPaywall, trialEndsAt }
+          setPlan(res.data);
+
+          // ✅ “activo” = NO paywall (TRIAL cuenta como activo)
+          setIsActive(!res.data.showPaywall);
+        } else {
+          setPlan(null);
+          setIsActive(false);
+        }
+      } catch {
         setPlan(null);
         setIsActive(false);
       } finally {

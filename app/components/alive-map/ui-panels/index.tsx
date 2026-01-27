@@ -531,30 +531,28 @@ useEffect(() => {
 // ✅ Mostrar PlanOverlay automáticamente SOLO si el plan en BD está en TRIAL (ENSAYO)
 // Fuente de verdad: plan.estado (DB). NO usamos env ni isActive aquí.
 useEffect(() => {
-  // ✅ No abrir hasta que esté listo
   if (!gateUnlocked) return;
   if (planLoading) return;
   if (!plan) return;
 
-const estado = String((plan as any)?.estado || (plan as any)?.status || "").toUpperCase();
-  const isTrial = estado === "ENSAYO" || estado === "TRIAL";
+  const estado = String((plan as any)?.estado || (plan as any)?.status || "").toUpperCase();
+  const showPaywall = !!(plan as any)?.showPaywall;
 
-  // ✅ Si está abierto y ya NO es TRIAL, lo cerramos (permite “des-zombificar”)
+  const isTrial = estado === "ENSAYO" || estado === "TRIAL";
+  const shouldShow = isTrial || showPaywall; // ✅ TRIAL o STARTER/EXPIRED
+
+  // Si está abierto y ya no toca, lo cerramos
   if (planOpen) {
-    if (!isTrial) setPlanOpen(false);
+    if (!shouldShow) setPlanOpen(false);
     return;
   }
 
-  // ✅ Evitar reabrir
+  // Evitar reabrir en esta sesión si lo cerraste
   if (planDismissedRef.current) return;
 
-  // ✅ TRIAL: mostramos overlay
-  if (isTrial) {
-    setPlanOpen(true);
-  }
+  // Mostrar overlay si toca
+  if (shouldShow) setPlanOpen(true);
 }, [gateUnlocked, planLoading, plan, planOpen]);
-
-
 
 // recalcular total
 useEffect(() => {
