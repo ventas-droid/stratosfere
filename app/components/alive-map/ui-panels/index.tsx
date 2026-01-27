@@ -516,8 +516,6 @@ const [planOpen, setPlanOpen] = useState(false);
 
 // ⬇️ RECOMENDADO: que el hook devuelva también "loading"
 const { plan, isActive, loading: planLoading } = useMyPlan();
-
-// ✅ evita reabrir en esta sesión si el usuario lo cierra
 const planDismissedRef = useRef(false);
 
 const closePlanOverlay = () => {
@@ -525,29 +523,37 @@ const closePlanOverlay = () => {
   setPlanOpen(false);
 };
 
+// ✅ Si cambia el usuario, permitimos que el overlay vuelva a mostrarse en esta sesión
+useEffect(() => {
+  planDismissedRef.current = false;
+}, [activeUserKey]);
+
 // ✅ Mostrar PlanOverlay automáticamente SOLO si el plan en BD está en TRIAL (ENSAYO)
 // Fuente de verdad: plan.estado (DB). NO usamos env ni isActive aquí.
 useEffect(() => {
+  // ✅ No abrir hasta que esté listo
   if (!gateUnlocked) return;
   if (planLoading) return;
+  if (!plan) return;
 
-  const estado = plan?.estado;
-  if (!estado) return;
+  const estado = String((plan as any)?.estado || "").toUpperCase();
+  const isTrial = estado === "ENSAYO" || estado === "TRIAL";
 
-  // ✅ si está abierto y dejó de ser ENSAYO => cerramos (anti "zombie")
+  // ✅ Si está abierto y ya NO es TRIAL, lo cerramos (permite “des-zombificar”)
   if (planOpen) {
-    if (estado !== "ENSAYO") setPlanOpen(false);
+    if (!isTrial) setPlanOpen(false);
     return;
   }
 
-  // ✅ Evitar reabrir si ya lo cerraste manualmente
+  // ✅ Evitar reabrir
   if (planDismissedRef.current) return;
 
-  // ✅ Solo abre automáticamente si estás en ENSAYO
-  if (estado === "ENSAYO") {
+  // ✅ TRIAL: mostramos overlay
+  if (isTrial) {
     setPlanOpen(true);
   }
-}, [gateUnlocked, planLoading, plan?.estado, planOpen]);
+}, [gateUnlocked, planLoading, plan, planOpen]);
+
 
 
 // recalcular total
@@ -2207,8 +2213,10 @@ useEffect(() => {
   setActivePanel("NONE");
 
   // ✅ 2.1 Cerrar CHAT flotante (overlay) para que no sobreviva al cambio de modo
-  setChatOpen(false);
-setPlanOpen(false);
+setChatOpen(false);
+
+// ✅ Solo cerramos el PlanOverlay si vuelves a GATEWAY (no al entrar en EXPLORER/AGENCY)
+if (systemMode === "GATEWAY") setPlanOpen(false);
 
   // 3. Limpiar Selecciones (Para que el mapa no brille por cosas viejas)
   setSelectedProp(null);
@@ -3217,7 +3225,7 @@ disabled={chatUploading}
     </div>
   </div>
 )}
-{process.env.NEXT_PUBLIC_PADDLE_ENABLED === "true" && planOpen && (
+{planOpen && (
   <PlanOverlay
     isOpen={planOpen}
     onClose={closePlanOverlay}
@@ -3225,6 +3233,7 @@ disabled={chatUploading}
     userId={activeUserKey || undefined}
   />
 )}
+
 
 
 
