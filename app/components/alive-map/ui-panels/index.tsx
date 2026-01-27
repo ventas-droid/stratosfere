@@ -454,7 +454,7 @@ const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 
-const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+
 
 // ✅ Añádelo aquí (una sola vez) para el anti-loop definitivo:
 const processedConversationRef = useRef<string | null>(null);
