@@ -454,31 +454,21 @@ const [chatThreads, setChatThreads] = useState<any[]>([]);
 const [chatContextProp, setChatContextProp] = useState<any>(null);
 const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 
-// ✅ Paso 2 BLINDADO: Auto-selección INTELIGENTE (solo una vez por chat)
+// ✅ CÓDIGO CORREGIDO (COPIAR Y PEGAR ESTE BLOQUE)
 useEffect(() => {
-  // 1. Si no estamos en el panel o no hay chat, reseteamos la memoria y salimos.
-  if (rightPanel !== "OWNER_PROPOSALS" || !chatConversationId) {
-     processedConversationRef.current = null;
-     return;
-  }
+  if (rightPanel !== "OWNER_PROPOSALS") return;
+  if (!chatConversationId) return;
 
-  // 2. 🛑 EL MURO: Si ya procesamos este chat ID, ¡NO HAGAS NADA MÁS!
-  // Esto es lo que evita que al volver atrás te re-capture.
-  if (processedConversationRef.current === chatConversationId) {
-    return;
-  }
-
-  // 3. Buscamos coincidencia
   const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
     (p: any) => String(p?.conversationId || "") === String(chatConversationId)
   );
 
-  // 4. Si encontramos match, lo abrimos Y MARCAMOS COMO PROCESADO
-  if (match?.id) {
-    setActiveCampaignId(String(match.id));
-    processedConversationRef.current = chatConversationId; // ✅ "Ya cumplí, no molesto más"
+  // Solo auto-seleccionamos si NO hay nada seleccionado
+  if (match?.id && !activeCampaignId) {
+     setActiveCampaignId(String(match.id));
   }
-
+  
+  // 👇 HE QUITADO activeCampaignId DE AQUÍ PARA ROMPER EL BUCLE
 }, [rightPanel, chatConversationId, ownerProposals]);
 
 const [chatMessages, setChatMessages] = useState<any[]>([]);
