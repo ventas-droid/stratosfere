@@ -1,4 +1,3 @@
-// app/components/billing/useMyPlan.ts
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,7 +13,7 @@ export function useMyPlan() {
       const res: any = await getBillingGateAction();
       if (res?.success && res?.data) {
         setPlan(res.data);
-        // ✅ Activo si NO hay paywall (TRIAL cuenta como acceso)
+        // ✅ Activo = NO paywall (TRIAL cuenta como acceso)
         setIsActive(!res.data.showPaywall);
       } else {
         setPlan(null);
@@ -37,6 +36,7 @@ export function useMyPlan() {
     };
     run();
 
+    // ✅ refresh server-truth (sin localStorage)
     const onRefresh = () => load();
     window.addEventListener("billing-refresh-signal", onRefresh as any);
 

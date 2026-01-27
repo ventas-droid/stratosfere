@@ -529,7 +529,7 @@ useEffect(() => {
 }, [activeUserKey]);
 
 // ✅ Mostrar PlanOverlay SOLO si hay PAYWALL real (STARTER o EXPIRED)
-// Fuente de verdad: plan.showPaywall (server-truth via getBillingGateAction)
+// Fuente de verdad: plan.showPaywall (server truth via getBillingGateAction)
 useEffect(() => {
   if (!gateUnlocked) return;
   if (planLoading) return;
@@ -537,7 +537,7 @@ useEffect(() => {
 
   const showPaywall = !!(plan as any)?.showPaywall;
 
-  // Si está abierto y ya NO toca, lo cerramos
+  // Si está abierto y ya no toca, lo cerramos
   if (planOpen) {
     if (!showPaywall) setPlanOpen(false);
     return;

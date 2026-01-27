@@ -79,7 +79,7 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
     });
   };
 
-  const startTrial = async (planCode: "PRO" | "AGENCY") => {
+    const startTrial = async (planCode: "PRO" | "AGENCY") => {
     try {
       setTrialBusy(planCode);
       const res: any = await startTrialAction(planCode);
@@ -108,9 +108,24 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
   // ✅ autocierre publicitario 5s
   useEffect(() => {
     if (!isOpen) return;
+
+    // ✅ si el modal se vuelve a abrir, arrancamos limpio en SELECT
+    if (phase === "TRIAL_OK") {
+      // dejamos que termine su ciclo normal
+    } else {
+      setCountdown(5);
+    }
+
+    return () => {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     if (phase !== "TRIAL_OK") return;
 
     let alive = true;
+
     const t = setInterval(() => {
       if (!alive) return;
       setCountdown((c) => Math.max(0, c - 1));
@@ -118,6 +133,13 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
 
     const closeT = setTimeout(() => {
       if (!alive) return;
+
+      // ✅ antes de cerrar, dejamos el modal preparado para próxima vez
+      setPhase("SELECT");
+      setTrialPlanName(null);
+      setTrialEndsAt(null);
+      setCountdown(5);
+
       try {
         onClose();
       } catch {}
@@ -138,7 +160,11 @@ export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Prop
     if (!trialEndsAt) return null;
     const d = new Date(trialEndsAt);
     try {
-      return d.toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" });
+      return d.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
     } catch {
       return d.toISOString().slice(0, 10);
     }
