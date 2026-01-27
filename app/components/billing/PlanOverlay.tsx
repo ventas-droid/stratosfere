@@ -1,7 +1,7 @@
 // app/components/billing/PlanOverlay.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { startTrialAction } from "@/app/actions";
 
 type Plan = {
@@ -18,17 +18,18 @@ type Props = {
   onClose: () => void;
   userEmail?: string;
   userId?: string;
-  isActive?: boolean;
 };
 
-export default function PlanOverlay({
-  isOpen,
-  onClose,
-  userEmail,
-  userId,
-}: Props) {
-  // ✅ Trial state
+type Phase = "SELECT" | "TRIAL_OK";
+
+export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Props) {
   const [trialBusy, setTrialBusy] = useState<null | "PRO" | "AGENCY">(null);
+
+  // ✅ Fase 2 (anuncio)
+  const [phase, setPhase] = useState<Phase>("SELECT");
+  const [countdown, setCountdown] = useState(5);
+  const [trialPlanName, setTrialPlanName] = useState<string | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   const plans: Plan[] = useMemo(
     () => [
@@ -88,63 +89,125 @@ export default function PlanOverlay({
         return;
       }
 
-      // ✅ cerramos y recargamos para que useMyPlan recoja TRIAL al instante
+      // ✅ FASE 2: anuncio 5s + sin botones
+      const end = res?.data?.currentPeriodEnd ? new Date(res.data.currentPeriodEnd) : null;
+      setTrialEndsAt(end ? end.toISOString() : null);
+      setTrialPlanName(planCode === "AGENCY" ? "Agency" : "Pro");
+      setPhase("TRIAL_OK");
+      setCountdown(5);
+
+      // ✅ refresca plan en segundo plano (server truth) SIN recargar
       try {
-        onClose();
+        window.dispatchEvent(new CustomEvent("billing-refresh-signal"));
       } catch {}
-      window.location.reload();
     } finally {
       setTrialBusy(null);
     }
   };
 
-  // ✅ Render (100% controlado desde fuera)
+  // ✅ autocierre publicitario 5s
+  useEffect(() => {
+    if (!isOpen) return;
+    if (phase !== "TRIAL_OK") return;
+
+    let alive = true;
+    const t = setInterval(() => {
+      if (!alive) return;
+      setCountdown((c) => Math.max(0, c - 1));
+    }, 1000);
+
+    const closeT = setTimeout(() => {
+      if (!alive) return;
+      try {
+        onClose();
+      } catch {}
+    }, 5000);
+
+    return () => {
+      alive = false;
+      clearInterval(t);
+      clearTimeout(closeT);
+    };
+  }, [isOpen, phase, onClose]);
+
   if (!isOpen) return null;
 
+  const lockUI = phase === "TRIAL_OK";
+
+  const prettyEnd = (() => {
+    if (!trialEndsAt) return null;
+    const d = new Date(trialEndsAt);
+    try {
+      return d.toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" });
+    } catch {
+      return d.toISOString().slice(0, 10);
+    }
+  })();
+
   return (
-    <div
-      className="fixed inset-0 z-[26000] pointer-events-auto"
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="fixed inset-0 z-[26000] pointer-events-auto">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-auto"
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
 
       {/* Modal */}
-      <div
-        className="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white text-black pointer-events-auto"
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-8 py-6 border-b border-black/10">
+      <div className="absolute left-1/2 top-1/2 w-[min(1080px,94vw)] -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white text-black">
+        <div className="flex items-center justify-between px-10 py-7 border-b border-black/10">
           <div>
-            <div className="text-xs font-black tracking-[0.28em] text-black/50">
-              BILLING / PLAN
+            <div className="text-xs font-black tracking-[0.28em] text-black/50">BILLING / PLAN</div>
+            <div className="text-2xl font-black tracking-tight">
+              {phase === "TRIAL_OK" ? "Prueba activa" : "Activa tu acceso"}
             </div>
-            <div className="text-2xl font-black tracking-tight">Activa tu acceso</div>
           </div>
 
           <button
             onClick={onClose}
-            className="h-10 px-5 rounded-xl border border-black/15 font-black tracking-wide hover:bg-black/5"
+            disabled={lockUI}
+            className="h-10 px-5 rounded-xl border border-black/15 font-black tracking-wide hover:bg-black/5 disabled:opacity-30"
+            title={lockUI ? "Cerrando automáticamente..." : "Cerrar"}
           >
-            CERRAR
+            {lockUI ? `CERRANDO (${countdown}s)` : "CERRAR"}
           </button>
         </div>
 
-        <div className="px-8 py-7">
-          <div className="text-sm text-black/60 mb-6">
-            Elige un plan para desbloquear la plataforma. Puedes cambiar o cancelar después.
-          </div>
+        <div className="px-10 py-8">
+          {/* ✅ FASE 2 (anuncio) */}
+          {phase === "TRIAL_OK" && (
+            <div className="rounded-2xl border border-black/10 bg-black/[0.03] p-6 mb-6">
+              <div className="text-[11px] font-black tracking-[0.28em] text-black/55 mb-2">
+                TRIAL — 15 DÍAS (MÁXIMO)
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-3xl font-black tracking-tight mb-2">
+                Estás en la prueba máxima de Stratosfere.
+              </div>
+
+              <div className="text-sm text-black/70 leading-relaxed">
+                Has activado <b>{trialPlanName || "tu plan"}</b>. Durante los próximos <b>15 días</b> podrás
+                usar la plataforma. Al finalizar, eliges y activas tu plan de pago.
+              </div>
+
+              <div className="mt-4 text-sm text-black/60">
+                {prettyEnd ? (
+                  <>
+                    Tu trial finaliza el <b>{prettyEnd}</b>.
+                  </>
+                ) : (
+                  <>Tu trial ya está guardado en BD.</>
+                )}
+                <span className="ml-2 text-black/40">Se cerrará automáticamente en {countdown}s.</span>
+              </div>
+            </div>
+          )}
+
+          {/* Texto base */}
+          {phase !== "TRIAL_OK" && (
+            <div className="text-sm text-black/60 mb-6">
+              Elige un plan para desbloquear la plataforma. Puedes cambiar o cancelar después.
+            </div>
+          )}
+
+          {/* Planes */}
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${lockUI ? "opacity-60" : ""}`}>
             {plans.map((p) => {
               const isTrialPlan = p.id === "pro" || p.id === "agency";
               const busyHere =
@@ -178,21 +241,22 @@ export default function PlanOverlay({
                     ))}
                   </ul>
 
-                  {/* ✅ Trial button (PRO + AGENCY) */}
+                  {/* Trial */}
                   {isTrialPlan && (
                     <button
                       onClick={() => startTrial(p.id === "pro" ? "PRO" : "AGENCY")}
-                      disabled={trialBusy !== null}
+                      disabled={lockUI || trialBusy !== null}
                       className="w-full h-11 rounded-xl font-black tracking-wide border border-black bg-white text-black hover:bg-black/5 disabled:opacity-40 mb-2"
                     >
                       {busyHere ? "Activando..." : "Free trial 15 días"}
                     </button>
                   )}
 
-                  {/* ✅ Pay button (Paddle aún no listo -> alerta en openCheckout) */}
+                  {/* Pago */}
                   <button
                     onClick={() => openCheckout(p.priceId)}
-                    className={`w-full h-11 rounded-xl font-black tracking-wide border ${
+                    disabled={lockUI}
+                    className={`w-full h-11 rounded-xl font-black tracking-wide border disabled:opacity-40 ${
                       p.highlight
                         ? "bg-[#4F6AEE] text-white border-[#4F6AEE]"
                         : "bg-black text-white border-black"
@@ -210,8 +274,7 @@ export default function PlanOverlay({
           </div>
 
           <div className="mt-6 text-[12px] text-black/45">
-            Importante: el trial y su fecha fin se guardan en BD (Subscription.currentPeriodEnd). Cuando
-            conectes Paddle, el webhook marcará el plan como activo.
+            Sistema SaaS (server-truth): el trial y su fecha fin se guardan en BD (Subscription.currentPeriodEnd).
           </div>
         </div>
       </div>

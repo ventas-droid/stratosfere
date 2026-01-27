@@ -1,7 +1,7 @@
 // app/components/billing/useMyPlan.ts
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getBillingGateAction } from "@/app/actions";
 
 export function useMyPlan() {
@@ -9,36 +9,47 @@ export function useMyPlan() {
   const [isActive, setIsActive] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
+  const refresh = useCallback(async () => {
+    try {
+      const res: any = await getBillingGateAction();
+
+      if (res?.success && res?.data) {
+        // data: { plan, status, showPaywall, trialEndsAt }
+        setPlan(res.data);
+
+        // ✅ Activo = NO paywall (TRIAL cuenta como acceso)
+        setIsActive(!res.data.showPaywall);
+      } else {
+        setPlan(null);
+        setIsActive(false);
+      }
+    } catch {
+      setPlan(null);
+      setIsActive(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
 
-    (async () => {
-      try {
-        const res: any = await getBillingGateAction();
-        if (!alive) return;
+    const run = async () => {
+      if (!alive) return;
+      await refresh();
+    };
 
-        if (res?.success && res?.data) {
-          // res.data = { plan, status, showPaywall, trialEndsAt }
-          setPlan(res.data);
+    run();
 
-          // ✅ “activo” = NO paywall (TRIAL cuenta como activo)
-          setIsActive(!res.data.showPaywall);
-        } else {
-          setPlan(null);
-          setIsActive(false);
-        }
-      } catch {
-        setPlan(null);
-        setIsActive(false);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
+    // ✅ refresh “server-truth” sin localStorage
+    const onRefresh = () => refresh();
+    window.addEventListener("billing-refresh-signal", onRefresh as any);
 
     return () => {
       alive = false;
+      window.removeEventListener("billing-refresh-signal", onRefresh as any);
     };
-  }, []);
+  }, [refresh]);
 
-  return { plan, isActive, loading };
+  return { plan, isActive, loading, refresh };
 }

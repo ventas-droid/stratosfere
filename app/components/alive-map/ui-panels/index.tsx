@@ -528,31 +528,24 @@ useEffect(() => {
   planDismissedRef.current = false;
 }, [activeUserKey]);
 
-// ✅ Mostrar PlanOverlay automáticamente SOLO si el plan en BD está en TRIAL (ENSAYO)
-// Fuente de verdad: plan.estado (DB). NO usamos env ni isActive aquí.
+// ✅ Mostrar PlanOverlay SOLO si hay PAYWALL real (STARTER o EXPIRED)
+// Fuente de verdad: plan.showPaywall (server truth)
 useEffect(() => {
   if (!gateUnlocked) return;
   if (planLoading) return;
   if (!plan) return;
 
-  const estado = String((plan as any)?.estado || (plan as any)?.status || "").toUpperCase();
   const showPaywall = !!(plan as any)?.showPaywall;
 
-  const isTrial = estado === "ENSAYO" || estado === "TRIAL";
-  const shouldShow = isTrial || showPaywall; // ✅ TRIAL o STARTER/EXPIRED
+  // si ya está abierto, no tocamos nada (lo controla el propio modal)
+  if (planOpen) return;
 
-  // Si está abierto y ya no toca, lo cerramos
-  if (planOpen) {
-    if (!shouldShow) setPlanOpen(false);
-    return;
-  }
-
-  // Evitar reabrir en esta sesión si lo cerraste
+  // evitar reabrir si lo cerraste en esta sesión
   if (planDismissedRef.current) return;
 
-  // Mostrar overlay si toca
-  if (shouldShow) setPlanOpen(true);
+  if (showPaywall) setPlanOpen(true);
 }, [gateUnlocked, planLoading, plan, planOpen]);
+
 
 // recalcular total
 useEffect(() => {
