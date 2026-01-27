@@ -536,7 +536,7 @@ useEffect(() => {
   if (planLoading) return;
   if (!plan) return;
 
-  const estado = String((plan as any)?.estado || "").toUpperCase();
+const estado = String((plan as any)?.estado || (plan as any)?.status || "").toUpperCase();
   const isTrial = estado === "ENSAYO" || estado === "TRIAL";
 
   // ✅ Si está abierto y ya NO es TRIAL, lo cerramos (permite “des-zombificar”)
@@ -3233,10 +3233,6 @@ disabled={chatUploading}
     userId={activeUserKey || undefined}
   />
 )}
-
-
-
-
 
        {/* IA / OMNI INTELLIGENCE */}
        {activePanel === 'AI' && (

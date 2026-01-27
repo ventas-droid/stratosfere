@@ -1,8 +1,8 @@
 // app/components/billing/PlanOverlay.tsx
 "use client";
 
-import React, { useMemo, useEffect, useState } from "react";
-import { startTrialAction, getBillingGateAction } from "@/app/actions";
+import React, { useMemo, useState } from "react";
+import { startTrialAction } from "@/app/actions";
 
 type Plan = {
   id: string;
@@ -27,42 +27,8 @@ export default function PlanOverlay({
   userEmail,
   userId,
 }: Props) {
-  // ✅ Gate state
-  const [gateLoading, setGateLoading] = useState(true);
-  const [showPaywall, setShowPaywall] = useState(true);
-
   // ✅ Trial state
   const [trialBusy, setTrialBusy] = useState<null | "PRO" | "AGENCY">(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        const res: any = await getBillingGateAction();
-        if (!alive) return;
-
-        const sp = !!res?.data?.showPaywall;
-        setShowPaywall(sp);
-
-        // ✅ Importantísimo: si NO hay paywall, cerramos para liberar el wrapper exterior si existe
-        if (sp === false) {
-          try {
-            onClose();
-          } catch {}
-        }
-      } catch {
-        // si falla gate, dejamos showPaywall=true para que no pierdas control
-        setShowPaywall(true);
-      } finally {
-        if (alive) setGateLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [onClose]);
 
   const plans: Plan[] = useMemo(
     () => [
@@ -122,7 +88,7 @@ export default function PlanOverlay({
         return;
       }
 
-      // ✅ cierra y recarga para que el gate desaparezca ya
+      // ✅ cerramos y recargamos para que useMyPlan recoja TRIAL al instante
       try {
         onClose();
       } catch {}
@@ -132,48 +98,46 @@ export default function PlanOverlay({
     }
   };
 
-  // ✅ Render gate
+  // ✅ Render (100% controlado desde fuera)
   if (!isOpen) return null;
-  if (gateLoading) return null;
-  if (!showPaywall) return null;
 
   return (
-  <div
-    className="fixed inset-0 z-[26000] pointer-events-auto"
-    onMouseDown={(e) => e.stopPropagation()}
-    onTouchStart={(e) => e.stopPropagation()}
-    onClick={(e) => e.stopPropagation()}
-  >
-    {/* Backdrop */}
     <div
-      className="absolute inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-auto"
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    />
-
-    {/* Modal */}
-    <div
-      className="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white text-black pointer-events-auto"
+      className="fixed inset-0 z-[26000] pointer-events-auto"
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between px-8 py-6 border-b border-black/10">
-        <div>
-          <div className="text-xs font-black tracking-[0.28em] text-black/50">
-            BILLING / PLAN
-          </div>
-          <div className="text-2xl font-black tracking-tight">Activa tu acceso</div>
-        </div>
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-[2px] pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      />
 
-        <button
-          onClick={onClose}
-          className="h-10 px-5 rounded-xl border border-black/15 font-black tracking-wide hover:bg-black/5"
-        >
-          CERRAR
-        </button>
-      </div>
+      {/* Modal */}
+      <div
+        className="absolute left-1/2 top-1/2 w-[min(980px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white text-black pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-8 py-6 border-b border-black/10">
+          <div>
+            <div className="text-xs font-black tracking-[0.28em] text-black/50">
+              BILLING / PLAN
+            </div>
+            <div className="text-2xl font-black tracking-tight">Activa tu acceso</div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="h-10 px-5 rounded-xl border border-black/15 font-black tracking-wide hover:bg-black/5"
+          >
+            CERRAR
+          </button>
+        </div>
 
         <div className="px-8 py-7">
           <div className="text-sm text-black/60 mb-6">
@@ -225,7 +189,7 @@ export default function PlanOverlay({
                     </button>
                   )}
 
-                  {/* ✅ Pay button */}
+                  {/* ✅ Pay button (Paddle aún no listo -> alerta en openCheckout) */}
                   <button
                     onClick={() => openCheckout(p.priceId)}
                     className={`w-full h-11 rounded-xl font-black tracking-wide border ${
@@ -246,8 +210,8 @@ export default function PlanOverlay({
           </div>
 
           <div className="mt-6 text-[12px] text-black/45">
-            Importante: para que deje de aparecer este modal, tu webhook debe marcar tu usuario como{" "}
-            <b>plan activo</b>.
+            Importante: el trial y su fecha fin se guardan en BD (Subscription.currentPeriodEnd). Cuando
+            conectes Paddle, el webhook marcará el plan como activo.
           </div>
         </div>
       </div>
