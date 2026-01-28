@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { X, Check, ArrowRight, ShieldCheck } from "lucide-react";
 import { useMyPlan } from "../../billing/useMyPlan";
+import { startAgencyPayment } from "../../billing/startAgencyPayment";
 
 const AGENCY_PLAN = {
   id: "agency-pro",
@@ -35,11 +36,14 @@ export default function AgencyMarketPanel({ isOpen, onClose }: any) {
   const isTrial = status === "TRIAL" || status === "GRACE";
   const isPaid = status === "ACTIVE";
 
-  const handlePurchase = () => {
-    setConfirming(true);
+  const handlePurchase = async () => {
+  setConfirming(true);
 
-    // ✅ Aquí más adelante conectas Mollie (paso siguiente).
-    // Tras pagar, backend pondrá status="ACTIVE" y luego:
+  try {
+    // ✅ Mollie: esto debe crear el pago y redirigir a checkoutUrl
+    await startAgencyPayment();
+
+    // Si por algún motivo no redirige, mantenemos tu flujo anterior:
     try {
       window.dispatchEvent(new CustomEvent("billing-refresh-signal"));
     } catch {}
@@ -48,7 +52,13 @@ export default function AgencyMarketPanel({ isOpen, onClose }: any) {
       setConfirming(false);
       onClose?.();
     }, 700);
-  };
+  } catch (e) {
+    console.error(e);
+    alert("No se pudo iniciar el pago");
+    setConfirming(false);
+  }
+};
+
 
   return (
     <div className="fixed inset-y-0 left-0 w-full md:w-[460px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
