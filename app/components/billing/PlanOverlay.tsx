@@ -157,9 +157,11 @@ const onClose = () => {
   }
 };
 
-
+// ✅ AQUÍ (JUSTO AQUÍ)
+if (!enabled || loading || !plan || !open) return null;
  return (
-  <div
+ 
+    <div
     className={`fixed inset-0 z-[27000] ${
       isBlocked ? "pointer-events-auto" : "pointer-events-none"
     }`}
