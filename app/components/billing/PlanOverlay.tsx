@@ -85,31 +85,47 @@ export default function PlanOverlay({
 
   // apertura/cierre del popup
   const [open, setOpen] = React.useState(false);
+const dismissedUntilRef = React.useRef<number>(0);
 
   React.useEffect(() => {
-    if (!enabled) {
-      setOpen(false);
-      return;
-    }
-    if (loading) return;
-    if (!plan) return;
-
-    // BLOCKED = siempre abierto (no se puede cerrar con X)
-    if (isBlocked) {
-      setOpen(true);
-      return;
-    }
-
-    // TRIAL/GRACE = abre al entrar + cada 5 min
-    if (isNudge) {
-      setOpen(true);
-      const id = setInterval(() => setOpen(true), EVERY_MS);
-      return () => clearInterval(id);
-    }
-
-    // ACTIVE/NONE = nada
+  if (!enabled) {
     setOpen(false);
-  }, [enabled, loading, plan, isBlocked, isNudge]);
+    return;
+  }
+  if (loading) return;
+  if (!plan) return;
+
+  // BLOCKED = siempre abierto
+  if (isBlocked) {
+    setOpen(true);
+    return;
+  }
+
+  // TRIAL/GRACE = se puede cerrar, y no reabre hasta pasado EVERY_MS
+  if (isNudge) {
+    const now = Date.now();
+
+    // si el usuario lo cerró hace poco, mantenlo cerrado aunque plan refresque
+    if (dismissedUntilRef.current && now < dismissedUntilRef.current) {
+      setOpen(false);
+    } else {
+      setOpen(true);
+    }
+
+    const id = setInterval(() => {
+      const t = Date.now();
+      if (!dismissedUntilRef.current || t >= dismissedUntilRef.current) {
+        setOpen(true);
+      }
+    }, EVERY_MS);
+
+    return () => clearInterval(id);
+  }
+
+  // ACTIVE/NONE = nada
+  setOpen(false);
+}, [enabled, loading, plan, isBlocked, isNudge]);
+
 
   // countdown
   const graceEnds = trialEnds ? trialEnds + DAY_MS : null;
@@ -130,16 +146,17 @@ export default function PlanOverlay({
   }
 };
 
+const onClose = () => {
+  if (isBlocked) {
+    // BLOCKED: cerrar => landing
+    window.location.href = landingHref;
+  } else {
+    // TRIAL/GRACE: cerrar => silenciar 5 min
+    dismissedUntilRef.current = Date.now() + EVERY_MS;
+    setOpen(false);
+  }
+};
 
-  const onClose = () => {
-    if (isBlocked) {
-      // BLOCKED: cerrar => landing corporativa
-      window.location.href = landingHref;
-    } else {
-      // TRIAL/GRACE: cerrar solo oculta hasta el próximo recordatorio
-      setOpen(false);
-    }
-  };
 
  return (
   <div
@@ -200,17 +217,17 @@ export default function PlanOverlay({
             </div>
           </div>
 
-          {/* X solo si NO es blocked */}
-          {!isBlocked && (
-           <button
-  onClick={() => setOpen(false)}
+
+{/* X (siempre visible): BLOCKED => onClose manda a landing, TRIAL/GRACE => cierra popup */}
+<button
+  onClick={onClose}
   aria-label="Cerrar"
   className="
     h-11 w-11 rounded-full
     bg-black/5 text-black/70
     border border-black/10
     backdrop-blur-md
-transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)]
+    transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)]
     hover:bg-black/10 hover:text-black hover:border-black/15
     hover:rotate-90
     active:rotate-180 active:scale-95
@@ -221,7 +238,8 @@ transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)]
   <span className="text-[18px] leading-none">✕</span>
 </button>
 
-          )}
+
+          
         </div>
 
         {/* Main grid */}
