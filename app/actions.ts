@@ -732,7 +732,7 @@ export async function getAgencyPortfolioAction() {
             coverImage: true,  // Fondo Corporativo
             tagline: true,     // Slogan
             zone: true,
-            licenseType: true, // El Pack (Starter, Pro...)
+            licenseType: true, // El Pack ( Pro...)
             phone: true,
             mobile: true,
             email: true,
@@ -1457,61 +1457,105 @@ const getMyPlanInternal = async (userId: string) => {
   });
 
   if (sub?.plan) {
-    // ✅ Si TRIAL expiró, cae a STARTER
-    if (String(sub.status || "").toUpperCase() === "TRIAL" && sub.currentPeriodEnd) {
-      const end = new Date(sub.currentPeriodEnd).getTime();
-      if (Date.now() > end) {
-        return { plan: "STARTER" as any, status: "EXPIRED" };
-      }
-      return { plan: sub.plan as any, status: "TRIAL" };
-    }
+   if (String(sub.status || "").toUpperCase() === "TRIAL" && sub.currentPeriodEnd) {
+  const end = new Date(sub.currentPeriodEnd).getTime();
+
+  // TRIAL activo
+  if (Date.now() <= end) {
+    return { plan: sub.plan as any, status: "TRIAL" };
+  }
+
+  // TRIAL expirado → el plan SE MANTIENE
+  return { plan: sub.plan as any, status: "EXPIRED" };
+}
+
 
     // ✅ Activo / otros estados: devolvemos tal cual
     return { plan: sub.plan as any, status: sub.status || "ACTIVE" };
   }
 
-  // 2) Fallback provisional (hasta Paddle): usar licenseType del User
-  const u = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { licenseType: true },
-  });
+ // 2) Fallback legacy (NO decide SaaS AGENCIA)
+const u = await prisma.user.findUnique({
+  where: { id: userId },
+  select: { licenseType: true },
+});
 
-  const lt = String(u?.licenseType || "STARTER").toUpperCase().trim();
+const lt = String(u?.licenseType || "").toUpperCase().trim();
 
-  // ✅ Mapeo licenseType -> PlanCode
-  const plan =
-    lt === "PRO"
-      ? "PRO"
-      : (lt === "AGENCY" || lt === "CORP")
-      ? "AGENCY"
-      : "STARTER";
+// ✅ Solo mantenemos PRO como compatibilidad legacy
+// ❌ NO AGENCY aquí (la agencia se decide por role + subscription)
+const plan = lt === "PRO" ? "PRO" : "STARTER";
 
-  return { plan: plan as any, status: "ACTIVE" };
+return { plan: plan as any, status: "ACTIVE" };
+
 };
 
-// ✅ PASO 2: Gate del paywall (TRIAL = acceso, EXPIRED/STARTER = paywall)
+// ✅ PASO 1.5 — Gate SaaS definitivo (sin Mollie aún)
 export async function getBillingGateAction() {
   try {
     const me = await getCurrentUser();
     if (!me?.id) return { success: false, error: "UNAUTH" };
 
-    const { plan, status } = await getMyPlanInternal(me.id);
+    const isAgency = me.role === "AGENCIA";
 
-    // showPaywall SOLO si STARTER o trial expirado
-    const showPaywall =
-      String(plan || "").toUpperCase() === "STARTER" ||
-      String(status || "").toUpperCase() === "EXPIRED";
-
-    // Info extra útil para UI (contador de días)
-    const sub = await prisma.subscription.findUnique({
+    // 🔹 leemos subscription una sola vez
+    let sub = await prisma.subscription.findUnique({
       where: { userId: me.id },
-      select: { currentPeriodEnd: true },
     });
+
+    const now = Date.now();
+
+    // 🔹 AUTO-TRIAL si es AGENCIA y no existe subscription
+    if (isAgency && !sub) {
+      const start = new Date();
+      const end = new Date(start.getTime() + 15 * 24 * 60 * 60 * 1000);
+
+      sub = await prisma.subscription.create({
+        data: {
+          userId: me.id,
+          plan: "AGENCY",
+          status: "TRIAL",
+          currentPeriodStart: start,
+          currentPeriodEnd: end,
+        },
+      });
+    }
+
+    // 🔹 si no es agencia y no hay sub → nunca hay paywall
+    if (!isAgency) {
+      return {
+        success: true,
+        data: {
+          plan: "STARTER",
+          status: "ACTIVE",
+          showPaywall: false,
+          trialEndsAt: null,
+        },
+      };
+    }
+
+    // 🔹 cálculo de estados
+    const endMs = sub?.currentPeriodEnd
+      ? new Date(sub.currentPeriodEnd).getTime()
+      : null;
+
+    let status = String(sub?.status || "ACTIVE").toUpperCase();
+    let showPaywall = false;
+
+    if (status === "TRIAL" && endMs && now > endMs) {
+      // entra en GRACE 24h
+      if (now < endMs + 24 * 60 * 60 * 1000) {
+        status = "GRACE";
+      } else {
+        status = "BLOCKED";
+        showPaywall = true;
+      }
+    }
 
     return {
       success: true,
       data: {
-        plan,
+        plan: sub?.plan || "AGENCY",
         status,
         showPaywall,
         trialEndsAt: sub?.currentPeriodEnd
@@ -1523,6 +1567,7 @@ export async function getBillingGateAction() {
     return { success: false, error: String(e?.message || e) };
   }
 }
+
 
 const getUsageInternal = async (userId: string, period: string) => {
   const usage = await prisma.planUsage.findUnique({

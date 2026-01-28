@@ -9,13 +9,15 @@ import {
 } from "lucide-react";
 import { getUserMeAction, updateUserAction, logoutAction } from '@/app/actions';
 import { uploadToCloudinary } from '@/app/utils/upload';
+import { getBillingGateAction } from "@/app/actions";
 
 // --- CONSTANTES DE LICENCIA ---
-const LICENSE_LEVELS: Record<string, any> = {
-    'STARTER': { name: 'Essential', credits: 10, maxCredits: 50, rank: 'Agente Independiente', color: 'blue' },
-    'PRO':     { name: 'Professional', credits: 45, maxCredits: 100, rank: 'Stratos Dominator', color: 'emerald' },
-    'CORP':    { name: 'Corporate', credits: 200, maxCredits: 500, rank: 'Market Leader', color: 'purple' }
+const LICENSE_LEVELS = {
+  AGENCY: { name: "Agency SF PRO", credits: 50, maxCredits: 50, rank: "Agencia profesional", color: "emerald" },
+  PRO:    { name: "Professional",  credits: 45, maxCredits: 100, rank: "Stratos Dominator", color: "emerald" },
+  CORP:   { name: "Corporate",     credits: 200, maxCredits: 500, rank: "Market Leader", color: "purple" },
 };
+
 
 export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, playSynthSound }: any) {
   
@@ -50,7 +52,7 @@ const emitAgencyProfileUpdated = (patch: any) => {
       mobile: "",
       avatar: "", // Esto será el LOGO de la empresa
       cover: "",
-      licenseType: 'STARTER' 
+      licenseType: null 
   });
 
   // --- CARGA INTELIGENTE (PRIORIZA DATOS DE AGENCIA) ---
@@ -216,14 +218,24 @@ const handleLogout = async () => {
 
 if (!isOpen) return null;
 
-const license = LICENSE_LEVELS[profile.licenseType] || LICENSE_LEVELS["STARTER"];
+// 🔥 Fuente REAL de licencia (no perfil)
+const license = {
+  name: "Agency SF PRO",
+  credits: 50,
+  maxCredits: 50,
+  rank: "Agencia Profesional",
+  color: "emerald",
+};
+
+// % de uso (por ahora fijo, luego vendrá de usage real)
 const creditPercentage = Math.min(
   (license.credits / license.maxCredits) * 100,
   100
 );
 
+
   return (
-    <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F5F5F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
+    <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
       
       {/* CABECERA (COVER + LOGO AGENCIA) */}
       <div className="relative h-72 shrink-0 group bg-black">
@@ -297,43 +309,98 @@ const creditPercentage = Math.min(
          </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[#F5F5F7]">
-          {/* LICENCIA */}
-          <section className="bg-white p-6 rounded-[32px] shadow-sm border border-black/5 relative overflow-hidden group">
-              <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br opacity-10 rounded-bl-[100px] ${license.color === 'purple' ? 'from-purple-500 to-indigo-600' : license.color === 'emerald' ? 'from-emerald-500 to-teal-600' : 'from-blue-500 to-cyan-600'}`}></div>
-              <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-6">
-                      <div>
-                          <div className="text-[10px] font-bold text-black/40 uppercase tracking-widest mb-1 flex items-center gap-2">
-                              <Layers size={12}/> Licencia Operativa
-                          </div>
-                          <div className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-3">
-                              {license.name.toUpperCase()}
-                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wide ${license.color === 'purple' ? 'bg-purple-100 text-purple-600' : license.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
-                                  {profile.licenseType}
-                              </span>
-                          </div>
-                      </div>
-                      <div className={`p-3 rounded-2xl ${license.color === 'purple' ? 'bg-purple-50 text-purple-500' : license.color === 'emerald' ? 'bg-emerald-50 text-emerald-500' : 'bg-blue-50 text-blue-500'}`}>
-                          <Award size={24}/>
-                      </div>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <div className="flex justify-between items-center mb-3">
-                          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                             <TrendingUp size={14} className="text-slate-400"/> {license.rank}
-                          </div>
-                          <div className="text-right">
-                              <span className="text-xl font-black text-slate-900">{license.credits}</span>
-                              <span className="text-[10px] text-slate-400 font-bold"> / {license.maxCredits} CR</span>
-                          </div>
-                      </div>
-                      <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all duration-1000 ${license.color === 'purple' ? 'bg-purple-500' : license.color === 'emerald' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${creditPercentage}%` }}></div>
-                      </div>
-                  </div>
-              </div>
-          </section>
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[#F2F2F7]">
+          
+      {/* LICENCIA OPERATIVA — Cupertino High Tech (Rediseño Premium) */}
+<section className="relative group rounded-[28px] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+  
+  {/* 1. CAPAS DE FONDO (Glassmorphism Real) */}
+  <div className="absolute inset-0 bg-white/60 backdrop-blur-2xl border border-white/50" />
+  <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-white/10 to-transparent opacity-60" />
+
+  {/* 2. CONTENIDO (Z-Index alto para flotar sobre el cristal) */}
+  <div className="relative z-10 px-6 py-5 space-y-5">
+
+    {/* HEADER: Título y Badge */}
+    <div className="flex items-start justify-between">
+      <div className="min-w-0 space-y-1">
+        
+        {/* Etiqueta Superior */}
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse" />
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">
+            Licencia Operativa
+          </span>
+        </div>
+
+        {/* Título y Rank */}
+        <div className="mt-1.5">
+          <h3 className="text-xl font-black text-slate-900 tracking-tight leading-none truncate">
+            {license?.name?.toUpperCase() || "AGENCY SF PRO"}
+          </h3>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-blue-600 mt-1">
+            {license?.rank || "Agencia Profesional"}
+          </p>
+        </div>
+      </div>
+
+      {/* Icono Premium (Caja Flotante) */}
+      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-800 to-black text-white flex items-center justify-center shadow-lg shadow-slate-900/10 border border-white/10 shrink-0">
+        <Award size={18} className="text-white drop-shadow-md" />
+      </div>
+    </div>
+
+    {/* CAPACIDAD (Barra de Progreso Estilo Apple) */}
+    <div className="space-y-2">
+      <div className="flex items-end justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          Créditos Disponibles
+        </span>
+        <div className="flex items-baseline gap-1 tabular-nums">
+          <span className="text-lg font-black text-slate-900 leading-none">
+            {license?.credits ?? 0}
+          </span>
+          <span className="text-[11px] font-semibold text-slate-400 leading-none">
+            / {license?.maxCredits ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {/* Barra de Progreso */}
+      <div className="h-2.5 w-full bg-slate-100/80 rounded-full overflow-hidden border border-white/50 shadow-inner">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 shadow-[0_0_10px_rgba(79,70,229,0.3)] transition-all duration-700 ease-out"
+          style={{ width: `${creditPercentage || 0}%` }}
+        />
+      </div>
+    </div>
+
+    {/* FOOTER: Estado y Trial */}
+    <div className="flex items-center justify-between pt-3 border-t border-slate-200/40">
+      
+      {/* Badge de Trial (Estilo Pastilla iOS) */}
+      <div className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200/60 flex items-center gap-1.5">
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+          FREE TRIAL
+        </span>
+      </div>
+
+      {/* Estado Activo */}
+      <div className="flex items-center gap-1.5">
+        <div className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Activa
+        </span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
 
           {/* DATOS DE CONTACTO */}
           <section className="bg-white p-6 rounded-[32px] shadow-sm border border-black/5 space-y-5">

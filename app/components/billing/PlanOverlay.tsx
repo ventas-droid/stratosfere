@@ -1,326 +1,360 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { startTrialAction } from "@/app/actions";
-
-type Plan = {
-  id: string;
-  name: string;
-  priceLabel: string;
-  priceId: string; // pri_...
-  perks: string[];
-  highlight?: boolean;
-};
+import React from "react";
+import { useMyPlan } from "./useMyPlan";
 
 type Props = {
-  isOpen: boolean;
-  onClose: () => void; // (en STARTER/paywall NO lo usamos para que no se “salten” el gate)
+  // ✅ IMPORTANTÍSIMO: esto lo pasaremos desde UIPanels
+  // enabled = systemMode === "AGENCY"
+  enabled: boolean;
+
+  // rutas fallback
+  pricingHref?: string; // donde llevará el botón "PAGAR" (de momento)
+  landingHref?: string; // donde mandas si está BLOCKED y cierra
+
+  // (compat) no lo usamos, pero lo dejamos para no romper imports antiguos
   userEmail?: string;
   userId?: string;
 };
 
-type Phase = "SELECT" | "TRIAL_OK";
+const EVERY_MS = 5 * 60 * 1000; // 5 minutos
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-export default function PlanOverlay({ isOpen, onClose, userEmail, userId }: Props) {
-  const [trialBusy, setTrialBusy] = useState<null | "PRO" | "AGENCY">(null);
+function safeTime(v?: string | null) {
+  if (!v) return null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : null;
+}
 
-  // ✅ Fase 2 (anuncio)
-  const [phase, setPhase] = useState<Phase>("SELECT");
-  const [countdown, setCountdown] = useState(5);
-  const [trialPlanName, setTrialPlanName] = useState<string | null>(null);
-  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+function formatCountdown(ms: number) {
+  if (!ms || ms <= 0) return "00:00:00";
+  const total = Math.floor(ms / 1000);
+  const s = total % 60;
+  const m = Math.floor(total / 60) % 60;
+  const h = Math.floor(total / 3600);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const hh = h % 24;
+    return `${d}d ${pad(hh)}:${pad(m)}:${pad(s)}`;
+  }
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
 
-  // para resetear limpio cuando ABRE el modal (sin pisar TRIAL_OK)
-  const prevOpenRef = useRef(false);
+export default function PlanOverlay({
+  enabled,
+  pricingHref = "/pricing",
+  landingHref = "/",
+}: Props) {
+  const { plan, loading } = useMyPlan();
 
-  useEffect(() => {
-    const wasOpen = prevOpenRef.current;
-    prevOpenRef.current = isOpen;
+  // ⏱ reloj para countdown
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!enabled) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [enabled]);
 
-    // ✅ al abrir (transición false->true), resetea a SELECT limpio
-    if (!wasOpen && isOpen) {
-      setPhase("SELECT");
-      setCountdown(5);
-      setTrialPlanName(null);
-      setTrialEndsAt(null);
-      setTrialBusy(null);
+  // normalizamos status
+  const rawStatus = String((plan as any)?.status || "").toUpperCase();
+  const showPaywall = Boolean((plan as any)?.showPaywall);
+
+  // trialEndsAt lo trae getBillingGateAction
+  const trialEnds = safeTime((plan as any)?.trialEndsAt ?? null);
+
+  // infer GRACE client-side (por si acaso)
+  const inGrace =
+    rawStatus === "EXPIRED" &&
+    trialEnds != null &&
+    Date.now() < trialEnds + DAY_MS;
+
+  const status = ((): "TRIAL" | "GRACE" | "BLOCKED" | "ACTIVE" | "NONE" => {
+    if (showPaywall) return "BLOCKED";
+    if (rawStatus === "TRIAL") return "TRIAL";
+    if (rawStatus === "GRACE") return "GRACE";
+    if (inGrace) return "GRACE";
+    if (rawStatus === "EXPIRED") return "BLOCKED"; // fallback
+    if (rawStatus === "ACTIVE") return "ACTIVE";
+    return "NONE";
+  })();
+
+  const isBlocked = status === "BLOCKED";
+  const isNudge = status === "TRIAL" || status === "GRACE";
+
+  // apertura/cierre del popup
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!enabled) {
+      setOpen(false);
+      return;
     }
-  }, [isOpen]);
+    if (loading) return;
+    if (!plan) return;
 
-  const plans: Plan[] = useMemo(
-    () => [
-      {
-        id: "starter",
-        name: "Starter",
-        priceLabel: "9€/mes",
-        priceId: "pri_REEMPLAZA_STARTER",
-        perks: ["Acceso básico", "Guardado y favoritos", "Soporte estándar"],
-      },
-      {
-        id: "pro",
-        name: "Pro",
-        priceLabel: "29€/mes",
-        priceId: "pri_REEMPLAZA_PRO",
-        perks: ["Todo Starter", "Agency OS", "Radar + campañas", "Soporte prioritario"],
-        highlight: true,
-      },
-      {
-        id: "agency",
-        name: "Agency",
-        priceLabel: "79€/mes",
-        priceId: "pri_REEMPLAZA_AGENCY",
-        perks: ["Todo Pro", "Créditos + wallet", "Equipo / multiusuario", "Soporte premium"],
-      },
-    ],
-    []
-  );
-
-  const openCheckout = (priceId: string) => {
-    const Paddle = (window as any)?.Paddle;
-    if (!Paddle?.Checkout?.open) {
-      alert("Paddle.js no está cargado / inicializado todavía.");
+    // BLOCKED = siempre abierto (no se puede cerrar con X)
+    if (isBlocked) {
+      setOpen(true);
       return;
     }
 
-    Paddle.Checkout.open({
-      settings: {
-        displayMode: "overlay",
-        variant: "one-page",
-        theme: "light",
-        successUrl: `${window.location.origin}/app?paid=1`,
-      },
-      items: [{ priceId, quantity: 1 }],
-      ...(userEmail ? { customer: { email: userEmail } } : {}),
-      customData: { uid: userId || "unknown" },
-    });
+    // TRIAL/GRACE = abre al entrar + cada 5 min
+    if (isNudge) {
+      setOpen(true);
+      const id = setInterval(() => setOpen(true), EVERY_MS);
+      return () => clearInterval(id);
+    }
+
+    // ACTIVE/NONE = nada
+    setOpen(false);
+  }, [enabled, loading, plan, isBlocked, isNudge]);
+
+  // countdown
+  const graceEnds = trialEnds ? trialEnds + DAY_MS : null;
+
+  const remainingMs =
+    status === "TRIAL" && trialEnds ? Math.max(0, trialEnds - now)
+      : status === "GRACE" && graceEnds ? Math.max(0, graceEnds - now)
+      : 0;
+
+  const countdown = formatCountdown(remainingMs);
+
+  // ✅ IMPORTANTÍSIMO: si no es AGENCY mode, no existe
+  if (!enabled || loading || !plan || !open) return null;
+
+  const onPay = () => {
+    // PASO 2: Mollie aquí.
+    // PASO 1: fallback a pricing/market.
+    window.location.href = pricingHref;
   };
 
-  const startTrial = async (planCode: "PRO" | "AGENCY") => {
-    try {
-      setTrialBusy(planCode);
-
-      const res: any = await startTrialAction(planCode);
-      if (!res?.success) {
-        alert(res?.error || "No se pudo iniciar el trial");
-        return;
-      }
-
-      // ✅ FASE 2: anuncio 5s + sin botones
-      const end = res?.data?.currentPeriodEnd ? new Date(res.data.currentPeriodEnd) : null;
-      setTrialEndsAt(end ? end.toISOString() : null);
-      setTrialPlanName(planCode === "AGENCY" ? "Agency" : "Pro");
-      setPhase("TRIAL_OK");
-      setCountdown(5);
-    } finally {
-      setTrialBusy(null);
+  const onClose = () => {
+    if (isBlocked) {
+      // BLOCKED: cerrar => landing corporativa
+      window.location.href = landingHref;
+    } else {
+      // TRIAL/GRACE: cerrar solo oculta hasta el próximo recordatorio
+      setOpen(false);
     }
   };
 
-  // ✅ autocierre publicitario 5s (sin recargar / sin volver a “la puerta”)
-  useEffect(() => {
-    if (!isOpen) return;
-    if (phase !== "TRIAL_OK") return;
+ return (
+  <div
+    className={`fixed inset-0 z-[27000] ${
+      isBlocked ? "pointer-events-auto" : "pointer-events-none"
+    }`}
+  >
+    {/* Velo negro SOLO en BLOCKED */}
+    {isBlocked && <div className="absolute inset-0 bg-black/60" />}
 
-    let alive = true;
+    {/* Popup centrado */}
+    <div className="absolute inset-0 flex items-center justify-center p-6">
+      {/* ✅ Tarjeta clicable */}
+      <div
+       className="
+  pointer-events-auto relative overflow-hidden
+  w-[min(1040px,calc(100vw-48px))]
+  rounded-[34px]
+  border border-white/50 ring-1 ring-black/5
+  bg-white/70 backdrop-blur-2xl
+  p-10
+  shadow-[0_28px_90px_rgba(0,0,0,0.18)]
+"
 
-    const t = setInterval(() => {
-      if (!alive) return;
-      setCountdown((c) => Math.max(0, c - 1));
-    }, 1000);
+      >
+        {/* Accent sutil (cupertino) */}
+        <div className="pointer-events-none absolute -top-32 -right-32 h-80 w-80 rounded-full bg-[#2F6BFF]/10 blur-3xl" />
 
-    const closeT = setTimeout(() => {
-      if (!alive) return;
-
-      // ✅ AQUÍ VA EXACTAMENTE TU LÍNEA:
-      // ✅ refresca plan server-truth sin recargar
-      try {
-        window.dispatchEvent(new CustomEvent("billing-refresh-signal"));
-      } catch {}
-
-      // ✅ No forzamos onClose aquí: tu index.tsx cerrará el modal
-      // automáticamente cuando showPaywall pase a false.
-      //
-      // (Dejamos onClose solo por compatibilidad, pero no lo usamos para
-      // evitar que se “salten” el paywall cerrando manualmente.)
-    }, 5000);
-
-    return () => {
-      alive = false;
-      clearInterval(t);
-      clearTimeout(closeT);
-    };
-  }, [isOpen, phase]);
-
-  if (!isOpen) return null;
-
-  const lockUI = phase === "TRIAL_OK";
-
-  const prettyEnd = (() => {
-    if (!trialEndsAt) return null;
-    const d = new Date(trialEndsAt);
-    try {
-      return d.toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-    } catch {
-      return d.toISOString().slice(0, 10);
-    }
-  })();
-
-  return (
-    <div className="fixed inset-0 z-[26000] pointer-events-auto">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-
-      {/* Modal */}
-      <div className="absolute left-1/2 top-1/2 w-[min(1080px,94vw)] -translate-x-1/2 -translate-y-1/2 rounded-[28px] bg-white text-black">
-        <div className="flex items-center justify-between px-10 py-7 border-b border-black/10">
-          <div>
-            <div className="text-xs font-black tracking-[0.28em] text-black/50">
-              BILLING / PLAN
-            </div>
-            <div className="text-2xl font-black tracking-tight">
-              {phase === "TRIAL_OK" ? "Prueba activa" : "Activa tu acceso"}
-            </div>
-          </div>
-
-          {/* ✅ No permitimos cerrar en SELECT (paywall real) */}
-          <button
-            onClick={() => {
-              // Solo dejamos cerrar si estás en TRIAL_OK (y aun así se cierra solo)
-              if (phase === "TRIAL_OK") {
-                try {
-                  onClose();
-                } catch {}
-              }
-            }}
-            disabled={phase !== "TRIAL_OK"}
-            className="h-10 px-5 rounded-xl border border-black/15 font-black tracking-wide hover:bg-black/5 disabled:opacity-30"
-            title={
-              phase !== "TRIAL_OK"
-                ? "Activa un trial o completa el pago para continuar"
-                : "Se cerrará automáticamente"
-            }
-          >
-            {phase === "TRIAL_OK" ? `CERRANDO (${countdown}s)` : "CERRAR"}
-          </button>
-        </div>
-
-        <div className="px-10 py-8">
-          {/* ✅ FASE 2 (anuncio) */}
-          {phase === "TRIAL_OK" && (
-            <div className="rounded-2xl border border-black/10 bg-black/[0.03] p-6 mb-6">
-              <div className="text-[11px] font-black tracking-[0.28em] text-black/55 mb-2">
-                TRIAL — 15 DÍAS (MÁXIMO)
+        {/* Header */}
+        <div className="flex items-start justify-between gap-8">
+          <div className="min-w-0">
+            {/* LOGO (texto) */}
+            <div className="flex items-center gap-3">
+              <div className="text-[26px] font-black tracking-tight text-black">
+                Stratosfere <span className="text-black">OS</span>
+                <span className="text-black">.</span>
               </div>
 
-              <div className="text-3xl font-black tracking-tight mb-2">
-                Estás en la prueba máxima de Stratosfere.
-              </div>
-
-              <div className="text-sm text-black/70 leading-relaxed">
-                Has activado <b>{trialPlanName || "tu plan"}</b>. Durante los próximos{" "}
-                <b>15 días</b> podrás usar la plataforma. Al finalizar, eliges y activas tu
-                plan de pago.
-              </div>
-
-              <div className="mt-4 text-sm text-black/60">
-                {prettyEnd ? (
-                  <>
-                    Tu trial finaliza el <b>{prettyEnd}</b>.
-                  </>
-                ) : (
-                  <>Tu trial ya está guardado en BD.</>
-                )}
-                <span className="ml-2 text-black/40">
-                  Se cerrará automáticamente en {countdown}s.
+              <div className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1">
+                <span className="h-2 w-2 rounded-full bg-[#2F6BFF]" />
+                <span className="text-[10px] font-black tracking-[0.28em] uppercase text-black/45">
+                  {isBlocked
+                    ? "ACCESO BLOQUEADO"
+                    : status === "GRACE"
+                    ? "ÚLTIMAS 24H"
+                    : "FREE TRIAL · 15 DÍAS"}
                 </span>
               </div>
             </div>
-          )}
 
-          {/* Texto base */}
-          {phase !== "TRIAL_OK" && (
-            <div className="text-sm text-black/60 mb-6">
-              Elige un plan para desbloquear la plataforma. Puedes cambiar o cancelar después.
+            <div className="mt-5 text-[44px] leading-[1.05] font-black tracking-tight text-black">
+              Agency SF PRO
+            </div>
+
+            <div className="mt-3 text-[15px] leading-relaxed text-black/70 max-w-[62ch]">
+              Radar, campañas y operativa real de agencia. Activa tu licencia y trabaja con
+              velocidad, control y consistencia.
+            </div>
+          </div>
+
+          {/* X solo si NO es blocked */}
+          {!isBlocked && (
+           <button
+  onClick={() => setOpen(false)}
+  aria-label="Cerrar"
+  className="
+    h-11 w-11 rounded-full
+    bg-black/5 text-black/70
+    border border-black/10
+    backdrop-blur-md
+transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)]
+    hover:bg-black/10 hover:text-black hover:border-black/15
+    hover:rotate-90
+    active:rotate-180 active:scale-95
+    focus:outline-none focus:ring-4 focus:ring-black/10
+    flex items-center justify-center
+  "
+>
+  <span className="text-[18px] leading-none">✕</span>
+</button>
+
+          )}
+        </div>
+
+        {/* Main grid */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* LEFT: Countdown */}
+          {!isBlocked ? (
+            <div className="rounded-[26px] border border-black/10 bg-[#F3F4F6] p-7">
+              <div className="text-[10px] font-black tracking-[0.35em] uppercase text-black/40">
+                Tu acceso expira en:
+              </div>
+
+              {/* ✅ RELOJ (no se monta) */}
+              <div className="mt-3 font-black tracking-tight text-black tabular-nums whitespace-nowrap leading-[0.92]">
+<span className="block text-[clamp(38px,4.4vw,56px)] leading-none font-black tracking-[-0.03em] tabular-nums">
+  {countdown}
+</span>
+
+              </div>
+
+              <div className="mt-4 text-[13px] text-black/65 font-semibold">
+                Te recomendamos activar antes de que termine el trial para no cortar la operativa.
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="px-3 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-black/60">
+                  Sin permanencia
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-black/60">
+                  Cancelación flexible
+                </span>
+                <span className="px-3 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-black/60">
+                  IVA incluido
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[26px] border border-black/10 bg-[#F3F4F6] p-7">
+              <div className="text-[10px] font-black tracking-[0.35em] uppercase text-black/40">
+                Acción requerida
+              </div>
+              <div className="mt-3 text-[18px] font-black text-black">
+                Tu acceso está bloqueado
+              </div>
+              <div className="mt-2 text-[14px] text-black/70 font-semibold">
+                Para continuar, activa la suscripción.
+              </div>
             </div>
           )}
 
-          {/* Planes */}
-          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${lockUI ? "opacity-60" : ""}`}>
-            {plans.map((p) => {
-              const isTrialPlan = p.id === "pro" || p.id === "agency";
-              const busyHere =
-                trialBusy === (p.id === "pro" ? "PRO" : p.id === "agency" ? "AGENCY" : null);
-
-              return (
-                <div
-                  key={p.id}
-                  className={`rounded-2xl border p-5 ${
-                    p.highlight ? "border-[#4F6AEE] bg-[#4F6AEE]/[0.06]" : "border-black/10"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="text-lg font-black">{p.name}</div>
-                      <div className="text-sm font-black text-black/50">{p.priceLabel}</div>
-                    </div>
-                    {p.highlight && (
-                      <div className="text-[10px] font-black tracking-[0.22em] text-[#4F6AEE]">
-                        RECOMENDADO
-                      </div>
-                    )}
-                  </div>
-
-                  <ul className="text-sm text-black/70 space-y-2 mb-4">
-                    {p.perks.map((x) => (
-                      <li key={x} className="flex gap-2">
-                        <span className="mt-[7px] h-[6px] w-[6px] rounded-full bg-black/40" />
-                        <span>{x}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* Trial */}
-                  {isTrialPlan && (
-                    <button
-                      onClick={() => startTrial(p.id === "pro" ? "PRO" : "AGENCY")}
-                      disabled={lockUI || trialBusy !== null}
-                      className="w-full h-11 rounded-xl font-black tracking-wide border border-black bg-white text-black hover:bg-black/5 disabled:opacity-40 mb-2"
-                    >
-                      {busyHere ? "Activando..." : "Free trial 15 días"}
-                    </button>
-                  )}
-
-                  {/* Pago */}
-                  <button
-                    onClick={() => openCheckout(p.priceId)}
-                    disabled={lockUI}
-                    className={`w-full h-11 rounded-xl font-black tracking-wide border disabled:opacity-40 ${
-                      p.highlight
-                        ? "bg-[#4F6AEE] text-white border-[#4F6AEE]"
-                        : "bg-black text-white border-black"
-                    }`}
-                  >
-                    CONTINUAR CON PAGO
-                  </button>
-
-                  <div className="text-[11px] text-black/45 mt-3">
-                    Checkout seguro gestionado por Paddle (merchant of record).
-                  </div>
+          {/* RIGHT: Plan + Price + Bullets */}
+          <div className="rounded-[26px] border border-black/10 bg-white p-7">
+            <div className="flex items-start justify-between gap-6">
+              <div>
+                <div className="text-[10px] font-black tracking-[0.35em] uppercase text-black/40">
+                  Suscripción mensual
                 </div>
-              );
-            })}
-          </div>
+                <div className="mt-2 text-[14px] font-black text-black">
+                  Agency SF PRO
+                </div>
+                <div className="mt-1 text-[12px] text-black/55 font-semibold">
+                  Licencia operativa para agencias.
+                </div>
+              </div>
 
-          <div className="mt-6 text-[12px] text-black/45">
-            Sistema SaaS (server-truth): el trial y su fecha fin se guardan en BD
-            (Subscription.currentPeriodEnd).
+              <div className="text-right">
+                <div className="flex items-end justify-end gap-1">
+                  <span className="text-[46px] leading-[1] font-black tracking-tight text-black">
+                    49,90
+                  </span>
+                  <span className="text-[18px] font-black text-black">€</span>
+                </div>
+                <div className="mt-1 text-[10px] font-black tracking-[0.35em] uppercase text-black/40">
+                  / mes
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 h-px w-full bg-black/10" />
+
+            <ul className="mt-6 space-y-3 text-[13px] text-black/70 font-semibold">
+              <li className="flex gap-3">
+                <span className="mt-1.5 h-2 w-2 rounded-full bg-[#2F6BFF]" />
+                <span>Radar + campañas con control de agencia</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-1.5 h-2 w-2 rounded-full bg-[#2F6BFF]" />
+                <span>Flujo profesional: chat, propuestas y operativa diaria</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="mt-1.5 h-2 w-2 rounded-full bg-[#2F6BFF]" />
+                <span>Estado real controlado desde servidor (server-truth)</span>
+              </li>
+            </ul>
           </div>
+        </div>
+
+        {/* Buttons */}
+        <div className="mt-8 grid grid-cols-2 gap-4">
+          <button
+            onClick={onPay}
+            className="
+              h-14 w-full rounded-[18px]
+              bg-black text-white
+              font-black tracking-wide
+              transition
+              hover:bg-[#2F6BFF]
+              focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/25
+            "
+          >
+            Activar Agency SF PRO
+          </button>
+
+          <button
+            onClick={onClose}
+            className="
+  h-14 w-full rounded-[18px]
+  border border-black/20 bg-white text-black
+  font-black tracking-wide
+  transition
+  hover:border-[#2F6BFF] hover:bg-[#2F6BFF]/10 hover:text-[#2F6BFF]
+  focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/20
+"
+
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-4 text-[13px] text-black/45 font-semibold">
+          Acceso inmediato a herramientas profesionales. Tu estado se controla desde servidor.
         </div>
       </div>
     </div>
-  );
+  </div>
+);
+
+
 }

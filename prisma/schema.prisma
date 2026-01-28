@@ -35,6 +35,11 @@ model User {
   blocksOut                UserBlock[]               @relation("UserBlocksOut")
   blocksIn                 UserBlock[]               @relation("UserBlocksIn")
 
+  // ✅ Agency access (source of truth)
+  agencyTrialStartedAt DateTime?
+  agencyTrialEndsAt    DateTime?
+  agencyGraceEndsAt    DateTime?
+
   // ✅ Opposite relations (SaaS / Radar)
   subscription      Subscription?
   agencyContacts    AgencyContact[]
@@ -102,14 +107,26 @@ model Image {
 }
 
 model ServiceOrder {
-  id         String   @id @default(cuid())
-  serviceId  String
-  name       String
-  price      Float
-  paid       Boolean  @default(false)
+  id        String  @id @default(cuid())
+  serviceId String
+  name      String
+  price     Float
+  paid      Boolean @default(false)
+
+  // ✅ Tracking Mollie (pago único por publicar)
+  provider      String? // "MOLLIE"
+  providerPayId String? // "tr_xxx"
+  payStatus     String    @default("OPEN") // OPEN|PAID|FAILED|CANCELED|EXPIRED
+  paidAt        DateTime?
+  metadata      Json?
+
   propertyId String
   createdAt  DateTime @default(now())
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([providerPayId])
+  @@index([payStatus])
 }
 
 model Favorite {
@@ -195,16 +212,19 @@ enum UserRole {
 }
 
 model Subscription {
-  id                 String    @id @default(cuid())
-  userId             String    @unique // agencia = User
-  plan               PlanCode  @default(STARTER)
-  status             String    @default("ACTIVE") // ACTIVE|PAST_DUE|CANCELED
-  provider           String? // PADDLE
-  providerSubId      String? // paddle subscription id
+  id                 String   @id @default(cuid())
+  userId             String   @unique // agencia = User
+  plan               PlanCode @default(STARTER)
+  status             String   @default("ACTIVE") // ACTIVE|PAST_DUE|CANCELED
+  provider           String? // PADDLE | MOLLIE
+  providerSubId      String? // subscription id (si aplica)
+  providerCustomerId String? // Mollie customer id
+
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -262,28 +282,27 @@ model Campaign {
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   agency   User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  // ✅ Términos de propuesta (persistentes en BD)
+  priceAtProposal  Float @default(0)
+  commissionPct    Float @default(0)
+  commissionIvaPct Float @default(0)
+
+  commissionSharePct        Float                     @default(0)
+  commissionShareVisibility CommissionShareVisibility @default(AGENCIES)
+
+  exclusiveMandate Boolean @default(true)
+  exclusiveMonths  Int     @default(6)
+
+  // ✅ Importes calculados (snapshot)
+  commissionBaseEur  Float @default(0)
+  commissionIvaEur   Float @default(0)
+  commissionTotalEur Float @default(0)
+  commissionShareEur Float @default(0)
+
   @@unique([propertyId, agencyId]) // 1 campaña activa por propiedad+agencia (mínimo)
   @@index([propertyId])
   @@index([agencyId])
   @@index([status])
-
-  // ✅ Términos de propuesta (persistentes en BD)
-  priceAtProposal        Float @default(0)
-  commissionPct          Float @default(0)
-  commissionIvaPct       Float @default(0)
-
-  commissionSharePct     Float @default(0)
-  commissionShareVisibility CommissionShareVisibility @default(AGENCIES)
-
-  exclusiveMandate       Boolean @default(true)
-  exclusiveMonths        Int @default(6)
-
-  // ✅ Importes calculados (snapshot)
-  commissionBaseEur      Float @default(0)
-  commissionIvaEur       Float @default(0)
-  commissionTotalEur     Float @default(0)
-  commissionShareEur     Float @default(0)
-
 }
 
 enum CampaignStatus {

@@ -1,198 +1,186 @@
 "use client";
 
-import React, { useState } from 'react';
-import { X, ArrowRight, Check, ShieldCheck, CreditCard, Building2, Zap } from 'lucide-react';
+import React, { useState } from "react";
+import { X, Check, ArrowRight, ShieldCheck } from "lucide-react";
+import { useMyPlan } from "../../billing/useMyPlan";
 
-// Definimos los planes aquí mismo para evitar errores de importación y asegurar los nombres correctos
-const SUBSCRIPTION_PLANS = [
-  {
-    id: "sub_starter",
-    name: "ESSENTIAL",
-    price: "29",
-    period: "€/mes",
-    credits: 10,
-    badge: "🔹",
-    desc: "Para agentes independientes que inician su actividad.",
-    features: ["Acceso Radar 2D", "5 Leads mensuales", "Soporte Básico"]
-  },
-  {
-    id: "sub_pro",
-    name: "PROFESSIONAL",
-    price: "89",
-    period: "€/mes",
-    credits: 50,
-    badge: "💠",
-    desc: "La herramienta estándar para agencias de alto rendimiento.",
-    features: ["Radar 3D + Vuelos", "Leads Ilimitados", "Prioridad de Red", "API Access"]
-  },
-  {
-    id: "sub_corp",
-    name: "CORPORATE",
-    price: "199",
-    period: "€/mes",
-    credits: 200,
-    badge: "💎",
-    desc: "Infraestructura dedicada para grandes franquicias.",
-    features: ["Marca Blanca", "Multi-usuario", "Gestor Dedicado", "Auditoría Legal"]
-  }
-];
+const AGENCY_PLAN = {
+  id: "agency-pro",
+  name: "Agency SF PRO",
+  price: "49,90",
+  period: "€/mes",
+  desc: "La infraestructura profesional para operar como agencia.",
+  features: [
+    "Agency OS + Radar",
+    "Campañas y captación avanzada",
+    "Equipo / multiusuario",
+    "Herramientas pro de control y seguimiento",
+  ],
+};
 
 export default function AgencyMarketPanel({ isOpen, onClose }: any) {
-  
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  // ✅ OJO: useMyPlan devuelve { plan: BillingGate, isActive, loading }
+  const { plan: gate, isActive, loading } = useMyPlan();
 
-  // Si está cerrado, no renderizamos nada
+  // ✅ Normalizamos
+  const planCode = String((gate as any)?.plan || "").toUpperCase();         // "AGENCY" | "PRO" | "STARTER"
+  const status = String((gate as any)?.status || "").toUpperCase();         // "TRIAL" | "GRACE" | "ACTIVE" | "BLOCKED" | ...
+  const trialEndsAt = (gate as any)?.trialEndsAt ?? null;                   // ISO string | null
+
+  const [confirming, setConfirming] = useState(false);
+
   if (!isOpen) return null;
 
-  const handleSelect = (id: string) => {
-      setSelectedPlanId(id === selectedPlanId ? null : id);
-  };
+  const isAgency = planCode === "AGENCY";
+  const isTrial = status === "TRIAL" || status === "GRACE";
+  const isPaid = status === "ACTIVE";
 
   const handlePurchase = () => {
-      if (!selectedPlanId) return;
-      
-      const plan = SUBSCRIPTION_PLANS.find(s => s.id === selectedPlanId);
-      
-      // 📡 ENVIAMOS LA SEÑAL AL RADAR (Actualiza saldo y nombre de licencia)
-      if(typeof window !== 'undefined') {
-          console.log("💳 Procesando licencia:", plan?.name);
-          window.dispatchEvent(new CustomEvent('agency-upgrade-signal', { 
-              detail: { 
-                  name: `LICENCIA ${plan?.name}`, 
-                  credits: plan?.credits,
-                  badge: plan?.badge 
-              } 
-          }));
-      }
-      onClose();
-  };
+    setConfirming(true);
 
-  const activePlan = SUBSCRIPTION_PLANS.find(s => s.id === selectedPlanId);
+    // ✅ Aquí más adelante conectas Mollie (paso siguiente).
+    // Tras pagar, backend pondrá status="ACTIVE" y luego:
+    try {
+      window.dispatchEvent(new CustomEvent("billing-refresh-signal"));
+    } catch {}
+
+    setTimeout(() => {
+      setConfirming(false);
+      onClose?.();
+    }, 700);
+  };
 
   return (
     <div className="fixed inset-y-0 left-0 w-full md:w-[460px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
-      
-      {/* FONDO CRYSTAL / CUPERTINO */}
-      <div className="absolute inset-0 bg-[#F5F5F7]/95 backdrop-blur-2xl shadow-2xl border-r border-white/50"></div>
+      {/* Fondo Cupertino */}
+      <div className="absolute inset-0 bg-[#F5F5F7]/95 backdrop-blur-2xl border-r border-black/5" />
 
-      <div className="relative z-10 flex flex-col h-full font-sans text-slate-900">
-        
+      <div className="relative z-10 flex flex-col h-full text-slate-900">
         {/* CABECERA */}
-        <div className="px-8 pt-10 pb-6 shrink-0 bg-white/40 backdrop-blur-md border-b border-white/50">
-            <div className="flex justify-between items-center mb-2">
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                    Suscripciones.
-                </h1>
-                <button 
-                    onClick={onClose} 
-                    className="w-8 h-8 bg-black/5 hover:bg-black/10 rounded-full flex items-center justify-center transition-all"
-                >
-                    <X size={16} className="text-slate-500"/>
-                </button>
-            </div>
-            <div className="flex items-center gap-2">
-                <span className="bg-[#0071e3]/10 text-[#0071e3] px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
-                    Stratos Business
-                </span>
-                <p className="text-xs font-medium text-slate-400">
-                    Seleccione su nivel operativo.
-                </p>
-            </div>
+        <div className="px-8 pt-10 pb-6 bg-white/60 backdrop-blur-md border-b border-black/5">
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-2xl font-black tracking-tight">Suscripción</h1>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-black/5 hover:bg-black/10 flex items-center justify-center"
+              aria-label="Cerrar"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#4F6AEE]">
+              Stratos Business
+            </span>
+            <span className="text-xs text-black/40">Seleccione su nivel operativo</span>
+          </div>
         </div>
 
-        {/* LISTA DE PLANES (SCROLL) */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar space-y-4 pb-32">
-            
-            {/* ESTADO ACTUAL */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/60 shadow-sm flex items-center gap-4 mb-8">
-                <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
-                    <ShieldCheck size={20}/>
+        {/* CONTENIDO */}
+        <div className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
+          {/* ESTADO ACTUAL */}
+          <div className="rounded-2xl bg-white border border-black/5 p-5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center">
+              <ShieldCheck size={18} />
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-black/40 font-bold">
+                Estado actual
+              </div>
+
+              <div className="text-sm font-black">
+                {!isAgency ? (
+                  "Cuenta Gratuita"
+                ) : isPaid ? (
+                  "Agency SF PRO"
+                ) : isTrial ? (
+                  "Agency SF PRO · Free trial"
+                ) : (
+                  "Acceso bloqueado"
+                )}
+              </div>
+
+              {isAgency && isTrial && (
+                <div className="mt-1 text-[11px] text-black/45">
+                  {status === "GRACE" ? "Últimas 24h de gracia" : "Trial activo"}{" "}
+                  {trialEndsAt ? "· con cuenta atrás en el popup" : ""}
                 </div>
-                <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estado Actual</p>
-                    <p className="text-sm font-bold text-slate-900">Cuenta Gratuita</p>
+              )}
+            </div>
+          </div>
+{/* ✅ ESPACIO EXTRA (esto es lo que realmente la baja) */}
+<div className="h-6" />
+          {/* TARJETA PRINCIPAL */}
+          <div className="rounded-[28px] p-6 bg-black text-white shadow-2xl">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-white/60 font-bold">
+                  {isAgency
+                    ? isPaid
+                      ? "Licencia activa"
+                      : status === "GRACE"
+                      ? "Últimas 24h"
+                      : "Free trial · 15 días"
+                    : "Plan disponible para agencias"}
                 </div>
+
+                <h2 className="text-xl font-black mt-1">{AGENCY_PLAN.name}</h2>
+              </div>
+
+              {!isPaid && (
+                <div className="text-right">
+                  <div className="text-2xl font-black">{AGENCY_PLAN.price}€</div>
+                  <div className="text-[10px] uppercase tracking-widest text-white/50">
+                    {AGENCY_PLAN.period}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* TARJETAS DE SUSCRIPCIÓN */}
-            {SUBSCRIPTION_PLANS.map((plan: any) => {
-                const isSelected = selectedPlanId === plan.id;
-                
-                return (
-                    <div 
-                        key={plan.id}
-                        onClick={() => handleSelect(plan.id)}
-                        className={`relative p-6 rounded-[28px] cursor-pointer transition-all duration-300 border group
-                            ${isSelected 
-                                ? 'bg-[#1c1c1e] text-white border-black/10 shadow-2xl scale-[1.02] z-10' 
-                                : 'bg-white text-slate-900 border-slate-200/60 shadow-sm hover:border-slate-300 hover:shadow-md'
-                            }`}
-                    >
-                        {/* Header Tarjeta */}
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`text-2xl transition-transform duration-300 ${isSelected ? 'scale-110' : 'grayscale opacity-70'}`}>
-                                {plan.badge}
-                            </div>
-                            <div className="text-right">
-                                <span className="text-2xl font-black tracking-tight block">
-                                    {plan.price}
-                                </span>
-                                <span className={`text-[9px] font-bold uppercase tracking-widest ${isSelected ? 'text-gray-400' : 'text-slate-400'}`}>
-                                    {plan.period}
-                                </span>
-                            </div>
-                        </div>
+            <p className="text-sm text-white/80 mb-6 leading-relaxed">
+              Operativa real para agencias: control, velocidad y equipo.
+            </p>
 
-                        {/* Título */}
-                        <h3 className="font-bold text-sm tracking-wide mb-1 uppercase">
-                            {plan.name}
-                        </h3>
-                        <p className={`text-xs font-medium mb-6 leading-relaxed ${isSelected ? 'text-gray-300' : 'text-slate-500'}`}>
-                            {plan.desc}
-                        </p>
-                        
-                        {/* Línea divisoria */}
-                        <div className={`h-px w-full mb-5 ${isSelected ? 'bg-white/10' : 'bg-slate-100'}`}></div>
-
-                        {/* Perks (Lista) */}
-                        <div className="space-y-3">
-                            {plan.features.map((perk:string, i:number) => (
-                                <div key={i} className="flex items-center gap-3">
-                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 
-                                        ${isSelected ? 'bg-[#2997ff] text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                        <Check size={10} strokeWidth={3}/>
-                                    </div>
-                                    <span className={`text-[11px] font-bold uppercase tracking-wide ${isSelected ? 'text-white' : 'text-slate-600'}`}>
-                                        {perk}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )
-            })}
+            <div className="space-y-3">
+              {AGENCY_PLAN.features.map((f) => (
+                <div key={f} className="flex items-center gap-3">
+                  <div className="w-4 h-4 rounded-full bg-white text-black flex items-center justify-center">
+                    <Check size={10} strokeWidth={3} />
+                  </div>
+                  <span className="text-xs font-bold tracking-wide">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* FOOTER FLOTANTE (CONFIRMACIÓN) */}
-        {selectedPlanId && activePlan && (
-            <div className="absolute bottom-8 left-6 right-6 z-50 animate-fade-in-up">
-                 <div className="bg-white/90 backdrop-blur-xl p-2 pr-2 pl-6 rounded-full shadow-[0_20px_60px_rgba(0,0,0,0.2)] flex items-center justify-between border border-white/50">
-                    <div className="flex flex-col">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total a pagar</span>
-                        <span className="text-lg font-black text-slate-900 tracking-tight">
-                            {activePlan.price}€
-                        </span>
-                    </div>
-                    <button 
-                        onClick={handlePurchase}
-                        className="bg-[#000000] text-white px-8 py-4 rounded-full font-bold text-[10px] hover:bg-[#333] active:scale-95 transition-all flex items-center gap-2 uppercase tracking-widest shadow-lg"
-                    >
-                        Confirmar <ArrowRight size={14} strokeWidth={2.5}/>
-                    </button>
-                 </div>
+        {/* FOOTER */}
+        {isAgency && !isPaid && (
+          <div className="px-8 pb-8">
+            <div className="rounded-2xl bg-white border border-black/5 p-4 flex items-center justify-between shadow-lg">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-black/40 font-bold">
+                  Total
+                </div>
+                <div className="text-lg font-black">{AGENCY_PLAN.price}€</div>
+              </div>
+
+              <button
+                onClick={handlePurchase}
+                disabled={confirming || loading}
+                className="h-11 px-8 rounded-xl bg-black text-white font-black tracking-wide flex items-center gap-2 hover:bg-black/80 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {confirming ? "Procesando…" : "Activar ahora"}
+                <ArrowRight size={14} />
+              </button>
             </div>
+
+            <div className="mt-3 text-[11px] text-black/40 text-center">
+              Sin permanencia · Cancela cuando quieras · IVA incl.
+            </div>
+          </div>
         )}
-
       </div>
     </div>
   );

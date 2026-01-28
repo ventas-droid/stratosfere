@@ -3220,14 +3220,14 @@ disabled={chatUploading}
     </div>
   </div>
 )}
-{planOpen && (
-  <PlanOverlay
-    isOpen={planOpen}
-    onClose={closePlanOverlay}
-    userEmail={agencyProfileData?.email}
-    userId={activeUserKey || undefined}
-  />
-)}
+
+<PlanOverlay
+  enabled={systemMode === "AGENCY"}
+  pricingHref="/pricing"
+  landingHref="/"
+/>
+
+
 
        {/* IA / OMNI INTELLIGENCE */}
        {activePanel === 'AI' && (
