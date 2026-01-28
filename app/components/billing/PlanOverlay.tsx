@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useMyPlan } from "./useMyPlan";
+import { startAgencyPayment } from "./startAgencyPayment";
 
 type Props = {
   // ✅ IMPORTANTÍSIMO: esto lo pasaremos desde UIPanels
@@ -120,14 +121,15 @@ export default function PlanOverlay({
 
   const countdown = formatCountdown(remainingMs);
 
-  // ✅ IMPORTANTÍSIMO: si no es AGENCY mode, no existe
-  if (!enabled || loading || !plan || !open) return null;
+  const onPay = async () => {
+  try {
+    await startAgencyPayment(); // hace fetch a /api/mollie/create-payment y redirige a checkoutUrl
+  } catch (e) {
+    console.error(e);
+    alert("No se pudo iniciar el pago");
+  }
+};
 
-  const onPay = () => {
-    // PASO 2: Mollie aquí.
-    // PASO 1: fallback a pricing/market.
-    window.location.href = pricingHref;
-  };
 
   const onClose = () => {
     if (isBlocked) {
@@ -316,37 +318,37 @@ transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)]
           </div>
         </div>
 
-        {/* Buttons */}
-        <div className="mt-8 grid grid-cols-2 gap-4">
-          <button
-            onClick={onPay}
-            className="
-              h-14 w-full rounded-[18px]
-              bg-black text-white
-              font-black tracking-wide
-              transition
-              hover:bg-[#2F6BFF]
-              focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/25
-            "
-          >
-            Activar Agency SF PRO
-          </button>
+       {/* Buttons */}
+<div className="mt-8 grid grid-cols-2 gap-4">
+  <button
+    onClick={onPay}
+    className="
+      h-14 w-full rounded-[18px]
+      bg-black text-white
+      font-black tracking-wide
+      transition
+      hover:bg-[#2F6BFF]
+      focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/25
+    "
+  >
+    Activar Agency SF PRO
+  </button>
 
-          <button
-            onClick={onClose}
-            className="
-  h-14 w-full rounded-[18px]
-  border border-black/20 bg-white text-black
-  font-black tracking-wide
-  transition
-  hover:border-[#2F6BFF] hover:bg-[#2F6BFF]/10 hover:text-[#2F6BFF]
-  focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/20
-"
+  <button
+    onClick={onClose}
+    className="
+      h-14 w-full rounded-[18px]
+      border border-black/20 bg-white text-black
+      font-black tracking-wide
+      transition
+      hover:border-[#2F6BFF] hover:bg-[#2F6BFF]/10 hover:text-[#2F6BFF]
+      focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/20
+    "
+  >
+    Cerrar
+  </button>
+</div>
 
-          >
-            Cerrar
-          </button>
-        </div>
 
         <div className="mt-4 text-[13px] text-black/45 font-semibold">
           Acceso inmediato a herramientas profesionales. Tu estado se controla desde servidor.
