@@ -86,6 +86,7 @@ export default function PlanOverlay({
   // apertura/cierre del popup
   const [open, setOpen] = React.useState(false);
 const dismissedUntilRef = React.useRef<number>(0);
+const [paying, setPaying] = React.useState(false);
 
   React.useEffect(() => {
   if (!enabled) {
@@ -137,14 +138,20 @@ const dismissedUntilRef = React.useRef<number>(0);
 
   const countdown = formatCountdown(remainingMs);
 
-  const onPay = async () => {
+ const onPay = async () => {
+  if (paying) return;        // evita doble click
+  setPaying(true);
+
   try {
-    await startAgencyPayment(); // hace fetch a /api/mollie/create-payment y redirige a checkoutUrl
+    await startAgencyPayment(); // redirige a Mollie
+    // normalmente aquí NO vuelve porque navega a checkoutUrl
   } catch (e) {
     console.error(e);
     alert("No se pudo iniciar el pago");
+    setPaying(false);        // si falla, re-habilita botón
   }
 };
+
 
 const onClose = () => {
   if (isBlocked) {
@@ -339,18 +346,21 @@ if (!enabled || loading || !plan || !open) return null;
        {/* Buttons */}
 <div className="mt-8 grid grid-cols-2 gap-4">
   <button
-    onClick={onPay}
-    className="
-      h-14 w-full rounded-[18px]
-      bg-black text-white
-      font-black tracking-wide
-      transition
-      hover:bg-[#2F6BFF]
-      focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/25
-    "
-  >
-    Activar Agency SF PRO
-  </button>
+  onClick={onPay}
+  disabled={paying}
+  className="
+    h-14 w-full rounded-[18px]
+    bg-black text-white
+    font-black tracking-wide
+    transition
+    hover:bg-[#2F6BFF]
+    disabled:opacity-60 disabled:cursor-not-allowed
+    focus:outline-none focus:ring-4 focus:ring-[#2F6BFF]/25
+  "
+>
+  {paying ? "Abriendo pasarela..." : "Activar Agency SF PRO"}
+</button>
+
 
   <button
     onClick={onClose}
