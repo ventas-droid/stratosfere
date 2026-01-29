@@ -239,10 +239,8 @@ if (!enabled || loading || !plan || !open) return null;
 >
   <span className="text-[18px] leading-none">✕</span>
 </button>
+</div>
 
-
-          
-        </div>
 
         {/* Main grid */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">

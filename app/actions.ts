@@ -1533,24 +1533,36 @@ export async function getBillingGateAction() {
         },
       };
     }
+// 🔹 cálculo de estados (server truth)
+const endMs = sub?.currentPeriodEnd
+  ? new Date(sub.currentPeriodEnd).getTime()
+  : null;
 
-    // 🔹 cálculo de estados
-    const endMs = sub?.currentPeriodEnd
-      ? new Date(sub.currentPeriodEnd).getTime()
-      : null;
+const baseStatus = String(sub?.status || "ACTIVE").toUpperCase();
+let status = baseStatus;
+let showPaywall = false;
 
-    let status = String(sub?.status || "ACTIVE").toUpperCase();
-    let showPaywall = false;
+// Si está ACTIVE, nunca hay paywall
+if (baseStatus === "ACTIVE") {
+  status = "ACTIVE";
+  showPaywall = false;
+} else {
+  // Si no tenemos endMs, por seguridad bloqueamos
+  if (!endMs) {
+    status = "BLOCKED";
+    showPaywall = true;
+  } else if (now <= endMs) {
+    status = "TRIAL";
+    showPaywall = false;
+  } else if (now <= endMs + 24 * 60 * 60 * 1000) {
+    status = "GRACE";
+    showPaywall = false;
+  } else {
+    status = "BLOCKED";
+    showPaywall = true;
+  }
+}
 
-    if (status === "TRIAL" && endMs && now > endMs) {
-      // entra en GRACE 24h
-      if (now < endMs + 24 * 60 * 60 * 1000) {
-        status = "GRACE";
-      } else {
-        status = "BLOCKED";
-        showPaywall = true;
-      }
-    }
 
     return {
       success: true,
