@@ -114,9 +114,12 @@ model ServiceOrder {
   paid      Boolean @default(false)
 
   // ✅ Tracking Mollie (pago único por publicar)
-  provider      String? // "MOLLIE"
-  providerPayId String? // "tr_xxx"
-  payStatus     String    @default("OPEN") // OPEN|PAID|FAILED|CANCELED|EXPIRED
+  provider      String?
+  providerPayId String?
+
+  // 🔥 AQUÍ ESTÁ LA CLAVE
+  payStatus     String @default("OPEN") @map("estado de pago")
+
   paidAt        DateTime?
   metadata      Json?
 
@@ -128,6 +131,7 @@ model ServiceOrder {
   @@index([providerPayId])
   @@index([payStatus])
 }
+
 
 model Favorite {
   id         String   @id @default(cuid())
