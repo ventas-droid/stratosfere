@@ -13,7 +13,7 @@ import {
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
-import { startPropertyPayment } from "@/app/components/alive-map/billing/startPropertyPayment";
+import { startPropertyPayment } from "@/components/alive-map/billing/startPropertyPayment";
 
 import { savePropertyAction } from '@/app/actions';
 // 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
