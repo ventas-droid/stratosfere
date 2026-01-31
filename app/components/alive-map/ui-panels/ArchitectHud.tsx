@@ -13,8 +13,8 @@ import {
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
+// ✅ SOLUCIÓN "VECINO": Salimos de ui-panels (..) y entramos en billing
 import { startPropertyPayment } from "../billing/startPropertyPayment";
-
 import { savePropertyAction } from '@/app/actions';
 // 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
 import { uploadToCloudinary } from '@/app/utils/upload';
