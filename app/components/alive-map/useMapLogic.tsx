@@ -769,7 +769,17 @@ return visibleProps;
         
         // --- FASE 1: OBTENCIÓN DE DATOS (SOLO SERVIDOR) ---
         const response = await getGlobalPropertiesAction();
-        const serverData = response.success ? response.data : [];
+        const rawData = response.success ? response.data : [];
+
+        // 🔥🔥🔥 CORTAFUEGOS TÁCTICO: SOLO PASAN LOS PAGADOS 🔥🔥🔥
+        const serverData = rawData.filter((p: any) => {
+            // Normalizamos el estado a mayúsculas para evitar errores
+            const status = String(p.status || "").toUpperCase();
+            
+            // REGLA DE ORO: Solo entra si es "PUBLICADO"
+            // (Las agencias nacen como PUBLICADO, los particulares pagan para ser PUBLICADO)
+            return status === "PUBLICADO";
+        });
 
         // 🗑️ REMOVIDO: Ya no leemos localStorage. Solo existe la verdad del servidor.
 
@@ -777,6 +787,7 @@ return visibleProps;
         // Usamos un Map para garantizar que cada ID sea único.
         const uniqueMap = new Map();
 
+        // AHORA 'serverData' YA ESTÁ LIMPIO
         serverData.forEach((p: any) => {
             // Aseguramos ID como String para evitar conflictos "123" vs 123
             const sId = String(p.id);
