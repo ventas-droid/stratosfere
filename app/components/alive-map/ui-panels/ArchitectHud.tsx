@@ -13,7 +13,6 @@ import {
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
-import MarketPanel from "./MarketPanel";
 import { startPropertyPayment } from "@/app/components/alive-map/ui-panels/billing/startPropertyPayment";
 
 import { savePropertyAction } from '@/app/actions';
@@ -57,42 +56,6 @@ const parsePriceInput = (input: any): number => {
 };
 
 // ==================================================================================
-// 📦 CATÁLOGO SERVICIOS
-// ==================================================================================
-const SERVICES_CATALOG = [
-  { id: "pack_basic", name: "KIT INICIADO", price: 29.9, category: "PACKS", icon: Star, desc: "Foto Pro + Plano + Certificado.", role: "VALIDADO" },
-  { id: "pack_pro", name: "KIT VISIBILIDAD", price: 99.9, category: "PACKS", icon: Award, desc: "Tour 3D + Portales Top + Redes.", role: "PRO SELLER" },
-  { id: "pack_elite", name: "STRATOS GOD MODE", price: 199.9, category: "PACKS", icon: Crown, desc: "Todo incluido + Abogado + Open House.", role: "LEYENDA" },
-  { id: "pack_investor", name: "PACK INVERSOR", price: 149.9, category: "PACKS", icon: TrendingUp, desc: "Dossier rentabilidad + Emailing.", role: "BROKER" },
-  { id: "pack_express", name: "VENTA EXPRESS", price: 79.9, category: "PACKS", icon: Zap, desc: "Destacado agresivo 15 días.", role: "SPEED" },
-
-  { id: "foto", name: "FOTOGRAFÍA HDR", price: 99.0, category: "ONLINE", icon: Camera, desc: "Calidad revista. 20 fotos." },
-  { id: "video", name: "VÍDEO CINE", price: 199.9, category: "ONLINE", icon: Video, desc: "Narrativa emocional 4K." },
-  { id: "drone", name: "FOTOGRAFÍA DRONE", price: 120.0, category: "ONLINE", icon: Globe, desc: "Vistas aéreas del entorno." },
-  { id: "tour3d", name: "TOUR VIRTUAL 3D", price: 150.0, category: "ONLINE", icon: Box, desc: "Matterport inmersivo." },
-  { id: "destacado", name: "POSICIONAMIENTO", price: 49.0, category: "ONLINE", icon: ArrowUp, desc: "Siempre primero en listas." },
-  { id: "ads", name: "PAID SOCIAL ADS", price: 79.9, category: "ONLINE", icon: Megaphone, desc: "Campaña Instagram & FB." },
-  { id: "plano_2d", name: "PLANO TÉCNICO", price: 59.0, category: "ONLINE", icon: Ruler, desc: "Cotas y distribución 2D." },
-  { id: "plano_3d", name: "PLANO 3D", price: 89.0, category: "ONLINE", icon: Box, desc: "Volumetría amueblada." },
-  { id: "email", name: "EMAIL INVERSORES", price: 149.0, category: "ONLINE", icon: FileText, desc: "Acceso a base de datos VIP." },
-  { id: "copy", name: "COPYWRITING PRO", price: 39.0, category: "ONLINE", icon: FileText, desc: "Textos persuasivos de venta." },
-
-  { id: "certificado", name: "CERTIFICADO ENERG.", price: 120.0, category: "OFFLINE", icon: FileCheck, desc: "Etiqueta oficial obligatoria." },
-  { id: "cedula", name: "CÉDULA HABITAB.", price: 90.0, category: "OFFLINE", icon: FileText, desc: "Trámite ayuntamiento." },
-  { id: "nota_simple", name: "NOTA SIMPLE", price: 20.0, category: "OFFLINE", icon: FileText, desc: "Verificación registral." },
-  { id: "tasacion", name: "TASACIÓN OFICIAL", price: 250.0, category: "OFFLINE", icon: Activity, desc: "Valoración bancaria." },
-  { id: "lona", name: "LONA FACHADA XL", price: 49.9, category: "OFFLINE", icon: LayoutGrid, desc: "Visibilidad física 24/7." },
-  { id: "buzoneo", name: "BUZONEO PREMIUM", price: 29.9, category: "OFFLINE", icon: MapPin, desc: "Dominio del barrio (2000 u)." },
-  { id: "revista", name: "REVISTA LUXURY", price: 59.9, category: "OFFLINE", icon: FileText, desc: "Prensa papel local." },
-  { id: "openhouse", name: "OPEN HOUSE VIP", price: 149.9, category: "OFFLINE", icon: Zap, desc: "Evento puertas abiertas." },
-  { id: "homestaging", name: "HOME STAGING", price: 299.0, category: "OFFLINE", icon: Box, desc: "Muebles de cartón/reales." },
-  { id: "limpieza", name: "LIMPIEZA PRO", price: 89.9, category: "OFFLINE", icon: Droplets, desc: "Puesta a punto total." },
-  { id: "pintura", name: "LAVADO DE CARA", price: 450.0, category: "OFFLINE", icon: Paintbrush, desc: "Pintura blanco neutro." },
-  { id: "mudanza", name: "MUDANZA", price: 300.0, category: "OFFLINE", icon: Truck, desc: "Servicio logística." },
-  { id: "seguro", name: "SEGURO IMPAGO", price: 199.0, category: "OFFLINE", icon: ShieldCheck, desc: "Protección alquiler/venta." },
-];
-
-// ==================================================================================
 // 🧠 DB MERCADO
 // ==================================================================================
 const REAL_MARKET_DB: Record<string, number> = {
@@ -123,25 +86,26 @@ const NATIONAL_AVG = 2150;
 // ✅ ARCHITECT HUD (MAIN)
 // ==================================================================================
 export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: any) {
-  const STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA","PRICE","ANALYSIS","RADAR","STRATEGY","VERIFY","SECURITY","SUCCESS"];
-  const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA","PRICE","ANALYSIS"]; 
+const STEPS = [
+  "LOCATION",
+  "BASICS",
+  "SPECS",
+  "DESCRIPTION",
+  "ENERGY",
+  "MEDIA",
+  "PRICE",
+  "ANALYSIS",
+  "RADAR",
+  "SUCCESS",
+];
+const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA","PRICE","ANALYSIS","RADAR"];
 
   const [step, setStep] = useState<string>("LOCATION");
   const [isClosing, setIsClosing] = useState(false);
   const [loading, setLoading] = useState(false);
+ const [showProfile, setShowProfile] = useState(false);
+const [showWizard, setShowWizard] = useState(true);
 
-  const [showProfile, setShowProfile] = useState(false);
-  const [showMarket, setShowMarket] = useState(false);
-
-  const [showWizard, setShowWizard] = useState(true);
-
-  // --- BLOQUEO: si volvemos al cuestionario (showWizard), cerramos el Market para que no tape el wizard ---
-  useEffect(() => {
-    if (showWizard) setShowMarket(false);
-  }, [showWizard]);
-
-
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   
 /// ---------------------------------------------------------------------------
   // 🧠 CEREBRO DE GESTIÓN HÍBRIDO + ANTENA DE MAPA
@@ -252,9 +216,6 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
     images: [],
     price: "", 
     communityFees: "",
-    phone: "",
-    phoneCode: "",
-    strategyTier: "",
     selectedServices: [] // Guardamos los extras aquí también (piscina, garaje...)
   });
 
@@ -263,13 +224,7 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
     if (initialData) {
       console.log("🔍 MODO ARQUITECTO ACTIVO:", initialData);
 
-      // --- 1. OPERACIÓN RESCATE DE SERVICIOS ---
-      let servicesSet = new Set(initialData.selectedServices || []);
-      if (initialData.specs && typeof initialData.specs === 'object') {
-          Object.keys(initialData.specs).forEach((key) => {
-              if (initialData.specs[key] === true) servicesSet.add(key);
-          });
-      }
+
       const normalizedServices = Array.from(servicesSet);
 
       // --- 2. OPERACIÓN RESCATE DE ASCENSOR ---
@@ -413,48 +368,24 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
         toggleRightPanel={(val: string) => setShowProfile(val === "PROFILE")}
       />
 
-     {/* --- PANEL DE MERCADO --- */}
-      {showMarket && (
-      <MarketPanel
-        isOpen={showMarket}
-        onClose={() => setShowMarket(false)}
+    {/* --- PANEL DE MERCADO (SIN SERVICIOS) --- */}
+{showMarket && (
+  <MarketPanel
+    isOpen={showMarket}
+    onClose={() => setShowMarket(false)}
 
-        // 🔥 DOBLE ENVÍO: Enviamos los datos a ambas props para asegurar que lo lea
-        initialData={showWizard ? { ...formData, img: formData.images?.[0] } : activeProperty}
-        activeProperty={showWizard ? { ...formData, img: formData.images?.[0] } : activeProperty}
-        
-        myProperties={myProperties}
-        setActivePropertyId={setActivePropertyId}
+    initialData={showWizard ? { ...formData, img: formData.images?.[0] } : activeProperty}
+    activeProperty={showWizard ? { ...formData, img: formData.images?.[0] } : activeProperty}
 
-        selectedReqs={(() => {
-            let rawList = [];
-            
-            // Selección de fuente de datos
-            if (showWizard) {
-                rawList = selectedServices;
-            } else if (activeProperty) {
-                rawList = activeProperty.selectedServices || activeProperty.services || activeProperty.extras || [];
-            }
+    myProperties={myProperties}
+    setActivePropertyId={setActivePropertyId}
 
-            if (!Array.isArray(rawList)) return [];
+    // ⛔️ Servicios desactivados (no rompe nada)
+    selectedReqs={[]}
+    toggleRequirement={() => {}}
+  />
+)}
 
-            // Traductor de Nombres a IDs
-            return rawList.map((item: any) => {
-                const val = (typeof item === 'object' && item !== null) ? (item.id || item.name) : item;
-                
-                const matchById = SERVICES_CATALOG.find(s => s.id === val);
-                if (matchById) return val;
-
-                const matchByName = SERVICES_CATALOG.find(s => s.name === val);
-                if (matchByName) return matchByName.id;
-
-                return val;
-            });
-        })()}
-        
-        toggleRequirement={handleSmartToggle}
-      />
-      )}
     {showWizard && (
         <div
           className={`fixed inset-0 z-[7000] flex items-center justify-center p-4 transition-all duration-500 ${
@@ -508,48 +439,35 @@ export default function ArchitectHud({ onCloseMode, soundFunc, initialData }: an
               <div className="h-full w-full overflow-y-auto custom-scrollbar p-8 lg:px-12">
                 <div className="max-w-4xl mx-auto h-full flex flex-col">
                     {step === "LOCATION" && <StepLocation formData={formData} updateData={updateData} setStep={setStep} />}
-                    {step === "BASICS" && <StepBasics formData={formData} updateData={updateData} setStep={setStep} />}
-                    {step === "SPECS" && <StepSpecs formData={formData} updateData={updateData} setStep={setStep} />}
-                    {step === "DESCRIPTION" && <StepDescription formData={formData} updateData={updateData} setStep={setStep} />}
-                    {step === "ENERGY" && <StepEnergy formData={formData} updateData={updateData} setStep={setStep} />}
-                    {step === "MEDIA" && <StepMedia formData={formData} updateData={updateData} setStep={setStep} />}
-                    {step === "PRICE" && <StepPrice formData={formData} updateData={updateData} setStep={setStep} />}
+{step === "BASICS" && <StepBasics formData={formData} updateData={updateData} setStep={setStep} />}
+{step === "SPECS" && <StepSpecs formData={formData} updateData={updateData} setStep={setStep} />}
+{step === "DESCRIPTION" && <StepDescription formData={formData} updateData={updateData} setStep={setStep} />}
+{step === "ENERGY" && <StepEnergy formData={formData} updateData={updateData} setStep={setStep} />}
+{step === "MEDIA" && <StepMedia formData={formData} updateData={updateData} setStep={setStep} />}
+{step === "PRICE" && <StepPrice formData={formData} updateData={updateData} setStep={setStep} />}
 
-                   {step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
+{step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
 
-                    {step === "RADAR" && <MarketRadarStep formData={formData} onNext={() => {
-                        // ⚡️ INTERRUPTOR AGENCIA: Si es agencia, saltamos STRATEGY y vamos a VERIFY
-                        if (formData.isAgencyContext) {
-                            setStep("VERIFY");
-                        } else {
-                            setStep("STRATEGY");
-                        }
-                    }} />}
+{step === "RADAR" && (
+  <MarketRadarStep
+    formData={formData}
+    onNext={() => setStep("SUCCESS")}
+  />
+)}
 
-                    {step === "STRATEGY" && (
-                        <InternalMarketStrategyStep selectedServices={selectedServices} toggleService={toggleService} onNext={() => setStep("VERIFY")} />
-                    )}
+{step === "SUCCESS" && (
+  <StepSuccess
+    formData={formData}
+    handleClose={(payload: any) => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+        window.dispatchEvent(new CustomEvent("force-map-refresh"));
+      }
+      closeWizard(payload);
+    }}
+  />
+)}
 
-                    {step === "VERIFY" && <StepVerify formData={formData} setStep={setStep} />}
-                    
-                   {step === "SECURITY" && <StepSecurity setStep={setStep} setLoading={setLoading} />}
-                    
-                    {/* 🔥 CORRECCIÓN: FALTABA LA LLAVE DE APERTURA AQUÍ */}
-                    {step === "SUCCESS" && (
-                        <StepSuccess
-                            formData={formData} 
-                            handleClose={(payload: any) => {
-                                // 1. Limpieza de LocalStorage (Eliminamos residuos antiguos)
-                                if (typeof window !== "undefined") {
-                                    // Solo emitimos señales para refrescar la vista.
-                                    window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-                                    window.dispatchEvent(new CustomEvent("force-map-refresh"));
-                                }
-                                // 2. Cerramos
-                                closeWizard(payload);
-                            }}
-                        />
-                    )}
                 </div>
               </div>
 
@@ -1108,32 +1026,6 @@ const MarketRadarStep = ({ formData, onNext }: any) => {
   );
 };
 
-const InternalMarketStrategyStep = ({ selectedServices, toggleService, onNext }: any) => {
-  const [tab, setTab] = useState("ONLINE");
-  const TABS = ["ONLINE", "OFFLINE", "PACKS"];
-  const calculateAuthority = () => { let score = 0; const count = selectedServices.filter((id: string) => !id.startsWith("pack_")).length; score += count * 5; if (selectedServices.includes("pack_basic")) score = Math.max(score, 20); if (selectedServices.includes("pack_express")) score = Math.max(score, 35); if (selectedServices.includes("pack_pro")) score = Math.max(score, 60); if (selectedServices.includes("pack_investor")) score = Math.max(score, 80); if (selectedServices.includes("pack_elite")) score = 100; return Math.min(100, score); };
-  const authorityLevel = calculateAuthority();
-  const getRoleStyle = (level: number) => { if (level >= 100) return { label: "LEYENDA", gradient: "from-indigo-500 via-purple-500 to-pink-500" }; if (level >= 80) return { label: "BROKER", gradient: "from-emerald-400 to-cyan-500" }; if (level >= 60) return { label: "PRO SELLER", gradient: "from-blue-400 to-indigo-500" }; if (level >= 35) return { label: "AVANZADO", gradient: "from-amber-400 to-orange-500" }; return { label: "NOVATO", gradient: "from-gray-300 to-gray-400" }; };
-  const roleStyle = getRoleStyle(authorityLevel);
-  const totalInvestment = selectedServices.reduce((acc: number, id: string) => { const item = SERVICES_CATALOG.find((s) => s.id === id); return acc + (item ? item.price : 0); }, 0);
-  const getIconColor = (id: string) => { if (id.includes("foto")) return "bg-blue-100 text-blue-600"; if (id.includes("video")) return "bg-purple-100 text-purple-600"; if (id.includes("drone")) return "bg-sky-100 text-sky-600"; if (id.includes("tour")) return "bg-indigo-100 text-indigo-600"; if (id.includes("cert")) return "bg-green-100 text-green-600"; if (id.includes("pack")) return "bg-gray-900 text-white"; return "bg-gray-100 text-gray-600"; };
-
-  return (
-    <div className="h-full flex flex-col bg-gray-50/50 relative overflow-hidden font-sans">
-      <div className="shrink-0 pt-6 pb-4 px-8 bg-white/50 backdrop-blur-sm z-10">
-        <div className="flex justify-between items-end mb-3"><div><h2 className="text-2xl font-black text-gray-900 tracking-tight">Estrategia de Venta</h2><p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Potencia de marketing</p></div><div className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest text-white shadow-md bg-gradient-to-r ${roleStyle.gradient}`}>{roleStyle.label}</div></div>
-        <div className="flex gap-1.5 h-2 w-full">{[...Array(20)].map((_, i) => { const threshold = (i + 1) * 5; const isActive = authorityLevel >= threshold; return <div key={i} className={`flex-1 rounded-full transition-all duration-500 ${isActive ? `bg-gradient-to-r ${roleStyle.gradient}` : "bg-gray-200 opacity-30"}`} />; })}</div>
-      </div>
-      <div className="px-8 mb-6 shrink-0"><div className="bg-gray-100 p-1.5 rounded-xl flex relative h-12 shadow-inner"><div className="absolute top-1.5 bottom-1.5 bg-white rounded-[10px] shadow-sm transition-all duration-300" style={{ left: tab === "ONLINE" ? "6px" : tab === "OFFLINE" ? "33.33%" : "66.66%", width: "calc(33.33% - 8px)", transform: tab === "ONLINE" ? "translateX(0)" : tab === "OFFLINE" ? "translateX(2px)" : "translateX(4px)" }} />{TABS.map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 text-[11px] font-black uppercase tracking-widest rounded-lg transition-colors duration-200 relative z-10 flex items-center justify-center gap-2 ${tab === t ? "text-gray-900" : "text-gray-400"}`}>{t === "PACKS" && <Star size={12} className={tab === t ? "text-yellow-500 fill-yellow-500" : ""} />} {t}</button>)}</div></div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-32 pt-2">
-        <div className="grid grid-cols-2 gap-6">{SERVICES_CATALOG.filter((s) => s.category === tab).map((item: any) => { const isActive = selectedServices.includes(item.id); const isPack = item.category === "PACKS"; return (<div key={item.id} onClick={() => toggleService(item.id)} className={`group relative p-6 rounded-[28px] cursor-pointer transition-all duration-300 border flex flex-col justify-between min-h-[180px] overflow-hidden ${isActive ? "bg-white border-blue-500 ring-4 ring-blue-500/10 shadow-lg transform scale-[1.02] z-10" : "bg-white border-white shadow-sm hover:shadow-md hover:-translate-y-1"} ${isPack && !isActive ? "bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] text-white border-transparent" : ""}`}><div className="flex justify-between items-start mb-5 relative z-10"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${isPack && !isActive ? "bg-white/10 text-white" : getIconColor(item.id)}`}><item.icon size={22} strokeWidth={2} /></div><div className={`w-7 h-7 rounded-full border-[3px] flex items-center justify-center transition-all ${isActive ? "bg-blue-600 border-blue-600 scale-110 shadow-md" : isPack && !isActive ? "border-white/20" : "border-gray-100 bg-gray-50"}`}>{isActive && <Check size={14} className="text-white" strokeWidth={4} />}</div></div><div className="relative z-10"><h3 className={`text-base font-bold leading-tight mb-2 ${isPack && !isActive ? "text-white" : "text-gray-900"}`}>{item.name}</h3><p className={`text-xs font-medium line-clamp-2 ${isPack && !isActive ? "text-gray-400" : "text-gray-400"}`}>{item.desc}</p></div><div className={`mt-5 pt-4 border-t flex items-center justify-between ${isPack && !isActive ? "border-white/10" : "border-gray-50"}`}><span className={`text-[9px] font-black uppercase tracking-widest ${isPack && !isActive ? "text-gray-500" : "text-gray-300"}`}>Inversión</span><span className={`text-base font-black tracking-tight ${isPack && !isActive ? "text-white" : "text-gray-900"}`}>{item.price}€</span></div></div>); })}</div>
-      </div>
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[90%] z-30">
-        <div className="bg-[#1d1d1f]/95 backdrop-blur-2xl p-3 pr-3 pl-8 rounded-[32px] shadow-2xl flex items-center justify-between border border-white/10"><div className="flex flex-col"><span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total Estimado</span><div className="flex items-baseline gap-1"><span className="text-3xl font-black text-white tracking-tighter">{totalInvestment.toLocaleString('es-ES')}</span><span className="text-sm font-bold text-gray-500">€</span></div></div><button onClick={onNext} className="h-14 px-8 rounded-[24px] flex items-center gap-3 transition-all duration-300 transform active:scale-95 bg-white text-black hover:bg-gray-200 shadow-lg cursor-pointer"><span className="text-xs font-black tracking-wide uppercase">Confirmar</span><ArrowRight size={18} strokeWidth={3} /></button></div>
-      </div>
-    </div>
-  );
-};
 
 const StepVerify = ({ formData, setStep }: any) => {
   const rawPrice = useMemo(() => { if (!formData.price) return 0; return parseInt(formData.price.toString().replace(/\D/g, "")); }, [formData.price]);
@@ -1221,28 +1113,7 @@ const StepVerify = ({ formData, setStep }: any) => {
   );
 };
 
-const StepSecurity = ({ setStep, setLoading }: any) => {
-  const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [stepAuth, setStepAuth] = useState<"PHONE" | "CODE">("PHONE");
-  const isDev = process.env.NODE_ENV !== "production";
-  const sendCode = () => { const digits = phone.replace(/\D/g, ""); if (digits.length < 9) return; setLoading?.(true); setTimeout(() => { setLoading?.(false); setStepAuth("CODE"); }, 1500); };
-  const verifyCode = () => { const digits = code.replace(/\D/g, ""); if (!isDev && digits.length < 4) return; setLoading?.(true); setTimeout(() => { setLoading?.(false); setStep("SUCCESS"); }, 1500); };
 
-  return (
-    <div className="h-full flex flex-col animate-fade-in px-6 relative">
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-20">
-        <div className="w-20 h-20 bg-black rounded-[28px] flex items-center justify-center mb-8 shadow-2xl shadow-gray-200 rotate-[-6deg] hover:rotate-0 transition-transform duration-500"><ShieldCheck size={36} className="text-white" /></div>
-        <h2 className="text-3xl font-black text-gray-900 mb-3 tracking-tight text-center">{stepAuth === "PHONE" ? "Verificación Móvil" : "Código de Seguridad"}</h2>
-        <p className="text-gray-500 mb-10 text-center font-medium max-w-xs leading-relaxed">{stepAuth === "PHONE" ? "Te enviaremos un código SMS para firmar digitalmente la propiedad." : <span>Código enviado al <strong className="text-gray-900">{phone}</strong>.</span>}</p>
-        <div className="w-full max-w-sm relative">
-          {stepAuth === "PHONE" ? (<div className="animate-fade-in-up"><div className="group relative bg-gray-50 border-2 border-gray-100 rounded-[24px] px-6 py-5 flex items-center transition-all duration-300 focus-within:bg-white focus-within:border-blue-500 focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.1)]"><span className="text-xl font-bold text-gray-400 mr-3 select-none flex items-center gap-2 border-r border-gray-200 pr-3">🇪🇸 +34</span><input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="600 000 000" className="bg-transparent outline-none font-black text-2xl w-full text-gray-900 placeholder:text-gray-200 tracking-wide" autoFocus /></div><p className="text-[10px] text-gray-400 mt-4 text-center font-bold uppercase tracking-widest">Protegemos tu identidad con cifrado SSL</p></div>) : (<div className="animate-fade-in-right"><div className="relative mb-8 h-24 flex justify-center items-center"><div className="flex gap-4 absolute inset-0 justify-center items-center z-10 pointer-events-none">{[0, 1, 2, 3].map((_, i) => { const digit = code[i] || ""; const isActive = code.length === i; const isFilled = code.length > i; return <div key={i} className={`w-16 h-20 rounded-2xl flex items-center justify-center text-4xl font-black transition-all duration-200 border-2 ${isActive ? "border-blue-500 bg-white shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110" : isFilled ? "border-gray-900 bg-white text-gray-900" : "border-gray-100 bg-gray-50 text-gray-300"}`}>{digit}</div>; })}</div><input value={code} onChange={(e) => { const val = e.target.value.replace(/\D/g, "").slice(0, 4); setCode(val); if (val.length === 4) verifyCode(); }} inputMode="numeric" pattern="[0-9]*" autoFocus className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50 font-mono text-[1px]" /></div><div className="text-center"><button onClick={() => { setStepAuth("PHONE"); setCode(""); }} className="text-xs font-bold text-blue-600 hover:underline relative z-50">¿Número equivocado?</button></div></div>)}
-        </div>
-      </div>
-      <div className="shrink-0 pb-6 pt-2">{stepAuth === "PHONE" && <button onClick={sendCode} disabled={phone.length < 9} className="w-full h-16 bg-[#1d1d1f] hover:bg-black text-white rounded-[24px] shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed">Enviar Código SMS <ArrowRight size={20} /></button>}{stepAuth === "CODE" && <button onClick={verifyCode} disabled={code.length < 4} className="w-full h-16 bg-[#1d1d1f] hover:bg-black text-white rounded-[24px] shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed">Verificar <ShieldCheck size={20} /></button>}</div>
-    </div>
-  );
-};
 
 // ==================================================================================
 // 🏆 STEP SUCCESS: EL LANZAMIENTO FINAL (CONECTADO A BASE DE DATOS)
@@ -1251,7 +1122,8 @@ const StepSuccess = ({ handleClose, formData }: any) => {
 // ✅ Anti doble click + recordar ID creado (para que no duplique)
 const [isPublishing, setIsPublishing] = useState(false);
 const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
- 
+ const alreadyPublished = formData?.status === "PUBLICADO";
+const isFirstPublish = !lastSavedIdRef.current;
   // Preparación visual
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
@@ -1260,13 +1132,16 @@ const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) 
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
+
   // --- 🔥 FUNCIÓN DE GUARDADO STRICT CLOUD (SIN FOTOS FALSAS) ---
 const handleSafeSave = async () => {
   // ✅ A) Guard anti doble click (1 línea)
-  if (isPublishing) return;
-  setIsPublishing(true);
+ if (isPublishing) return;
+if (alreadyPublished) return;
+setIsPublishing(true);
 
   try {
+   
     // 1. LIMPIEZA DE DATOS (Preparamos para enviar a la Nube)
     const cleanPayload = {
       ...formData,
@@ -1389,14 +1264,28 @@ const handleSafeSave = async () => {
       </div>
 
       {/* BOTÓN CON LÓGICA DE SERVIDOR */}
-      <button
-  onClick={handleSafeSave}
+    <button
+  onClick={() => {
+    if (alreadyPublished || formData.isAgencyContext) {
+      handleSafeSave();          // editar / agencia
+    } else {
+      startPropertyPayment(formData.id); // primer publish particular
+    }
+  }}
   disabled={isPublishing}
-  className="px-10 py-5 bg-[#1d1d1f] hover:bg-black text-white font-bold rounded-[24px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] active:scale-95 transition-all flex items-center gap-3 text-lg cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+  className="px-10 py-5 bg-[#1d1d1f] ..."
 >
-  <span>{isPublishing ? "Publicando..." : "Publicar en el Mapa"}</span>
+  <span>
+    {isPublishing
+      ? "Procesando..."
+      : alreadyPublished || formData.isAgencyContext
+      ? "Guardar cambios"
+      : "Pagar y publicar"}
+  </span>
   <ArrowRight size={20} />
 </button>
+
+
 
     </div>
   );
