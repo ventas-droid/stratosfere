@@ -1090,42 +1090,48 @@ const StepVerify = ({ formData, setStep }: any) => {
 };
 
 // ==================================================================================
-// 🏆 STEP SUCCESS: PROPIEDAD "NACE OCULTA" HASTA PAGAR
+// 🏆 STEP SUCCESS: VERSIÓN SEGURA (SIN FUGAS DE VISIBILIDAD)
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
   
-  // Lógica de decisión
+  // 1. ANÁLISIS DE LA SITUACIÓN
   const alreadyPublished = formData?.status === "PUBLICADO";
   const isEditMode = formData.isEditMode || alreadyPublished;
   const isAgency = formData.isAgencyContext;
+  
+  // Si es Agencia o Edición -> Guardamos y cerramos (Gratis)
+  // Si es Nuevo Particular -> Guardamos (Oculto) y vamos a Pagar
   const isDirectSave = isAgency || isEditMode;
 
-  // Visuales
+  // Visuales (Precio y Foto)
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
+  // --- 🔥 EL CEREBRO DE LA OPERACIÓN ---
   const handleProcess = async () => {
     if (isPublishing) return;
     setIsPublishing(true);
 
     try {
       // ---------------------------------------------------------
-      // 🔒 PROTOCOLO DE ESTADO INICIAL (CRÍTICO)
+      // 🛡️ LÓGICA DE INVISIBILIDAD REFORZADA
       // ---------------------------------------------------------
-      // Si es Agencia o Edición -> Mantiene su estado o se publica.
-      // Si es NUEVO PARTICULAR -> Nace como "PENDIENTE_PAGO" (Invisible).
       let targetStatus = formData.status;
-      
-      if (!targetStatus) {
-         // Si no tiene estado previo, decidimos:
-         targetStatus = isDirectSave ? "PUBLICADO" : "PENDIENTE_PAGO";
+
+      if (isDirectSave) {
+          // Si es Agencia o Edición: Mantenemos estado o Publicamos
+          if (!targetStatus) targetStatus = "PUBLICADO";
+      } else {
+          // 🛑 SI ES PARTICULAR NUEVO: ¡FORZAMOS INVISIBILIDAD!
+          // No importa lo que diga el formulario, aquí mandamos nosotros.
+          targetStatus = "PENDIENTE_PAGO";
       }
 
-      // 1. PREPARAR DATOS
+      // 2. PREPARAR EL PAQUETE DE DATOS
       const cleanPayload = {
         ...formData,
         id: lastSavedIdRef.current || formData?.id || undefined,
@@ -1137,21 +1143,23 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         coordinates: formData.coordinates || [-3.6883, 40.4280],
       };
 
-      console.log("📡 GUARDANDO (Estado:", targetStatus, ")...", cleanPayload);
+      console.log("📡 GUARDANDO EN BASE DE DATOS (Estado:", targetStatus, ")...");
 
-      // 2. GUARDAR PROPIEDAD
+      // 3. 💾 GUARDADO REAL (Aquí se crea la propiedad en la DB)
       const response = await savePropertyAction(cleanPayload);
 
       if (response.success && response.property) {
         const serverProp = response.property;
         const serverId = String(serverProp.id);
         
+        // Guardamos el ID por si acaso
         lastSavedIdRef.current = serverId;
 
-        // 3. RECUPERAR IDENTIDAD (USER ID)
+        // 4. RECUPERAR IDENTIDAD DEL DUEÑO (Para el pago)
         let ownerId = serverProp.userId || serverProp.user?.id;
         let ownerEmail = serverProp.user?.email;
 
+        // Intentamos recuperar si falta
         if (!ownerId) {
             try {
                 // @ts-ignore 
@@ -1160,13 +1168,14 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                     ownerId = me.data.id;
                     ownerEmail = me.data.email;
                 }
-            } catch (e) { console.error("Fallo recuperando identidad", e); }
+            } catch (e) { console.error("Info: No se pudo verificar sesión extra", e); }
         }
 
-        // 4. CAMINOS TÁCTICOS
+        // 5. DECISIÓN FINAL
         if (isDirectSave) {
-            // === CAMINO A: CERRAR (AGENCIA/EDICIÓN) ===
-            // Como ya estaba pagado o es agencia, se muestra en el mapa
+            // === CAMINO A: AGENCIA/EDICIÓN (Misión Cumplida) ===
+            
+            // Preparamos datos para el mapa
             let secureImage = null;
             if (serverProp.mainImage) secureImage = serverProp.mainImage;
             else if (serverProp.images && serverProp.images.length > 0) secureImage = serverProp.images[0].url;
@@ -1182,6 +1191,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                 selectedServices: serverProp.selectedServices,
             };
 
+            // Actualizamos la pantalla del usuario
             if (typeof window !== "undefined") {
                 const eventName = isEditMode ? "update-property-signal" : "add-property-signal";
                 window.dispatchEvent(new CustomEvent(eventName, { 
@@ -1190,44 +1200,50 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                 window.dispatchEvent(new CustomEvent("reload-profile-assets"));
                 window.dispatchEvent(new CustomEvent("force-map-refresh"));
             }
+            
+            // Cerramos la ventana
             handleClose(mapFormat);
             setIsPublishing(false);
 
         } else {
-            // === CAMINO B: PAGAR (PARTICULAR NUEVO) ===
-            // La propiedad existe en DB como "PENDIENTE_PAGO" (Invisible).
-            // Solo se verá cuando Mollie confirme el pago.
+            // === CAMINO B: PARTICULAR NUEVO (Cobrar Misión) ===
+            // La propiedad YA EXISTE en la DB, pero como "PENDIENTE_PAGO" (Invisible).
             
             if (!ownerId) {
-                alert("Error de sesión: Recargue la página.");
+                alert("Seguridad: No se ha detectado la sesión del usuario. Recargue la página.");
                 setIsPublishing(false);
                 return;
             }
 
-            console.log("💳 PAGANDO ID OCULTO:", serverId);
+            console.log("💳 REDIRIGIENDO A MOLLIE... (ID:", serverId, ")");
             
+            // Llamamos a la función de pago (que está al final del archivo)
             await startPropertyPayments(serverId, {
                 userId: String(ownerId),
                 email: ownerEmail ? String(ownerEmail) : undefined
             });
+            // No ponemos setIsPublishing(false) porque nos vamos de la página
         }
 
       } else {
-        alert("Error del servidor: " + response.error);
+        alert("Error del servidor al guardar: " + response.error);
         setIsPublishing(false);
       }
     } catch (err) {
-      console.error("❌ Error:", err);
-      alert("Error de conexión.");
+      console.error("❌ Error grave:", err);
+      alert("Error de conexión. Verifique su internet.");
       setIsPublishing(false);
     }
   };
 
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
+      
+      {/* Fondo Animado */}
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-green-400/20 rounded-full blur-3xl -z-10 animate-pulse" />
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl -z-10 animate-pulse delay-700" />
 
+      {/* Icono Central */}
       <div className="mb-8 relative">
         <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-[0_10px_40px_rgba(34,197,94,0.4)] animate-bounce-small z-10 relative">
             <CheckCircle2 size={48} className="text-white" strokeWidth={3} />
@@ -1235,18 +1251,20 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20 duration-[2000ms]" />
       </div>
 
+      {/* Textos */}
       <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight text-center">
         {isEditMode ? "¡Cambios Guardados!" : "¡Casi Listo!"}
       </h2>
       <p className="text-gray-500 mb-10 text-center font-medium max-w-sm text-lg">
-         {isEditMode ? "Tus cambios se han actualizado." : "Conectando con la pasarela de pago segura..."}
+         {isEditMode ? "Tus cambios se han actualizado." : "Conectando con la pasarela de pago..."}
       </p>
 
+      {/* Tarjeta Resumen */}
       <div className="w-full max-w-xs bg-white rounded-[24px] border border-gray-100 shadow-xl p-4 mb-10 transform rotate-1 hover:rotate-0 transition-transform duration-500">
           <div className="aspect-video bg-gray-100 rounded-xl mb-4 relative overflow-hidden group">
              <img src={previewImage} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-900 shadow-sm">
-                {isEditMode ? "ACTUALIZADO" : "PENDIENTE"}
+                {isEditMode ? "ACTUALIZADO" : "NUEVO"}
              </div>
           </div>
           <div className="px-2 pb-2">
@@ -1259,6 +1277,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           </div>
       </div>
 
+      {/* Botón de Acción */}
       <button
         onClick={handleProcess}
         disabled={isPublishing}
