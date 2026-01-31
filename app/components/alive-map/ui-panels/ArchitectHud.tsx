@@ -1090,33 +1090,27 @@ const StepVerify = ({ formData, setStep }: any) => {
 };
 
 // ==================================================================================
-// 🏆 STEP SUCCESS: VERSIÓN MAESTRA (SIEMPRE GUARDA ANTES DE ACTUAR)
+// 🏆 STEP SUCCESS: ID PASS-THROUGH (DB -> PAGO)
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
   
-  // 🧠 CEREBRO DE DECISIÓN:
   const alreadyPublished = formData?.status === "PUBLICADO";
   const isEditMode = formData.isEditMode || alreadyPublished;
-  const isAgency = formData.isAgencyContext; // Las agencias tienen pase VIP
-
-  // DECISIÓN: ¿Es una operación que termina aquí (Guardar) o sigue (Pagar)?
+  const isAgency = formData.isAgencyContext;
   const isDirectSave = isAgency || isEditMode;
 
-  // Visuales
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
-  // --- 🔥 PROCESO UNIFICADO: 1. GUARDAR -> 2. DECIDIR ---
   const handleProcess = async () => {
     if (isPublishing) return;
     setIsPublishing(true);
 
     try {
-      // A. PREPARAR DATOS
       const cleanPayload = {
         ...formData,
         id: lastSavedIdRef.current || formData?.id || undefined,
@@ -1127,21 +1121,25 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         coordinates: formData.coordinates || [-3.6883, 40.4280],
       };
 
-      console.log("📡 SINCRONIZANDO CON BASE DE DATOS...", cleanPayload);
+      console.log("📡 GUARDANDO EN SERVIDOR...", cleanPayload);
 
-      // B. GUARDAR EN DB (ESTO GENERA EL ID SI NO EXISTE)
+      // 1. GUARDAR (SERVER ACTION)
       const response = await savePropertyAction(cleanPayload);
 
       if (response.success && response.property) {
-        // ✅ CAPTURAMOS EL ID REAL DEL SERVIDOR
-        const serverId = String(response.property.id);
-        console.log("✅ ID CONFIRMADO:", serverId);
+        const serverProp = response.property;
+        const serverId = String(serverProp.id);
+        
+        // ✅ EXTRACCIÓN DE IDENTIDAD DEL DUEÑO (CRÍTICO PARA EL PAGO)
+        // Intentamos sacar el ID del usuario que acaba de guardar la propiedad
+        const ownerId = serverProp.userId || serverProp.user?.id || formData.userId; 
+        const ownerEmail = serverProp.user?.email || formData.email;
+
+        console.log("✅ GUARDADO OK. ID:", serverId, "USER:", ownerId);
         lastSavedIdRef.current = serverId;
 
-        // C. RAMIFICACIÓN
         if (isDirectSave) {
-            // === CAMINO 1: AGENCIA O EDICIÓN (SOLO CERRAR) ===
-            const serverProp = response.property;
+            // CAMINO A: AGENCIA/EDICIÓN (CERRAR)
             let secureImage = null;
             if (serverProp.mainImage) secureImage = serverProp.mainImage;
             else if (serverProp.images && serverProp.images.length > 0) secureImage = serverProp.images[0].url;
@@ -1166,14 +1164,15 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                 window.dispatchEvent(new CustomEvent("force-map-refresh"));
             }
             handleClose(mapFormat);
-            setIsPublishing(false); // Terminamos
+            setIsPublishing(false);
 
         } else {
-            // === CAMINO 2: PARTICULAR NUEVO (PAGAR) ===
-            // ⚠️ IMPORTANTE: Usamos 'serverId', no 'formData.id'
-            console.log("💳 INICIANDO PAGO PARA ID:", serverId);
-            await startPropertyPayments(serverId); 
-            // No ponemos false aquí porque nos vamos a Mollie
+            // CAMINO B: PARTICULAR NUEVO (PAGAR)
+            // ✅ PASAMOS EL USER_ID EXPLÍCITAMENTE
+            await startPropertyPayments(serverId, {
+                userId: ownerId ? String(ownerId) : undefined,
+                email: ownerEmail
+            });
         }
 
       } else {
@@ -1181,7 +1180,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         setIsPublishing(false);
       }
     } catch (err) {
-      console.error("❌ Error crítico:", err);
+      console.error("❌ Error:", err);
       alert("Error de conexión.");
       setIsPublishing(false);
     }
@@ -1189,12 +1188,9 @@ const StepSuccess = ({ handleClose, formData }: any) => {
 
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
-      
-      {/* Fondo Animado */}
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-green-400/20 rounded-full blur-3xl -z-10 animate-pulse" />
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-blue-400/20 rounded-full blur-3xl -z-10 animate-pulse delay-700" />
 
-      {/* Icono Éxito */}
       <div className="mb-8 relative">
         <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-[0_10px_40px_rgba(34,197,94,0.4)] animate-bounce-small z-10 relative">
             <CheckCircle2 size={48} className="text-white" strokeWidth={3} />
@@ -1206,12 +1202,9 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         {isEditMode ? "¡Cambios Guardados!" : "¡Casi Listo!"}
       </h2>
       <p className="text-gray-500 mb-10 text-center font-medium max-w-sm text-lg">
-         {isEditMode 
-            ? "Tus cambios se han actualizado en la red." 
-            : "Confirmando datos con el servidor central..."}
+         {isEditMode ? "Tus cambios se han actualizado." : "Confirmando datos con el servidor..."}
       </p>
 
-      {/* Tarjeta Preview */}
       <div className="w-full max-w-xs bg-white rounded-[24px] border border-gray-100 shadow-xl p-4 mb-10 transform rotate-1 hover:rotate-0 transition-transform duration-500">
           <div className="aspect-video bg-gray-100 rounded-xl mb-4 relative overflow-hidden group">
              <img src={previewImage} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
@@ -1229,9 +1222,8 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           </div>
       </div>
 
-      {/* BOTÓN UNIFICADO */}
       <button
-        onClick={handleProcess} // ✅ SIEMPRE LLAMA A LA FUNCIÓN UNIFICADA
+        onClick={handleProcess}
         disabled={isPublishing}
         className="w-full max-w-md bg-[#1d1d1f] hover:bg-black text-white rounded-2xl py-4 px-8 shadow-xl active:scale-[0.98] transition-all flex justify-between items-center group cursor-pointer"
       >
@@ -1245,7 +1237,6 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                 : (isDirectSave ? "Guardar y Salir" : "Pagar y Publicar")}
           </span>
         </div>
-        
         <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
            {isDirectSave ? <CheckCircle2 size={20} className="text-white"/> : <ArrowRight size={20} className="text-white"/>}
         </div>
@@ -1255,53 +1246,66 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   );
 };
 // ==================================================================================
-// 💰 LÓGICA DE PAGO (TRASLADADA AQUÍ POR EMERGENCIA)
+// 💰 LÓGICA DE PAGO BLINDADA (CON IDENTIFICACIÓN DE USUARIO)
 // ==================================================================================
 
-// Función auxiliar para formatear el precio
 function toAmountStringLocal(v?: string) {
   const n = Number(v ?? "9.90");
   if (!Number.isFinite(n) || n <= 0) return "9.90";
   return n.toFixed(2);
 }
 
-// ✅ ESTA ES LA FUNCIÓN QUE SU BOTÓN ESTÁ BUSCANDO
+// ✅ AHORA ACEPTA 'userId' Y 'email' EN LAS OPCIONES
 async function startPropertyPayments(
   propertyId: string,
-  opts: { amount?: string; redirectPath?: string; description?: string; refCode?: string } = {}
+  opts: { 
+    amount?: string; 
+    redirectPath?: string; 
+    description?: string; 
+    refCode?: string;
+    userId?: string;  // <--- NUEVO
+    email?: string;   // <--- NUEVO
+  } = {}
 ) {
-  // 1. Verificaciones de seguridad
   if (typeof window === "undefined") return;
-  const pid = String(propertyId || "").trim();
   
+  const pid = String(propertyId || "").trim();
   if (!pid) {
-    console.error("Falta ID de propiedad");
+    alert("Error crítico: Falta ID de propiedad.");
     return;
   }
 
-  // 2. Preparar datos
+  // 1. INTENTAMOS OBTENER EL USUARIO DE LOS PARÁMETROS (PRIORIDAD)
+  let finalUserId = opts.userId;
+  let finalUserEmail = opts.email;
+
+  // 2. SI NO VIENE, INTENTAMOS RESCATARLO DEL SISTEMA (FALLBACK)
+  if (!finalUserId) {
+    try {
+      // Intentamos llamar a la acción si está importada
+      // @ts-ignore
+      if (typeof getUserMeAction !== 'undefined') {
+         // @ts-ignore
+         const me = await getUserMeAction();
+         if (me?.success && me.data) {
+           finalUserId = String(me.data.id);
+           finalUserEmail = me.data.email;
+         }
+      }
+    } catch (e) { console.log("No se pudo autodetectar usuario", e); }
+  }
+
+  // 🚨 SI SIGUE FALTANDO, ALERTA ROJA
+  if (!finalUserId) {
+      alert("Error de Seguridad: No se ha podido identificar al usuario (Missing userId). Por favor, recargue e inicie sesión.");
+      return;
+  }
+
   const origin = window.location.origin;
   const redirectPath = (opts.redirectPath ?? (window.location.pathname + window.location.search)).trim();
   const redirectUrl = new URL(redirectPath, origin).toString();
   const description = (opts.description ?? "Publicación propiedad — 9,90€") + (opts.refCode ? ` (${opts.refCode})` : "");
 
-  let userId: string | undefined;
-  let userEmail: string | undefined;
-
-  // 3. Intentar obtener el usuario (opcional, no bloqueante)
-  try {
-    // Asumimos que getUserMeAction está importado arriba. Si no, esto fallará silenciosamente.
-    // Si da error aquí, asegúrese de tener: import { getUserMeAction } from '@/app/actions';
-    const me = await getUserMeAction(); 
-    if (me?.success && me.data) {
-      userId = me.data.id ? String(me.data.id) : undefined;
-      userEmail = me.data.email ? String(me.data.email) : undefined;
-    }
-  } catch (e) { 
-    // Si falla obtener el usuario, seguimos adelante con el pago igualmente
-  }
-
-  // 4. LLAMADA A LA API DE MOLLIE
   try {
     const res = await fetch("/api/mollie/create-payment", {
       method: "POST",
@@ -1314,8 +1318,8 @@ async function startPropertyPayments(
         metadata: {
           kind: "PROPERTY_PUBLISH",
           propertyId: pid,
-          userId,
-          email: userEmail,
+          userId: finalUserId,     // ✅ AQUÍ VA EL ID SEGURO
+          email: finalUserEmail,
         },
       }),
     });
@@ -1323,20 +1327,20 @@ async function startPropertyPayments(
     const json = await res.json().catch(() => ({}));
 
     if (!res.ok || !json?.ok) {
-      alert(json?.error || `Error al conectar con el banco (HTTP ${res.status}).`);
+      alert(json?.error || `Error iniciando pago (HTTP ${res.status}).`);
       return;
     }
 
     if (!json?.checkoutUrl) {
-      alert("Error crítico: Mollie no devolvió la URL de pago.");
+      alert("Error: Pasarela de pago no respondió con URL.");
       return;
     }
 
-    // 5. ¡ÉXITO! REDIRIGIR A MOLLIE
+    // AL ATAQUE
     window.location.assign(String(json.checkoutUrl));
     
   } catch (err) {
-    console.error("Error de red:", err);
-    alert("Error de conexión. Verifique su internet.");
+    console.error("Error red pago:", err);
+    alert("Error de conexión al iniciar pago.");
   }
 }
