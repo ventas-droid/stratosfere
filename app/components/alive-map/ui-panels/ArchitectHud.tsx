@@ -14,6 +14,7 @@ import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
 import MarketPanel from "./MarketPanel";
+import { startPropertyPayment } from "@/app/components/alive-map/ui-panels/billing/startPropertyPayment";
 
 import { savePropertyAction } from '@/app/actions';
 // 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS

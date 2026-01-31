@@ -30,8 +30,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing MOLLIE_WEBHOOK_TOKEN" }, { status: 500 });
     }
 
-    const body = await req.json().catch(() => ({}));
-
+    const body = await req.json().catch(() => ({} as any));
     const origin = getPublicOrigin(req);
 
     const redirectUrlRaw = String(body.redirectUrl || "").trim();
@@ -59,9 +58,12 @@ export async function POST(req: Request) {
     // Webhook por pago (token en query)
     const webhookUrl = `${origin}/api/mollie/webhook?token=${encodeURIComponent(webhookToken)}`;
 
-    // Base payload
+    // Base payload (server-truth: ignoramos amount/description del cliente)
     const paymentPayload: any = {
-      amount: { currency: "EUR", value: kind === "AGENCY_SUBSCRIPTION" ? AGENCY_PRICE_EUR : PUBLISH_PRICE_EUR },
+      amount: {
+        currency: "EUR",
+        value: kind === "AGENCY_SUBSCRIPTION" ? AGENCY_PRICE_EUR : PUBLISH_PRICE_EUR,
+      },
       description:
         kind === "AGENCY_SUBSCRIPTION"
           ? "Stratosfere Agency — 49,90€/mes"
@@ -86,7 +88,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
       }
 
-      // Leemos Subscription para providerCustomerId (NO dependemos de user.subscription relation)
+      // Leemos Subscription para providerCustomerId
       const sub = await prisma.subscription.findUnique({
         where: { userId },
         select: { providerCustomerId: true },
@@ -126,6 +128,7 @@ export async function POST(req: Request) {
     // ------------------------------------------------------------------
     // 🏠 PROPERTY_PUBLISH: pago único limpio
     // - Requiere propertyId
+    // - Requiere userId (para verificar ownership)
     // - PROHIBIDO customerId/sequenceType aquí
     // ------------------------------------------------------------------
     if (kind === "PROPERTY_PUBLISH") {
@@ -133,15 +136,66 @@ export async function POST(req: Request) {
       if (!propertyId) {
         return NextResponse.json({ ok: false, error: "Missing propertyId" }, { status: 400 });
       }
-      // No añadimos nada: pago único y adiós.
+
+      const userId = String(metaObj.userId || "").trim();
+      if (!userId) {
+        return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
+      }
+
+      // 🔒 Verificamos que la propiedad pertenece al usuario
+      const prop = await prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true, userId: true },
+      });
+
+      if (!prop) {
+        return NextResponse.json({ ok: false, error: "Property not found" }, { status: 404 });
+      }
+
+      if (!prop.userId) {
+        return NextResponse.json(
+          { ok: false, error: "Property has no userId (cannot verify owner)" },
+          { status: 400 }
+        );
+      }
+
+      if (String(prop.userId) !== userId) {
+        return NextResponse.json({ ok: false, error: "Forbidden (not owner)" }, { status: 403 });
+      }
     }
 
+    // 1) Crear pago en Mollie
     const payment = await mollie.payments.create(paymentPayload);
+
+    // 2) Guardar un ServiceOrder “publicación” (schema REAL)
+    if (kind === "PROPERTY_PUBLISH") {
+      const propertyId = String((paymentPayload?.metadata as any)?.propertyId || "").trim();
+
+      // Nota: userId lo llevas en metadata para soporte/auditoría, pero tu BD sabe el user por Property.userId.
+      await prisma.serviceOrder.create({
+        data: {
+          // Campos obligatorios del schema
+          serviceId: "PUBLISH_PROPERTY",
+          name: "Publicación propiedad",
+          price: Number(PUBLISH_PRICE_EUR),
+          paid: false,
+
+          // Tracking Mollie
+          provider: "MOLLIE",
+          providerPayId: String(payment.id),
+          payStatus: "OPEN",
+          paidAt: null,
+          metadata: (paymentPayload?.metadata ?? undefined) as any,
+
+          propertyId,
+        },
+      });
+    }
 
     const checkoutUrl =
       typeof (payment as any)?.getCheckoutUrl === "function"
         ? (payment as any).getCheckoutUrl()
-        : null;
+        : (payment as any)?._links?.checkout?.href || null;
 
     return NextResponse.json({
       ok: true,

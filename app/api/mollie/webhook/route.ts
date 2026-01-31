@@ -122,21 +122,21 @@ export async function POST(req: Request) {
       if (!propertyId) return NextResponse.json({ ok: true });
 
       // Actualizamos trazabilidad SIEMPRE (open/failed/canceled/etc.)
-      await prisma.serviceOrder.updateMany({
-        where: {
-          propertyId,
-          // si quieres hiper-estricto: descomenta esto cuando siempre guardes providerPayId al crear el pago
-          // providerPayId: payment.id,
-        },
-        data: {
-          provider: "MOLLIE",
-          providerPayId: String(payment.id),
-          payStatus,
-          paid: payStatus === "PAID",
-          paidAt: payStatus === "PAID" ? now : null,
-          metadata: metadata ?? undefined,
-        },
-      });
+     await prisma.serviceOrder.updateMany({
+  where: {
+    propertyId,
+    providerPayId: String(payment.id),
+  },
+  data: {
+    provider: "MOLLIE",
+    providerPayId: String(payment.id),
+    payStatus,
+    paid: payStatus === "PAID",
+    paidAt: payStatus === "PAID" ? now : null,
+    metadata: metadata ?? undefined,
+  },
+});
+
 
       if (payStatus === "PAID") {
         await prisma.property.update({
