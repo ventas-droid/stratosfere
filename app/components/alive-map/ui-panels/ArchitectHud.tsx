@@ -1090,17 +1090,19 @@ const StepVerify = ({ formData, setStep }: any) => {
 };
 
 // ==================================================================================
-// 🏆 STEP SUCCESS: ID PASS-THROUGH (DB -> PAGO)
+// 🏆 STEP SUCCESS: PROPIEDAD "NACE OCULTA" HASTA PAGAR
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
   
+  // Lógica de decisión
   const alreadyPublished = formData?.status === "PUBLICADO";
   const isEditMode = formData.isEditMode || alreadyPublished;
   const isAgency = formData.isAgencyContext;
   const isDirectSave = isAgency || isEditMode;
 
+  // Visuales
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
   const hasUserPhoto = formData.images && formData.images.length > 0;
@@ -1111,9 +1113,23 @@ const StepSuccess = ({ handleClose, formData }: any) => {
     setIsPublishing(true);
 
     try {
+      // ---------------------------------------------------------
+      // 🔒 PROTOCOLO DE ESTADO INICIAL (CRÍTICO)
+      // ---------------------------------------------------------
+      // Si es Agencia o Edición -> Mantiene su estado o se publica.
+      // Si es NUEVO PARTICULAR -> Nace como "PENDIENTE_PAGO" (Invisible).
+      let targetStatus = formData.status;
+      
+      if (!targetStatus) {
+         // Si no tiene estado previo, decidimos:
+         targetStatus = isDirectSave ? "PUBLICADO" : "PENDIENTE_PAGO";
+      }
+
+      // 1. PREPARAR DATOS
       const cleanPayload = {
         ...formData,
         id: lastSavedIdRef.current || formData?.id || undefined,
+        status: targetStatus, // ✅ APLICAMOS EL ESTADO SEGURO
         rooms: Number(formData.rooms || 0),
         baths: Number(formData.baths || 0),
         mBuilt: Number(formData.mBuilt || 0),
@@ -1121,25 +1137,36 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         coordinates: formData.coordinates || [-3.6883, 40.4280],
       };
 
-      console.log("📡 GUARDANDO EN SERVIDOR...", cleanPayload);
+      console.log("📡 GUARDANDO (Estado:", targetStatus, ")...", cleanPayload);
 
-      // 1. GUARDAR (SERVER ACTION)
+      // 2. GUARDAR PROPIEDAD
       const response = await savePropertyAction(cleanPayload);
 
       if (response.success && response.property) {
         const serverProp = response.property;
         const serverId = String(serverProp.id);
         
-        // ✅ EXTRACCIÓN DE IDENTIDAD DEL DUEÑO (CRÍTICO PARA EL PAGO)
-        // Intentamos sacar el ID del usuario que acaba de guardar la propiedad
-        const ownerId = serverProp.userId || serverProp.user?.id || formData.userId; 
-        const ownerEmail = serverProp.user?.email || formData.email;
-
-        console.log("✅ GUARDADO OK. ID:", serverId, "USER:", ownerId);
         lastSavedIdRef.current = serverId;
 
+        // 3. RECUPERAR IDENTIDAD (USER ID)
+        let ownerId = serverProp.userId || serverProp.user?.id;
+        let ownerEmail = serverProp.user?.email;
+
+        if (!ownerId) {
+            try {
+                // @ts-ignore 
+                const me = await getUserMeAction();
+                if (me?.success && me.data) {
+                    ownerId = me.data.id;
+                    ownerEmail = me.data.email;
+                }
+            } catch (e) { console.error("Fallo recuperando identidad", e); }
+        }
+
+        // 4. CAMINOS TÁCTICOS
         if (isDirectSave) {
-            // CAMINO A: AGENCIA/EDICIÓN (CERRAR)
+            // === CAMINO A: CERRAR (AGENCIA/EDICIÓN) ===
+            // Como ya estaba pagado o es agencia, se muestra en el mapa
             let secureImage = null;
             if (serverProp.mainImage) secureImage = serverProp.mainImage;
             else if (serverProp.images && serverProp.images.length > 0) secureImage = serverProp.images[0].url;
@@ -1167,11 +1194,21 @@ const StepSuccess = ({ handleClose, formData }: any) => {
             setIsPublishing(false);
 
         } else {
-            // CAMINO B: PARTICULAR NUEVO (PAGAR)
-            // ✅ PASAMOS EL USER_ID EXPLÍCITAMENTE
+            // === CAMINO B: PAGAR (PARTICULAR NUEVO) ===
+            // La propiedad existe en DB como "PENDIENTE_PAGO" (Invisible).
+            // Solo se verá cuando Mollie confirme el pago.
+            
+            if (!ownerId) {
+                alert("Error de sesión: Recargue la página.");
+                setIsPublishing(false);
+                return;
+            }
+
+            console.log("💳 PAGANDO ID OCULTO:", serverId);
+            
             await startPropertyPayments(serverId, {
-                userId: ownerId ? String(ownerId) : undefined,
-                email: ownerEmail
+                userId: String(ownerId),
+                email: ownerEmail ? String(ownerEmail) : undefined
             });
         }
 
@@ -1202,7 +1239,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         {isEditMode ? "¡Cambios Guardados!" : "¡Casi Listo!"}
       </h2>
       <p className="text-gray-500 mb-10 text-center font-medium max-w-sm text-lg">
-         {isEditMode ? "Tus cambios se han actualizado." : "Confirmando datos con el servidor..."}
+         {isEditMode ? "Tus cambios se han actualizado." : "Conectando con la pasarela de pago segura..."}
       </p>
 
       <div className="w-full max-w-xs bg-white rounded-[24px] border border-gray-100 shadow-xl p-4 mb-10 transform rotate-1 hover:rotate-0 transition-transform duration-500">
