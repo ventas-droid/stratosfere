@@ -1,3 +1,4 @@
+
 "use client";
 
 import { getUserMeAction } from "@/app/actions";
@@ -37,7 +38,7 @@ export async function startPropertyPayment(
     (opts.description ?? "Publicación propiedad — 9,90€") +
     (opts.refCode ? ` (${opts.refCode})` : "");
 
-  // ✅ Best-effort: metemos userId/email para que el webhook sepa a quién activar
+  // ✅ Best-effortt: metemos userId/email para que el webhook sepa a quién activar
   // (si falla, seguimos igualmente y el pago se crea igual)
   let userId: string | undefined;
   let userEmail: string | undefined;

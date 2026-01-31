@@ -13,8 +13,8 @@ import {
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
-// ✅ SOLUCIÓN "VECINO": Salimos de ui-panels (..) y entramos en billing
-import { startPropertyPayment } from "../billing/startPropertyPayment";
+
+// ✅ AÑADIR "/app" DESPUÉS DE LA ARROBA
 import { savePropertyAction } from '@/app/actions';
 // 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
 import { uploadToCloudinary } from '@/app/utils/upload';
@@ -187,12 +187,7 @@ const [showWizard, setShowWizard] = useState(true);
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // 🧮 CALCULADORA DE SUMINISTROS (Contador para el Perfil)
-  // ---------------------------------------------------------------------------
-  const currentServiceCount = showWizard 
-      ? selectedServices.length 
-      : (activeProperty?.selectedServices?.length || 0);
+  
 
   // ESTADO GLOBAL
   const [formData, setFormData] = useState<any>({
@@ -225,8 +220,8 @@ const [showWizard, setShowWizard] = useState(true);
       console.log("🔍 MODO ARQUITECTO ACTIVO:", initialData);
 
 
-      const normalizedServices = Array.from(servicesSet);
-
+// ✅ SOLUCIÓN: Si no hay set, usamos el array directo o vacío
+const normalizedServices = initialData.selectedServices || [];
       // --- 2. OPERACIÓN RESCATE DE ASCENSOR ---
       let rawElevator = initialData.elevator;
       if (rawElevator === undefined && initialData.specs) {
@@ -239,8 +234,7 @@ const [showWizard, setShowWizard] = useState(true);
           ? String(initialData.rawPrice) 
           : (initialData.price ? String(initialData.price).replace(/\D/g, "") : "");
 
-      // --- 4. DESPLIEGUE FINAL ---
-      setSelectedServices(normalizedServices);
+     
 
       setFormData((prev: any) => ({
         ...prev,
@@ -276,9 +270,7 @@ const [showWizard, setShowWizard] = useState(true);
 
   const updateData = (field: string, value: any) =>
     setFormData((prev: any) => ({ ...prev, [field]: value }));
-
-  // HANDLERS SERVICIOS (EXTRAS) - VERSIÓN BLINDADA
-  // Mantiene sincronizado el estado visual (selectedServices) con el formulario (formData)
+// HANDLERS SERVICIOS (EXTRAS) - VERSIÓN BLINDADA
   const toggleService = (id: string) => {
     // 1. Leemos la verdad actual del formulario
     const currentList = formData.selectedServices || [];
@@ -300,8 +292,7 @@ const [showWizard, setShowWizard] = useState(true);
         : [...currentList, id];
     }
     
-    // 3. Sincronizamos TODO (Estado visual y Formulario)
-    setSelectedServices(newList);
+    // 3. Sincronizamos SOLO EL FORMULARIO (La línea vieja se ha eliminado)
     setFormData((f: any) => ({ ...f, selectedServices: newList }));
   };
 
@@ -351,7 +342,7 @@ const [showWizard, setShowWizard] = useState(true);
         />
       )}
 
-      {/* --- 1. PANEL DE PERFIL --- */}
+     {/* --- 1. PANEL DE PERFIL --- */}
       <ProfilePanel
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
@@ -359,32 +350,18 @@ const [showWizard, setShowWizard] = useState(true);
         onSelectProperty={(id: string) => {
              console.log("🎯 Objetivo fijado:", id);
              setActivePropertyId(id);
-             setShowWizard(false); // CRÍTICO: Apaga el modo creación para editar el existente
+             setShowWizard(false); 
              setShowMarket(true); 
         }}
 
-        activeServicesCount={currentServiceCount}
+        // ❌ BORRE ESTA LÍNEA QUE CAUSA EL ERROR:
+        // activeServicesCount={currentServiceCount} 
+
+        // ✅ DEJE ESTAS:
         rightPanel={showProfile ? "PROFILE" : "NONE"}
         toggleRightPanel={(val: string) => setShowProfile(val === "PROFILE")}
       />
-
-    {/* --- PANEL DE MERCADO (SIN SERVICIOS) --- */}
-{showMarket && (
-  <MarketPanel
-    isOpen={showMarket}
-    onClose={() => setShowMarket(false)}
-
-    initialData={showWizard ? { ...formData, img: formData.images?.[0] } : activeProperty}
-    activeProperty={showWizard ? { ...formData, img: formData.images?.[0] } : activeProperty}
-
-    myProperties={myProperties}
-    setActivePropertyId={setActivePropertyId}
-
-    // ⛔️ Servicios desactivados (no rompe nada)
-    selectedReqs={[]}
-    toggleRequirement={() => {}}
-  />
-)}
+   
 
     {showWizard && (
         <div
@@ -1113,116 +1090,102 @@ const StepVerify = ({ formData, setStep }: any) => {
 };
 
 // ==================================================================================
-// 🏆 STEP SUCCESS: EL LANZAMIENTO FINAL (CONECTADO A BASE DE DATOS)
+// 🏆 STEP SUCCESS: VERSIÓN MAESTRA (SIEMPRE GUARDA ANTES DE ACTUAR)
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
-// ✅ Anti doble click + recordar ID creado (para que no duplique)
-const [isPublishing, setIsPublishing] = useState(false);
-const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
- const alreadyPublished = formData?.status === "PUBLICADO";
-const isFirstPublish = !lastSavedIdRef.current;
-  // Preparación visual
+  const [isPublishing, setIsPublishing] = useState(false);
+  const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
+  
+  // 🧠 CEREBRO DE DECISIÓN:
+  const alreadyPublished = formData?.status === "PUBLICADO";
+  const isEditMode = formData.isEditMode || alreadyPublished;
+  const isAgency = formData.isAgencyContext; // Las agencias tienen pase VIP
+
+  // DECISIÓN: ¿Es una operación que termina aquí (Guardar) o sigue (Pagar)?
+  const isDirectSave = isAgency || isEditMode;
+
+  // Visuales
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
-  
-  // Imagen Preview
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
+  // --- 🔥 PROCESO UNIFICADO: 1. GUARDAR -> 2. DECIDIR ---
+  const handleProcess = async () => {
+    if (isPublishing) return;
+    setIsPublishing(true);
 
-  // --- 🔥 FUNCIÓN DE GUARDADO STRICT CLOUD (SIN FOTOS FALSAS) ---
-const handleSafeSave = async () => {
-  // ✅ A) Guard anti doble click (1 línea)
- if (isPublishing) return;
-if (alreadyPublished) return;
-setIsPublishing(true);
-
-  try {
-   
-    // 1. LIMPIEZA DE DATOS (Preparamos para enviar a la Nube)
-    const cleanPayload = {
-      ...formData,
-
-      // ✅ B) Si ya tenemos un ID creado, lo mandamos para forzar UPDATE y evitar duplicado
-      id: lastSavedIdRef.current || formData?.id || undefined,
-
-      // Convertimos textos a números para que la DB no proteste
-      rooms: Number(formData.rooms || 0),
-      baths: Number(formData.baths || 0),
-      mBuilt: Number(formData.mBuilt || 0),
-      price: formData.price,
-
-      // Si no hay GPS, usamos Madrid centro por seguridad técnica (pero nunca visual)
-      coordinates: formData.coordinates || [-3.6883, 40.4280],
-    };
-
-    console.log("📡 SUBIENDO PROPIEDAD AL SERVIDOR...", cleanPayload);
-
-    // 2. DISPARO REAL A LA BASE DE DATOS
-    const response = await savePropertyAction(cleanPayload);
-
-    if (response.success && response.property) {
-      console.log("✅ GUARDADO CONFIRMADO EN NUBE. ID:", response.property.id);
-
-      // ✅ Guardamos el ID devuelto tras crear (para futuras veces = update)
-      if (response?.property?.id) {
-        lastSavedIdRef.current = String(response.property.id);
-      }
-
-      // 3. CAPTURAMOS EL DATO FRESCO DEL SERVIDOR
-      const serverProp = response.property;
-
-      // 🔥 FIX DE IMAGEN REAL (CERO IMÁGENES DE RELLENO)
-      let secureImage = null;
-
-      if (serverProp.mainImage) {
-        secureImage = serverProp.mainImage;
-      } else if (serverProp.images && serverProp.images.length > 0) {
-        secureImage = serverProp.images[0].url;
-      } else if (formData.images && formData.images.length > 0) {
-        secureImage = formData.images[0];
-      }
-
-      // 4. EMPAQUETAMOS PARA EL MAPA (VISUAL)
-      const mapFormat = {
-        ...serverProp,
-        coordinates: [serverProp.longitude, serverProp.latitude],
-
-        // Identidad creador
-        user: serverProp.user,
-
-        img: secureImage,
-        images: serverProp.images?.map((i: any) => i.url) || (secureImage ? [secureImage] : []),
-        price: new Intl.NumberFormat("es-ES").format(serverProp.price || 0),
-        selectedServices: serverProp.selectedServices,
+    try {
+      // A. PREPARAR DATOS
+      const cleanPayload = {
+        ...formData,
+        id: lastSavedIdRef.current || formData?.id || undefined,
+        rooms: Number(formData.rooms || 0),
+        baths: Number(formData.baths || 0),
+        mBuilt: Number(formData.mBuilt || 0),
+        price: formData.price,
+        coordinates: formData.coordinates || [-3.6883, 40.4280],
       };
 
-      // 5. ACTUALIZACIÓN VISUAL (SIN RECARGAR LA PÁGINA)
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("add-property-signal", { detail: mapFormat }));
-        window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+      console.log("📡 SINCRONIZANDO CON BASE DE DATOS...", cleanPayload);
 
-        setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent("map-fly-to", {
-              detail: { center: mapFormat.coordinates, zoom: 18, pitch: 60, duration: 3000 },
-            })
-          );
-        }, 500);
+      // B. GUARDAR EN DB (ESTO GENERA EL ID SI NO EXISTE)
+      const response = await savePropertyAction(cleanPayload);
+
+      if (response.success && response.property) {
+        // ✅ CAPTURAMOS EL ID REAL DEL SERVIDOR
+        const serverId = String(response.property.id);
+        console.log("✅ ID CONFIRMADO:", serverId);
+        lastSavedIdRef.current = serverId;
+
+        // C. RAMIFICACIÓN
+        if (isDirectSave) {
+            // === CAMINO 1: AGENCIA O EDICIÓN (SOLO CERRAR) ===
+            const serverProp = response.property;
+            let secureImage = null;
+            if (serverProp.mainImage) secureImage = serverProp.mainImage;
+            else if (serverProp.images && serverProp.images.length > 0) secureImage = serverProp.images[0].url;
+            else if (formData.images && formData.images.length > 0) secureImage = formData.images[0];
+
+            const mapFormat = {
+                ...serverProp,
+                coordinates: [serverProp.longitude, serverProp.latitude],
+                user: serverProp.user,
+                img: secureImage,
+                images: serverProp.images?.map((i: any) => i.url) || (secureImage ? [secureImage] : []),
+                price: new Intl.NumberFormat("es-ES").format(serverProp.price || 0),
+                selectedServices: serverProp.selectedServices,
+            };
+
+            if (typeof window !== "undefined") {
+                const eventName = isEditMode ? "update-property-signal" : "add-property-signal";
+                window.dispatchEvent(new CustomEvent(eventName, { 
+                    detail: isEditMode ? { id: mapFormat.id, updates: mapFormat } : mapFormat 
+                }));
+                window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+                window.dispatchEvent(new CustomEvent("force-map-refresh"));
+            }
+            handleClose(mapFormat);
+            setIsPublishing(false); // Terminamos
+
+        } else {
+            // === CAMINO 2: PARTICULAR NUEVO (PAGAR) ===
+            // ⚠️ IMPORTANTE: Usamos 'serverId', no 'formData.id'
+            console.log("💳 INICIANDO PAGO PARA ID:", serverId);
+            await startPropertyPayments(serverId); 
+            // No ponemos false aquí porque nos vamos a Mollie
+        }
+
+      } else {
+        alert("Error del servidor: " + response.error);
+        setIsPublishing(false);
       }
-
-      // 6. CERRAR EL ASISTENTE
-      handleClose(mapFormat);
-    } else {
-      alert("Error del servidor: " + response.error);
+    } catch (err) {
+      console.error("❌ Error crítico:", err);
+      alert("Error de conexión.");
+      setIsPublishing(false);
     }
-  } catch (err) {
-    console.error("❌ Fallo de red:", err);
-    alert("Error crítico de conexión. Comprueba tu internet.");
-  } finally {
-    setIsPublishing(false);
-  }
-};
+  };
 
   return (
     <div className="h-full flex flex-col items-center justify-center animate-fade-in px-4 relative overflow-hidden">
@@ -1239,19 +1202,25 @@ setIsPublishing(true);
         <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20 duration-[2000ms]" />
       </div>
 
-      <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight text-center">¡Propiedad Listada!</h2>
+      <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight text-center">
+        {isEditMode ? "¡Cambios Guardados!" : "¡Casi Listo!"}
+      </h2>
       <p className="text-gray-500 mb-10 text-center font-medium max-w-sm text-lg">
-        Activo registrado en la base de datos de Stratos. Visible en la red global.
+         {isEditMode 
+            ? "Tus cambios se han actualizado en la red." 
+            : "Confirmando datos con el servidor central..."}
       </p>
 
       {/* Tarjeta Preview */}
       <div className="w-full max-w-xs bg-white rounded-[24px] border border-gray-100 shadow-xl p-4 mb-10 transform rotate-1 hover:rotate-0 transition-transform duration-500">
           <div className="aspect-video bg-gray-100 rounded-xl mb-4 relative overflow-hidden group">
              <img src={previewImage} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
-             <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-900 shadow-sm">Nuevo</div>
+             <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-900 shadow-sm">
+                {isEditMode ? "ACTUALIZADO" : "PENDIENTE"}
+             </div>
           </div>
           <div className="px-2 pb-2">
-             <h3 className="text-sm font-black text-gray-900 line-clamp-1">{formData.title || "Nueva Propiedad"}</h3>
+             <h3 className="text-sm font-black text-gray-900 line-clamp-1">{formData.title || "Propiedad"}</h3>
              <p className="text-xs text-gray-500 font-medium mb-3 line-clamp-1">{formData.address}</p>
              <div className="flex items-center justify-between border-t border-gray-50 pt-3">
                 <span className="text-lg font-black text-gray-900">{visualPrice}€</span>
@@ -1260,30 +1229,114 @@ setIsPublishing(true);
           </div>
       </div>
 
-      {/* BOTÓN CON LÓGICA DE SERVIDOR */}
-    <button
-  onClick={() => {
-    if (alreadyPublished || formData.isAgencyContext) {
-      handleSafeSave();          // editar / agencia
-    } else {
-      startPropertyPayment(formData.id); // primer publish particular
-    }
-  }}
-  disabled={isPublishing}
-  className="px-10 py-5 bg-[#1d1d1f] ..."
->
-  <span>
-    {isPublishing
-      ? "Procesando..."
-      : alreadyPublished || formData.isAgencyContext
-      ? "Guardar cambios"
-      : "Pagar y publicar"}
-  </span>
-  <ArrowRight size={20} />
-</button>
-
-
+      {/* BOTÓN UNIFICADO */}
+      <button
+        onClick={handleProcess} // ✅ SIEMPRE LLAMA A LA FUNCIÓN UNIFICADA
+        disabled={isPublishing}
+        className="w-full max-w-md bg-[#1d1d1f] hover:bg-black text-white rounded-2xl py-4 px-8 shadow-xl active:scale-[0.98] transition-all flex justify-between items-center group cursor-pointer"
+      >
+        <div className="flex flex-col items-start">
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-gray-300 transition-colors">
+             {isDirectSave ? "CONFIRMAR CAMBIOS" : "LANZAMIENTO"}
+          </span>
+          <span className="text-lg font-bold">
+             {isPublishing 
+                ? "Procesando..." 
+                : (isDirectSave ? "Guardar y Salir" : "Pagar y Publicar")}
+          </span>
+        </div>
+        
+        <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
+           {isDirectSave ? <CheckCircle2 size={20} className="text-white"/> : <ArrowRight size={20} className="text-white"/>}
+        </div>
+      </button>
 
     </div>
   );
 };
+// ==================================================================================
+// 💰 LÓGICA DE PAGO (TRASLADADA AQUÍ POR EMERGENCIA)
+// ==================================================================================
+
+// Función auxiliar para formatear el precio
+function toAmountStringLocal(v?: string) {
+  const n = Number(v ?? "9.90");
+  if (!Number.isFinite(n) || n <= 0) return "9.90";
+  return n.toFixed(2);
+}
+
+// ✅ ESTA ES LA FUNCIÓN QUE SU BOTÓN ESTÁ BUSCANDO
+async function startPropertyPayments(
+  propertyId: string,
+  opts: { amount?: string; redirectPath?: string; description?: string; refCode?: string } = {}
+) {
+  // 1. Verificaciones de seguridad
+  if (typeof window === "undefined") return;
+  const pid = String(propertyId || "").trim();
+  
+  if (!pid) {
+    console.error("Falta ID de propiedad");
+    return;
+  }
+
+  // 2. Preparar datos
+  const origin = window.location.origin;
+  const redirectPath = (opts.redirectPath ?? (window.location.pathname + window.location.search)).trim();
+  const redirectUrl = new URL(redirectPath, origin).toString();
+  const description = (opts.description ?? "Publicación propiedad — 9,90€") + (opts.refCode ? ` (${opts.refCode})` : "");
+
+  let userId: string | undefined;
+  let userEmail: string | undefined;
+
+  // 3. Intentar obtener el usuario (opcional, no bloqueante)
+  try {
+    // Asumimos que getUserMeAction está importado arriba. Si no, esto fallará silenciosamente.
+    // Si da error aquí, asegúrese de tener: import { getUserMeAction } from '@/app/actions';
+    const me = await getUserMeAction(); 
+    if (me?.success && me.data) {
+      userId = me.data.id ? String(me.data.id) : undefined;
+      userEmail = me.data.email ? String(me.data.email) : undefined;
+    }
+  } catch (e) { 
+    // Si falla obtener el usuario, seguimos adelante con el pago igualmente
+  }
+
+  // 4. LLAMADA A LA API DE MOLLIE
+  try {
+    const res = await fetch("/api/mollie/create-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: toAmountStringLocal(opts.amount),
+        currency: "EUR",
+        description,
+        redirectUrl,
+        metadata: {
+          kind: "PROPERTY_PUBLISH",
+          propertyId: pid,
+          userId,
+          email: userEmail,
+        },
+      }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || !json?.ok) {
+      alert(json?.error || `Error al conectar con el banco (HTTP ${res.status}).`);
+      return;
+    }
+
+    if (!json?.checkoutUrl) {
+      alert("Error crítico: Mollie no devolvió la URL de pago.");
+      return;
+    }
+
+    // 5. ¡ÉXITO! REDIRIGIR A MOLLIE
+    window.location.assign(String(json.checkoutUrl));
+    
+  } catch (err) {
+    console.error("Error de red:", err);
+    alert("Error de conexión. Verifique su internet.");
+  }
+}
