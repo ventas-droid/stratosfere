@@ -13,7 +13,8 @@ import {
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
-import { startPropertyPayment } from "@/app/components/alive-map/ui-panels/billing/startPropertyPayment";
+import { startPropertyPayment } 
+from "@/app/components/alive-map/billing/startPropertyPayment";
 
 import { savePropertyAction } from '@/app/actions';
 // 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
@@ -1026,7 +1027,6 @@ const MarketRadarStep = ({ formData, onNext }: any) => {
   );
 };
 
-
 const StepVerify = ({ formData, setStep }: any) => {
   const rawPrice = useMemo(() => { if (!formData.price) return 0; return parseInt(formData.price.toString().replace(/\D/g, "")); }, [formData.price]);
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
@@ -1112,8 +1112,6 @@ const StepVerify = ({ formData, setStep }: any) => {
     </div>
   );
 };
-
-
 
 // ==================================================================================
 // 🏆 STEP SUCCESS: EL LANZAMIENTO FINAL (CONECTADO A BASE DE DATOS)
