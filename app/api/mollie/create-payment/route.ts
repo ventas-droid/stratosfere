@@ -126,83 +126,85 @@ export async function POST(req: Request) {
     }
 
     // ------------------------------------------------------------------
-    // 🏠 PROPERTY_PUBLISH: pago único limpio
-    // - Requiere propertyId
-    // - Requiere userId (para verificar ownership)
-    // - PROHIBIDO customerId/sequenceType aquí
-    // ------------------------------------------------------------------
-    if (kind === "PROPERTY_PUBLISH") {
-      const propertyId = String(metaObj.propertyId || "").trim();
-      if (!propertyId) {
-        return NextResponse.json({ ok: false, error: "Missing propertyId" }, { status: 400 });
-      }
+// 🏠 PROPERTY_PUBLISH: pago único limpio
+// - Requiere propertyId
+// - Requiere userId (para verificar ownership)
+// - PROHIBIDO customerId/sequenceType aquí
+// ------------------------------------------------------------------
+if (kind === "PROPERTY_PUBLISH") {
+  const propertyId = String(metaObj.propertyId || "").trim();
+  if (!propertyId) {
+    return NextResponse.json({ ok: false, error: "Missing propertyId" }, { status: 400 });
+  }
 
-      const userId = String(metaObj.userId || "").trim();
-      if (!userId) {
-        return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
-      }
+  const userId = String(metaObj.userId || "").trim();
+  if (!userId) {
+    return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
+  }
 
-      // 🔒 Verificamos que la propiedad pertenece al usuario
-      const prop = await prisma.property.findUnique({
-        where: { id: propertyId },
-        select: { id: true, userId: true },
-      });
+  // 🔒 Verificamos que la propiedad pertenece al usuario
+  const prop = await prisma.property.findUnique({
+    where: { id: propertyId },
+    select: { id: true, userId: true },
+  });
 
-      if (!prop) {
-        return NextResponse.json({ ok: false, error: "Property not found" }, { status: 404 });
-      }
+  if (!prop) {
+    return NextResponse.json({ ok: false, error: "Property not found" }, { status: 404 });
+  }
 
-      if (!prop.userId) {
-        return NextResponse.json(
-          { ok: false, error: "Property has no userId (cannot verify owner)" },
-          { status: 400 }
-        );
-      }
+  if (!prop.userId) {
+    return NextResponse.json(
+      { ok: false, error: "Property has no userId (cannot verify owner)" },
+      { status: 400 }
+    );
+  }
 
-      if (String(prop.userId) !== userId) {
-        return NextResponse.json({ ok: false, error: "Forbidden (not owner)" }, { status: 403 });
-      }
-    }
+  if (String(prop.userId) !== userId) {
+    return NextResponse.json({ ok: false, error: "Forbidden (not owner)" }, { status: 403 });
+  }
+}
 
-    // 1) Crear pago en Mollie
-    const payment = await mollie.payments.create(paymentPayload);
+// 1) Crear pago en Mollie
+const payment = await mollie.payments.create(paymentPayload);
 
-    // 2) Guardar un ServiceOrder “publicación” (schema REAL)
-    if (kind === "PROPERTY_PUBLISH") {
-      const propertyId = String((paymentPayload?.metadata as any)?.propertyId || "").trim();
+// 2) Guardar un ServiceOrder “publicación” (schema REAL)
+if (kind === "PROPERTY_PUBLISH") {
+  const propertyId = String((paymentPayload?.metadata as any)?.propertyId || "").trim();
 
-      // Nota: userId lo llevas en metadata para soporte/auditoría, pero tu BD sabe el user por Property.userId.
-      await prisma.serviceOrder.create({
-        data: {
-          // Campos obligatorios del schema
-          serviceId: "PUBLISH_PROPERTY",
-          name: "Publicación propiedad",
-          price: Number(PUBLISH_PRICE_EUR),
-          paid: false,
+  await prisma.serviceOrder.create({
+    data: {
+      // Campos obligatorios del schema
+      serviceId: "PUBLISH_PROPERTY",
+      name: "Publicación propiedad",
+      price: parseFloat(PUBLISH_PRICE_EUR),
+      paid: false,
 
-          // Tracking Mollie
-          provider: "MOLLIE",
-          providerPayId: String(payment.id),
-          payStatus: "OPEN",
-          paidAt: null,
-          metadata: (paymentPayload?.metadata ?? undefined) as any,
+      // Tracking Mollie
+      provider: "MOLLIE",
+      providerPayId: String(payment.id),
 
-          propertyId,
-        },
-      });
-    }
+      // Tu schema lo tiene obligatorio (aunque tenga default)
+      payStatus: "OPEN",
+      paidAt: null,
+      metadata: (paymentPayload?.metadata ?? undefined) as any,
 
-    const checkoutUrl =
-      typeof (payment as any)?.getCheckoutUrl === "function"
-        ? (payment as any).getCheckoutUrl()
-        : (payment as any)?._links?.checkout?.href || null;
+      propertyId,
+    },
+  });
+}
 
-    return NextResponse.json({
-      ok: true,
-      paymentId: payment.id,
-      status: payment.status,
-      checkoutUrl,
-    });
+const checkoutUrl =
+  typeof (payment as any)?.getCheckoutUrl === "function"
+    ? (payment as any).getCheckoutUrl()
+    : (payment as any)?._links?.checkout?.href || null;
+
+return NextResponse.json({
+  ok: true,
+  paymentId: payment.id,
+  status: payment.status,
+  checkoutUrl,
+});
+
   } catch (err: any) {
     console.error("Error create-payment:", err);
     return NextResponse.json(
