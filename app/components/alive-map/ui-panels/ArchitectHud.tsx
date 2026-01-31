@@ -22,7 +22,7 @@ import { uploadToCloudinary } from '@/app/utils/upload';
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw";
 
 // ==================================================================================
-// 1. CONSTANTES GLOBALES (DEFINICIÓN ÚNICA - NO DUPLICAR)
+// 1. CONSTANTES GLOBALES (DEFINICIÓN ÚNICA - NO no DUPLICAR)
 // ==================================================================================
 const OFFICIAL_TYPES = [
   { id: "flat", label: "Piso", icon: Building2 },
