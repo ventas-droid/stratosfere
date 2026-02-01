@@ -93,21 +93,25 @@ export default function HoloInspector({
                         loop
                     />
                  </div>
-               ) : isPdf ? (
-                 // MODO PDF (DOCUMENTO)
-                 <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center relative z-10 p-10">
+             ) : isPdf ? (
+                 // MODO PDF (CORREGIDO CON VISOR GOOGLE)
+                 <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center relative z-10 p-4 md:p-10">
+                    
+                    {/* ✅ EL CAMBIO ESTÁ AQUÍ: Usamos gview para renderizar */}
                     <iframe 
-                        src={current as string} 
-                        className="w-full h-full rounded-xl border border-gray-200 shadow-inner"
+                        src={`https://docs.google.com/gview?url=${encodeURIComponent(current as string)}&embedded=true`}
+                        className="w-full h-full rounded-xl border border-gray-200 shadow-inner bg-white"
                         title="Documento PDF"
+                        frameBorder="0"
                     />
+
                     <a 
                         href={current as string} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="absolute bottom-10 px-6 py-3 bg-black text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                        className="absolute bottom-10 px-6 py-3 bg-black text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2 z-20"
                     >
-                        <FileText size={16}/> Abrir Documento Externo
+                        <FileText size={16}/> Descargar / Abrir Original
                     </a>
                  </div>
                ) : (
