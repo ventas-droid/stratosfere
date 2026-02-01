@@ -254,19 +254,20 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
 
   return (
     <div className="absolute inset-0 pointer-events-none z-[5000]">
-      {/* NANO CARD PREVIEW */}
+    {/* 🚀 NANO CARD PREVIEW (VISIBILIDAD FORZADA Z-9000) */}
       {step !== "SUCCESS" && (
-        <MapNanoCard 
-            {...formData} 
-            rooms={formData.rooms}
-            baths={formData.baths}
-            mBuilt={formData.mBuilt}
-            rawPrice={currentRawPrice} 
-            priceValue={currentRawPrice} 
-            price={formData.price}
-        />
+        <div className="fixed inset-0 pointer-events-none z-[9000]">
+            <MapNanoCard 
+                {...formData} 
+                rooms={formData.rooms}
+                baths={formData.baths}
+                mBuilt={formData.mBuilt}
+                rawPrice={currentRawPrice} 
+                priceValue={currentRawPrice} 
+                price={formData.price}
+            />
+        </div>
       )}
-
       {!showWizard && (
         <ExplorerHud
           onCloseMode={() => closeWizard()}
