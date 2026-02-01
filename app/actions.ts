@@ -328,8 +328,7 @@ export async function savePropertyAction(data: any) {
         selectedServices: finalServices,
         
         mainImage: mainImage,
-        status: 'PUBLICADO',
-
+status: (user.role === 'AGENCIA' || (data.id && data.id.length > 10)) ? 'PUBLICADO' : 'PENDIENTE_PAGO',
         // ---- OWNER SNAPSHOT ----
         ownerSnapshot,
 
