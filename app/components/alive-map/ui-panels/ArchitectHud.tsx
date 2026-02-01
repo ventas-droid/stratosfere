@@ -474,17 +474,35 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  const handleSearch = async (text: string) => {
+ const handleSearch = async (text: string) => {
     setQuery(text);
     if (text.length > 2) {
       setIsSearching(true);
       setShowResults(true);
       try {
-        const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${MAPBOX_TOKEN}&country=es&types=address,poi&language=es`
-        );
+        // COORDENADAS DE LA PUERTA DEL SOL (MADRID)
+        // Esto obliga a Mapbox a poner lo que esté cerca de Madrid PRIMERO.
+        const MADRID_CENTER = "-3.7038,40.4168"; 
+        
+        // SOLO ESPAÑA
+        const SPAIN_BBOX = "-18.1612,27.6377,4.3279,43.7924"; 
+
+        // TIPOS DE DATOS
+        const TYPES = "district,locality,neighborhood,address,poi";
+
+        // 🚨 CHIVATO EN CONSOLA (Si no ve esto, no se ha actualizado)
+        console.log("🚨 BUSCANDO CON PRIORIDAD MADRID 🚨:", text);
+
+        // 🔥 LA URL MAESTRA:
+        // proximity=MADRID: Gana Madrid.
+        // bbox=SPAIN: Solo España.
+        // limit=10: Vemos hasta 10 resultados.
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${MAPBOX_TOKEN}&country=es&types=${TYPES}&proximity=${MADRID_CENTER}&bbox=${SPAIN_BBOX}&language=es&autocomplete=true&fuzzyMatch=true&limit=10`;
+
+        const res = await fetch(url);
         const data = await res.json();
         setResults(data.features || []);
+
       } catch (error) {
         console.error(error);
         setResults([]);
@@ -537,7 +555,7 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
             className="w-full pl-12 p-4 bg-white rounded-xl border border-gray-200 focus:border-black outline-none font-medium text-gray-900 shadow-sm transition-all"
-            placeholder="Ej: Paseo de la Castellana 34..."
+            placeholder="Ej: Ciudad, Calle y Número..."
           />
 
           {showResults && results.length > 0 && (
@@ -563,14 +581,51 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
 
         <div className="flex-1 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center bg-gray-50/50 min-h-[200px]">
           {canContinue ? (
-            <div className="animate-fade-in flex flex-col items-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 shadow-sm">
-                <CheckCircle2 size={32} className="text-green-600" />
+           /* ✅ NUEVO BLOQUE: VISIÓN SATÉLITE (Sustituye al Check verde) */
+            <div className="relative w-full h-full min-h-[220px] rounded-xl overflow-hidden shadow-md group animate-in zoom-in duration-300">
+              
+              {/* 1. LA IMAGEN DEL MAPA (Usamos formData.coordinates que ya guardó antes) */}
+              {formData.coordinates && (
+                <img 
+                 src={`https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/pin-s+ff0000(${formData.coordinates[0]},${formData.coordinates[1]})/${formData.coordinates[0]},${formData.coordinates[1]},17,0/600x300?access_token=${MAPBOX_TOKEN}`}
+                  alt="Vista Satélite"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                />
+              )}
+
+              {/* 2. CAPA DE TEXTO ELEGANTE (SOBRE EL MAPA) */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-4 text-left">
+                <div className="flex items-center gap-2 mb-1">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <span className="text-green-400 text-[10px] font-bold uppercase tracking-widest">Objetivo Localizado</span>
+                </div>
+                
+                <h3 className="text-white font-bold text-lg leading-tight truncate shadow-sm">
+                  {formData.address}
+                </h3>
+                
+                <p className="text-gray-300 text-xs mt-1 truncate font-medium">
+                  {formData.city ? `${String(formData.city).toUpperCase()}${formData.postcode ? ` (${formData.postcode})` : ""}` : ""}
+                </p>
               </div>
-              <span className="text-lg font-bold text-green-700">Ubicación Confirmada</span>
-              <span className="text-sm text-gray-400 mt-2 px-8 truncate max-w-[400px]">
-                {formData.city ? `${String(formData.city).toUpperCase()}${formData.postcode ? ` (${formData.postcode})` : ""}` : formData.address}
-              </span>
+
+              {/* 3. BOTÓN "X" PARA CANCELAR (Arriba a la derecha) */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation(); // Evita clics fantasma
+                  setQuery(""); 
+                  updateData("coordinates", null);
+                  updateData("address", "");
+                  // Al borrar el query y address, 'canContinue' pasará a false automáticamente
+                }}
+                className="absolute top-3 right-3 bg-black/40 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-md transition-all border border-white/20 z-20"
+                title="Cambiar ubicación"
+              >
+                <X size={16} /> 
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center opacity-40">

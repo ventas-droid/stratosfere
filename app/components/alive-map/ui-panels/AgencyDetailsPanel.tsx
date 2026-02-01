@@ -7,21 +7,27 @@ import {
     Car, Trees, Waves, Sun, Box, Thermometer, 
     Camera, Globe, Plane, Hammer, Ruler, 
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
-    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2,
+    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2,Eye,
 } from 'lucide-react';
 import { getCampaignByPropertyAction } from "@/app/actions";
 
-// --- DICCIONARIO MAESTRO DE ICONOS ---
+// --- DICCIONARIO MAESTRO DE ICONOS (VERSIÓN FINAL) ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
     'garden': Trees, 'jardin': Trees, 'jardín': Trees, 'elevator': ArrowUp, 'ascensor': ArrowUp,
     'terrace': Sun, 'terraza': Sun, 'storage': Box, 'trastero': Box, 
-    'ac': Thermometer, 'aire': Thermometer, 'calefaccion': Thermometer,
+    'ac': Thermometer, 'aire': Thermometer, 'calefaccion': Thermometer, 'heating': Thermometer,
     'security': ShieldCheck, 'seguridad': ShieldCheck, 'alarma': ShieldCheck,
     'foto': Camera, 'video': Globe, 'drone': Plane, 'tour3d': Box, 'render': Hammer, 
     'plano': Ruler, 'plano_2d': Ruler, 'destacado': TrendingUp, 'ads': Share2, 
     'email': Mail, 'certificado': FileCheck, 'tasacion': Activity, 'homestaging': Sofa, 
-    'limpieza': Droplets, 'pintura': Paintbrush, 'mudanza': Truck, 'abogado': Briefcase
+    'limpieza': Droplets, 'pintura': Paintbrush, 'mudanza': Truck, 'abogado': Briefcase, 
+    'exterior': Eye, 
+    'interior': Home,
+    'furnished': Sofa, 
+    'amueblado': Sofa,
+    'wardrobes': Box, 
+    'armarios': Box
 };
 
 const PHYSICAL_KEYWORDS = [
