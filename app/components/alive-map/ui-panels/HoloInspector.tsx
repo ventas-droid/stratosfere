@@ -117,17 +117,20 @@ export default function HoloInspector({
                         <p className="text-slate-400 font-bold">Vista previa no disponible</p>
                     </div>
 
-                    {/* 2. BOTÓN PARA VER EL PDF REAL */}
+                   {/* 2. BOTÓN PARA DESCARGAR EL PDF REAL */}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/10 transition-colors pointer-events-none">
                          {/* El botón sí tiene pointer-events-auto */}
                         <a 
-                            href={current as string} 
-                            target="_blank" 
-                            rel="noreferrer"
+                            // 👇 TRUCO MAESTRO: Inyectamos 'fl_attachment' en la URL
+                            // Esto le dice a Cloudinary: "¡No lo muestres, descárgalo!"
+                            href={(current as string).replace("/upload/", "/upload/fl_attachment/")}
+                            
+                            // Forzamos al navegador también por si acaso
+                            download 
                             className="pointer-events-auto px-8 py-4 bg-black text-white rounded-full text-sm font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-3 opacity-90 hover:opacity-100"
                         >
                             <FileText size={20} className="text-red-400"/> 
-                            ABRIR PDF COMPLETO
+                            DESCARGAR PDF
                         </a>
                     </div>
 
