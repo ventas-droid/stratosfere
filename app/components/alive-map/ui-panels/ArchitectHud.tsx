@@ -961,7 +961,14 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
 
   return (
     <div className="h-full flex flex-col animate-fade-in-right px-2">
-      <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple accept="image/*" />
+    <input 
+  type="file" 
+  ref={fileInputRef} 
+  onChange={handleFileUpload} 
+  className="hidden" 
+  multiple 
+  accept="image/*,video/*,application/pdf" 
+/>
       <div className="mb-6 shrink-0"><h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Multimedia</h2><p className="text-gray-500 font-medium">Sube fotos reales de tu dispositivo (Cloudinary).</p></div>
       <div className="flex-1 overflow-y-auto px-4 -mx-4 custom-scrollbar pb-4 pt-2">
         <div onClick={() => fileInputRef.current?.click()} className="group relative h-64 rounded-[24px] border-4 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/50 overflow-hidden shadow-sm hover:shadow-md active:scale-95">
