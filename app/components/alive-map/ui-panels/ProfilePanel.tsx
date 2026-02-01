@@ -10,7 +10,7 @@ import {
     Waves, Car, Trees, ShieldCheck, ArrowUp, Sun, Box, Star, Award, Crown, 
     TrendingUp, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
-    Droplets, Paintbrush, Truck, Briefcase, Sparkles
+    Droplets, Paintbrush, Truck, Briefcase, Sparkles, AlertTriangle, Lock, CreditCard
 } from 'lucide-react';
 
 import { getPropertiesAction, deletePropertyAction, getUserMeAction, updateUserAction, logoutAction } from '@/app/actions';
@@ -596,11 +596,6 @@ useEffect(() => {
       {prop?.location || prop?.address || ""}
     </span>
   </div>
-{isPendingPayment && (
-  <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 inline-block">
-    Pendiente de pago · No visible en el mapa
-  </div>
-)}
 
   <p className="text-base font-black text-slate-900 mt-1">
     {(() => {
@@ -612,13 +607,38 @@ useEffect(() => {
 </div>
 
                             </div>
-                            {/* SERVICIOS */}
-                            {prop.selectedServices && serviceIds.length > 0 && (
-                                <div className="mb-4 bg-slate-50 p-3 rounded-2xl">
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase mb-2 tracking-wider flex items-center gap-1">
-                                        <Zap size={10} className="text-yellow-500 fill-yellow-500"/> Estrategia Activa
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
+                            {/* BLOQUE DE SERVICIOS Y ESTRATEGIA (Estilo Mac Clean) */}
+{prop.selectedServices && prop.selectedServices.length > 0 && (
+  <div className="mb-4 bg-slate-50 p-4 rounded-[24px] border border-slate-100/80 shadow-sm">
+    
+    {/* 1. CABECERA: Título pequeño y elegante */}
+    <div className="flex items-center gap-2 mb-3 opacity-70">
+      <div className="p-1 bg-white rounded-full shadow-sm border border-slate-100">
+        <Zap size={10} className="text-yellow-500 fill-yellow-500" />
+      </div>
+      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+        Estrategia Activa
+      </span>
+    </div>
+
+    {/* 2. ALERTA PENDIENTE DE PAGO (Diseño Apple Notification) */}
+    {isPendingPayment && (
+      <div className="mb-4 bg-white rounded-2xl p-3 border border-amber-100 shadow-[0_2px_10px_-4px_rgba(245,158,11,0.2)] flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center shrink-0 border border-amber-100">
+          <Lock size={14} className="text-amber-500" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-slate-800 uppercase tracking-wide leading-tight">
+            Pendiente de Pago
+          </span>
+          <span className="text-[9px] font-medium text-amber-600/80 leading-tight">
+            Propiedad oculta en el mapa
+          </span>
+        </div>
+      </div>
+    )}
+
+  <div className="flex flex-wrap gap-2">
                                         {serviceIds.slice(0, 4).map((srvId: string) => {
                                             const key = srvId.toLowerCase().trim();
                                             const Icon = ICON_MAP[key] || ICON_MAP[srvId] || Sparkles;
