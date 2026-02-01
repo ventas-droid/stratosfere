@@ -6,7 +6,7 @@ import {
   Activity, ArrowLeft, ArrowRight, ArrowUp, Camera, Check, CheckCircle2, Clock,
   Eye, FileCheck, FileText, Flame, Globe, LayoutGrid, Loader2, Map as MapIcon,
   MapPin, Megaphone, Paintbrush, Radar, Ruler, Search, Shield, ShieldCheck,
-  Smartphone, TrendingUp, Truck, UploadCloud, Video, X, Zap, Award, Crown,
+  Smartphone, TrendingUp, Truck, UploadCloud, Video, X, Zap, Award, Crown, Play, Film,
   Box, Droplets, Star, Bed, Bath, Maximize2, Building2, Home, Briefcase, LandPlot, Warehouse, Sun
 } from "lucide-react";
 
@@ -950,44 +950,142 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
     // 3. Filtramos si alguna falló
     const validUrls = uploadedUrls.filter(url => url !== null);
 
-    // 4. Actualizamos el formulario con las URLs de internet (no archivos pesados)
+    // 4. Actualizamos el formulario con las URLs de internet
     const currentImages = formData.images || [];
     const combined = [...currentImages, ...validUrls].slice(0, 10);
     updateData("images", combined);
   };
 
-  const removeImage = (index: number) => { const currentImages = formData.images || []; const filtered = currentImages.filter((_: any, i: number) => i !== index); updateData("images", filtered); };
+  const removeImage = (index: number) => { 
+      const currentImages = formData.images || []; 
+      const filtered = currentImages.filter((_: any, i: number) => i !== index); 
+      updateData("images", filtered); 
+  };
+  
   const images = formData.images || [];
 
   return (
     <div className="h-full flex flex-col animate-fade-in-right px-2">
-    <input 
-  type="file" 
-  ref={fileInputRef} 
-  onChange={handleFileUpload} 
-  className="hidden" 
-  multiple 
-  accept="image/*,video/*,application/pdf" 
-/>
-      <div className="mb-6 shrink-0"><h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Multimedia</h2><p className="text-gray-500 font-medium">Sube fotos reales de tu dispositivo (Cloudinary).</p></div>
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        className="hidden" 
+        multiple 
+        accept="image/*,video/*,application/pdf" 
+      />
+      
+      <div className="mb-6 shrink-0">
+        <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Multimedia</h2>
+        <p className="text-gray-500 font-medium">Sube fotos, vídeos o planos (PDF).</p>
+      </div>
+
       <div className="flex-1 overflow-y-auto px-4 -mx-4 custom-scrollbar pb-4 pt-2">
+        {/* ZONA DE CARGA (DRAG & DROP VISUAL) */}
         <div onClick={() => fileInputRef.current?.click()} className="group relative h-64 rounded-[24px] border-4 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 hover:border-blue-400 hover:bg-blue-50/50 overflow-hidden shadow-sm hover:shadow-md active:scale-95">
           <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/0 to-blue-100/0 group-hover:via-white/20 group-hover:to-blue-100/30 transition-all duration-500" />
-          <div className="relative z-10 flex flex-col items-center p-6"><div className="flex items-center gap-5 mb-6"><div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[-6deg] transition-transform duration-300"><Camera size={32} className="text-blue-600" strokeWidth={2} /></div><div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[6deg] transition-transform duration-300 delay-75"><UploadCloud size={32} className="text-purple-600" strokeWidth={2} /></div></div><h3 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Toca para Subir</h3><p className="text-sm font-bold text-gray-400 mb-3">JPG, PNG a la Nube.</p><button className="px-6 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-widest rounded-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-transparent transition-all shadow-sm">Abrir Galería</button></div>
+          <div className="relative z-10 flex flex-col items-center p-6">
+            <div className="flex items-center gap-5 mb-6">
+                <div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[-6deg] transition-transform duration-300"><Camera size={32} className="text-blue-600" strokeWidth={2} /></div>
+                <div className="w-18 h-18 p-4 bg-white rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-110 group-hover:rotate-[6deg] transition-transform duration-300 delay-75"><UploadCloud size={32} className="text-purple-600" strokeWidth={2} /></div>
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Toca para Subir</h3>
+            <p className="text-sm font-bold text-gray-400 mb-3">JPG, PNG, PDF, MP4 a la Nube.</p>
+            <button className="px-6 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-widest rounded-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-transparent transition-all shadow-sm">Abrir Galería</button>
+          </div>
         </div>
+
+        {/* GALERÍA INTELIGENTE */}
         <div className="mt-8">
-          <div className="flex justify-between items-baseline mb-4 px-1"><p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tus Fotos</p><div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded-lg"><p className="text-[11px] font-black text-gray-900 uppercase tracking-widest">{images.length} / 10</p></div></div>
+          <div className="flex justify-between items-baseline mb-4 px-1">
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tus Archivos</p>
+            <div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded-lg">
+                <p className="text-[11px] font-black text-gray-900 uppercase tracking-widest">{images.length} / 10</p>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-            {images.map((img: string, i: number) => (<div key={i} className="aspect-square rounded-[20px] overflow-hidden relative group border border-gray-100 shadow-sm animate-fade-in"><img src={img} alt={`Foto ${i}`} className="w-full h-full object-cover" /><button onClick={(e) => { e.stopPropagation(); removeImage(i); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md cursor-pointer z-20"><X size={12} strokeWidth={3} /></button>{i === 0 && <span className="absolute bottom-2 left-2 right-2 text-center text-[8px] font-black text-white uppercase tracking-widest bg-black/50 backdrop-blur-md py-1 rounded-md">Portada</span>}</div>))}
-            {images.length < 10 && (<div onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-[20px] border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-gray-300 hover:text-blue-500 active:scale-95"><span className="font-black text-3xl">+</span></div>)}
+            {images.map((url: string, i: number) => {
+               // 🕵️ DETECTIVE DE FORMATOS
+               const isVideo = url.match(/\.(mp4|mov|webm|mkv)$/i) || url.includes("/video/upload");
+               const isPdf = url.match(/\.pdf$/i) || url.includes(".pdf");
+
+               return (
+                <div key={i} className="aspect-square rounded-[20px] overflow-hidden relative group border border-gray-100 shadow-sm animate-fade-in bg-gray-50">
+                  
+                  {/* --- CASO 1: ES VIDEO 🎥 --- */}
+                  {isVideo ? (
+                    <div className="w-full h-full relative flex items-center justify-center bg-gray-900">
+                      <video src={url} className="w-full h-full object-cover opacity-60" muted playsInline />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/50">
+                           <Play size={12} className="text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
+                      <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/60 rounded text-[8px] font-bold text-white uppercase flex items-center gap-1">
+                        <Film size={8} /> Video
+                      </span>
+                    </div>
+                  ) : isPdf ? (
+                  /* --- CASO 2: ES PDF 📄 --- */
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 p-2 text-center group-hover:bg-red-100 transition-colors cursor-pointer relative">
+                      <FileText size={32} className="text-red-500 mb-2" />
+                      <span className="text-[8px] font-bold text-red-900 uppercase tracking-wider line-clamp-1 break-all px-2">
+                        Documento PDF
+                      </span>
+                      {/* Enlace invisible para abrir el PDF al hacer clic */}
+                      <a 
+                        href={url} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="absolute inset-0 z-10" 
+                        title="Ver Documento"
+                      />
+                    </div>
+                  ) : (
+                  /* --- CASO 3: ES FOTO (LO DE SIEMPRE) 📸 --- */
+                    <img src={url} alt={`Foto ${i}`} className="w-full h-full object-cover" />
+                  )}
+
+                  {/* BOTÓN ELIMINAR (COMÚN A TODOS) */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); removeImage(i); }} 
+                    className="absolute top-1 right-1 bg-white text-red-500 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 shadow-md cursor-pointer z-20 border border-gray-100"
+                  >
+                    <X size={12} strokeWidth={3} />
+                  </button>
+
+                  {/* ETIQUETA PORTADA (SOLO EL PRIMERO) */}
+                  {i === 0 && (
+                    <span className="absolute bottom-2 left-2 right-2 text-center text-[8px] font-black text-white uppercase tracking-widest bg-black/50 backdrop-blur-md py-1 rounded-md z-10 pointer-events-none">
+                      Portada
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            
+            {/* BOTÓN AÑADIR MÁS */}
+            {images.length < 10 && (
+                <div onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-[20px] border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-gray-300 hover:text-blue-500 active:scale-95">
+                    <span className="font-black text-3xl">+</span>
+                </div>
+            )}
           </div>
         </div>
       </div>
-      <div className="mt-4 flex gap-4 pt-6 border-t border-gray-100 shrink-0"><button onClick={() => setStep("ENERGY")} className="w-16 h-16 flex items-center justify-center bg-gray-50 text-gray-600 rounded-2xl hover:bg-gray-100 transition-all active:scale-95"><ArrowLeft size={24} /></button><button onClick={() => setStep("PRICE")} className="flex-1 h-16 text-white font-bold rounded-2xl shadow-xl bg-[#1d1d1f] hover:bg-black active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg">Siguiente Paso <ArrowRight size={20} /></button></div>
+
+      <div className="mt-4 flex gap-4 pt-6 border-t border-gray-100 shrink-0">
+        <button onClick={() => setStep("ENERGY")} className="w-16 h-16 flex items-center justify-center bg-gray-50 text-gray-600 rounded-2xl hover:bg-gray-100 transition-all active:scale-95">
+            <ArrowLeft size={24} />
+        </button>
+        <button onClick={() => setStep("PRICE")} className="flex-1 h-16 text-white font-bold rounded-2xl shadow-xl bg-[#1d1d1f] hover:bg-black active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg">
+            Siguiente Paso <ArrowRight size={20} />
+        </button>
+      </div>
     </div>
   );
 };
-
 const StepPrice = ({ formData, updateData, setStep }: any) => {
   const formatCurrency = (v: string) => v ? v.toString().replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
   const [localPrice, setLocalPrice] = useState(() => { const numericVal = parsePriceInput(formData.price); return numericVal > 0 ? formatCurrency(String(numericVal)) : ""; });

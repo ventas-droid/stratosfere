@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MapPin, FileText, Play } from "lucide-react";
 
 export default function HoloInspector({
   isOpen,
@@ -20,7 +20,7 @@ export default function HoloInspector({
       setMounted(true);
   }, []);
 
-  // 🔥 MOTOR DE ANIMACIÓN: Se reinicia al abrir Y al cambiar de foto
+  // 🔥 MOTOR DE ANIMACIÓN
   useEffect(() => {
       setIsZooming(false); // 1. Reset
       
@@ -53,6 +53,10 @@ export default function HoloInspector({
     setTimeout(() => setIsZooming(true), 50);
   };
 
+  // 🕵️ DETECTIVE DE FORMATOS (Inteligencia Visual)
+  const isVideo = (current as string).match(/\.(mp4|mov|webm|mkv)$/i) || (current as string).includes("/video/upload");
+  const isPdf = (current as string).match(/\.pdf$/i) || (current as string).includes(".pdf");
+
   const ui = (
     <div 
         className="fixed inset-0 z-[999999] bg-[#F5F5F7]/98 backdrop-blur-2xl animate-fade-in flex flex-col items-center justify-center overflow-hidden"
@@ -72,10 +76,43 @@ export default function HoloInspector({
           onClick={(e) => e.stopPropagation()}
       >
           {/* CONTENEDOR BLANCO */}
-            <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center">
+            <div className="relative w-full max-w-[95vw] h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-white border border-gray-100 flex items-center justify-center bg-black">
                 
-               {/* FOTO CON EFECTO CINEMÁTICO */}
-                <img 
+               {/* --- 🎥 RENDERIZADO CONDICIONAL (MOTOR HÍBRIDO) --- */}
+               
+               {isVideo ? (
+                 // MODO VÍDEO
+                 <div className="w-full h-full bg-black flex items-center justify-center relative z-10">
+                    <video 
+                        key={current as string}
+                        src={current as string}
+                        className="w-full h-full object-contain"
+                        controls
+                        autoPlay
+                        playsInline
+                        loop
+                    />
+                 </div>
+               ) : isPdf ? (
+                 // MODO PDF (DOCUMENTO)
+                 <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center relative z-10 p-10">
+                    <iframe 
+                        src={current as string} 
+                        className="w-full h-full rounded-xl border border-gray-200 shadow-inner"
+                        title="Documento PDF"
+                    />
+                    <a 
+                        href={current as string} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="absolute bottom-10 px-6 py-3 bg-black text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                    >
+                        <FileText size={16}/> Abrir Documento Externo
+                    </a>
+                 </div>
+               ) : (
+                 // MODO FOTO (CON EFECTO CINEMÁTICO)
+                 <img 
                     key={current as string} 
                     src={current as string} 
                     alt="Detalle Activo" 
@@ -85,10 +122,11 @@ export default function HoloInspector({
                         ${isZooming ? 'scale-110' : 'scale-100'} 
                     `}
                 />
+               )}
 
-                {/* MARCA DE AGUA SUTIL */}
-                <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center select-none">
-                    <p className="text-white/20 text-3xl md:text-5xl font-bold tracking-tight drop-shadow-sm mix-blend-overlay">
+                {/* MARCA DE AGUA SUTIL (Solo visible sobre imágenes/vídeos oscuros) */}
+                <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center select-none opacity-30 mix-blend-overlay">
+                    <p className="text-white text-3xl md:text-5xl font-bold tracking-tight">
                         Stratosfere OS
                     </p>
                 </div>
@@ -115,7 +153,7 @@ export default function HoloInspector({
 
            {/* DATOS DE UBICACIÓN */}
             <div className="absolute bottom-20 left-20 md:bottom-32 md:left-32 text-left pointer-events-none animate-slide-in-up z-40 max-w-2xl">
-                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md mb-4 leading-[0.9] mix-blend-overlay">
+                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-md mb-4 leading-[0.9] mix-blend-overlay text-outline-sm">
                     {prop.title || "Activo Stratosfere"}
                 </h1>
                 <div className="flex items-center gap-3 pl-1">
@@ -133,4 +171,3 @@ export default function HoloInspector({
 
   return createPortal(ui, document.body);
 }
-
