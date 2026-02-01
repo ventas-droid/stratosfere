@@ -93,26 +93,48 @@ export default function HoloInspector({
                         loop
                     />
                  </div>
-             ) : isPdf ? (
-                 // MODO PDF (CORREGIDO CON VISOR GOOGLE)
-                 <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center relative z-10 p-4 md:p-10">
+           ) : isPdf ? (
+                 // MODO PDF: ESTRATEGIA "FOTO DE PORTADA" (INFALIBLE)
+                 <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center relative z-10 group p-4 md:p-8">
                     
-                    {/* ✅ EL CAMBIO ESTÁ AQUÍ: Usamos gview para renderizar */}
-                    <iframe 
-                        src={`https://docs.google.com/gview?url=${encodeURIComponent(current as string)}&embedded=true`}
-                        className="w-full h-full rounded-xl border border-gray-200 shadow-inner bg-white"
-                        title="Documento PDF"
-                        frameBorder="0"
+                    {/* 1. EL TRUCO MAESTRO: */}
+                    {/* Le cambiamos la extensión .pdf por .jpg a la URL. */}
+                    {/* Cloudinary generará automáticamente una imagen de la Pag. 1 */}
+                    <img 
+                        src={(current as string).replace(/\.pdf$/i, ".jpg")} 
+                        alt="Vista previa documento"
+                        className="h-full w-auto object-contain shadow-2xl rounded-lg bg-white"
+                        // Si falla la conversión (raro), mostramos un icono genérico
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
                     />
 
-                    <a 
-                        href={current as string} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="absolute bottom-10 px-6 py-3 bg-black text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2 z-20"
-                    >
-                        <FileText size={16}/> Descargar / Abrir Original
-                    </a>
+                    {/* FALLBACK: Si la imagen falla, mostramos este icono gigante */}
+                    <div className="hidden absolute inset-0 flex flex-col items-center justify-center">
+                        <FileText size={64} className="text-slate-300 mb-4" />
+                        <p className="text-slate-400 font-bold">Vista previa no disponible</p>
+                    </div>
+
+                    {/* 2. BOTÓN PARA VER EL PDF REAL */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/10 transition-colors pointer-events-none">
+                         {/* El botón sí tiene pointer-events-auto */}
+                        <a 
+                            href={current as string} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="pointer-events-auto px-8 py-4 bg-black text-white rounded-full text-sm font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-3 opacity-90 hover:opacity-100"
+                        >
+                            <FileText size={20} className="text-red-400"/> 
+                            ABRIR PDF COMPLETO
+                        </a>
+                    </div>
+
+                    {/* ETIQUETA INFORMATIVA */}
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-4 py-2 rounded-full text-[10px] font-bold text-white shadow-sm flex items-center gap-2 z-20">
+                        DOCUMENTO PDF
+                    </div>
                  </div>
                ) : (
                  // MODO FOTO (CON EFECTO CINEMÁTICO)
