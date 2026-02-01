@@ -547,9 +547,15 @@ useEffect(() => {
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {myProperties.map((prop) => {
-                        const serviceIds = getServiceIds(prop);
-                        return (
+                   {myProperties.map((prop) => {
+  const serviceIds = getServiceIds(prop);
+
+  const st = String((prop as any)?.status || "").toUpperCase();
+  const isPendingPayment = st === "PENDIENTE_PAGO";
+  const isPublished = st === "PUBLICADO";
+
+  return (
+
                         <div 
                             key={prop.id} 
                             onClick={(e) => handleFlyTo(e, prop)}
@@ -565,9 +571,16 @@ useEffect(() => {
     <h4 className="font-bold text-slate-900 truncate text-lg group-hover:text-blue-600 transition-colors">
       {prop?.title || "Sin título"}
     </h4>
-    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-green-100 text-green-700">
-      ONLINE
-    </span>
+   <span
+  className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
+    isPendingPayment
+      ? "bg-amber-100 text-amber-700"
+      : "bg-green-100 text-green-700"
+  }`}
+>
+  {isPendingPayment ? "PENDIENTE PAGO" : (isPublished ? "ONLINE" : "OFFLINE")}
+</span>
+
   </div>
 
   {/* ✅ REF CODE */}
@@ -583,6 +596,11 @@ useEffect(() => {
       {prop?.location || prop?.address || ""}
     </span>
   </div>
+{isPendingPayment && (
+  <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 inline-block">
+    Pendiente de pago · No visible en el mapa
+  </div>
+)}
 
   <p className="text-base font-black text-slate-900 mt-1">
     {(() => {
