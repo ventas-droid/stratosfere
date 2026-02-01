@@ -114,36 +114,47 @@ export async function POST(req: Request) {
 
     const now = new Date();
 
-    // -------------------------------------------------------------
-    // A) PARTICULAR 9,90€ — SOLO publica si status=paid
+   // -------------------------------------------------------------
+    // A) PARTICULAR 9,90€ — LÓGICA BLINDADA (Publicar o Esconder)
     // -------------------------------------------------------------
     if (kind === "PROPERTY_PUBLISH") {
       const propertyId = String((metadata as any).propertyId || "").trim();
       if (!propertyId) return NextResponse.json({ ok: true });
 
-      // Actualizamos trazabilidad SIEMPRE (open/failed/canceled/etc.)
-     await prisma.serviceOrder.updateMany({
-  where: {
-    propertyId,
-    providerPayId: String(payment.id),
-  },
-  data: {
-    provider: "MOLLIE",
-    providerPayId: String(payment.id),
-    payStatus,
-    paid: payStatus === "PAID",
-    paidAt: payStatus === "PAID" ? now : null,
-    metadata: metadata ?? undefined,
-  },
-});
+      // 1. Actualizamos el Recibo (ServiceOrder) - Esto ya lo hacía bien
+      await prisma.serviceOrder.updateMany({
+        where: {
+          propertyId,
+          providerPayId: String(payment.id),
+        },
+        data: {
+          provider: "MOLLIE",
+          providerPayId: String(payment.id),
+          payStatus, // PAID, CANCELED, FAILED, OPEN...
+          paid: payStatus === "PAID",
+          paidAt: payStatus === "PAID" ? now : null,
+          metadata: metadata ?? undefined,
+        },
+      });
 
-
+      // 2. 🔥 GOLPE DE AUTORIDAD EN LA PROPIEDAD 🔥
       if (payStatus === "PAID") {
+        // ✅ ÉXITO: El dinero está en la saca. PUBLICAMOS.
         await prisma.property.update({
           where: { id: propertyId },
           data: { status: "PUBLICADO" },
         });
-        console.log(`✅ Property PUBLICADO (id=${propertyId}, payment=${payment.id})`);
+        console.log(`✅ Property PUBLICADO (id=${propertyId}) - Pago confirmado.`);
+      } 
+      else if (["FAILED", "CANCELED", "EXPIRED"].includes(payStatus)) {
+        // ❌ FRACASO: Si el usuario canceló o falló la tarjeta...
+        // ...NOS ASEGURAMOS de que la propiedad esté OCULTA.
+        // Esto corrige cualquier error previo. Si no paga, no se ve.
+        await prisma.property.update({
+          where: { id: propertyId },
+          data: { status: "PENDIENTE_PAGO" },
+        });
+        console.log(`⛔ Property OCULTADA (id=${propertyId}) - Pago fallido/cancelado.`);
       }
 
       return NextResponse.json({ ok: true });
