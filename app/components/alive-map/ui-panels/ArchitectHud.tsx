@@ -252,22 +252,24 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
       return parsePriceInput(formData.price);
   }, [formData.price]);
 
-  return (
+ return (
+    // 1. VOLVEMOS AL Z-5000 ORIGINAL (Como estaba antes)
     <div className="absolute inset-0 pointer-events-none z-[5000]">
-    {/* 🚀 NANO CARD PREVIEW (VISIBILIDAD FORZADA Z-9000) */}
+      
+      {/* NANO CARD PREVIEW: SIN ENVOLTORIOS RAROS, LIMPIA COMO ANTES */}
       {step !== "SUCCESS" && (
-        <div className="fixed inset-0 pointer-events-none z-[9000]">
-            <MapNanoCard 
-                {...formData} 
-                rooms={formData.rooms}
-                baths={formData.baths}
-                mBuilt={formData.mBuilt}
-                rawPrice={currentRawPrice} 
-                priceValue={currentRawPrice} 
-                price={formData.price}
-            />
-        </div>
+        <MapNanoCard 
+            {...formData} 
+            rooms={formData.rooms}
+            baths={formData.baths}
+            mBuilt={formData.mBuilt}
+            rawPrice={currentRawPrice} 
+            priceValue={currentRawPrice} 
+            price={formData.price}
+        />
       )}
+
+      {/* HUD DE EXPLORACIÓN (SOLO SI NO HAY WIZARD) */}
       {!showWizard && (
         <ExplorerHud
           onCloseMode={() => closeWizard()}
@@ -276,24 +278,21 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
         />
       )}
 
-      {/* --- 1. PANEL DE PERFIL --- */}
+      {/* PANEL DE PERFIL */}
       <ProfilePanel
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
-        
         onSelectProperty={(id: string) => {
              console.log("🎯 Objetivo fijado:", id);
              setActivePropertyId(id);
              setShowWizard(false); 
-             // setShowMarket(true); // Variable no definida, eliminada para evitar error
         }}
-
         rightPanel={showProfile ? "PROFILE" : "NONE"}
         toggleRightPanel={(val: string) => setShowProfile(val === "PROFILE")}
       />
    
-
-    {showWizard && (
+      {/* EL WIZARD (FORMULARIO) */}
+      {showWizard && (
         <div
           className={`fixed inset-0 z-[7000] flex items-center justify-center p-4 transition-all duration-500 ${
             isClosing ? "opacity-0" : "opacity-100"
@@ -345,6 +344,7 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
             <div className="flex-1 overflow-hidden relative z-10 p-0 bg-white">
               <div className="h-full w-full overflow-y-auto custom-scrollbar p-8 lg:px-12">
                 <div className="max-w-4xl mx-auto h-full flex flex-col">
+                    {/* CARGA DE PASOS */}
                     {step === "LOCATION" && <StepLocation formData={formData} updateData={updateData} setStep={setStep} />}
                     {step === "BASICS" && <StepBasics formData={formData} updateData={updateData} setStep={setStep} />}
                     {step === "SPECS" && <StepSpecs formData={formData} updateData={updateData} setStep={setStep} />}
@@ -370,6 +370,7 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
                 </div>
               </div>
 
+              {/* LOADER */}
               {loading && (
                 <div className="absolute inset-0 bg-white/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center animate-fade-in">
                   <div className="relative">
@@ -385,7 +386,6 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
       )}</div>
   );
 }
-
 // ============================================================================
 // 🧱 STEPS COMPONENTS
 // ============================================================================
