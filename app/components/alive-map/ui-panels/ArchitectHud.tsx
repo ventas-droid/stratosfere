@@ -140,7 +140,7 @@ const [showWizard, setShowWizard] = useState(true);
             console.log("📍 HUD: Objetivo fijado en mapa ->", id);
             setActivePropertyId(id); // Fijamos la propiedad
             setShowWizard(false);    // Salimos del modo creación
-            setShowMarket(false);    // Reseteamos paneles si es necesario
+         
             setShowProfile(true);    // Opcional: abrir perfil o lo que prefiera
         }
     };
@@ -351,7 +351,7 @@ const normalizedServices = initialData.selectedServices || [];
              console.log("🎯 Objetivo fijado:", id);
              setActivePropertyId(id);
              setShowWizard(false); 
-             setShowMarket(true); 
+              
         }}
 
         // ❌ BORRE ESTA LÍNEA QUE CAUSA EL ERROR:
