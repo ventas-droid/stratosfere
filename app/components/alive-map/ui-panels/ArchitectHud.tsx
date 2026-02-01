@@ -4,10 +4,14 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Activity, ArrowLeft, ArrowRight, ArrowUp, Camera, Check, CheckCircle2, Clock,
-  Eye, FileCheck, FileText, Flame, Globe, LayoutGrid, Loader2, Map as MapIcon,
+  Eye, FileCheck, FileText, Flame, Globe, LayoutGrid, Loader2, 
+  Map as MapIcon, // ✅ ESTO ARREGLA EL ERROR DEL MAPA ("Map constructor")
   MapPin, Megaphone, Paintbrush, Radar, Ruler, Search, Shield, ShieldCheck,
   Smartphone, TrendingUp, Truck, UploadCloud, Video, X, Zap, Award, Crown,
-  Box, Droplets, Star, Bed, Bath, Maximize2, Building2, Home, Briefcase, LandPlot, Warehouse, Sun
+  Box, Droplets, Star, Bed, Bath, Maximize2, Building2, Home, Briefcase, 
+  LandPlot, Warehouse, Sun,
+  // ✅ NUEVOS ICONOS AÑADIDOS (AQUÍ ESTÁ EL THERMOMETER QUE FALTABA):
+  Layers, Hexagon, Tractor, Store, Factory, Car, Sparkles, Hammer, Thermometer
 } from "lucide-react";
 
 import MapNanoCard from "./MapNanoCard";
@@ -22,16 +26,9 @@ import { uploadToCloudinary } from '@/app/utils/upload';
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw";
 
 // ==================================================================================
-// 1. CONSTANTES GLOBALES (DEFINICIÓN ÚNICA - NO no DUPLICAR)
+// 1. CONSTANTES GLOBALES (DEFINICIÓN ÚNICA)
 // ==================================================================================
-const OFFICIAL_TYPES = [
-  { id: "flat", label: "Piso", icon: Building2 },
-  { id: "penthouse", label: "Ático", icon: Sun },
-  { id: "villa", label: "Villa", icon: Home },
-  { id: "office", label: "Oficina", icon: Briefcase },
-  { id: "land", label: "Suelo", icon: LandPlot },
-  { id: "industrial", label: "Nave", icon: Warehouse }
-];
+// (Ya no usamos OFFICIAL_TYPES aquí porque los definimos dentro de StepBasics para tener iconos locales)
 
 const PROPERTY_ICONS = {
   "Piso": Building2,
@@ -103,13 +100,10 @@ const LABEL_STEPS = ["LOCATION","BASICS","SPECS","DESCRIPTION","ENERGY","MEDIA",
   const [step, setStep] = useState<string>("LOCATION");
   const [isClosing, setIsClosing] = useState(false);
   const [loading, setLoading] = useState(false);
- const [showProfile, setShowProfile] = useState(false);
-const [showWizard, setShowWizard] = useState(true);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showWizard, setShowWizard] = useState(true);
 
-  
-/// ---------------------------------------------------------------------------
   // 🧠 CEREBRO DE GESTIÓN HÍBRIDO + ANTENA DE MAPA
-  // ---------------------------------------------------------------------------
   const [myProperties, setMyProperties] = useState<any[]>([]);
   const [activePropertyId, setActivePropertyId] = useState<string | null>(null);
 
@@ -140,7 +134,7 @@ const [showWizard, setShowWizard] = useState(true);
             console.log("📍 HUD: Objetivo fijado en mapa ->", id);
             setActivePropertyId(id); // Fijamos la propiedad
             setShowWizard(false);    // Salimos del modo creación
-            setShowMarket(false);    // Reseteamos paneles si es necesario
+            // setShowMarket(false);    // Reseteamos paneles si es necesario (Variable no definida aquí, eliminada)
             setShowProfile(true);    // Opcional: abrir perfil o lo que prefiera
         }
     };
@@ -157,38 +151,6 @@ const [showWizard, setShowWizard] = useState(true);
     };
   }, [activePropertyId]);
 
-  // 3. EL GATILLO INTELIGENTE (El Interruptor)
-  const handleSmartToggle = (serviceId: string) => {
-    // A. MODO WIZARD (Protegemos lo sagrado: Usa tu lógica original)
-    if (showWizard) {
-      toggleService(serviceId); 
-      return;
-    }
-
-    // B. MODO MAPA (Edición en vivo)
-    if (activeProperty) {
-      const current = activeProperty.selectedServices || [];
-      const updated = current.includes(serviceId)
-        ? current.filter((x: any) => x !== serviceId) // Quitar
-        : [...current, serviceId]; // Añadir
-
-      // Guardamos en la Base de Datos Real
-      const newFleet = myProperties.map(p => 
-        p.id === activeProperty.id ? { ...p, selectedServices: updated } : p
-      );
-      setMyProperties(newFleet);
-      localStorage.setItem('stratos_my_properties', JSON.stringify(newFleet));
-
-      // Avisamos al Mapa para que pinte la NanoCard nueva
-      const event = new CustomEvent('update-property-signal', { 
-        detail: { id: activeProperty.id, updates: { selectedServices: updated } } 
-      });
-      window.dispatchEvent(event);
-    }
-  };
-
-  
-
   // ESTADO GLOBAL
   const [formData, setFormData] = useState<any>({
     address: "",
@@ -201,7 +163,7 @@ const [showWizard, setShowWizard] = useState(true);
     mUseful: "",
     rooms: 2,
     baths: 1,
-    state: "Buen estado",
+    state: "", // Estado vacío al principio para obligar a elegir
     exterior: true,
     title: "",
     description: "",
@@ -214,14 +176,14 @@ const [showWizard, setShowWizard] = useState(true);
     selectedServices: [] // Guardamos los extras aquí también (piscina, garaje...)
   });
 
- // EDICIÓN BLINDADA V4 (CORREGIDA: INICIO INTELIGENTE)
+ // EDICIÓN BLINDADA V4
   useEffect(() => {
     if (initialData) {
       console.log("🔍 MODO ARQUITECTO ACTIVO:", initialData);
 
-
-// ✅ SOLUCIÓN: Si no hay set, usamos el array directo o vacío
-const normalizedServices = initialData.selectedServices || [];
+      // ✅ SOLUCIÓN: Si no hay set, usamos el array directo o vacío
+      const normalizedServices = initialData.selectedServices || [];
+      
       // --- 2. OPERACIÓN RESCATE DE ASCENSOR ---
       let rawElevator = initialData.elevator;
       if (rawElevator === undefined && initialData.specs) {
@@ -234,22 +196,18 @@ const normalizedServices = initialData.selectedServices || [];
           ? String(initialData.rawPrice) 
           : (initialData.price ? String(initialData.price).replace(/\D/g, "") : "");
 
-     
-
       setFormData((prev: any) => ({
         ...prev,
         ...initialData,
         mBuilt: initialData.mBuilt || initialData.m2 || "",
-        elevator: normalizedElevator,     
+        elevator: normalizedElevator,      
         selectedServices: normalizedServices,
         price: normalizedPrice,
         
-        // 🔥 RECUPERACIÓN DE MEMORIA (AQUÍ ESTABA EL FALLO)
-        // Forzamos a leer estos campos de la base de datos:
+        // 🔥 RECUPERACIÓN DE MEMORIA
         communityFees: (initialData.communityFees ?? ""),
-   
         energyConsumption: initialData.energyConsumption || "", 
-        energyEmissions: initialData.energyEmissions || "",     
+        energyEmissions: initialData.energyEmissions || "",      
         energyPending: initialData.energyPending === true,      
         
         // ⚡️ CORRECCIÓN: Solo es modo edición si tiene ID real
@@ -270,31 +228,6 @@ const normalizedServices = initialData.selectedServices || [];
 
   const updateData = (field: string, value: any) =>
     setFormData((prev: any) => ({ ...prev, [field]: value }));
-// HANDLERS SERVICIOS (EXTRAS) - VERSIÓN BLINDADA
-  const toggleService = (id: string) => {
-    // 1. Leemos la verdad actual del formulario
-    const currentList = formData.selectedServices || [];
-    let newList = [];
-
-    // 2. Aplicamos la lógica (Packs exclusivos vs Extras acumulables)
-    if (id.startsWith("pack_")) {
-      if (currentList.includes(id)) {
-          newList = currentList.filter((x: string) => x !== id);
-      } else {
-          // Quitamos otros packs, pero MANTENEMOS los extras (pool, garage, etc)
-          const nonPackServices = currentList.filter((x: string) => !x.startsWith("pack_"));
-          newList = [...nonPackServices, id];
-      }
-    } else {
-      // Toggle Normal (Añadir/Quitar)
-      newList = currentList.includes(id) 
-        ? currentList.filter((x: string) => x !== id) 
-        : [...currentList, id];
-    }
-    
-    // 3. Sincronizamos SOLO EL FORMULARIO (La línea vieja se ha eliminado)
-    setFormData((f: any) => ({ ...f, selectedServices: newList }));
-  };
 
   const progress = useMemo(() => {
     const idx = STEPS.indexOf(step);
@@ -342,7 +275,7 @@ const normalizedServices = initialData.selectedServices || [];
         />
       )}
 
-     {/* --- 1. PANEL DE PERFIL --- */}
+      {/* --- 1. PANEL DE PERFIL --- */}
       <ProfilePanel
         isOpen={showProfile}
         onClose={() => setShowProfile(false)}
@@ -351,13 +284,9 @@ const normalizedServices = initialData.selectedServices || [];
              console.log("🎯 Objetivo fijado:", id);
              setActivePropertyId(id);
              setShowWizard(false); 
-             setShowMarket(true); 
+             // setShowMarket(true); // Variable no definida, eliminada para evitar error
         }}
 
-        // ❌ BORRE ESTA LÍNEA QUE CAUSA EL ERROR:
-        // activeServicesCount={currentServiceCount} 
-
-        // ✅ DEJE ESTAS:
         rightPanel={showProfile ? "PROFILE" : "NONE"}
         toggleRightPanel={(val: string) => setShowProfile(val === "PROFILE")}
       />
@@ -416,35 +345,27 @@ const normalizedServices = initialData.selectedServices || [];
               <div className="h-full w-full overflow-y-auto custom-scrollbar p-8 lg:px-12">
                 <div className="max-w-4xl mx-auto h-full flex flex-col">
                     {step === "LOCATION" && <StepLocation formData={formData} updateData={updateData} setStep={setStep} />}
-{step === "BASICS" && <StepBasics formData={formData} updateData={updateData} setStep={setStep} />}
-{step === "SPECS" && <StepSpecs formData={formData} updateData={updateData} setStep={setStep} />}
-{step === "DESCRIPTION" && <StepDescription formData={formData} updateData={updateData} setStep={setStep} />}
-{step === "ENERGY" && <StepEnergy formData={formData} updateData={updateData} setStep={setStep} />}
-{step === "MEDIA" && <StepMedia formData={formData} updateData={updateData} setStep={setStep} />}
-{step === "PRICE" && <StepPrice formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "BASICS" && <StepBasics formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "SPECS" && <StepSpecs formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "DESCRIPTION" && <StepDescription formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "ENERGY" && <StepEnergy formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "MEDIA" && <StepMedia formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "PRICE" && <StepPrice formData={formData} updateData={updateData} setStep={setStep} />}
+                    {step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
+                    {step === "RADAR" && <MarketRadarStep formData={formData} onNext={() => setStep("SUCCESS")} />}
 
-{step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
-
-{step === "RADAR" && (
-  <MarketRadarStep
-    formData={formData}
-    onNext={() => setStep("SUCCESS")}
-  />
-)}
-
-{step === "SUCCESS" && (
-  <StepSuccess
-    formData={formData}
-    handleClose={(payload: any) => {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("reload-profile-assets"));
-        window.dispatchEvent(new CustomEvent("force-map-refresh"));
-      }
-      closeWizard(payload);
-    }}
-  />
-)}
-
+                    {step === "SUCCESS" && (
+                      <StepSuccess
+                        formData={formData}
+                        handleClose={(payload: any) => {
+                          if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("reload-profile-assets"));
+                            window.dispatchEvent(new CustomEvent("force-map-refresh"));
+                          }
+                          closeWizard(payload);
+                        }}
+                      />
+                    )}
                 </div>
               </div>
 
@@ -480,23 +401,9 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
       setIsSearching(true);
       setShowResults(true);
       try {
-        // COORDENADAS DE LA PUERTA DEL SOL (MADRID)
-        // Esto obliga a Mapbox a poner lo que esté cerca de Madrid PRIMERO.
         const MADRID_CENTER = "-3.7038,40.4168"; 
-        
-        // SOLO ESPAÑA
         const SPAIN_BBOX = "-18.1612,27.6377,4.3279,43.7924"; 
-
-        // TIPOS DE DATOS
         const TYPES = "district,locality,neighborhood,address,poi";
-
-        // 🚨 CHIVATO EN CONSOLA (Si no ve esto, no se ha actualizado)
-        console.log("🚨 BUSCANDO CON PRIORIDAD MADRID 🚨:", text);
-
-        // 🔥 LA URL MAESTRA:
-        // proximity=MADRID: Gana Madrid.
-        // bbox=SPAIN: Solo España.
-        // limit=10: Vemos hasta 10 resultados.
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?access_token=${MAPBOX_TOKEN}&country=es&types=${TYPES}&proximity=${MADRID_CENTER}&bbox=${SPAIN_BBOX}&language=es&autocomplete=true&fuzzyMatch=true&limit=10`;
 
         const res = await fetch(url);
@@ -581,10 +488,9 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
 
         <div className="flex-1 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center bg-gray-50/50 min-h-[200px]">
           {canContinue ? (
-           /* ✅ NUEVO BLOQUE: VISIÓN SATÉLITE (Sustituye al Check verde) */
+            /* ✅ VISIÓN SATÉLITE */
             <div className="relative w-full h-full min-h-[220px] rounded-xl overflow-hidden shadow-md group animate-in zoom-in duration-300">
               
-              {/* 1. LA IMAGEN DEL MAPA (Usamos formData.coordinates que ya guardó antes) */}
               {formData.coordinates && (
                 <img 
                  src={`https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/pin-s+ff0000(${formData.coordinates[0]},${formData.coordinates[1]})/${formData.coordinates[0]},${formData.coordinates[1]},17,0/600x300?access_token=${MAPBOX_TOKEN}`}
@@ -593,7 +499,6 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
                 />
               )}
 
-              {/* 2. CAPA DE TEXTO ELEGANTE (SOBRE EL MAPA) */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-4 text-left">
                 <div className="flex items-center gap-2 mb-1">
                     <span className="relative flex h-2 w-2">
@@ -612,14 +517,12 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
                 </p>
               </div>
 
-              {/* 3. BOTÓN "X" PARA CANCELAR (Arriba a la derecha) */}
               <button 
                 onClick={(e) => {
-                  e.stopPropagation(); // Evita clics fantasma
+                  e.stopPropagation(); 
                   setQuery(""); 
                   updateData("coordinates", null);
                   updateData("address", "");
-                  // Al borrar el query y address, 'canContinue' pasará a false automáticamente
                 }}
                 className="absolute top-3 right-3 bg-black/40 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-md transition-all border border-white/20 z-20"
                 title="Cambiar ubicación"
@@ -648,124 +551,146 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
   );
 };
 
-// --- PASO 2: BÁSICOS (LÓGICA LIMPIA) ---
+// --- PASO 2: BÁSICOS (LÓGICA ACTUALIZADA CON 12 TIPOS Y ESTADO) ---
 const StepBasics = ({ formData, updateData, setStep }: any) => {
-  const [localDoor, setLocalDoor] = useState(formData.door || "");
-  const saveDoor = () => updateData("door", localDoor);
-
-  const isLandOrVilla = ["Suelo", "Nave", "Villa"].includes(formData.type);
-  const isFloorRequired = !isLandOrVilla;
-  const floorValid = isFloorRequired ? (formData.floor !== "" && formData.floor !== undefined) : true;
-  const canContinue = formData.type && floorValid;
+  const canContinue = formData.type && formData.state; // Obligatorio Tipo y Estado
 
   return (
-    <div className="h-full flex flex-col animate-fade-in-right">
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Características</h2>
+    <div className="h-full flex flex-col animate-fade-in-right p-1 overflow-y-auto custom-scrollbar">
+      
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Características Básicas</h2>
+      <p className="text-gray-500 mb-6 text-sm">Define la identidad del inmueble.</p>
 
-      <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+      <div className="space-y-8 pb-20">
         
+        {/* --- 1. TIPO DE INMUEBLE (MATRIZ DE 12) --- */}
         <div>
-          <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
-            Tipo de inmueble <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-3 pb-2">
-            {OFFICIAL_TYPES.map((item) => {
-                const isSelected = formData.type === item.label;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                        updateData("type", item.label);
-                        if (["Suelo", "Nave", "Villa"].includes(item.label)) {
-                            updateData("floor", ""); 
-                            updateData("elevator", false);
-                        }
-                    }}
-                    className={`
-                        flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all duration-200
-                        ${isSelected 
-                            ? "border-blue-600 bg-blue-600 text-white shadow-md scale-105" 
-                            : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300"}
-                    `}
-                  >
-                    <item.icon size={22} strokeWidth={isSelected ? 2 : 1.5} />
-                    <span className="text-[10px] font-bold uppercase">{item.label}</span>
-                  </button>
-                )
-            })}
-          </div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 block">
+                Tipo de Propiedad <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {[
+                { id: 'flat', label: 'Piso', icon: Building2 },
+                { id: 'penthouse', label: 'Ático', icon: Sun },
+                { id: 'duplex', label: 'Dúplex', icon: Layers }, 
+                { id: 'loft', label: 'Loft', icon: Hexagon },
+                { id: 'house', label: 'Chalet', icon: Home },
+                { id: 'townhouse', label: 'Adosado', icon: Home },
+                { id: 'rustic', label: 'Finca R.', icon: Tractor },
+               { id: 'land', label: 'Terreno', icon: MapIcon },
+                { id: 'office', label: 'Oficina', icon: Briefcase },
+                { id: 'commercial', label: 'Local', icon: Store },
+                { id: 'warehouse', label: 'Nave', icon: Factory },
+                { id: 'garage', label: 'Garaje', icon: Car },
+              ].map((type) => (
+                <button
+                  key={type.id}
+                  onClick={() => updateData('type', type.label)}
+                  className={`
+                    p-2 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all duration-200 aspect-square
+                    ${formData.type === type.label 
+                      ? 'border-black bg-gray-900 text-white shadow-lg transform scale-105' 
+                      : 'border-gray-100 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600'}
+                  `}
+                >
+                  <type.icon size={20} strokeWidth={1.5} />
+                  <span className="text-[10px] font-bold truncate w-full text-center">{type.label}</span>
+                </button>
+              ))}
+            </div>
         </div>
 
-        {!isLandOrVilla && (
+        {/* --- 2. DETALLES DEL EDIFICIO (Solo si NO es terreno/nave) --- */}
+        {!['Terreno', 'Nave', 'Garaje'].includes(formData.type) && (
             <div className="grid grid-cols-2 gap-4 animate-fade-in">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
-                    Planta <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                    <select
-                      className="w-full p-4 bg-gray-50 rounded-xl border border-gray-300 text-gray-900 font-bold focus:border-black outline-none transition-all appearance-none cursor-pointer"
-                      value={formData.floor}
-                      onChange={(e) => updateData("floor", e.target.value)}
-                    >
-                      <option value="" disabled className="text-gray-400">Selecciona</option>
-                      <option value="Bajo">Bajo</option>
-                      <option value="Entreplanta">Entreplanta</option>
-                      {[1,2,3,4,5,6,7,8,9,10,11,12,15,20].map((n) => (
-                        <option key={n} value={n}>{n}ª Planta</option>
-                      ))}
-                      <option value="Atico">Ático</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <ArrowUp size={16} className="text-gray-400"/>
-                    </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Puerta</label>
-                <input
-                  className="w-full p-4 bg-gray-50 rounded-xl border border-gray-300 text-gray-900 font-bold focus:border-black outline-none transition-all placeholder:text-gray-400"
-                  placeholder="Ej: 2B"
-                  value={localDoor}
-                  onChange={(e) => setLocalDoor(e.target.value)}
-                  onBlur={saveDoor}
-                />
-              </div>
+                 {/* Planta */}
+                 <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Planta</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej: 2, Bj" 
+                      value={formData.floor || ''}
+                      onChange={(e) => updateData('floor', e.target.value)}
+                      className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-black outline-none font-bold text-center text-sm"
+                    />
+                 </div>
+                 {/* Puerta */}
+                 <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 block">Puerta</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ej: B, 1" 
+                      value={formData.door || ''}
+                      onChange={(e) => updateData('door', e.target.value)}
+                      className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-black outline-none font-bold text-center text-sm"
+                    />
+                 </div>
+                 
+                 {/* Ascensor */}
+                 <button
+                  onClick={() => updateData('elevator', !formData.elevator)}
+                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${formData.elevator ? 'bg-black text-white border-black' : 'bg-white border-gray-200 text-gray-500'}`}
+                >
+                    <ArrowUp size={16} />
+                    <span className="text-xs font-bold">Con Ascensor</span>
+                </button>
+                
+                {/* Exterior/Interior */}
+                <button
+                  onClick={() => updateData('exterior', !formData.exterior)}
+                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${formData.exterior ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-500'}`}
+                >
+                    {formData.exterior ? <Eye size={16} /> : <Home size={16} />}
+                    <span className="text-xs font-bold">{formData.exterior ? 'Es Exterior' : 'Es Interior'}</span>
+                </button>
             </div>
         )}
 
-        {!isLandOrVilla && (
-            <div className="animate-fade-in">
-              <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">¿Tiene ascensor?</label>
-              <div className="flex gap-4">
+        {/* --- 3. ESTADO DE CONSERVACIÓN --- */}
+        <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 block">
+                Estado <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { id: 'new', label: 'Obra Nueva', icon: Sparkles, color: 'text-blue-500 border-blue-100 bg-blue-50' },
+                { id: 'good', label: 'Buen Estado', icon: Check, color: 'text-green-500 border-green-100 bg-green-50' },
+                { id: 'reform', label: 'A Reformar', icon: Hammer, color: 'text-orange-500 border-orange-100 bg-orange-50' }
+              ].map((item) => (
                 <button
-                  onClick={() => updateData("elevator", true)}
-                  className={`flex-1 py-3 border rounded-xl text-sm font-bold transition-all ${
-                    formData.elevator ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  }`}
+                  key={item.id}
+                  onClick={() => updateData('state', item.id)}
+                  className={`
+                    relative p-2 rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-2 h-20
+                    ${formData.state === item.id 
+                      ? 'border-black bg-gray-50 shadow-md transform scale-[1.02] z-10' 
+                      : 'border-transparent bg-gray-50 opacity-60 hover:opacity-100 hover:bg-white hover:border-gray-200'} 
+                  `}
                 >
-                  Sí
+                  <item.icon size={20} className={formData.state === item.id ? 'text-black' : 'text-gray-400'} />
+                  <span className={`text-[10px] font-bold uppercase ${formData.state === item.id ? 'text-black' : 'text-gray-400'}`}>{item.label}</span>
+                  
+                  {/* Check flotante */}
+                  {formData.state === item.id && (
+                      <div className="absolute top-2 right-2 w-2 h-2 bg-black rounded-full"></div>
+                  )}
                 </button>
-                <button
-                  onClick={() => updateData("elevator", false)}
-                  className={`flex-1 py-3 border rounded-xl text-sm font-bold transition-all ${
-                    !formData.elevator ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  No
-                </button>
-              </div>
+              ))}
             </div>
-        )}
+        </div>
+
       </div>
 
-      <div className="mt-4 flex gap-4 pt-4 border-t border-gray-100">
-        <button onClick={() => setStep("LOCATION")} className="p-4 bg-gray-100 text-gray-800 rounded-2xl hover:bg-gray-200 transition-all active:scale-95">
+      {/* --- BARRA DE NAVEGACIÓN --- */}
+      <div className="mt-4 flex gap-4 pt-4 border-t border-gray-100 bg-white/90 backdrop-blur-sm fixed bottom-0 left-0 w-full md:relative md:bg-transparent p-4 md:p-0 z-20">
+        <button 
+            onClick={() => setStep("LOCATION")} // Vuelve al mapa
+            className="p-4 bg-gray-100 text-gray-800 rounded-2xl hover:bg-gray-200 transition-all active:scale-95"
+        >
           <ArrowLeft size={24} />
         </button>
         <button 
-            onClick={() => { saveDoor(); setStep("SPECS"); }} 
+            onClick={() => setStep("SPECS")} // Va al Paso 3
             disabled={!canContinue}
             className={`
                 w-full py-4 font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all 
@@ -774,8 +699,7 @@ const StepBasics = ({ formData, updateData, setStep }: any) => {
                     : "bg-gray-200 text-gray-400 cursor-not-allowed"}
             `}
         >
-          {canContinue ? "Siguiente" : "Completa los datos"} 
-          {canContinue && <ArrowRight size={18} />}
+          Siguiente Paso <ArrowRight size={18} />
         </button>
       </div>
     </div>
@@ -803,6 +727,10 @@ const StepSpecs = ({ formData, updateData, setStep }: any) => {
       { id: 'pool', label: 'Piscina', icon: Droplets },
       { id: 'garage', label: 'Garaje', icon: Box },
       { id: 'garden', label: 'Jardín', icon: Sun },
+      { id: 'terrace', label: 'Terraza', icon: Sun }, // ✅ NUEVO
+      { id: 'storage', label: 'Trastero', icon: Box }, // ✅ NUEVO
+      { id: 'ac', label: 'Aire Acond.', icon: Thermometer }, // ✅ NUEVO
+      { id: 'heating', label: 'Calefacción', icon: Flame }, // ✅ NUEVO
       { id: 'security', label: 'Seguridad', icon: ShieldCheck }
   ];
 
@@ -950,7 +878,7 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
     // 3. Filtramos si alguna falló
     const validUrls = uploadedUrls.filter(url => url !== null);
 
-    // 4. Actualizamos el formulario con las URLs de internet (no archivos pesados)
+    // 4. Actualizamos el formulario con las URLs de internet
     const currentImages = formData.images || [];
     const combined = [...currentImages, ...validUrls].slice(0, 10);
     updateData("images", combined);
@@ -1058,95 +986,6 @@ const MarketRadarStep = ({ formData, onNext }: any) => {
   );
 };
 
-const StepVerify = ({ formData, setStep }: any) => {
-  const rawPrice = useMemo(() => { if (!formData.price) return 0; return parseInt(formData.price.toString().replace(/\D/g, "")); }, [formData.price]);
-  const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
-  const getPriceStyle = (p: number) => { if (p < 200000) return { hex: "#34C759", bg: "bg-[#34C759]/10", text: "text-[#34C759]", label: "INVEST" }; if (p < 550000) return { hex: "#Eab308", bg: "bg-[#Eab308]/10", text: "text-[#Eab308]", label: "OPPORTUNITY" }; if (p < 1200000) return { hex: "#F97316", bg: "bg-[#F97316]/10", text: "text-[#F97316]", label: "PREMIUM" }; if (p < 3000000) return { hex: "#EF4444", bg: "bg-[#EF4444]/10", text: "text-[#EF4444]", label: "LUXURY" }; return { hex: "#A855F7", bg: "bg-[#A855F7]/10", text: "text-[#A855F7]", label: "EXCLUSIVE" }; };
-  const style = getPriceStyle(rawPrice);
-
- return (
-    <div className="h-full flex flex-col animate-fade-in relative px-4">
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 pb-10">
-        <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 text-blue-600 rounded-full mb-4 shadow-sm animate-bounce-small"><ShieldCheck size={32} /></div>
-            <h2 className="text-3xl font-black text-gray-900 tracking-tight mb-2">Resumen Final</h2>
-            <p className="text-gray-500 font-medium">Confirma los datos antes de continuar.</p>
-        </div>
-        
-        {/* TARJETA RESUMEN (NO TOCAR) */}
-        <div className="w-full max-w-sm bg-white rounded-[32px] shadow-[0_20px_60px_-10px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden relative group">
-            <div className="p-6 border-b border-gray-50 bg-gray-50/50">
-                <div className="flex justify-between items-start mb-2">
-                    <span className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-500">{formData.type || "Inmueble"}</span>
-                    {formData.state && (<span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{formData.state}</span>)}
-                </div>
-                <div className="flex items-start gap-2 text-gray-900">
-                    <MapPin size={18} className="text-gray-400 mt-0.5 shrink-0" />
-                    <p className="font-bold leading-tight line-clamp-2">{formData.address || "Ubicación Premium"}</p>
-                </div>
-            </div>
-            <div className="p-8 text-center bg-white relative">
-                <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[9px] font-black tracking-[0.2em] uppercase ${style.bg} ${style.text}`}>{style.label}</div>
-                <div className={`text-5xl font-black tracking-tighter mt-4 mb-1 ${style.text}`}>{visualPrice}<span className="text-3xl align-top opacity-50 ml-1">€</span></div>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Valor de Salida</p>
-            </div>
-            <div className="grid grid-cols-3 border-t border-gray-100 divide-x divide-gray-100 bg-gray-50/30">
-                <div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.rooms}</span><span className="text-[9px] font-bold text-gray-400 uppercase">Habit.</span></div>
-                <div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.baths}</span><span className="text-[9px] font-bold text-gray-400 uppercase">Baños</span></div>
-                <div className="p-4 text-center"><span className="block text-xl font-black text-gray-900">{formData.mBuilt}</span><span className="text-[9px] font-bold text-gray-400 uppercase">m²</span></div>
-            </div>
-        </div>
-      </div>
-
-      {/* BOTONERA INFERIOR BLINDADA */}
-      <div className="shrink-0 pb-6 pt-2">
-          {/* BOTÓN PRINCIPAL */}
-          <button 
-            onClick={() => { 
-                // ⚡️ SI ES EDICIÓN O AGENCIA -> SALTAR SMS E IR A SUCCESS
-                if (formData.isEditMode || formData.isAgencyContext) { 
-                    setStep("SUCCESS"); 
-                } else { 
-                    setStep("SECURITY"); 
-                } 
-            }} 
-            className="w-full h-16 bg-[#1d1d1f] hover:bg-black text-white rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-between px-8 group"
-          >
-            <div className="flex flex-col items-start">
-                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest group-hover:text-gray-400 transition-colors">
-                    {(formData.isEditMode || formData.isAgencyContext) ? "Proceso Completado" : "Último Paso"}
-                </span>
-                <span className="text-lg font-bold">
-                    {(formData.isEditMode || formData.isAgencyContext) ? "Guardar y Publicar" : "Verificar Identidad"}
-                </span>
-            </div>
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                {(formData.isEditMode || formData.isAgencyContext) ? <CheckCircle2 size={20} className="text-white"/> : <Smartphone size={20} className="text-white"/>}
-            </div>
-          </button>
-          
-          {/* BOTÓN VOLVER INTELIGENTE */}
-          <button 
-            onClick={() => {
-                // Si es agencia, volvemos a RADAR (porque nos saltamos Estrategia)
-                if (formData.isAgencyContext) {
-                    setStep("RADAR");
-                } else {
-                    setStep("STRATEGY");
-                }
-            }} 
-            className="w-full py-3 mt-2 text-gray-400 font-bold hover:text-gray-600 text-xs transition-colors"
-          >
-            Volver a {(formData.isAgencyContext) ? "Radar" : "Estrategia"}
-          </button>
-      </div>
-    </div>
-  );
-};
-
-// ==================================================================================
-// 🏆 STEP SUCCESS: VERSIÓN SEGURA (SIN FUGAS DE VISIBILIDAD)
-// ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
@@ -1172,17 +1011,11 @@ const StepSuccess = ({ handleClose, formData }: any) => {
     setIsPublishing(true);
 
     try {
-      // ---------------------------------------------------------
-      // 🛡️ LÓGICA DE INVISIBILIDAD REFORZADA
-      // ---------------------------------------------------------
       let targetStatus = formData.status;
 
       if (isDirectSave) {
-          // Si es Agencia o Edición: Mantenemos estado o Publicamos
           if (!targetStatus) targetStatus = "PUBLICADO";
       } else {
-          // 🛑 SI ES PARTICULAR NUEVO: ¡FORZAMOS INVISIBILIDAD!
-          // No importa lo que diga el formulario, aquí mandamos nosotros.
           targetStatus = "PENDIENTE_PAGO";
       }
 
@@ -1190,7 +1023,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
       const cleanPayload = {
         ...formData,
         id: lastSavedIdRef.current || formData?.id || undefined,
-        status: targetStatus, // ✅ APLICAMOS EL ESTADO SEGURO
+        status: targetStatus, 
         rooms: Number(formData.rooms || 0),
         baths: Number(formData.baths || 0),
         mBuilt: Number(formData.mBuilt || 0),
@@ -1207,14 +1040,12 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         const serverProp = response.property;
         const serverId = String(serverProp.id);
         
-        // Guardamos el ID por si acaso
         lastSavedIdRef.current = serverId;
 
-        // 4. RECUPERAR IDENTIDAD DEL DUEÑO (Para el pago)
+        // 4. RECUPERAR IDENTIDAD DEL DUEÑO
         let ownerId = serverProp.userId || serverProp.user?.id;
         let ownerEmail = serverProp.user?.email;
 
-        // Intentamos recuperar si falta
         if (!ownerId) {
             try {
                 // @ts-ignore 
@@ -1229,8 +1060,6 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         // 5. DECISIÓN FINAL
         if (isDirectSave) {
             // === CAMINO A: AGENCIA/EDICIÓN (Misión Cumplida) ===
-            
-            // Preparamos datos para el mapa
             let secureImage = null;
             if (serverProp.mainImage) secureImage = serverProp.mainImage;
             else if (serverProp.images && serverProp.images.length > 0) secureImage = serverProp.images[0].url;
@@ -1246,7 +1075,6 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                 selectedServices: serverProp.selectedServices,
             };
 
-            // Actualizamos la pantalla del usuario
             if (typeof window !== "undefined") {
                 const eventName = isEditMode ? "update-property-signal" : "add-property-signal";
                 window.dispatchEvent(new CustomEvent(eventName, { 
@@ -1256,14 +1084,11 @@ const StepSuccess = ({ handleClose, formData }: any) => {
                 window.dispatchEvent(new CustomEvent("force-map-refresh"));
             }
             
-            // Cerramos la ventana
             handleClose(mapFormat);
             setIsPublishing(false);
 
         } else {
             // === CAMINO B: PARTICULAR NUEVO (Cobrar Misión) ===
-            // La propiedad YA EXISTE en la DB, pero como "PENDIENTE_PAGO" (Invisible).
-            
             if (!ownerId) {
                 alert("Seguridad: No se ha detectado la sesión del usuario. Recargue la página.");
                 setIsPublishing(false);
@@ -1272,12 +1097,10 @@ const StepSuccess = ({ handleClose, formData }: any) => {
 
             console.log("💳 REDIRIGIENDO A MOLLIE... (ID:", serverId, ")");
             
-            // Llamamos a la función de pago (que está al final del archivo)
             await startPropertyPayments(serverId, {
                 userId: String(ownerId),
                 email: ownerEmail ? String(ownerEmail) : undefined
             });
-            // No ponemos setIsPublishing(false) porque nos vamos de la página
         }
 
       } else {
@@ -1340,10 +1163,10 @@ const StepSuccess = ({ handleClose, formData }: any) => {
       >
         <div className="flex flex-col items-start">
           <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-gray-300 transition-colors">
-             {isDirectSave ? "CONFIRMAR CAMBIOS" : "LANZAMIENTO"}
+              {isDirectSave ? "CONFIRMAR CAMBIOS" : "LANZAMIENTO"}
           </span>
           <span className="text-lg font-bold">
-             {isPublishing 
+              {isPublishing 
                 ? "Procesando..." 
                 : (isDirectSave ? "Guardar y Salir" : "Pagar y Publicar")}
           </span>
@@ -1357,7 +1180,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
   );
 };
 // ==================================================================================
-// 💰 LÓGICA DE PAGO BLINDADA (CON IDENTIFICACIÓN DE USUARIO)
+// 💰 LÓGICA DE PAGO BLINDADA
 // ==================================================================================
 
 function toAmountStringLocal(v?: string) {
@@ -1429,7 +1252,7 @@ async function startPropertyPayments(
         metadata: {
           kind: "PROPERTY_PUBLISH",
           propertyId: pid,
-          userId: finalUserId,     // ✅ AQUÍ VA EL ID SEGURO
+          userId: finalUserId,      // ✅ AQUÍ VA EL ID SEGURO
           email: finalUserEmail,
         },
       }),
