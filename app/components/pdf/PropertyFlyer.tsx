@@ -164,6 +164,100 @@ export const PropertyFlyer = ({ property, agent }: any) => {
   // Datos Agente
   const agentImg = ag.companyLogo || ag.avatar || "https://dummyimage.com/100x100/eee/aaa&text=Agente";
 
+
+ // --- 🔥 LÓGICA DE EXTRACCIÓN MAESTRA (TIPOLOGÍA + COMUNIDAD + CARACTERÍSTICAS) 🔥 ---
+  
+  // A) DICCIONARIO
+  const getNiceLabel = (key: string) => {
+      const k = String(key).replace(/[\[\]"']/g, "").toLowerCase().trim();
+      const map: Record<string, string> = {
+          'pool': 'Piscina', 'piscina': 'Piscina',
+          'garage': 'Garaje', 'garaje': 'Garaje', 'parking': 'Garaje',
+          'garden': 'Jardín', 'jardin': 'Jardín', 'jardín': 'Jardín',
+          'elevator': 'Ascensor', 'ascensor': 'Ascensor', 'lift': 'Ascensor',
+          'terrace': 'Terraza', 'terraza': 'Terraza',
+          'storage': 'Trastero', 'trastero': 'Trastero',
+          'ac': 'Aire Acond.', 'aire': 'Aire Acond.',
+          'heating': 'Calefacción', 'calefaccion': 'Calefacción',
+          'security': 'Seguridad', 'seguridad': 'Seguridad', 'alarm': 'Alarma',
+          'furnished': 'Amueblado', 'amueblado': 'Amueblado',
+          'wardrobes': 'Armarios', 'armarios': 'Armarios',
+          'exterior': 'Exterior', 'interior': 'Interior',
+          'gym': 'Gimnasio', 'gimnasio': 'Gimnasio'
+      };
+      return map[k] || (k.charAt(0).toUpperCase() + k.slice(1));
+  };
+
+  // B) LISTA NEGRA
+  const BLACKLIST = ['pack_basic', 'pack_pro', 'destacado', 'oferta', 'undefined', 'null', 'true', 'false'];
+
+  // C) RECOLECTOR
+  const uniqueFeaturesMap = new Map<string, string>();
+
+  const addFeature = (rawKey: string) => {
+      if (!rawKey) return;
+      const cleanKey = String(rawKey).replace(/[\[\]"']/g, "").toLowerCase().trim();
+      if (!cleanKey || BLACKLIST.includes(cleanKey)) return;
+      const label = getNiceLabel(cleanKey);
+      uniqueFeaturesMap.set(label, label);
+  };
+
+  // --- 1. INYECCIÓN DE DATOS ESTRUCTURALES (LO QUE FALTABA) ---
+  
+  // Tipología (Ej: "Tipo: Ático")
+  if (prop.type) {
+      const typeMap: Record<string, string> = {
+          'flat': 'Piso', 'penthouse': 'Ático', 'duplex': 'Dúplex',
+          'house': 'Casa', 'villa': 'Villa', 'chalet': 'Chalet',
+          'studio': 'Estudio', 'commercial': 'Local', 'office': 'Oficina',
+          'land': 'Terreno', 'plot': 'Parcela'
+      };
+      const label = typeMap[String(prop.type).toLowerCase()] || prop.type;
+      // Lo ponemos al principio con un prefijo para que se entienda
+      uniqueFeaturesMap.set('zzz_type', `Tipo: ${label.charAt(0).toUpperCase() + label.slice(1)}`);
+  }
+
+  // Gastos de Comunidad (Ej: "Comunidad: 78€")
+  if (prop.communityFees && Number(prop.communityFees) > 0) {
+      uniqueFeaturesMap.set('zzz_community', `Comunidad: ${prop.communityFees}€`);
+  }
+
+  // --- 2. FUENTE: SelectedServices ---
+  if (prop.selectedServices) {
+      let raw = String(prop.selectedServices);
+      if (raw.trim().startsWith('[')) raw = raw.replace(/[\[\]]/g, ""); 
+      const services = raw.split(',');
+      services.forEach((s) => addFeature(s));
+  }
+
+  // --- 3. FUENTE: Booleanos ---
+  const booleanKeys = ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac', 'heating', 'furnished', 'wardrobes', 'security'];
+  booleanKeys.forEach(k => {
+      if (prop[k] === true || prop[k] === 1 || prop[k] === "true") {
+          addFeature(k);
+      }
+  });
+
+  // D) LISTA FINAL
+  const featuresList = Array.from(uniqueFeaturesMap.values());
+
+
+  // 2. RECOLECTOR DE CARACTERÍSTICAS (BOOLEANOS + TEXTO)
+  const featuresSet = new Set<string>();
+
+  // A) Rastrear 'selectedServices' (Texto separado por comas)
+  if (prop.selectedServices) {
+      const services = Array.isArray(prop.selectedServices) 
+          ? prop.selectedServices 
+          : prop.selectedServices.split(',');
+      
+      services.forEach((s: string) => {
+          const clean = s.trim().toLowerCase();
+          if(clean) featuresSet.add(clean);
+      });
+  }
+
+  
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
@@ -228,22 +322,23 @@ export const PropertyFlyer = ({ property, agent }: any) => {
             ) : null}
         </View>
 
-        {/* === CARACTERÍSTICAS (Prioridad alta) === */}
+       {/* === CARACTERÍSTICAS (DINÁMICAS E INTELIGENTES) === */}
         <View wrap={false}> 
             <Text style={styles.sectionTitle}>Características</Text>
             <View style={styles.featuresGrid}>
-                {prop.elevator && <View style={styles.featureBadge}><Text style={styles.featureText}>Ascensor</Text></View>}
-                {prop.pool && <View style={styles.featureBadge}><Text style={styles.featureText}>Piscina</Text></View>}
-                {prop.garage && <View style={styles.featureBadge}><Text style={styles.featureText}>Garaje</Text></View>}
-                {prop.terrace && <View style={styles.featureBadge}><Text style={styles.featureText}>Terraza</Text></View>}
-                {prop.ac && <View style={styles.featureBadge}><Text style={styles.featureText}>Aire Acond.</Text></View>}
-                {prop.garden && <View style={styles.featureBadge}><Text style={styles.featureText}>Jardín</Text></View>}
-                {prop.storage && <View style={styles.featureBadge}><Text style={styles.featureText}>Trastero</Text></View>}
-                {prop.heating && <View style={styles.featureBadge}><Text style={styles.featureText}>Calefacción</Text></View>}
-                {prop.furnished && <View style={styles.featureBadge}><Text style={styles.featureText}>Amueblado</Text></View>}
+                {featuresList.length > 0 ? (
+                    // Aquí pintamos TODO lo que el sistema ha encontrado (Texto + Booleanos)
+                    featuresList.map((feat, i) => (
+                        <View key={i} style={styles.featureBadge}>
+                            <Text style={styles.featureText}>{feat}</Text>
+                        </View>
+                    ))
+                ) : (
+                    // Si no hay nada, mensaje discreto
+                    <Text style={{ fontSize: 9, color: '#999' }}>Consultar detalles.</Text>
+                )}
             </View>
         </View>
-
         {/* === DESCRIPCIÓN (Puede romper página) === */}
         <Text style={styles.sectionTitle}>Descripción</Text>
         <Text style={styles.description}>

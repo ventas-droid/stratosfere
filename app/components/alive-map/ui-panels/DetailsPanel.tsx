@@ -8,7 +8,7 @@ import {
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa,
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle
 } from 'lucide-react';
-
+import { toggleFavoriteAction, getPropertyByIdAction } from "@/app/actions";
 // --- DICCIONARIO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,

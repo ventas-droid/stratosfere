@@ -8,16 +8,17 @@ import {
     Car, Trees, Waves, Sun, Box, Thermometer, 
     Camera, Globe, Plane, Hammer, Ruler, 
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
-    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye,
-    FileDown // <--- Añadido aquí para no duplicar la línea
+    Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye, ChevronDown,
+    FileDown 
 } from 'lucide-react';
 
-import { getCampaignByPropertyAction } from "@/app/actions";
+import { getCampaignByPropertyAction, getPropertyByIdAction } from "@/app/actions";
 import { PDFDownloadLink } from '@react-pdf/renderer';
 
-// 2. RUTA DEL PDF CORREGIDA (Sube 2 niveles para encontrar la carpeta pdf)
+// 2. RUTA DEL PDF CORREGIDA
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
-// --- DICCIONARIO MAESTRO DE ICONOS (VERSIÓN FINAL) ---
+
+// --- DICCIONARIO MAESTRO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
     'garden': Trees, 'jardin': Trees, 'jardín': Trees, 'elevator': ArrowUp, 'ascensor': ArrowUp,
@@ -39,8 +40,9 @@ const ICON_MAP: Record<string, any> = {
 const PHYSICAL_KEYWORDS = [
   'pool', 'piscina', 'garage', 'garaje', 'parking', 'garden', 'jardin', 'jardín', 
   'terrace', 'terraza', 'storage', 'trastero', 'ac', 'aire', 'security', 'seguridad',
-  'elevator', 'ascensor', 'lift'
+  'elevator', 'ascensor', 'lift', 'heating', 'calefaccion', 'furnished', 'amueblado'
 ];
+
 export default function AgencyDetailsPanel({ 
   selectedProp: initialProp, 
   onClose, 
@@ -48,84 +50,51 @@ export default function AgencyDetailsPanel({
   favorites = [], 
   onOpenInspector,
   agencyData: initialAgencyData,
-  currentUser // <--- ¡AQUÍ ESTÁ LA CLAVE!
+  currentUser 
 }: any) {
     
     const [selectedProp, setSelectedProp] = useState(initialProp);
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
-const [copiedRef, setCopiedRef] = useState(false);
+    const [copiedRef, setCopiedRef] = useState(false);
+const [isDescExpanded, setIsDescExpanded] = useState(false);
+    const copyRefCode = async () => {
+      const ref = String(selectedProp?.refCode || "");
+      if (!ref) return;
+      try {
+        await navigator.clipboard.writeText(ref);
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = ref;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedRef(true);
+      setTimeout(() => setCopiedRef(false), 2000);
+    };
 
-const copyRefCode = async () => {
-  const ref = String(selectedProp?.refCode || "");
-  if (!ref) return;
+    const [ownerData, setOwnerData] = useState(
+      initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {}
+    );
 
-  try {
-    await navigator.clipboard.writeText(ref);
-  } catch {
-    // fallback (por si clipboard no está permitido)
-    const ta = document.createElement("textarea");
-    ta.value = ref;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  }
+    useEffect(() => { 
+      setSelectedProp(initialProp); 
+      setOwnerData(initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {});
+    }, [initialProp, initialAgencyData]);
 
-  setCopiedRef(true);
-  setTimeout(() => setCopiedRef(false), 2000);
-};
-
-const [ownerData, setOwnerData] = useState(
-  initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {}
-);
-
-const [myCampaign, setMyCampaign] = useState(null);
-
-useEffect(() => { 
-  setSelectedProp(initialProp); 
-  setOwnerData(initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {});
-}, [initialProp, initialAgencyData]);
-
-   useEffect(() => {
-  let cancelled = false;
-
-  const pid = String(selectedProp?.id || "");
-  if (!pid) {
-    setMyCampaign(null);
-    return;
-  }
-
-  (async () => {
-    try {
-      const res = await getCampaignByPropertyAction(pid);
-      if (!cancelled) setMyCampaign(res?.success ? res.data : null);
-    } catch {
-      if (!cancelled) setMyCampaign(null);
-    }
-  })();
-
-  return () => { cancelled = true; };
-}, [selectedProp?.id]);
-
-
-// 🔥 2. PUENTE DE SINCRONIZACIÓN (LA SOLUCIÓN)
-    // Escuchamos si el usuario edita su perfil en el panel derecho
+    // LISTENERS DE ACTUALIZACIÓN
     useEffect(() => {
         const handleProfileUpdate = (e: any) => {
             const updatedProfile = e.detail;
-            
-            // SOLO actualizamos si la propiedad que estamos viendo es MÍA
-            // (Comparamos IDs o asumimos que si estoy editando, quiero ver mis cambios)
-            // Para simplificar: Si recibo update, fusiono los datos visuales
             setOwnerData((prev: any) => ({
                 ...prev,
-                // Sobrescribimos con lo nuevo que viene del evento
                 companyName: updatedProfile.name,
-                companyLogo: updatedProfile.avatar, // El evento manda 'avatar' como logo
-                coverImage: updatedProfile.cover,   // El evento manda 'cover' como fondo
+                companyLogo: updatedProfile.avatar,
+                coverImage: updatedProfile.cover,
                 phone: updatedProfile.phone,
                 mobile: updatedProfile.mobile,
                 email: updatedProfile.email,
@@ -133,12 +102,10 @@ useEffect(() => {
                 tagline: updatedProfile.tagline
             }));
         };
-
         window.addEventListener('agency-profile-updated', handleProfileUpdate);
         return () => window.removeEventListener('agency-profile-updated', handleProfileUpdate);
     }, []);
 
-    // 3. ACTUALIZACIÓN DE PRECIOS EN VIVO (Tu código existente)
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -150,21 +117,13 @@ useEffect(() => {
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-  // --- VARIABLES DE IDENTIDAD ---
-    
-    // Si venimos del evento de edición (live) o de la propiedad (db)
+    // DATOS DE AGENTE
     const activeOwner = ownerData; 
-
-    // Nombre:
     const name = activeOwner.companyName || activeOwner.name || "Usuario";
-
-    // Rol y Etiqueta (LÓGICA CORREGIDA)
-    let roleLabel = "AGENCIA"; // Default por seguridad
     
-    if (activeOwner.role === 'PARTICULAR') {
-        roleLabel = "PARTICULAR";
-    } else {
-        // Si es agencia, miramos su licencia
+    let roleLabel = "AGENCIA"; 
+    if (activeOwner.role === 'PARTICULAR') roleLabel = "PARTICULAR";
+    else {
         const lic = activeOwner.licenseType;
         if (lic === 'STARTER') roleLabel = "ESSENTIAL PARTNER";
         else if (lic === 'PRO') roleLabel = "PRO PARTNER";
@@ -172,17 +131,11 @@ useEffect(() => {
         else roleLabel = "AGENCIA CERTIFICADA";
     }
 
-    // Datos visuales
     const avatar = activeOwner.companyLogo || activeOwner.avatar || null;
     const cover = activeOwner.coverImage || null;
-    
-    // Contacto
     const phone = activeOwner.mobile || activeOwner.phone || "";
-    
-    // Si no tiene email, se queda vacío.
     const email = ownerData.email || "---";
     
-    // --- LÓGICA DE LIMPIEZA DE DATOS ---
     const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
     
     const getNiceLabel = (key: string) => {
@@ -190,23 +143,28 @@ useEffect(() => {
             'pool': 'Piscina', 'garage': 'Garaje', 'garden': 'Jardín', 'elevator': 'Ascensor', 
             'terrace': 'Terraza', 'storage': 'Trastero', 'ac': 'Aire Acond.', 'security': 'Seguridad', 
             'foto': 'Fotografía Pro', 'video': 'Vídeo', 'drone': 'Dron', 'ads': 'Campaña Ads',
-            'plano_2d': 'Plano 2D', 'email': 'Email Mkt'
+            'plano_2d': 'Plano 2D', 'email': 'Email Mkt', 'heating': 'Calefacción', 'furnished': 'Amueblado'
         };
         return labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
     };
 
     if (!selectedProp) return null;
 
-    // --- RECOLECCIÓN DE TAGS ---
+    // --- RECOLECCIÓN DE TAGS (CARACTERÍSTICAS) ---
     const allTags = new Set<string>();
+    
+    // 1. Desde selectedServices (Texto separado por comas)
     if (selectedProp?.selectedServices) {
         let services = selectedProp.selectedServices;
         if (typeof services === 'string') services.split(',').forEach(s => allTags.add(cleanKey(s)));
         else if (Array.isArray(services)) services.forEach(s => allTags.add(cleanKey(s)));
     }
-    ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac'].forEach(k => {
+
+    // 2. Desde booleanos directos (Aquí es donde AC aparecía si estaba en true)
+    ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac', 'heating', 'furnished'].forEach(k => {
         const val = selectedProp?.[k];
-        if (val === true || val === "true" || val === "Sí" || val === "Si" || val === 1) allTags.add(cleanKey(k));
+        // Solo añadimos si es explícitamente TRUE
+        if (val === true || val === "true" || val === 1) allTags.add(cleanKey(k));
     });
 
     const physicalItems: any[] = [];
@@ -219,17 +177,15 @@ useEffect(() => {
         else serviceItems.push(itemObj);
     });
     
+    // ASCENSOR APARTE
     let hasElevator = false;
     const isYes = (val: any) => ['si', 'sí', 'yes', 'true', '1', 'on'].includes(String(val || '').toLowerCase().trim());
     if (isYes(selectedProp?.elevator) || isYes(selectedProp?.ascensor) || allTags.has('elevator')) hasElevator = true;
     
     const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
     const m2 = Number(selectedProp?.mBuilt || selectedProp?.m2 || selectedProp?.surface || 0);
-  const isFavorite = (favorites || []).some(
-  (f: any) => String(f?.id) === String(selectedProp?.id)
-);
+    const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
 
-    
     const getEnergyColor = (rating: string) => {
         const map: any = { A: "bg-green-600", B: "bg-green-500", C: "bg-green-400", D: "bg-yellow-400", E: "bg-yellow-500", F: "bg-orange-500", G: "bg-red-600" };
         return map[rating] || "bg-gray-400";
@@ -241,6 +197,12 @@ useEffect(() => {
         setTimeout(() => setCopied(false), 2000);
     };
   
+    // PREPARACIÓN DE DESCRIPCIÓN SEGURA
+    // Limpiamos etiquetas HTML si las hay para mostrar texto plano limpio
+    const cleanDescription = selectedProp?.description 
+        ? selectedProp.description.replace(/<[^>]+>/g, '') 
+        : null;
+
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             {/* FONDO CRYSTAL */}
@@ -248,9 +210,8 @@ useEffect(() => {
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
                 
-               {/* --- 🔥 HEADER CORPORATIVO PREMIUM (CORREGIDO: SLOGAN + LICENCIA + CONTRASTE) --- */}
+               {/* --- HEADER CORPORATIVO --- */}
                 <div className="relative shrink-0 z-20 h-72 overflow-hidden bg-gray-100">
-                    {/* FONDO REAL (Sin velos, al 100%) */}
                     <div className="absolute inset-0">
                         {cover ? (
                             <img src={cover} className="w-full h-full object-cover" alt="Fondo Agencia" />
@@ -259,10 +220,7 @@ useEffect(() => {
                         )}
                     </div>
 
-                    {/* CONTENIDO (Con sombra de texto para asegurar lectura) */}
                     <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col justify-between h-full">
-                         
-                         {/* Fila Superior: Logo y Cerrar */}
                          <div className="flex justify-between items-start">
                             <div className="relative group">
                                 <div className="w-24 h-24 rounded-2xl bg-white p-1 shadow-2xl shadow-black/20 border border-white/50 rotate-1 group-hover:rotate-0 transition-transform duration-500">
@@ -284,33 +242,20 @@ useEffect(() => {
                             </button>
                          </div>
 
-                         {/* Fila Inferior: Datos Agencia */}
                          <div>
-                            {/* NOMBRE */}
                             <h2 className="text-3xl font-black text-white leading-none mb-2 tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
                                 {name}
                             </h2>
-
-                            {/* 🔥 NUEVO: SLOGAN (Si existe, se muestra) */}
                             {ownerData.tagline && (
                                 <p className="text-white/90 text-xs font-bold italic tracking-wide mb-4 drop-shadow-md border-l-2 border-emerald-400 pl-3">
                                     "{ownerData.tagline}"
                                 </p>
                             )}
-
-                            {/* ETIQUETAS (CAJITAS CON MÁS CONTRASTE) */}
                             <div className="flex flex-wrap gap-2">
-                                
-                                {/* 1. LICENCIA (PACK) - Ya no pone Particular */}
                                 <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
                                     <Briefcase size={12} className="text-emerald-400"/> 
-                                    {ownerData.licenseType === 'STARTER' ? 'ESSENTIAL PARTNER' :
-                                     ownerData.licenseType === 'PRO' ? 'PRO PARTNER' :
-                                     ownerData.licenseType === 'CORP' ? 'CORPORATE' : 
-                                     'AGENCIA CERTIFICADA'}
+                                    {roleLabel}
                                 </span>
-
-                                {/* 2. ZONA OPERATIVA */}
                                {ownerData.zone && (
                                     <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-blue-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
                                         <Globe size={12} className="text-blue-400"/> {ownerData.zone}
@@ -335,44 +280,39 @@ useEffect(() => {
                     </div>
 
                    {/* TÍTULO Y PRECIO */}
-<div>
-  <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
-    {selectedProp?.type || "INMUEBLE"}
-  </span>
+                    <div>
+                      <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
+                        {selectedProp?.type || "INMUEBLE"}
+                      </span>
 
-  <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">
-    {selectedProp?.title || "Sin Título"}
-  </h1>
+                      <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">
+                        {selectedProp?.title || "Sin Título"}
+                      </h1>
 
-  {/* ✅ REF CODE (click para copiar) */}
-{selectedProp?.refCode && (
-  <div
-    onClick={copyRefCode}
-    className="text-[12px] text-slate-500 mb-2 flex items-center gap-2 cursor-pointer hover:text-slate-700 select-none"
-    title="Copiar referencia"
-  >
-    <span>Ref:</span>
-    <span className="font-mono text-slate-700">{selectedProp.refCode}</span>
+                    {selectedProp?.refCode && (
+                      <div
+                        onClick={copyRefCode}
+                        className="text-[12px] text-slate-500 mb-2 flex items-center gap-2 cursor-pointer hover:text-slate-700 select-none"
+                        title="Copiar referencia"
+                      >
+                        <span>Ref:</span>
+                        <span className="font-mono text-slate-700">{selectedProp.refCode}</span>
+                        <span className="ml-1 text-slate-400">
+                          {copiedRef ? <Check size={14} /> : <Copy size={14} />}
+                        </span>
+                      </div>
+                    )}
 
-    {/* iconito estado */}
-    <span className="ml-1 text-slate-400">
-      {copiedRef ? <Check size={14} /> : <Copy size={14} />}
-    </span>
-  </div>
-)}
-
-<p className="text-3xl font-black text-slate-900 tracking-tight">
-  {(() => {
-    const raw = selectedProp?.rawPrice ?? selectedProp?.price;
-    const num = Number(String(raw).replace(/[^0-9]/g, ""));
-    return Number.isFinite(num)
-      ? new Intl.NumberFormat("es-ES").format(num) + " €"
-      : "Consultar";
-  })()}
-</p>
-</div>
-
-
+                    <p className="text-3xl font-black text-slate-900 tracking-tight">
+                      {(() => {
+                        const raw = selectedProp?.rawPrice ?? selectedProp?.price;
+                        const num = Number(String(raw).replace(/[^0-9]/g, ""));
+                        return Number.isFinite(num)
+                          ? new Intl.NumberFormat("es-ES").format(num) + " €"
+                          : "Consultar";
+                      })()}
+                    </p>
+                    </div>
 
                     {/* DATOS RÁPIDOS */}
                     <div className="flex justify-between gap-2">
@@ -390,8 +330,7 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* FICHA TÉCNICA Y SERVICIOS (Igual que antes) ... */}
-                    {/* ... Mantengo el resto de tu código de renderizado de características igual ... */}
+                    {/* FICHA TÉCNICA */}
                     <div className="bg-white rounded-[24px] p-5 shadow-sm border border-white">
                         <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
                             <Home size={12} className="text-blue-500"/> Ficha Técnica
@@ -401,7 +340,6 @@ useEffect(() => {
                                 <span className="text-[8px] text-slate-400 font-bold uppercase block">Tipología</span>
                                 <span className="font-bold text-xs text-slate-800">{selectedProp?.type || "Piso"}</span>
                             </div>
-                         {/* GASTOS COMUNIDAD (Prioridad sobre Superficie repetida) */}
                             {selectedProp?.communityFees > 0 ? (
                                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
                                     <div>
@@ -428,15 +366,35 @@ useEffect(() => {
                             ))}
                         </div>
                     </div>
-
-                   {/* DESCRIPCIÓN */}
-                    {selectedProp?.description && (
-                        <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white">
-                            <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest block mb-2">Descripción</span>
-                            <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-line font-medium">{selectedProp.description}</p>
+{/* 🔥 DESCRIPCIÓN TIPO IDEALISTA (EXPANDIBLE) 🔥 */}
+                   <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white transition-all duration-300">
+                        <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest block mb-2">Descripción</span>
+                        
+                        <div className="relative">
+                            <p className={`text-slate-600 text-xs leading-relaxed whitespace-pre-line font-medium ${!isDescExpanded ? 'line-clamp-4' : ''}`}>
+                                {cleanDescription || "Sin descripción detallada disponible."}
+                            </p>
+                            
+                            {/* Efecto de desvanecimiento si está cerrado */}
+                            {!isDescExpanded && cleanDescription && cleanDescription.length > 200 && (
+                                <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-white to-transparent"></div>
+                            )}
                         </div>
-                    )}
 
+                        {/* Botón de Leer Más / Leer Menos */}
+                        {cleanDescription && cleanDescription.length > 200 && (
+                            <button 
+                                onClick={() => setIsDescExpanded(!isDescExpanded)} 
+                                className="mt-3 text-blue-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 hover:text-blue-800 transition-colors"
+                            >
+                                {isDescExpanded ? (
+                                    <>Leer menos <ArrowUp size={12}/></>
+                                ) : (
+                                    <>Leer descripción completa <ChevronDown size={12}/></>
+                                )}
+                            </button>
+                        )}
+                   </div>
                     {/* CERTIFICADO ENERGÉTICO */}
                     <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Certificación<br/>Energética</span>
@@ -469,118 +427,99 @@ useEffect(() => {
                     
                     <div className="h-6"></div>
                 </div>
-{/* --- FOOTER: CONTACTAR AGENTE --- */}
-<div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20 relative">
 
-  {/* ... (Aquí va su código de la comisión flotante, no lo toque) ... */}
+                {/* --- FOOTER: CONTACTAR AGENTE --- */}
+                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20 relative">
+                  <button
+                    onClick={() => setShowContactModal(true)}
+                    className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs"
+                  >
+                    <Phone size={18} /> Contactar Agente
+                  </button>
 
-  <button
-    onClick={() => setShowContactModal(true)}
-    className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs"
-  >
-    <Phone size={18} /> Contactar Agente
-  </button>
-{/* 🔥 NUEVO BOTÓN PDF (ESTILO IDÉNTICO AL CHAT) - CON LÓGICA INTELIGENTE 🔥 */}
-  {/* Si soy Agencia -> Sale MI logo (para revender). Si soy Particular -> Sale el logo del DUEÑO. */}
-  {(() => {
-      // 1. Determinamos qué Agente sale en la cabecera del PDF
-      // NOTA: Usamos 'initialAgencyData' porque así se llama la variable que recibe los datos del dueño
-      const pdfBranding = (currentUser?.role === 'AGENCIA' || currentUser?.role === 'AGENCY') 
-                          ? currentUser                   // Si yo soy agencia, pongo MI marca
-                          : (initialAgencyData || currentUser); // Si soy particular, veo la marca del DUEÑO
+                  {/* BOTÓN PDF INTELIGENTE */}
+                  {(() => {
+                      const pdfBranding = (currentUser?.role === 'AGENCIA' || currentUser?.role === 'AGENCY') 
+                                          ? currentUser                   
+                                          : (initialAgencyData || currentUser); 
 
-      // 2. Si no hay datos de usuario ni agencia, no mostramos botón
-      if (!pdfBranding) return null;
+                      if (!pdfBranding) return null;
 
-      return (
-          <PDFDownloadLink
-            document={<PropertyFlyer property={selectedProp} agent={pdfBranding} />}
-            fileName={`Ficha_${selectedProp.refCode || 'Stratos'}.pdf`}
-            className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50 active:scale-90"
-            title="Descargar Ficha PDF"
-          >
-            {({ loading }) => (
-                loading ? (
-                    // Spinner de carga minimalista
-                    <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
-                ) : (
-                    <FileDown size={22} />
-                )
-            )}
-          </PDFDownloadLink>
-      );
-  })()}
-  {/* ✅ MENSAJE (CHAT) - SE MANTIENE IGUAL */}
-  <button
-    onClick={(ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      try {
-        const propertyId = String(selectedProp?.id || "");
-        const toUserId = String(
-          ownerData?.id ||
-            activeOwner?.id ||
-            selectedProp?.user?.id ||
-            selectedProp?.ownerSnapshot?.id ||
-            selectedProp?.userId ||
-            ""
-        );
+                      return (
+                          <PDFDownloadLink
+                            document={<PropertyFlyer property={selectedProp} agent={pdfBranding} />}
+                            fileName={`Ficha_${selectedProp.refCode || 'Stratos'}.pdf`}
+                            className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50 active:scale-90"
+                            title="Descargar Ficha PDF"
+                          >
+                            {({ loading }) => (
+                                loading ? (
+                                    <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+                                ) : (
+                                    <FileDown size={22} />
+                                )
+                            )}
+                          </PDFDownloadLink>
+                      );
+                  })()}
 
-        if (!propertyId || !toUserId) return;
+                  {/* MENSAJE (CHAT) */}
+                  <button
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      try {
+                        const propertyId = String(selectedProp?.id || "");
+                        const toUserId = String(
+                          ownerData?.id ||
+                            activeOwner?.id ||
+                            selectedProp?.user?.id ||
+                            selectedProp?.ownerSnapshot?.id ||
+                            selectedProp?.userId ||
+                            ""
+                        );
+                        if (!propertyId || !toUserId) return;
+                        window.dispatchEvent(
+                          new CustomEvent("open-chat-signal", {
+                            detail: { propertyId, toUserId, property: selectedProp },
+                          })
+                        );
+                      } catch (e) {
+                        console.warn("open-chat-signal failed", e);
+                      }
+                    }}
+                    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                    title="Mensaje"
+                  >
+                    <MessageCircle size={22} />
+                  </button>
 
-        window.dispatchEvent(
-          new CustomEvent("open-chat-signal", {
-            detail: { propertyId, toUserId, property: selectedProp },
-          })
-        );
-      } catch (e) {
-        console.warn("open-chat-signal failed", e);
-      }
-    }}
-    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-    title="Mensaje"
-  >
-    <MessageCircle size={22} />
-  </button>
+                  <button
+                    onClick={() =>
+                      onToggleFavorite &&
+                      onToggleFavorite({ ...selectedProp, isFav: !isFavorite })
+                    }
+                    className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
+                      isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"
+                    }`}
+                  >
+                    <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
+                  </button>
+                </div>
 
-  <button
-    onClick={() =>
-      onToggleFavorite &&
-      onToggleFavorite({ ...selectedProp, isFav: !isFavorite })
-    }
-    className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors ${
-      isFavorite ? "text-red-500 bg-red-50 border-red-100" : "text-slate-400 hover:text-red-500"
-    }`}
-  >
-    <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
-  </button>
-</div>
-
-
-               {/* --- 🔥 POPUP CONTACTO AGENTE (AUTOMÁTICO Y REAL) --- */}
+               {/* --- POPUP CONTACTO AGENTE --- */}
                 {showContactModal && (
                     <div className="absolute inset-0 z-50 flex flex-col justify-end animate-fade-in bg-black/60 backdrop-blur-sm">
-                        {/* Al hacer click fuera, cerramos */}
                         <div onClick={() => setShowContactModal(false)} className="absolute inset-0"></div>
-                        
                         <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6">
-                            
-                            {/* 1. HEADER DEL POPUP (LIMPIO) */}
                             <div className="relative h-36 bg-gray-100 flex items-end p-6 gap-4">
-                                {/* FONDO (Cover Real) */}
                                 <div className="absolute inset-0">
                                     {cover ? (
-                                        // ✅ FOTO AL 100%
                                         <img src={cover} className="w-full h-full object-cover" alt="Fondo Agente" />
                                     ) : (
                                         <div className="w-full h-full bg-slate-200" />
                                     )}
-                                    {/* ❌ ELIMINADO GRADIENTE NEGRO */}
                                 </div>
-                                
-                                {/* ... Resto del contenido (Avatar, Textos con drop-shadow) ... */}
-                                
-                                {/* AVATAR (Logo Real) */}
                                 <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">
                                     {avatar ? (
                                         <img src={avatar} className="w-full h-full rounded-xl object-cover" alt="Avatar" />
@@ -589,30 +528,21 @@ useEffect(() => {
                                             <User className="text-slate-300" size={32}/>
                                         </div>
                                     )}
-                                    {/* Badge Verificado */}
                                     <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full border-[3px] border-black shadow-sm">
                                         <ShieldCheck size={10} strokeWidth={4} />
                                     </div>
                                 </div>
-
-                                {/* NOMBRE Y ESTADO */}
                                 <div className="relative z-10 mb-2">
                                     <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md">{name}</h3>
                                     <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1 bg-emerald-950/50 px-2 py-0.5 rounded-full w-fit border border-emerald-500/30">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Responderé en breve
                                     </p>
                                 </div>
-                                
-                                {/* Botón Cerrar X */}
                                 <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white z-20 bg-black/20 hover:bg-black/50 p-2 rounded-full backdrop-blur-md transition-all">
                                     <X size={18}/>
                                 </button>
                             </div>
-
-                            {/* 2. CUERPO DEL POPUP: DATOS REALES */}
                             <div className="px-6 pt-6 space-y-4">
-                                
-                                {/* TELÉFONO (Con función copiar) */}
                                 <div onClick={copyPhone} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95 group">
                                     <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center border border-[#C8E6C9] group-hover:scale-110 transition-transform">
                                         <Phone size={22} strokeWidth={2.5} />
@@ -625,8 +555,6 @@ useEffect(() => {
                                         {copied ? <span className="text-[10px] font-bold text-emerald-600 uppercase">Copiado!</span> : <Copy size={20}/>}
                                     </div>
                                 </div>
-
-                                {/* EMAIL */}
                                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group">
                                     <div className="w-12 h-12 rounded-2xl bg-[#E3F2FD] text-[#1565C0] flex items-center justify-center border border-[#BBDEFB] group-hover:scale-110 transition-transform">
                                         <Mail size={22} strokeWidth={2.5} />
@@ -636,16 +564,14 @@ useEffect(() => {
                                         <p className="text-sm font-black text-slate-900 truncate">{email}</p>
                                     </div>
                                 </div>
-
-                                {/* BOTÓN CERRAR GRANDE */}
                                 <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95">
                                     Cerrar Ficha
                                 </button>
                             </div>
                         </div>
                     </div>
-                )}            </div>
+                )}            
+            </div>
         </div>
     );
 }
-
