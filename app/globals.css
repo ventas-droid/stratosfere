@@ -3,15 +3,15 @@
 @tailwind utilities;
 
 /* =========================================
-   ESTILOS GLOBALES Y ANIMACIONES (AliveMap)
+   ESTILOS GLOBALES (SOLO MAPBOX Y EFECTOS ESPECIALES)
    ========================================= */
 html, body {
   background: #050505;
   color: #eee;
-  overflow: hidden; /* Importante para que no haya scroll doble */
+  overflow: hidden; /* Importante para la App Móvil */
 }
 
-/* Overrides de Mapbox */
+/* --- OVERRIDES DE MAPBOX (INTOCABLE) --- */
 .mapboxgl-popup-content {
   background: transparent !important;
   padding: 0 !important;
@@ -20,7 +20,13 @@ html, body {
 }
 .mapboxgl-popup-tip { display: none; }
 
-/* Marcador pulsante */
+/* Ocultar logos de Mapbox */
+.mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib, 
+.mapboxgl-ctrl-compass, .mapboxgl-ctrl-group {
+  display: none !important;
+}
+
+/* Marcador pulsante básico */
 .pulsing-dot {
   width: 16px; height: 16px; border-radius: 50%;
   position: relative; display: flex; justify-content: center; align-items: center;
@@ -31,111 +37,56 @@ html, body {
   background-color: inherit; opacity: 0.6;
 }
 
-/* Scrollbar */
+/* Scrollbar Personalizada */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: #050505; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
 
-/* Efectos */
+/* Ocultar Scrollbar (para móviles y listas horizontales) */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Efectos Glassmorphism */
 .backdrop-blur-xl { backdrop-filter: blur(24px); }
 .backdrop-blur-2xl { backdrop-filter: blur(40px); }
 
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
-}
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideLeft {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-.animate-fade-in-up { animation: fadeInUp 0.4s ease-out; }
-.animate-slide-left { animation: slideLeft 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
+/* --- EFECTOS QUE NO SOPORTA TAILWIND FÁCILMENTE --- */
 
-/* --- ZONA DE CAMUFLAJE --- */
-/* Ocultar el logo blanco de Mapbox */
-.mapboxgl-ctrl-logo {
-  display: none !important;
-}
-
-/* Opcional: Ocultar también el texto pequeño de abajo a la derecha */
-.mapboxgl-ctrl-attrib {
-  display: none !important;
-}
-/* ------------------------- */
-
-/* --- PLATINUM PULSE EFFECT --- */
+/* PLATINUM PULSE (El radar dorado) */
 @keyframes shockwave {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); /* Oro Sólido */
-  }
-  70% {
-    transform: scale(2.5);
-    box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); /* Desvanecimiento */
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
-  }
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+  70% { transform: scale(2.5); box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
 }
 
-.platinum-pulse {
-  position: relative;
-}
-
+.platinum-pulse { position: relative; }
 .platinum-pulse::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  z-index: -1;
-  animation: shockwave 2s infinite; /* Latido constante */
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 100%; height: 100%; border-radius: 50%;
+  transform: translate(-50%, -50%); z-index: -1;
+  animation: shockwave 2s infinite;
   background: rgba(255, 215, 0, 0.2);
   border: 1px solid rgba(255, 215, 0, 0.5);
 }
 
-/* Corrección texto IA */
-.ia-helper-text {
-  color: #4ADE80 !important; /* Verde brillante */
-  opacity: 1 !important;       /* Sin transparencia */
-  font-weight: 500;            /* Un poco más gordita */
-}
-
-/* 1. Definimos la animación de latido suave */
+/* TEXTO IA QUE RESPIRA */
 @keyframes iaPulse {
   0% { opacity: 1; }
-  50% { opacity: 0.5; } /* Baja un poco la intensidad */
+  50% { opacity: 0.5; }
   100% { opacity: 1; }
 }
 
-/* 2. Estilos para el texto de la IA */
 .ia-text-normal {
-  /* Color verde sólido y brillante para que se lea bien sobre negro */
   color: #4ade80 !important; 
-  
-  /* Eliminamos cualquier sombra o brillo anterior */
   text-shadow: none !important;
   filter: none !important;
-  
-  /* Aseguramos visibilidad y tamaño */
   font-size: 13px;
-  font-weight: 500; /* Peso medio para que no se vea "fina" */
+  font-weight: 500;
   margin-top: 8px;
-  
-  /* Aplicamos la animación de latido (duración 2 segundos, infinita) */
   animation: iaPulse 2s infinite ease-in-out;
-}
-
-/* Ocultar la brújula y controles de navegación de Mapbox */
-.mapboxgl-ctrl-compass, 
-.mapboxgl-ctrl-group {
-    display: none !important;
 }
