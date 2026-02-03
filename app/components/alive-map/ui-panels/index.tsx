@@ -2819,17 +2819,18 @@ const isAgency =
   !!ownerLicense;
   
 
-                   // 3. ABRIMOS LA PUERTA CORRESPONDIENTE
-                   return isAgency ? (
-                       <AgencyDetailsPanel 
-                           selectedProp={selectedProp} 
-                           onClose={() => setActivePanel('NONE')} 
-                           onToggleFavorite={handleToggleFavorite} 
-                           favorites={uiFavs}
-                           onOpenInspector={() => setActivePanel('INSPECTOR')}
-                           agencyData={owner} // <--- CLAVE: Pasamos el dueño
-                       />
-                   ) : (
+                // 3. ABRIMOS LA PUERTA CORRESPONDIENTE
+                    return isAgency ? (
+                        <AgencyDetailsPanel 
+                            selectedProp={selectedProp} 
+                            onClose={() => setActivePanel('NONE')} 
+                            onToggleFavorite={handleToggleFavorite} 
+                            favorites={uiFavs}
+                            onOpenInspector={() => setActivePanel('INSPECTOR')}
+                            agencyData={owner} // El dueño de la casa
+                            currentUser={agencyProfileData} // <--- 🔥 ¡ESTA ES LA CLAVE QUE FALTABA!
+                        />
+                    ) : (
                        <DetailsPanel 
                            selectedProp={selectedProp} 
                            onClose={() => setActivePanel('NONE')} 
