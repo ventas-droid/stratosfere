@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from './lib/prisma'; 
 import { cookies } from "next/headers";
-
+import { Resend } from 'resend';
 // ... imports ...
 
 // 🔥 PEGAR ESTO AL PRINCIPIO DEL ARCHIVO (DESPUÉS DE LOS IMPORTS)
@@ -97,12 +97,9 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-
 // =========================================================
-// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS)
+// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS) - VERSIÓN BLINDADA FINAL
 // =========================================================
-
-// EN: actions.ts -> Sustituya getGlobalPropertiesAction completa
 
 export async function getGlobalPropertiesAction() {
   try {
@@ -116,79 +113,92 @@ export async function getGlobalPropertiesAction() {
         images: true,
         favoritedBy: { select: { userId: true } },
 
-        // ✅ Usuario “vivo” (perfil actual) para reflejar ediciones en Details
+        // ✅ Usuario “vivo” (perfil actual) para reflejar ediciones
         user: {
           select: USER_IDENTITY_SELECT,
         },
+
+        // 🔥🔥 1. RECUPERAMOS LOS EVENTOS DE LA BASE DE DATOS 🔥🔥
+        openHouses: {
+            where: { status: "SCHEDULED" },
+            orderBy: { startTime: 'asc' },
+            take: 1
+        }
       },
     });
 
     const mappedProps = (properties || []).map((p: any) => {
-      // 1) Imágenes coherentes
+      // 1) Imágenes coherentes (LÓGICA ORIGINAL)
       const allImages = (p.images || [])
         .map((img: any) => img?.url)
         .filter(Boolean);
 
-      const realImg =
-        allImages?.[0] || p.mainImage || null;
+      const realImg = allImages?.[0] || p.mainImage || null;
+      const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-      const imagesFinal =
-        allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
-
-      // 2) Favoritos (estado server truth)
+      // 2) Favoritos (LÓGICA ORIGINAL)
       const isFavoritedByMe = currentUserId
         ? (p.favoritedBy || []).some((fav: any) => fav?.userId === currentUserId)
         : false;
 
-      // 3) Identidad unificada:
-      //    - live user (DB) para ver ediciones
-      //    - snapshot como fallback si falta user o si es legacy
+      // 3) Identidad unificada (LÓGICA ORIGINAL)
       const identity = buildIdentity(p.user, p.ownerSnapshot);
 
-      // 4) Coordenadas seguras
+      // 4) Coordenadas seguras (LÓGICA ORIGINAL)
       const lng = p.longitude ?? -3.7038;
       const lat = p.latitude ?? 40.4168;
 
-      // 5) Precio: mantenemos numérico + string formateado
+      // 5) Precio (LÓGICA ORIGINAL)
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
+
+      // 🔥🔥 2. PROCESAMOS EL EVENTO PARA EL FRONTEND 🔥🔥
+      let openHouseObj = null;
+      // Si la base de datos nos trajo un evento, lo preparamos
+      if (p.openHouses && p.openHouses.length > 0) {
+         openHouseObj = { ...p.openHouses[0], enabled: true };
+      }
 
       return {
         ...p,
         id: p.id,
 
-        // ✅ IMPORTANTÍSIMO: que el snapshot viaje top-level también
+        // ✅ SNAPSHOT (NO TOCAR)
         ownerSnapshot: p.ownerSnapshot ?? null,
-
-        // ✅ IMPORTANTÍSIMO: el frontend debe leer SIEMPRE `user` normalizado
+        
+        // ✅ USER (NO TOCAR)
         user: identity,
 
-        // Mapa / cards
+        // ✅ COORDENADAS (NO TOCAR)
         coordinates: [lng, lat],
         longitude: lng,
         latitude: lat,
 
-        // Imágenes
+        // ✅ IMÁGENES (NO TOCAR)
         images: imagesFinal,
         img: realImg,
 
-        // Precio
-        price: priceFormatted,   // string para UI
-        rawPrice,                // number
-        priceValue: rawPrice,    // number
+        // ✅ PRECIOS (NO TOCAR)
+        price: priceFormatted,   
+        rawPrice,                
+        priceValue: rawPrice,    
 
-        // Favorito
+        // ✅ ESTADO (NO TOCAR)
         isFavorited: isFavoritedByMe,
 
-        // Datos numéricos (no los pierdas)
+        // ✅ DATOS TÉCNICOS (NO TOCAR)
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: Number(p.communityFees || 0),
 
-        // Energía (para no perder datos en Details)
+        // ✅ ENERGÍA (NO TOCAR)
         energyConsumption: p.energyConsumption ?? null,
         energyEmissions: p.energyEmissions ?? null,
         energyPending: !!p.energyPending,
+
+        // 🔥🔥 3. AQUÍ ESTÁ LA MUNICIÓN 🔥🔥
+        openHouse: openHouseObj,       // El Panel buscará esto
+        open_house_data: openHouseObj  // Respaldo
       };
     });
 
@@ -198,8 +208,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
-
-// ✅ Obtener UNA propiedad completa (para abrir Details desde Threads sin stub)
+// ✅ Obtener UNA propiedad completa (VERSION BLINDADA CON OPEN HOUSE)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
     const id = String(propertyId || "").trim();
@@ -210,12 +219,19 @@ export async function getPropertyByIdAction(propertyId: string) {
       include: {
         images: true,
         user: { select: USER_IDENTITY_SELECT },
+        // 🔥 1. NOVEDAD: Pedimos el Open House activo a la base de datos
+        // (Solo el próximo evento programado)
+        openHouses: {
+            where: { status: "SCHEDULED" },
+            orderBy: { startTime: 'asc' },
+            take: 1
+        }
       },
     });
 
     if (!p) return { success: false, error: "NOT_FOUND" };
 
-    // 1) Imágenes coherentes (igual que global)
+    // 1) Imágenes coherentes (NO TOCAR)
     const allImages = (p.images || [])
       .map((img: any) => img?.url)
       .filter(Boolean);
@@ -223,16 +239,24 @@ export async function getPropertyByIdAction(propertyId: string) {
     const realImg = allImages?.[0] || p.mainImage || null;
     const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-    // 2) Identidad unificada (igual que global)
+    // 2) Identidad unificada (NO TOCAR)
     const identity = buildIdentity(p.user, p.ownerSnapshot);
 
-    // 3) Coordenadas seguras
+    // 3) Coordenadas seguras (NO TOCAR)
     const lng = p.longitude ?? -3.7038;
     const lat = p.latitude ?? 40.4168;
 
-    // 4) Precio
+    // 4) Precio (NO TOCAR)
     const rawPrice = Number(p.price || 0);
     const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
+
+    // 🔥 2. NOVEDAD: Preparamos el objeto Open House para el Frontend
+    // Prisma devuelve un array 'openHouses', pero el frontend quiere un objeto único 'openHouse'
+    let openHouseObj = null;
+    if (p.openHouses && p.openHouses.length > 0) {
+        // Cogemos el primero y le ponemos enabled: true para que el popup sepa que está activo
+        openHouseObj = { ...p.openHouses[0], enabled: true };
+    }
 
     // ✅ devolvemos en el MISMO formato que Details/Map ya saben manejar
     const mapped = {
@@ -259,6 +283,10 @@ export async function getPropertyByIdAction(propertyId: string) {
       energyConsumption: p.energyConsumption ?? null,
       energyEmissions: p.energyEmissions ?? null,
       energyPending: !!p.energyPending,
+
+      // 🔥 3. INYECCIÓN FINAL: Aquí pasamos el dato al frontend
+      openHouse: openHouseObj, 
+      open_house_data: openHouseObj // (Doble vía por seguridad)
     };
 
     return { success: true, data: mapped };
@@ -473,7 +501,31 @@ export async function savePropertyAction(data: any) {
         });
       });
     }
+// ------------------------------------------------------------------
+    // 🦅 PUENTE DE GUARDADO: OPEN HOUSE (NUEVO)
+    // Si la propiedad se guardó bien (result) y hay datos de evento...
+    // ------------------------------------------------------------------
+    if (result && result.id && data.openHouse) {
+        let ohData = data.openHouse;
+        
+        // A veces llega como texto JSON desde el formulario
+        if (typeof ohData === 'string') {
+            try { ohData = JSON.parse(ohData); } catch (e) {}
+        }
 
+        // Solo guardamos si está activado (enabled: true o "true")
+        if (ohData && (ohData.enabled === true || String(ohData.enabled) === "true")) {
+            await saveOpenHouseAction({
+                propertyId: result.id, // Usamos el ID de la propiedad que acabamos de guardar
+                title: ohData.title,
+                startTime: ohData.startTime,
+                endTime: ohData.endTime,
+                capacity: ohData.capacity,
+                amenities: ohData.amenities
+            });
+        }
+    }
+    // ------------------------------------------------------------------
     revalidatePath("/");
     return { success: true, property: result };
 
@@ -715,7 +767,7 @@ export async function getFavoritesAction() {
 }
 
 // =========================================================
-// 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO)
+// 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO) - VERSIÓN CORREGIDA
 // =========================================================
 
 // B. OBTENER PORTAFOLIO COMPLETO (PROPIAS + FAVORITOS)
@@ -744,53 +796,67 @@ export async function getAgencyPortfolioAction() {
         }
     };
 
-    // 1. Mis Propiedades (Soy dueño) -> INCLUIMOS EL DNI
+    // 1. Mis Propiedades (Soy dueño) -> 🔥 INCLUIMOS EL DNI Y LOS EVENTOS
     const myProperties = await prisma.property.findMany({
       where: { userId: user.data.id },
       include: { 
           images: true,
-          user: identitySelect // <--- AQUÍ SE CARGA LA IDENTIDAD
+          user: identitySelect, // <--- AQUÍ SE CARGA LA IDENTIDAD
+          
+          // 🔥🔥 1. RECUPERAMOS LOS EVENTOS (FALTABA ESTO) 🔥🔥
+          openHouses: {
+             where: { status: "SCHEDULED" },
+             orderBy: { startTime: 'asc' },
+             take: 1
+          }
       }
     });
 
-    // 2. Mis Favoritos -> INCLUIMOS EL DNI DE SUS DUEÑOS
+    // 2. Mis Favoritos -> 🔥 INCLUIMOS EL DNI DE SUS DUEÑOS Y EVENTOS
     const myFavorites = await prisma.favorite.findMany({
       where: { userId: user.data.id },
       include: { 
           property: { 
               include: { 
                   images: true,
-                  user: identitySelect // <--- AQUÍ TAMBIÉN
+                  user: identitySelect, // <--- AQUÍ TAMBIÉN
+                  
+                  // 🔥🔥 2. AQUÍ TAMBIÉN FALTABA 🔥🔥
+                  openHouses: {
+                     where: { status: "SCHEDULED" },
+                     orderBy: { startTime: 'asc' },
+                     take: 1
+                  }
               } 
           } 
       }
     });
 
    // 3. Unificar listas (✅ favorito REAL incluso si es propiedad mía)
-const favIdSet = new Set(
-  (myFavorites || [])
-    .map((f: any) => String(f?.propertyId || f?.property?.id || ""))
-    .filter(Boolean)
-);
+    const favIdSet = new Set(
+      (myFavorites || [])
+        .map((f: any) => String(f?.propertyId || f?.property?.id || ""))
+        .filter(Boolean)
+    );
 
-const owned = (myProperties || []).map((p: any) => {
-  const isFav = favIdSet.has(String(p?.id));
-  return {
-    ...p,
-    isOwner: true,
-    isFavorited: isFav,
-    isFavorite: isFav,
-    isFav: isFav,
-  };
-});
+    const owned = (myProperties || []).map((p: any) => {
+      const isFav = favIdSet.has(String(p?.id));
+      return {
+        ...p,
+        isOwner: true,
+        isFavorited: isFav,
+        isFavorite: isFav,
+        isFav: isFav,
+      };
+    });
 
-const favs = (myFavorites || []).map((f: any) => ({
-  ...(f?.property || {}),
-  isOwner: false,
-  isFavorited: true,
-  isFavorite: true,
-  isFav: true,
-}));
+    const favs = (myFavorites || []).map((f: any) => ({
+      ...(f?.property || {}),
+      isOwner: false,
+      isFavorited: true,
+      isFavorite: true,
+      isFav: true,
+    }));
 
     // 4. Eliminar duplicados
     const combined = [...owned];
@@ -801,7 +867,7 @@ const favs = (myFavorites || []).map((f: any) => ({
     });
 
   // 5. Formatear para el Mapa (NORMALIZADO: ownerSnapshot manda)
-const cleanList = combined
+  const cleanList = combined
   .map((p: any) => {
     if (!p) return null;
 
@@ -810,15 +876,19 @@ const cleanList = combined
       p.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null;
 
     // 2) Si no hay snapshot, caemos al user incluido por Prisma
-const creator = p.user || snap || {};
+    const creator = p.user || snap || {};
+
+    // 🔥🔥 3. PROCESAR EL EVENTO PARA EL PANEL 🔥🔥
+    let openHouseObj = null;
+    if (p.openHouses && p.openHouses.length > 0) {
+        openHouseObj = { ...p.openHouses[0], enabled: true };
+    }
 
     return {
       ...p,
       id: p.id,
 
       // ✅ Mantén ambos por compatibilidad:
-      // - ownerSnapshot: para toda la lógica nueva consistente
-      // - user: para componentes legacy que aún tiran de `user`
       ownerSnapshot: snap || (Object.keys(creator).length ? creator : null),
       user: Object.keys(creator).length ? creator : null,
 
@@ -832,17 +902,19 @@ const creator = p.user || snap || {};
       coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
       m2: Number(p.mBuilt || 0),
       communityFees: p.communityFees || 0,
+      
+      // 🔥🔥 4. ENTREGAMOS EL PAQUETE AL FRONTEND 🔥🔥
+      openHouse: openHouseObj,
+      open_house_data: openHouseObj
     };
   })
   .filter(Boolean);
-
 
     return { success: true, data: cleanList };
   } catch (error) {
     return { success: false, error: "Error de conexión" };
   }
 }
-
 // B. BORRAR DEL STOCK (✅ idempotente + borra favorito por clave compuesta)
 export async function deleteFromStockAction(propertyId: string) {
   try {
@@ -2195,7 +2267,7 @@ export async function respondOwnerProposalAction(input: {
   }
 }
 // =========================================================
-// 🎉 GESTIÓN DE EVENTOS (OPEN HOUSE)
+// 🎉 GESTIÓN DE EVENTOS (OPEN HOUSE) - VERSIÓN FINAL SILENCIOSA
 // =========================================================
 
 // A. CREAR O EDITAR UN EVENTO (Solo Agencias)
@@ -2252,13 +2324,14 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (CLIENTE)
+// C. APUNTARSE A UN EVENTO (SOLO BASE DE DATOS - SIN CORREOS)
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
     const user = await getCurrentUser();
     // Permitimos usuarios registrados O invitados con email
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
+    // 1. BUSCAMOS EL EVENTO
     const event = await prisma.openHouse.findUnique({ 
         where: { id: eventId },
         include: { _count: { select: { attendees: true } } }
@@ -2268,14 +2341,21 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     if (event.status !== 'SCHEDULED') return { success: false, error: "EVENT_CLOSED" };
     if (event._count.attendees >= event.capacity) return { success: false, error: "FULL_CAPACITY" };
 
-    // Crear ticket
+    // Datos del asistente
+    const attendeeEmail = user?.email || guestData?.email;
+    const attendeeName = user?.name || guestData?.name || "Invitado";
+    const attendeePhone = user?.phone || guestData?.phone;
+
+    // 2. GUARDAR EN BASE DE DATOS (TICKET)
+    // Solo guardamos el registro para que salga en la lista de la agencia.
+    // NO ENVIAMOS NADA MÁS.
     await prisma.openHouseAttendee.create({
         data: {
             openHouseId: eventId,
-            userId: user?.id || null, // Si está logueado
-            email: user?.email || guestData?.email,
-            name: user?.name || guestData?.name || "Invitado",
-            phone: user?.phone || guestData?.phone,
+            userId: user?.id || null, 
+            email: attendeeEmail,
+            name: attendeeName,
+            phone: attendeePhone,
             status: "CONFIRMED"
         }
     });
@@ -2284,7 +2364,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     return { success: true };
 
   } catch (e: any) {
-    // Si ya está apuntado (Unique constraint), devolvemos éxito igual para no dar error feo
+    // Si ya está apuntado, devolvemos éxito para que el botón se ponga verde
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
     return { success: false, error: String(e.message || e) };
   }
@@ -2296,7 +2376,6 @@ export async function cancelOpenHouseAction(eventId: string) {
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "UNAUTH" };
 
-        // Verificar que el evento es de una casa mía
         const event = await prisma.openHouse.findUnique({
             where: { id: eventId },
             include: { property: true }
@@ -2314,4 +2393,29 @@ export async function cancelOpenHouseAction(eventId: string) {
     } catch (e) {
         return { success: false, error: "ERROR" };
     }
+}
+
+// E. VER LISTA DE INVITADOS (SOLO AGENCIA/DUEÑO)
+export async function getOpenHouseAttendeesAction(openHouseId: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "UNAUTH" };
+
+    const event = await prisma.openHouse.findUnique({
+        where: { id: openHouseId },
+        include: { 
+            property: { select: { userId: true } },
+            attendees: { orderBy: { createdAt: 'desc' } }
+        }
+    });
+
+    if (!event) return { success: false, error: "NOT_FOUND" };
+    
+    // Seguridad: Solo el dueño de la propiedad puede ver la lista
+    if (event.property.userId !== user.id) return { success: false, error: "FORBIDDEN" };
+
+    return { success: true, data: event.attendees };
+  } catch (e) {
+    return { success: false, data: [] };
+  }
 }

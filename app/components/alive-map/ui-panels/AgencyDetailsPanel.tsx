@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client";
 import React, { useState, useEffect } from 'react';
-// 1. TODOS LOS ICONOS JUNTOS (Incluido FileDown)
+
+// 1. TODOS LOS ICONOS JUNTOS (CORREGIDO: Sin duplicados)
 import { 
     X, Heart, Phone, Sparkles, User, ShieldCheck, Briefcase,
     Star, Home, Maximize2, ArrowUp,
@@ -9,7 +10,7 @@ import {
     Camera, Globe, Plane, Hammer, Ruler, 
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
     Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye, ChevronDown,
-    FileDown 
+    FileDown, PlayCircle
 } from 'lucide-react';
 
 import { getCampaignByPropertyAction, getPropertyByIdAction } from "@/app/actions";
@@ -18,6 +19,8 @@ import { PDFDownloadLink } from '@react-pdf/renderer';
 // 2. RUTA DEL PDF CORREGIDA
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
 import AgencyExtrasViewer from "./AgencyExtrasViewer";
+import OpenHouseOverlay from "./OpenHouseOverlay";
+import GuestList from "./GuestList"; // Asegúrese de que la ruta sea correcta
 // --- DICCIONARIO MAESTRO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
@@ -55,10 +58,12 @@ export default function AgencyDetailsPanel({
     
     const [selectedProp, setSelectedProp] = useState(initialProp);
     const [showContactModal, setShowContactModal] = useState(false);
+    const [showOpenHouse, setShowOpenHouse] = useState(true); // Se abre por defecto si hay evento
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
 const [isDescExpanded, setIsDescExpanded] = useState(false);
-    const copyRefCode = async () => {
+    const isOwner = selectedProp?.isOwner || (currentUser?.id && selectedProp?.userId && currentUser.id === selectedProp.userId);
+const copyRefCode = async () => {
       const ref = String(selectedProp?.refCode || "");
       if (!ref) return;
       try {
@@ -269,16 +274,38 @@ const [isDescExpanded, setIsDescExpanded] = useState(false);
                 {/* --- CONTENIDO SCROLL --- */}
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-40 bg-[#F5F5F7]">
                     
-                    {/* FOTO */}
-                    <div onClick={onOpenInspector} className="relative aspect-video w-full bg-gray-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white cursor-pointer hover:shadow-2xl transition-shadow group">
-                        <img src={img} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="Propiedad" />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    {/* FOTO CON BOTÓN DE VÍDEO INTEGRADO */}
+                    <div className="relative aspect-video w-full bg-gray-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white group">
+                        <img 
+                            src={img} 
+                            onClick={onOpenInspector}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 cursor-pointer" 
+                            alt="Propiedad" 
+                        />
+                        
+                        {/* CAPA OSCURA AL HOVER */}
+                        <div onClick={onOpenInspector} className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
+
+                        {/* 🔥 BOTÓN DE VÍDEO FLOTANTE (Si existe URL) 🔥 */}
+                        {selectedProp?.videoUrl && (
+                             <a 
+                                href={selectedProp.videoUrl} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()} // 🛑 IMPRESCINDIBLE: Evita que se abra el inspector a la vez
+                                className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md text-red-600 px-4 py-2 rounded-full font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-red-600 hover:text-white transition-all z-20 active:scale-95 cursor-pointer"
+                             >
+                                <Globe size={16} /> VER VÍDEO
+                             </a>
+                        )}
+
+                        {/* BOTÓN INSPECTOR (CENTRAL - APARECE AL HOVER) */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/40 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
                                 <Sparkles size={14}/> ABRIR HOLO-INSPECTOR
                             </div>
                         </div>
                     </div>
-
                    {/* TÍTULO Y PRECIO */}
                     <div>
                       <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
@@ -402,6 +429,74 @@ const [isDescExpanded, setIsDescExpanded] = useState(false);
                         {/* ✅ CORREGIDO: Usamos 'selectedProp' que es la variable real */}
                         <AgencyExtrasViewer property={selectedProp} />
                    </div>
+                    {/* ============================================================== */}
+            {/* 🦅 ZONA OPEN HOUSE: LÓGICA DE MANDO (DUEÑO vs VISITANTE)       */}
+            {/* ============================================================== */}
+            {selectedProp?.openHouse?.enabled && selectedProp?.openHouse?.id && (
+                <div className="mt-6 mb-6 animate-in fade-in slide-in-from-bottom-4">
+                    
+                    {/* CASO A: SOY EL DUEÑO (AGENCIA) -> VEO MI LISTA Y GESTIÓN */}
+                    {isOwner ? (
+                        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                            {/* Cabecera de Gestión */}
+                            <div className="bg-slate-900 p-3 flex justify-between items-center text-white">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck size={14} className="text-yellow-400" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">
+                                        MI EVENTO
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-white/10 px-2 py-1 rounded-full">
+                                    <span className="relative flex h-2 w-2">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                    <span className="text-[9px] font-bold text-white">EN VIVO</span>
+                                </div>
+                            </div>
+
+                            {/* 📋 AQUÍ APARECE SU LISTA DE INVITADOS AUTOMÁTICAMENTE */}
+                            <div className="max-h-[300px] overflow-hidden">
+                                <GuestList openHouseId={selectedProp.openHouse.id} />
+                            </div>
+
+                            <div className="bg-gray-50 p-2 text-center border-t border-gray-100">
+                                <p className="text-[9px] text-gray-400 font-medium">
+                                    Esta lista es privada. Solo tú puedes verla.
+                                </p>
+                            </div>
+                        </div>
+
+                    ) : (
+
+                        /* CASO B: SOY UN VISITANTE -> VEO LA TARJETA DE INVITACIÓN */
+                        <div 
+                            className="bg-[#111] rounded-2xl p-6 text-white text-center shadow-xl relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]"
+                            onClick={() => setShowOpenHouse(true)}
+                        >
+                            {/* Fondo decorativo */}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"/>
+                            
+                            <div className="relative z-10">
+                                <span className="inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[9px] font-black uppercase tracking-widest mb-3 border border-white/10">
+                                    Open House
+                                </span>
+                                <h3 className="text-xl font-black mb-1 leading-tight">
+                                    {selectedProp.openHouse.title || "Evento Exclusivo"}
+                                </h3>
+                                <p className="text-xs text-gray-400 mb-4 line-clamp-1">
+                                    {new Date(selectedProp.openHouse.startTime).toLocaleDateString()} • Aforo limitado
+                                </p>
+                                
+                                <button className="w-full py-3 bg-white text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-gray-200 transition-colors shadow-lg">
+                                    Solicitar Invitación
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+            {/* ============================================================== */}
                     {/* CERTIFICADO ENERGÉTICO */}
                     <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Certificación<br/>Energética</span>
@@ -513,20 +608,24 @@ const [isDescExpanded, setIsDescExpanded] = useState(false);
                     <Heart size={24} fill={isFavorite ? "currentColor" : "none"} />
                   </button>
                 </div>
-
-               {/* --- POPUP CONTACTO AGENTE --- */}
+{/* --- POPUP CONTACTO AGENTE (CORREGIDO) --- */}
                 {showContactModal && (
                     <div className="absolute inset-0 z-50 flex flex-col justify-end animate-fade-in bg-black/60 backdrop-blur-sm">
-                        <div onClick={() => setShowContactModal(false)} className="absolute inset-0"></div>
-                        <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6">
+                        <div onClick={() => setShowContactModal(false)} className="absolute inset-0 cursor-pointer"></div>
+                        
+                        <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6 ring-1 ring-white/20">
+                            {/* Cabecera con Imagen */}
                             <div className="relative h-36 bg-gray-100 flex items-end p-6 gap-4">
                                 <div className="absolute inset-0">
                                     {cover ? (
-                                        <img src={cover} className="w-full h-full object-cover" alt="Fondo Agente" />
+                                        <img src={cover} className="w-full h-full object-cover opacity-90" alt="Fondo Agente" />
                                     ) : (
                                         <div className="w-full h-full bg-slate-200" />
                                     )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                                 </div>
+                                
+                                {/* Avatar */}
                                 <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">
                                     {avatar ? (
                                         <img src={avatar} className="w-full h-full rounded-xl object-cover" alt="Avatar" />
@@ -535,49 +634,66 @@ const [isDescExpanded, setIsDescExpanded] = useState(false);
                                             <User className="text-slate-300" size={32}/>
                                         </div>
                                     )}
-                                    <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full border-[3px] border-black shadow-sm">
-                                        <ShieldCheck size={10} strokeWidth={4} />
+                                    <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full border-[3px] border-[#F5F5F7] shadow-sm">
+                                        <ShieldCheck size={12} strokeWidth={4} />
                                     </div>
                                 </div>
-                                <div className="relative z-10 mb-2">
-                                    <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md">{name}</h3>
-                                    <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1 bg-emerald-950/50 px-2 py-0.5 rounded-full w-fit border border-emerald-500/30">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Responderé en breve
+
+                                {/* Info Texto */}
+                                <div className="relative z-10 mb-2 flex-1 min-w-0">
+                                    <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md truncate">{name || "Agente"}</h3>
+                                    <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded-full w-fit border border-emerald-500/30 backdrop-blur-md">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> En línea
                                     </p>
                                 </div>
-                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white z-20 bg-black/20 hover:bg-black/50 p-2 rounded-full backdrop-blur-md transition-all">
+
+                                {/* Botón Cerrar */}
+                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/20 hover:bg-black/50 p-2 rounded-full backdrop-blur-md transition-all">
                                     <X size={18}/>
                                 </button>
                             </div>
-                            <div className="px-6 pt-6 space-y-4">
-                                <div onClick={copyPhone} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95 group">
+
+                            {/* Botones de Acción */}
+                            <div className="px-6 pt-6 space-y-3">
+                                <div onClick={typeof copyPhone === 'function' ? copyPhone : undefined} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95 group">
                                     <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center border border-[#C8E6C9] group-hover:scale-110 transition-transform">
                                         <Phone size={22} strokeWidth={2.5} />
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Teléfono / WhatsApp</p>
-                                        <p className="text-xl font-black text-slate-900 tracking-tight">{phone}</p>
+                                        <p className="text-xl font-black text-slate-900 tracking-tight">{phone || "No disponible"}</p>
                                     </div>
                                     <div className="text-slate-300 group-hover:text-emerald-500 transition-colors">
                                         {copied ? <span className="text-[10px] font-bold text-emerald-600 uppercase">Copiado!</span> : <Copy size={20}/>}
                                     </div>
                                 </div>
+
                                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group">
                                     <div className="w-12 h-12 rounded-2xl bg-[#E3F2FD] text-[#1565C0] flex items-center justify-center border border-[#BBDEFB] group-hover:scale-110 transition-transform">
                                         <Mail size={22} strokeWidth={2.5} />
                                     </div>
                                     <div className="flex-1 overflow-hidden">
                                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email Corporativo</p>
-                                        <p className="text-sm font-black text-slate-900 truncate">{email}</p>
+                                        <p className="text-sm font-black text-slate-900 truncate">{email || "No disponible"}</p>
                                     </div>
                                 </div>
+
                                 <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95">
                                     Cerrar Ficha
                                 </button>
                             </div>
                         </div>
                     </div>
-                )}            
+                )}
+                
+             {/* 🔥 POPUP OPEN HOUSE: CONEXIÓN REAL (DATOS DE SU AGENCIA) 🔥 */}
+               {showOpenHouse && (
+                   <OpenHouseOverlay 
+                       property={selectedProp} 
+                       onClose={() => setShowOpenHouse(false)} 
+                   />
+               )}
+
             </div>
         </div>
     );
