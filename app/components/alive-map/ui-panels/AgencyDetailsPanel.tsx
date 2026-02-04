@@ -17,7 +17,7 @@ import { PDFDownloadLink } from '@react-pdf/renderer';
 
 // 2. RUTA DEL PDF CORREGIDA
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
-
+import AgencyExtrasViewer from "./AgencyExtrasViewer";
 // --- DICCIONARIO MAESTRO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
@@ -394,6 +394,13 @@ const [isDescExpanded, setIsDescExpanded] = useState(false);
                                 )}
                             </button>
                         )}
+                   </div>
+{/* --------------------------------------------------------- */}
+                   {/* 🔥 INYECCIÓN VISUAL: EXTRAS DE AGENCIA (VÍDEO, DOCS) 🔥 */}
+                   {/* --------------------------------------------------------- */}
+                   <div className="mt-4">
+                        {/* ✅ CORREGIDO: Usamos 'selectedProp' que es la variable real */}
+                        <AgencyExtrasViewer property={selectedProp} />
                    </div>
                     {/* CERTIFICADO ENERGÉTICO */}
                     <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center">

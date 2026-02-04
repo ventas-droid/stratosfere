@@ -268,18 +268,18 @@ export async function getPropertyByIdAction(propertyId: string) {
   }
 }
 
-// C. GUARDAR PROPIEDAD (VERSIÓN DEFINITIVA BLINDADA Y EXTENDIDA)
+// C. GUARDAR PROPIEDAD (VERSIÓN DEFINITIVA: SU LÓGICA INTACTA + NUEVOS CAMPOS AGENCIA)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Debes iniciar sesión." };
 
-    // 1. LIMPIEZA DE DATOS NUMÉRICOS (LÓGICA ORIGINAL)
+    // 1. LIMPIEZA DE DATOS NUMÉRICOS (SU LÓGICA ORIGINAL)
     const cleanPrice = parseFloat(String(data.price).replace(/\D/g, '') || '0');
     const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
     const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
 
-    // 2. SINCRONIZACIÓN DE SERVICIOS (MODIFICADO PARA NO PERDER EXTRAS)
+    // 2. SINCRONIZACIÓN DE SERVICIOS (SU LÓGICA ORIGINAL)
     // Juntamos lo que viene en la lista + los botones sueltos
     let servicesSet = new Set<string>(Array.isArray(data.selectedServices) ? data.selectedServices : []);
 
@@ -299,12 +299,12 @@ export async function savePropertyAction(data: any) {
     let finalServices = Array.from(servicesSet);
     if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
 
-    // 3. GESTIÓN DE IMÁGENES (LÓGICA ORIGINAL)
+    // 3. GESTIÓN DE IMÁGENES (SU LÓGICA ORIGINAL)
     const imagesList = Array.isArray(data.images) ? data.images : [];
     if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
-    // 4. OWNER SNAPSHOT (LÓGICA ORIGINAL)
+    // 4. OWNER SNAPSHOT (SU LÓGICA ORIGINAL)
     const ownerSnapshot = {
       id: user.id,
       name: user.name || null,
@@ -319,7 +319,7 @@ export async function savePropertyAction(data: any) {
       role: user.role || null
     };
 
-    // 5. CONSTRUCCIÓN DEL OBJETO (AQUÍ ESTÁ LA ACTUALIZACIÓN CLAVE)
+    // 5. CONSTRUCCIÓN DEL OBJETO (AQUÍ INYECTAMOS LOS NUEVOS CAMPOS SIN ROMPER NADA)
     const payload = {
         userId: user.id,
         type: data.type || 'Piso',
@@ -338,8 +338,7 @@ export async function savePropertyAction(data: any) {
         door: data.door ? String(data.door) : null,
         elevator: Boolean(data.elevator),
 
-        // 🔥 MAPEO DE BOOLEANOS (NUEVOS CAMPOS)
-        // Si está en el Set -> True en la base de datos
+        // 🔥 MAPEO DE BOOLEANOS (YA EXISTENTE)
         pool: servicesSet.has('pool'),
         garage: servicesSet.has('garage'),
         garden: servicesSet.has('garden'),
@@ -351,17 +350,31 @@ export async function savePropertyAction(data: any) {
         furnished: servicesSet.has('furnished'),
         security: servicesSet.has('security'),
 
-        // 🔥 NUEVOS DETALLES
-        state: data.state || null,         // "Obra Nueva", etc.
-        orientation: data.orientation || null, // "Norte", etc.
+        // 🔥 DETALLES (YA EXISTENTE)
+        state: data.state || null,         
+        orientation: data.orientation || null, 
         exterior: data.exterior !== undefined ? Boolean(data.exterior) : true,
+
+        // =========================================================
+        // 🚀 NUEVOS CAMPOS INYECTADOS (MULTIMEDIA & B2B)
+        // =========================================================
+        videoUrl: data.videoUrl || null,
+        tourUrl: data.tourUrl || null,
+        simpleNoteUrl: data.simpleNoteUrl || null,
+        energyCertUrl: data.energyCertUrl || null,
+
+        mandateType: data.mandateType || "ABIERTO",
+        commissionPct: Number(data.commissionPct || 0),
+        sharePct: Number(data.sharePct || 0),
+        shareVisibility: data.shareVisibility || "PRIVATE",
+        // =========================================================
 
         selectedServices: finalServices,
         
         mainImage: mainImage,
         status: (user.role === 'AGENCIA' || (data.id && data.id.length > 10)) ? 'PUBLICADO' : 'PENDIENTE_PAGO',
         
-        ownerSnapshot, // Mantenemos snapshot
+        ownerSnapshot, // Mantenemos su snapshot
 
         // MAPEO EXACTO AL ESQUEMA
         communityFees: Number(data.communityFees || 0), 
@@ -372,7 +385,7 @@ export async function savePropertyAction(data: any) {
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
 
-    // Include Options (LÓGICA ORIGINAL)
+    // Include Options (SU LÓGICA ORIGINAL)
     const includeOptions = { 
       images: true,
       user: { 
@@ -470,7 +483,7 @@ export async function savePropertyAction(data: any) {
   }
 } // ✅ CIERRE DE SAVE
 
-// D. BORRAR PROPIEDAD (LÓGICA ORIGINAL)
+// D. BORRAR PROPIEDAD (LÓGICA ORIGINAL MANTENIDA)
 export async function deletePropertyAction(id: string) {
   try {
     const user = await getCurrentUser();
@@ -497,7 +510,6 @@ export async function deletePropertyAction(id: string) {
     return { success: false, error: String(error) };
   }
 }
-
 // =========================================================
 // ❤️ 3. USUARIO Y FAVORITOS (FUNCIONES QUE FALTABAN)
 // =========================================================
@@ -2181,4 +2193,125 @@ export async function respondOwnerProposalAction(input: {
     console.error("respondOwnerProposalAction failed:", e);
     return { success: false, error: e?.message || "FAILED" };
   }
+}
+// =========================================================
+// 🎉 GESTIÓN DE EVENTOS (OPEN HOUSE)
+// =========================================================
+
+// A. CREAR O EDITAR UN EVENTO (Solo Agencias)
+export async function saveOpenHouseAction(data: any) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "UNAUTH" };
+
+    const pid = String(data.propertyId || "").trim();
+    if (!pid) return { success: false, error: "MISSING_PROPERTY_ID" };
+
+    // Verificar propiedad
+    const prop = await prisma.property.findUnique({ where: { id: pid } });
+    if (!prop || prop.userId !== user.id) return { success: false, error: "FORBIDDEN" };
+
+    const payload = {
+      propertyId: pid,
+      startTime: new Date(data.startTime), // Debe venir en ISO string
+      endTime: new Date(data.endTime),
+      title: data.title || "Open House",
+      description: data.description || "",
+      amenities: Array.isArray(data.amenities) ? data.amenities : [], // ["DJ", "Catering"]
+      capacity: Number(data.capacity || 50),
+      status: "SCHEDULED"
+    };
+
+    // Si mandas ID, actualiza. Si no, crea.
+    if (data.id) {
+       await prisma.openHouse.update({ where: { id: data.id }, data: payload });
+    } else {
+       await prisma.openHouse.create({ data: payload });
+    }
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: String(e.message || e) };
+  }
+}
+
+// B. OBTENER EVENTOS DE UNA PROPIEDAD
+export async function getOpenHouseAction(propertyId: string) {
+  try {
+    const events = await prisma.openHouse.findMany({
+      where: { propertyId: propertyId, status: "SCHEDULED" },
+      orderBy: { startTime: 'asc' },
+      include: {
+         _count: { select: { attendees: true } } // Para saber cuántos van
+      }
+    });
+    return { success: true, data: events };
+  } catch (e) {
+    return { success: false, data: [] };
+  }
+}
+
+// C. APUNTARSE A UN EVENTO (CLIENTE)
+export async function joinOpenHouseAction(eventId: string, guestData?: any) {
+  try {
+    const user = await getCurrentUser();
+    // Permitimos usuarios registrados O invitados con email
+    if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
+
+    const event = await prisma.openHouse.findUnique({ 
+        where: { id: eventId },
+        include: { _count: { select: { attendees: true } } }
+    });
+    
+    if (!event) return { success: false, error: "NOT_FOUND" };
+    if (event.status !== 'SCHEDULED') return { success: false, error: "EVENT_CLOSED" };
+    if (event._count.attendees >= event.capacity) return { success: false, error: "FULL_CAPACITY" };
+
+    // Crear ticket
+    await prisma.openHouseAttendee.create({
+        data: {
+            openHouseId: eventId,
+            userId: user?.id || null, // Si está logueado
+            email: user?.email || guestData?.email,
+            name: user?.name || guestData?.name || "Invitado",
+            phone: user?.phone || guestData?.phone,
+            status: "CONFIRMED"
+        }
+    });
+
+    revalidatePath("/");
+    return { success: true };
+
+  } catch (e: any) {
+    // Si ya está apuntado (Unique constraint), devolvemos éxito igual para no dar error feo
+    if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
+    return { success: false, error: String(e.message || e) };
+  }
+}
+
+// D. CANCELAR EVENTO (AGENCIA)
+export async function cancelOpenHouseAction(eventId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, error: "UNAUTH" };
+
+        // Verificar que el evento es de una casa mía
+        const event = await prisma.openHouse.findUnique({
+            where: { id: eventId },
+            include: { property: true }
+        });
+
+        if (!event || event.property.userId !== user.id) return { success: false, error: "FORBIDDEN" };
+
+        await prisma.openHouse.update({
+            where: { id: eventId },
+            data: { status: "CANCELLED" }
+        });
+
+        revalidatePath("/");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: "ERROR" };
+    }
 }

@@ -15,9 +15,13 @@ import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
 
+// 👇 AÑADA SOLO ESTAS DOS LÍNEAS AQUÍ:
+import StepAgencyExtras from "./StepAgencyExtras";
+import StepOpenHouse from "./StepOpenHouse";
+
 // ✅ AÑADIR "/app" DESPUÉS DE LA ARROBA
-import { savePropertyAction } from '@/app/actions';
-// 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
+// 👇 Hemos añadido getUserMeAction para poder verificar el rol
+import { savePropertyAction, getUserMeAction } from '@/app/actions';// 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
 import { uploadToCloudinary } from '@/app/utils/upload';
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw";
@@ -119,7 +123,20 @@ const [showWizard, setShowWizard] = useState(true);
   // ---------------------------------------------------------------------------
   const [myProperties, setMyProperties] = useState<any[]>([]);
   const [activePropertyId, setActivePropertyId] = useState<string | null>(null);
-
+// 🔥 PARCHE DE EMERGENCIA: DETECTAR ROL DE AGENCIA AUTOMÁTICAMENTE
+  useEffect(() => {
+    const verifyRole = async () => {
+      try {
+        // @ts-ignore
+        const res = await getUserMeAction();
+        if (res?.success && res.data?.role === 'AGENCIA') {
+           console.log("🦅 HUD: RANGO DE AGENCIA CONFIRMADO. ACTIVANDO HERRAMIENTAS.");
+           setFormData((prev: any) => ({ ...prev, isAgencyContext: true }));
+        }
+      } catch (e) { console.error("Error verificando rol", e); }
+    };
+    verifyRole();
+  }, []);
   // 1. Detectar cuál es la propiedad activa real
   const activeProperty = myProperties.find(p => String(p.id) === String(activePropertyId)) || null;
 
@@ -194,13 +211,10 @@ const [showWizard, setShowWizard] = useState(true);
     }
   };
 
-  
-
-  // ESTADO GLOBAL
-  const [formData, setFormData] = useState<any>({
+ const [formData, setFormData] = useState<any>({
     address: "",
     coordinates: null,
-    type: "Piso", // Valor por defecto
+    type: "Piso",
     floor: "",
     door: "",
     elevator: false,
@@ -218,7 +232,18 @@ const [showWizard, setShowWizard] = useState(true);
     images: [],
     price: "", 
     communityFees: "",
-    selectedServices: [] // Guardamos los extras aquí también (piscina, garaje...)
+    selectedServices: [],
+    
+    // ✅ CORRECTO: Se inician como texto vacío. 
+    // Cuando suba el PDF, aquí se guardará "https://cloudinary.com/..." automáticamente.
+    videoUrl: "",
+    tourUrl: "",
+    simpleNoteUrl: "",
+    energyCertUrl: "",
+    openHouse: { enabled: false, amenities: [] },
+    
+    // 🔥 IMPORTANTE: FALSE por defecto para proteger el pago de particulares
+    isAgencyContext: false 
   });
 
  // EDICIÓN BLINDADA V4 (CORREGIDA: INICIO INTELIGENTE)
@@ -328,7 +353,7 @@ const normalizedServices = initialData.selectedServices || [];
 
   return (
     <div className="absolute inset-0 pointer-events-none z-[5000]">
-      {/* NANO CARD PREVIEW */}
+    {/* NANO CARD PREVIEW BLINDADA */}
       {step !== "SUCCESS" && (
         <MapNanoCard 
             {...formData} 
@@ -338,6 +363,8 @@ const normalizedServices = initialData.selectedServices || [];
             rawPrice={currentRawPrice} 
             priceValue={currentRawPrice} 
             price={formData.price}
+            // 👇 ESTO ARREGLA LA FOTO ROTA: Si no hay imagen, pone una genérica
+            img={formData.images?.[0] || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"}
         />
       )}
 
@@ -429,7 +456,59 @@ const normalizedServices = initialData.selectedServices || [];
 {step === "ENERGY" && <StepEnergy formData={formData} updateData={updateData} setStep={setStep} />}
 {step === "MEDIA" && <StepMedia formData={formData} updateData={updateData} setStep={setStep} />}
 {step === "PRICE" && <StepPrice formData={formData} updateData={updateData} setStep={setStep} />}
+{/* 🔥 INICIO BLOQUE AGENCIA (PEGAR ESTO) 🔥 */}
+                    
+                    {step === "AGENCY_EXTRAS" && (
+                        <div className="h-full flex flex-col animate-fade-in-right px-2">
+                            {/* CABECERA */}
+                            <div className="mb-6 shrink-0">
+                                <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Agencia Pro</h2>
+                                <p className="text-gray-500 font-medium">Contenido multimedia y documentación legal.</p>
+                            </div>
+                            
+                            {/* CUERPO CON SCROLL */}
+                            <div className="flex-1 overflow-y-auto px-4 -mx-4 custom-scrollbar pb-8 pt-2">
+                                <StepAgencyExtras formData={formData} setFormData={setFormData} />
+                            </div>
 
+                            {/* BOTONERA */}
+                            <div className="mt-4 flex gap-4 pt-6 border-t border-gray-100 shrink-0">
+                                <button onClick={() => setStep("PRICE")} className="w-16 h-16 flex items-center justify-center bg-gray-50 text-gray-600 rounded-2xl hover:bg-gray-100 transition-all active:scale-95">
+                                    <ArrowLeft size={24} />
+                                </button>
+                                <button onClick={() => setStep("OPEN_HOUSE")} className="flex-1 h-16 text-white font-bold rounded-2xl shadow-xl bg-[#1d1d1f] hover:bg-black active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg">
+                                    Gestionar Eventos <ArrowRight size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === "OPEN_HOUSE" && (
+                        <div className="h-full flex flex-col animate-fade-in-right px-2">
+                            {/* CABECERA */}
+                            <div className="mb-6 shrink-0">
+                                <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Open House</h2>
+                                <p className="text-gray-500 font-medium">Organiza jornadas de puertas abiertas.</p>
+                            </div>
+
+                            {/* CUERPO CON SCROLL */}
+                            <div className="flex-1 overflow-y-auto px-4 -mx-4 custom-scrollbar pb-8 pt-2">
+                                <StepOpenHouse formData={formData} setFormData={setFormData} />
+                            </div>
+
+                            {/* BOTONERA */}
+                            <div className="mt-4 flex gap-4 pt-6 border-t border-gray-100 shrink-0">
+                                <button onClick={() => setStep("AGENCY_EXTRAS")} className="w-16 h-16 flex items-center justify-center bg-gray-50 text-gray-600 rounded-2xl hover:bg-gray-100 transition-all active:scale-95">
+                                    <ArrowLeft size={24} />
+                                </button>
+                                <button onClick={() => setStep("ANALYSIS")} className="flex-1 h-16 text-white font-bold rounded-2xl shadow-xl bg-[#1d1d1f] hover:bg-black active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg">
+                                    Analizar Mercado <ArrowRight size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🔥 FIN BLOQUE AGENCIA 🔥 */}
 {step === "ANALYSIS" && <MarketAnalysisStep formData={formData} onNext={() => setStep("RADAR")} />}
 
 {step === "RADAR" && (
@@ -1178,13 +1257,29 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
     </div>
   );
 };
+// --- PASO PRECIO (MODIFICADO PARA SALTO DE AGENCIA) ---
 const StepPrice = ({ formData, updateData, setStep }: any) => {
   const formatCurrency = (v: string) => v ? v.toString().replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
   const [localPrice, setLocalPrice] = useState(() => { const numericVal = parsePriceInput(formData.price); return numericVal > 0 ? formatCurrency(String(numericVal)) : ""; });
   const [localCommunity, setLocalCommunity] = useState(formData.communityFees || "");
   const getPriceStyle = (priceStr: string) => { const p = parsePriceInput(priceStr); if (!p || p <= 0) return { hex: "#1d1d1f", color: "text-gray-400", bg: "bg-gray-50", border: "border-gray-200", label: "DEFINIR PRECIO" }; if (p < 200000) return { hex: "#34C759", color: "text-[#34C759]", bg: "bg-[#34C759]/10", border: "border-[#34C759]", label: "INVEST" }; if (p < 550000) return { hex: "#Eab308", color: "text-[#Eab308]", bg: "bg-[#Eab308]/10", border: "border-[#Eab308]", label: "OPPORTUNITY" }; if (p < 1200000) return { hex: "#F97316", color: "text-[#F97316]", bg: "bg-[#F97316]/10", border: "border-[#F97316]", label: "PREMIUM" }; if (p < 3000000) return { hex: "#EF4444", color: "text-[#EF4444]", bg: "bg-[#EF4444]/10", border: "border-[#EF4444]", label: "LUXURY" }; return { hex: "#A855F7", color: "text-[#A855F7]", bg: "bg-[#A855F7]/10", border: "border-[#A855F7]", label: "EXCLUSIVE" }; };
   const style = getPriceStyle(localPrice);
-  const syncData = () => { updateData("price", localPrice.replace(/\./g, "")); updateData("communityFees", localCommunity); };
+  
+  const syncData = () => { 
+      updateData("price", localPrice.replace(/\./g, "")); 
+      updateData("communityFees", localCommunity); 
+  };
+
+  // 🔥 LÓGICA DE DESVÍO: SI ES AGENCIA -> EXTRAS, SI NO -> ANÁLISIS
+  const handleNext = () => {
+      syncData(); // 1. Guardamos el precio
+      
+      if (formData.isAgencyContext) {
+          setStep("AGENCY_EXTRAS"); // 2A. Agencia va a sus herramientas
+      } else {
+          setStep("ANALYSIS");      // 2B. Particular sigue el camino normal
+      }
+  };
 
   return (
     <div className="h-full flex flex-col animate-fade-in-right px-2 relative">
@@ -1194,7 +1289,23 @@ const StepPrice = ({ formData, updateData, setStep }: any) => {
         <div className="relative w-full max-w-lg mx-auto group text-center mb-6"><input className={`w-full text-center bg-transparent text-6xl sm:text-7xl font-black outline-none placeholder:text-gray-200 transition-all duration-300 p-0 ${style.color} drop-shadow-sm`} placeholder="0" value={localPrice} onChange={(e) => { let val = e.target.value.replace(/\D/g, ""); if (val.length > 1 && val.startsWith("0")) val = val.substring(1); setLocalPrice(formatCurrency(val)); }} onBlur={syncData} autoFocus /><span className={`absolute top-0 -right-2 sm:-right-6 text-3xl sm:text-4xl font-bold opacity-30 pointer-events-none transition-colors duration-300 ${style.color}`}>€</span><div className={`h-1.5 w-1/3 mx-auto mt-2 rounded-full transition-all duration-500 ${style.bg.replace('/10', '')}`} /></div>
         <div className="w-full max-w-xs animate-fade-in-up delay-100 px-4 mt-4"><label className="block text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Gastos Comunidad (Mes)</label><div className="relative group"><input className="w-full py-4 px-6 bg-gray-50 text-center rounded-2xl border-2 border-transparent text-gray-900 text-2xl font-black focus:bg-white focus:border-gray-200 focus:shadow-lg outline-none transition-all placeholder:text-gray-300" placeholder="0" value={localCommunity} onChange={(e) => setLocalCommunity(e.target.value.replace(/\D/g, ""))} onBlur={syncData} /><span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-bold group-focus-within:text-gray-900 transition-colors">€</span></div></div>
       </div>
-      <div className="sticky bottom-0 left-0 right-0 pt-4 pb-6 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex gap-4 shrink-0 z-50 -mx-4 px-4 shadow-[0_-10px_20px_rgba(255,255,255,1)]"><button onClick={() => setStep("MEDIA")} className="w-16 h-16 flex items-center justify-center bg-gray-50 text-gray-600 rounded-2xl hover:bg-gray-100 transition-all active:scale-95 border border-transparent hover:border-gray-200"><ArrowLeft size={24} /></button><button onClick={() => { syncData(); setStep("ANALYSIS"); }} disabled={!localPrice} className="flex-1 h-16 text-white font-bold rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-50 disabled:grayscale" style={{ backgroundColor: style.hex }}><span className="brightness-200 contrast-200">Analizar Mercado</span> <ArrowRight size={20} /></button></div>
+      <div className="sticky bottom-0 left-0 right-0 pt-4 pb-6 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex gap-4 shrink-0 z-50 -mx-4 px-4 shadow-[0_-10px_20px_rgba(255,255,255,1)]">
+          <button onClick={() => setStep("MEDIA")} className="w-16 h-16 flex items-center justify-center bg-gray-50 text-gray-600 rounded-2xl hover:bg-gray-100 transition-all active:scale-95 border border-transparent hover:border-gray-200"><ArrowLeft size={24} /></button>
+          
+          {/* 🔥 BOTÓN MODIFICADO PARA USAR EL DESVÍO */}
+          <button 
+            onClick={handleNext} 
+            disabled={!localPrice} 
+            className="flex-1 h-16 text-white font-bold rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-lg disabled:opacity-50 disabled:grayscale" 
+            style={{ backgroundColor: style.hex }}
+          >
+            <span className="brightness-200 contrast-200">
+                {/* Texto dinámico según quién sea */}
+                {formData.isAgencyContext ? "Siguiente: Extras Pro" : "Analizar Mercado"}
+            </span> 
+            <ArrowRight size={20} />
+          </button>
+      </div>
     </div>
   );
 };
