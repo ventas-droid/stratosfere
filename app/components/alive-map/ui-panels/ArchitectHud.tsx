@@ -1453,27 +1453,32 @@ const StepVerify = ({ formData, setStep }: any) => {
 };
 
 // ==================================================================================
-// 🏆 STEP SUCCESS: VERSIÓN SEGURA (SIN FUGAS DE VISIBILIDAD)
+// 🏆 STEP SUCCESS: VERSIÓN BLINDADA (FILTRO ANTI-IMPAGO)
 // ==================================================================================
 const StepSuccess = ({ handleClose, formData }: any) => {
   const [isPublishing, setIsPublishing] = useState(false);
   const lastSavedIdRef = useRef<string | null>(formData?.id ? String(formData.id) : null);
   
-  // 1. ANÁLISIS DE LA SITUACIÓN
-  const alreadyPublished = formData?.status === "PUBLICADO";
-  const isEditMode = formData.isEditMode || alreadyPublished;
+  // 1. ANÁLISIS DE LA SITUACIÓN BLINDADO 🛡️
+  const currentStatus = formData?.status;
+  const isPendingPayment = currentStatus === "PENDIENTE_PAGO"; // ¿Es un borrador sin pagar?
   const isAgency = formData.isAgencyContext;
+
+  // Calculamos si es edición visualmente (para textos)
+  const isEditMode = formData.isEditMode || currentStatus === "PUBLICADO";
   
-  // Si es Agencia o Edición -> Guardamos y cerramos (Gratis)
-  // Si es Nuevo Particular -> Guardamos (Oculto) y vamos a Pagar
-  const isDirectSave = isAgency || isEditMode;
+  // 🔥 LÓGICA CRÍTICA DE PAGO:
+  // Solo permitimos "Guardar directo" (Gratis) si:
+  // A) Es Agencia (Siempre gratis).
+  // B) Es Particular EDITANDO algo que NO está pendiente de pago.
+  // SI ESTÁ PENDIENTE DE PAGO -> isDirectSave será FALSE -> Obliga a Pagar.
+  const isDirectSave = isAgency || (isEditMode && !isPendingPayment);
 
   // Visuales (Precio y Foto)
   const rawPrice = formData.price ? parseInt(formData.price.toString().replace(/\D/g, "")) : 0;
   const visualPrice = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(rawPrice);
   const hasUserPhoto = formData.images && formData.images.length > 0;
   const previewImage = hasUserPhoto ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
-
   // --- 🔥 EL CEREBRO DE LA OPERACIÓN ---
   const handleProcess = async () => {
     if (isPublishing) return;
@@ -1640,7 +1645,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
           </div>
       </div>
 
-      {/* Botón de Acción */}
+     {/* Botón de Acción BLINDADO */}
       <button
         onClick={handleProcess}
         disabled={isPublishing}
@@ -1648,15 +1653,19 @@ const StepSuccess = ({ handleClose, formData }: any) => {
       >
         <div className="flex flex-col items-start">
           <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-gray-300 transition-colors">
-             {isDirectSave ? "CONFIRMAR CAMBIOS" : "LANZAMIENTO"}
+             {/* Texto Superior */}
+             {isDirectSave ? "PROCESO COMPLETADO" : "LANZAMIENTO"}
           </span>
           <span className="text-lg font-bold">
+             {/* Texto Principal: Aquí se ve la magia */}
              {isPublishing 
                 ? "Procesando..." 
                 : (isDirectSave ? "Guardar y Salir" : "Pagar y Publicar")}
           </span>
         </div>
+        
         <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center group-hover:bg-white/20 transition-colors">
+           {/* Icono: Check si es gratis, Flecha si es pago */}
            {isDirectSave ? <CheckCircle2 size={20} className="text-white"/> : <ArrowRight size={20} className="text-white"/>}
         </div>
       </button>
