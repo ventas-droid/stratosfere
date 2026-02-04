@@ -49,8 +49,8 @@ model User {
 }
 
 model Property {
-  id                String         @id @default(cuid())
-  refCode           String?        @unique
+  id                String   @id @default(cuid())
+  refCode           String?  @unique
   userId            String?
   address           String
   city              String?
@@ -58,46 +58,63 @@ model Property {
   postcode          String?
   latitude          Float?
   longitude         Float?
-  type              String         @default("Piso")
+  
+  // TIPO Y DATOS BÁSICOS
+  type              String   @default("Piso")
   floor             String?
   door              String?
-  elevator          Boolean        @default(false)
-  state             String?
+  elevator          Boolean  @default(false)
   mBuilt            Float
   rooms             Int
   baths             Int
-  pool              Boolean        @default(false)
-  garage            Boolean        @default(false)
-  terrace           Boolean        @default(false)
-  garden            Boolean        @default(false)
-  storage           Boolean        @default(false)
-  ac                Boolean        @default(false)
-  security          Boolean        @default(false)
-  exterior          Boolean        @default(true)
+
+  // 🔥 CARACTERÍSTICAS Y EXTRAS (LISTA COMPLETA)
+  pool              Boolean  @default(false)
+  garage            Boolean  @default(false)
+  garden            Boolean  @default(false)
+  security          Boolean  @default(false)
+  
+  // ✅ NUEVOS CAMPOS (Sin duplicados)
+  terrace           Boolean  @default(false)
+  balcony           Boolean  @default(false)
+  storage           Boolean  @default(false)
+  ac                Boolean  @default(false)
+  heating           Boolean  @default(false)
+  furnished         Boolean  @default(false)
+  
+  // ✅ DETALLES NUEVOS
+  state             String?
+  orientation       String?
+  exterior          Boolean? @default(true)
+
+  // CAMPOS RESTANTES
   title             String?
   description       String?
   energyConsumption String?
   energyEmissions   String?
-  energyPending     Boolean        @default(false)
+  energyPending     Boolean  @default(false)
   mainImage         String?
   price             Float?
   communityFees     Float?
   selectedServices  String[]
-  status            String         @default("BORRADOR")
-  views             Int            @default(0)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  status            String   @default("BORRADOR")
+  views             Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   ownerSnapshot     Json?
+
+  // RELACIONES
   favoritedBy       Favorite[]
   images            Image[]
-  user              User?          @relation(fields: [userId], references: [id])
+  user              User?    @relation(fields: [userId], references: [id])
   serviceOrders     ServiceOrder[]
 
-  // ✅ Opposite relations (Radar / Campañas)
-  campaigns  Campaign[]
-  assignment PropertyAssignment?
-  tasks      Task[]
+  // ✅ RELACIONES SAAS (AHORA SÍ ESTÁN DENTRO)
+  campaigns         Campaign[]
+  assignment        PropertyAssignment?
+  tasks             Task[]
 }
+ 
 
 model Image {
   id         String   @id @default(cuid())

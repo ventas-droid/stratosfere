@@ -7,9 +7,10 @@ import {
   Eye, FileCheck, FileText, Flame, Globe, LayoutGrid, Loader2, Map as MapIcon,
   MapPin, Megaphone, Paintbrush, Radar, Ruler, Search, Shield, ShieldCheck,
   Smartphone, TrendingUp, Truck, UploadCloud, Video, X, Zap, Award, Crown, Play, Film,
-  Box, Droplets, Star, Bed, Bath, Maximize2, Building2, Home, Briefcase, LandPlot, Warehouse, Sun
+  Box, Droplets, Star, Bed, Bath, Maximize2, Building2, Home, Briefcase, LandPlot, Warehouse, Sun,
+  // 🔥 NUEVOS ICONOS AÑADIDOS (Para Dúplex, Terraza, Aire, etc.)
+  Wind, Thermometer, Armchair, Tent, Layers, Compass, SunDim, Trees, Hammer
 } from "lucide-react";
-
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
@@ -22,12 +23,15 @@ import { uploadToCloudinary } from '@/app/utils/upload';
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw";
 
 // ==================================================================================
-// 1. CONSTANTES GLOBALES (DEFINICIÓN ÚNICA - NO no DUPLICAR)
+// 1. CONSTANTES GLOBALES (DEFINICIÓN ÚNICA - TIPOLOGÍAS AMPLIADAS)
 // ==================================================================================
 const OFFICIAL_TYPES = [
   { id: "flat", label: "Piso", icon: Building2 },
   { id: "penthouse", label: "Ático", icon: Sun },
+  { id: "duplex", label: "Dúplex", icon: Layers }, // 🔥 NUEVO
+  { id: "loft", label: "Loft", icon: Maximize2 },   // 🔥 NUEVO
   { id: "villa", label: "Villa", icon: Home },
+  { id: "bungalow", label: "Bungalow", icon: Tent }, // 🔥 NUEVO
   { id: "office", label: "Oficina", icon: Briefcase },
   { id: "land", label: "Suelo", icon: LandPlot },
   { id: "industrial", label: "Nave", icon: Warehouse }
@@ -36,7 +40,10 @@ const OFFICIAL_TYPES = [
 const PROPERTY_ICONS = {
   "Piso": Building2,
   "Ático": Sun,
+  "Dúplex": Layers,    // 🔥 NUEVO
+  "Loft": Maximize2,   // 🔥 NUEVO
   "Villa": Home,
+  "Bungalow": Tent,    // 🔥 NUEVO
   "Oficina": Briefcase,
   "Suelo": LandPlot,
   "Nave": Warehouse
@@ -648,13 +655,16 @@ const StepLocation = ({ formData, updateData, setStep }: any) => {
   );
 };
 
-// --- PASO 2: BÁSICOS (LÓGICA LIMPIA) ---
+// --- PASO 2: BÁSICOS (VERSIÓN 2.0 - ESTADO + ORIENTACIÓN + NUEVAS TIPOLOGÍAS) ---
 const StepBasics = ({ formData, updateData, setStep }: any) => {
   const [localDoor, setLocalDoor] = useState(formData.door || "");
   const saveDoor = () => updateData("door", localDoor);
 
-  const isLandOrVilla = ["Suelo", "Nave", "Villa"].includes(formData.type);
+  // 🔥 LÓGICA AMPLIADA: Bungalow, Villa, Suelo y Nave NO piden planta/ascensor
+  const isLandOrVilla = ["Suelo", "Nave", "Villa", "Bungalow"].includes(formData.type);
   const isFloorRequired = !isLandOrVilla;
+  
+  // Validación para continuar
   const floorValid = isFloorRequired ? (formData.floor !== "" && formData.floor !== undefined) : true;
   const canContinue = formData.type && floorValid;
 
@@ -662,8 +672,9 @@ const StepBasics = ({ formData, updateData, setStep }: any) => {
     <div className="h-full flex flex-col animate-fade-in-right">
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Características</h2>
 
-      <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar pb-6">
         
+        {/* 1. TIPO DE INMUEBLE (Usa la lista global actualizada) */}
         <div>
           <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
             Tipo de inmueble <span className="text-red-500">*</span>
@@ -676,7 +687,8 @@ const StepBasics = ({ formData, updateData, setStep }: any) => {
                     key={item.id}
                     onClick={() => {
                         updateData("type", item.label);
-                        if (["Suelo", "Nave", "Villa"].includes(item.label)) {
+                        // Si es tipo suelo/casa, limpiamos planta y ascensor
+                        if (["Suelo", "Nave", "Villa", "Bungalow"].includes(item.label)) {
                             updateData("floor", ""); 
                             updateData("elevator", false);
                         }
@@ -696,6 +708,27 @@ const StepBasics = ({ formData, updateData, setStep }: any) => {
           </div>
         </div>
 
+        {/* 2. 🔥 NUEVO: ESTADO DE CONSERVACIÓN */}
+        <div>
+           <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Estado</label>
+           <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+              {['Obra Nueva', 'Buen Estado', 'Reformado', 'A Reformar'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => updateData("state", st)}
+                    className={`whitespace-nowrap px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
+                        formData.state === st 
+                        ? "bg-black text-white border-black" 
+                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {st}
+                  </button>
+              ))}
+           </div>
+        </div>
+
+        {/* 3. PLANTA Y PUERTA (Solo si aplica) */}
         {!isLandOrVilla && (
             <div className="grid grid-cols-2 gap-4 animate-fade-in">
               <div>
@@ -735,29 +768,61 @@ const StepBasics = ({ formData, updateData, setStep }: any) => {
             </div>
         )}
 
+        {/* 4. 🔥 NUEVO: EXTERIOR Y ASCENSOR */}
         {!isLandOrVilla && (
-            <div className="animate-fade-in">
-              <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">¿Tiene ascensor?</label>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => updateData("elevator", true)}
-                  className={`flex-1 py-3 border rounded-xl text-sm font-bold transition-all ${
-                    formData.elevator ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  Sí
-                </button>
-                <button
-                  onClick={() => updateData("elevator", false)}
-                  className={`flex-1 py-3 border rounded-xl text-sm font-bold transition-all ${
-                    !formData.elevator ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  No
-                </button>
-              </div>
+            <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                {/* Selector Exterior/Interior */}
+                <div>
+                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Posición</label>
+                   <div className="flex bg-gray-100 p-1 rounded-xl">
+                      <button 
+                        onClick={() => updateData("exterior", true)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${formData.exterior ? "bg-white shadow text-gray-900" : "text-gray-400"}`}
+                      >Exterior</button>
+                      <button 
+                        onClick={() => updateData("exterior", false)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${!formData.exterior ? "bg-white shadow text-gray-900" : "text-gray-400"}`}
+                      >Interior</button>
+                   </div>
+                </div>
+                
+                {/* Selector Ascensor */}
+                <div>
+                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Ascensor</label>
+                   <div className="flex bg-gray-100 p-1 rounded-xl">
+                      <button 
+                        onClick={() => updateData("elevator", true)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${formData.elevator ? "bg-white shadow text-blue-600" : "text-gray-400"}`}
+                      >Sí</button>
+                      <button 
+                        onClick={() => updateData("elevator", false)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${!formData.elevator ? "bg-white shadow text-gray-900" : "text-gray-400"}`}
+                      >No</button>
+                   </div>
+                </div>
             </div>
         )}
+
+        {/* 5. 🔥 NUEVO: ORIENTACIÓN */}
+        <div>
+           <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">Orientación</label>
+           <div className="grid grid-cols-4 gap-2">
+              {['Norte', 'Sur', 'Este', 'Oeste'].map((ori) => (
+                  <button
+                    key={ori}
+                    onClick={() => updateData("orientation", ori)}
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                        formData.orientation === ori 
+                        ? "bg-blue-50 text-blue-600 border-blue-200" 
+                        : "bg-white text-gray-500 border-gray-100 hover:border-gray-200"
+                    }`}
+                  >
+                    {ori}
+                  </button>
+              ))}
+           </div>
+        </div>
+
       </div>
 
       <div className="mt-4 flex gap-4 pt-4 border-t border-gray-100">
@@ -782,6 +847,7 @@ const StepBasics = ({ formData, updateData, setStep }: any) => {
   );
 };
 
+// --- PASO 3: DETALLES Y EXTRAS (ARSENAL COMPLETO) ---
 const StepSpecs = ({ formData, updateData, setStep }: any) => {
   const formatNumber = (val: any) => {
     if (!val) return "";
@@ -799,10 +865,17 @@ const StepSpecs = ({ formData, updateData, setStep }: any) => {
       updateData("selectedServices", updated);
   };
 
+  // 🔥 LISTA DE EXTRAS ACTUALIZADA (10 ELEMENTOS)
   const EXTRAS = [
       { id: 'pool', label: 'Piscina', icon: Droplets },
       { id: 'garage', label: 'Garaje', icon: Box },
-      { id: 'garden', label: 'Jardín', icon: Sun },
+      { id: 'garden', label: 'Jardín', icon: Trees },      // Actualizado a Trees (más lógico)
+      { id: 'terrace', label: 'Terraza', icon: SunDim },    // Nuevo
+      { id: 'balcony', label: 'Balcón', icon: Compass },    // Nuevo
+      { id: 'storage', label: 'Trastero', icon: Warehouse },// Nuevo (Usa icono Warehouse)
+      { id: 'ac', label: 'Aire Acond.', icon: Wind },       // Nuevo
+      { id: 'heating', label: 'Calefacción', icon: Thermometer }, // Nuevo
+      { id: 'furnished', label: 'Amueblado', icon: Armchair },    // Nuevo
       { id: 'security', label: 'Seguridad', icon: ShieldCheck }
   ];
 
@@ -814,14 +887,23 @@ const StepSpecs = ({ formData, updateData, setStep }: any) => {
       </div>
 
       <div className="flex-1 space-y-8 overflow-y-auto px-4 -mx-4 custom-scrollbar pb-8 pt-2">
+        {/* SUPERFICIE */}
         <div className="bg-gray-50 p-6 rounded-[24px] border border-gray-100 shadow-inner group focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
           <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 group-focus-within:text-blue-600">Superficie Construida</label>
           <div className="relative flex items-baseline">
-            <input className="w-full bg-transparent text-5xl font-black text-gray-900 outline-none placeholder:text-gray-300 tracking-tight" placeholder="0" value={localM2} onChange={(e) => setLocalM2(formatNumber(e.target.value))} onBlur={() => updateData("mBuilt", localM2.replace(/\./g, ""))} autoFocus />
+            <input 
+                className="w-full bg-transparent text-5xl font-black text-gray-900 outline-none placeholder:text-gray-300 tracking-tight" 
+                placeholder="0" 
+                value={localM2} 
+                onChange={(e) => setLocalM2(formatNumber(e.target.value))} 
+                onBlur={() => updateData("mBuilt", localM2.replace(/\./g, ""))} 
+                autoFocus 
+            />
             <span className="text-xl font-bold text-gray-400 ml-2">m²</span>
           </div>
         </div>
 
+        {/* HABITACIONES Y BAÑOS */}
         <div className="grid grid-cols-2 gap-6">
           <div className="p-5 rounded-[24px] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow">
             <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Habitaciones</label>
@@ -842,13 +924,23 @@ const StepSpecs = ({ formData, updateData, setStep }: any) => {
           </div>
         </div>
 
+        {/* EXTRAS - REJILLA AMPLIADA */}
         <div>
-            <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Extras Premium</label>
+            <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Extras y Comodidades</label>
             <div className="grid grid-cols-2 gap-3">
                 {EXTRAS.map((extra) => {
                     const isSelected = (formData.selectedServices || []).includes(extra.id);
                     return (
-                        <button key={extra.id} onClick={() => toggleExtra(extra.id)} className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${isSelected ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+                        <button 
+                            key={extra.id} 
+                            onClick={() => toggleExtra(extra.id)} 
+                            className={`
+                                flex items-center gap-3 p-4 rounded-xl border transition-all 
+                                ${isSelected 
+                                    ? 'bg-black text-white border-black shadow-lg scale-[1.02]' 
+                                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}
+                            `}
+                        >
                             <extra.icon size={18} />
                             <span className="text-sm font-bold">{extra.label}</span>
                         </button>

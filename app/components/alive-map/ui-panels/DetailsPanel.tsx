@@ -6,9 +6,13 @@ import {
     Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa,
-    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle
+    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown,
 } from 'lucide-react';
 import { toggleFavoriteAction, getPropertyByIdAction } from "@/app/actions";
+
+// 🔥 HERRAMIENTAS PDF (Añadidas)
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import { PropertyFlyer } from '../../pdf/PropertyFlyer';
 // --- DICCIONARIO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
@@ -20,8 +24,18 @@ const ICON_MAP: Record<string, any> = {
 
 const PHYSICAL_KEYWORDS = ['pool', 'piscina', 'garage', 'garaje', 'garden', 'jardin', 'terrace', 'terraza', 'storage', 'trastero', 'ac', 'aire', 'security', 'elevator', 'ascensor'];
 
-export default function DetailsPanel({ selectedProp: initialProp, onClose, onToggleFavorite, favorites = [], onOpenInspector }: any) {
+export default function DetailsPanel({ 
+  selectedProp: initialProp, // Renombrado para evitar choques
+  onClose, 
+  onToggleFavorite, 
+  favorites, 
+  currentUser,      // Para el PDF
+  onOpenInspector   // <--- 🔥 ¡ESTE ES EL QUE FALTABA!
+}: any) {
     
+  
+
+    // ... el resto de su código sigue igual ...
     const [selectedProp, setSelectedProp] = useState(initialProp);
    const [copiedRef, setCopiedRef] = useState(false);
 
@@ -412,51 +426,80 @@ const copyPhone = () => {
   >
     <Phone size={18} /> Contactar Propietario
   </button>
-{/* ✅ MENSAJE (acceso rápido) */}
-<button
-  onClick={(e) => {
-    if (e?.stopPropagation) e.stopPropagation();
+{/* 🔥 1. BOTÓN PDF (PRIMERA POSICIÓN - IZQUIERDA) 🔥 */}
+                    {currentUser && (
+                        <PDFDownloadLink
+                            document={
+                                <PropertyFlyer 
+                                    property={selectedProp} 
+                                    // LÓGICA DE MARCA: Si soy agencia, pongo mi logo.
+                                    agent={
+                                        (currentUser?.role === 'AGENCIA' || currentUser?.role === 'AGENCY')
+                                        ? currentUser 
+                                        : (selectedProp?.user || currentUser)
+                                    } 
+                                />
+                            }
+                            fileName={`Ficha_${selectedProp.refCode || 'Stratos'}.pdf`}
+                            className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50 active:scale-90"
+                            title="Descargar Ficha PDF"
+                        >
+                            {({ loading }) => (
+                                loading ? (
+                                    <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+                                ) : (
+                                    <FileDown size={22} />
+                                )
+                            )}
+                        </PDFDownloadLink>
+                    )}
 
-    const propertyId = String(
-      selectedProp?.id || selectedProp?.propertyId || selectedProp?._id || ""
-    );
+                    {/* ✅ 2. BOTÓN MENSAJE (POSICIÓN CENTRAL) */}
+                    <button
+                      onClick={(e) => {
+                        if (e?.stopPropagation) e.stopPropagation();
 
-    const toUserId = String(
-      selectedProp?.user?.id ||
-        selectedProp?.ownerSnapshot?.id ||
-        selectedProp?.userId ||
-        selectedProp?.ownerId ||
-        ""
-    );
+                        const propertyId = String(
+                          selectedProp?.id || selectedProp?.propertyId || selectedProp?._id || ""
+                        );
 
-    if (!toUserId || !propertyId) return;
+                        const toUserId = String(
+                          selectedProp?.user?.id ||
+                            selectedProp?.ownerSnapshot?.id ||
+                            selectedProp?.userId ||
+                            selectedProp?.ownerId ||
+                            ""
+                        );
 
-    window.dispatchEvent(
-      new CustomEvent("open-chat-signal", {
-        detail: { propertyId, toUserId, otherUserId: toUserId },
-      })
-    );
-  }}
-  className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 cursor-pointer active:scale-90"
-  title="Mensaje"
->
-  <MessageCircle size={22} />
-</button>
+                        if (!toUserId || !propertyId) return;
 
-  <button
-    onClick={handleHeartClick}
-    className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-all duration-300 cursor-pointer active:scale-90 ${
-      isFavorite
-        ? "text-rose-500 bg-rose-50 border-rose-100 shadow-inner"
-        : "text-slate-400 hover:text-rose-500"
-    }`}
-  >
-    <Heart
-      size={24}
-      fill={isFavorite ? "currentColor" : "none"}
-      className={isFavorite ? "animate-pulse-once" : ""}
-    />
-  </button>
+                        window.dispatchEvent(
+                          new CustomEvent("open-chat-signal", {
+                            detail: { propertyId, toUserId, otherUserId: toUserId },
+                          })
+                        );
+                      }}
+                      className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 cursor-pointer active:scale-90"
+                      title="Mensaje"
+                    >
+                      <MessageCircle size={22} />
+                    </button>
+
+                    {/* ❤️ 3. BOTÓN FAVORITO (POSICIÓN DERECHA) */}
+                    <button
+                        onClick={handleHeartClick}
+                        className={`w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-all duration-300 cursor-pointer active:scale-90 ${
+                          isFavorite
+                            ? "text-rose-500 bg-rose-50 border-rose-100 shadow-inner"
+                            : "text-slate-400 hover:text-rose-500"
+                        }`}
+                    >
+                        <Heart
+                          size={24}
+                          fill={isFavorite ? "currentColor" : "none"}
+                          className={isFavorite ? "animate-pulse-once" : ""}
+                        />
+                    </button>
 </div>
 
 

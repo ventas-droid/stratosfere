@@ -2839,6 +2839,8 @@ const isAgency =
                            soundEnabled={soundEnabled} 
                            playSynthSound={playSynthSound} 
                            onOpenInspector={() => setActivePanel('INSPECTOR')} 
+                      // 🔥 CAMBIO CORRECTO: Usamos la misma variable que usa arriba
+                           currentUser={agencyProfileData}
                        />
                    );
                })()
