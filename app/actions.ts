@@ -2324,17 +2324,21 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (SOLO BASE DE DATOS - SIN CORREOS)
+// C. APUNTARSE A UN EVENTO (CON DISEÑO DE CORREO "BLACK TICKET")
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
+    const { Resend } = require('resend'); 
+    
     const user = await getCurrentUser();
-    // Permitimos usuarios registrados O invitados con email
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
-    // 1. BUSCAMOS EL EVENTO
+    // 1. BUSCAR EVENTO Y AGENCIA
     const event = await prisma.openHouse.findUnique({ 
         where: { id: eventId },
-        include: { _count: { select: { attendees: true } } }
+        include: { 
+            _count: { select: { attendees: true } },
+            property: { include: { user: true } }
+        }
     });
     
     if (!event) return { success: false, error: "NOT_FOUND" };
@@ -2343,13 +2347,11 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
 
     // Datos del asistente
     const attendeeEmail = user?.email || guestData?.email;
-    const attendeeName = user?.name || guestData?.name || "Invitado";
-    const attendeePhone = user?.phone || guestData?.phone;
+    const attendeeName = user?.name || guestData?.name || "Invitado VIP";
+    const attendeePhone = user?.phone || guestData?.phone || "No especificado";
 
-    // 2. GUARDAR EN BASE DE DATOS (TICKET)
-    // Solo guardamos el registro para que salga en la lista de la agencia.
-    // NO ENVIAMOS NADA MÁS.
-    await prisma.openHouseAttendee.create({
+    // 2. CREAR TICKET EN BD
+    const newAttendee = await prisma.openHouseAttendee.create({
         data: {
             openHouseId: eventId,
             userId: user?.id || null, 
@@ -2360,11 +2362,108 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         }
     });
 
+    // =====================================================
+    // 📨 3. DISEÑO DE CORREOS (RESEND)
+    // =====================================================
+    const resendApiKey = process.env.RESEND_API_KEY;
+
+    if (resendApiKey) {
+        const resend = new Resend(resendApiKey);
+        
+        // Datos Formateados
+        const eventDate = new Date(event.startTime).toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
+        const eventTime = new Date(event.startTime).toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+        const address = event.property.address || "Ubicación Privada";
+        const ticketCode = newAttendee.id.slice(-6).toUpperCase();
+        const agencyEmail = event.property.user?.email;
+        const eventTitle = event.title || "Open House Exclusivo";
+
+        // ---------------------------------------------------------
+        // 💎 DISEÑO A: EL "BLACK TICKET" (Para el Cliente)
+        // ---------------------------------------------------------
+        await resend.emails.send({
+            from: 'Stratos Access <onboarding@resend.dev>', // Si tiene dominio, úselo aquí
+            to: attendeeEmail,
+            subject: `🎟️ ACCESO CONFIRMADO: ${eventTitle}`,
+            html: `
+            <!DOCTYPE html>
+            <html>
+            <body style="background-color: #f4f4f5; font-family: 'Arial', sans-serif; padding: 20px; margin: 0;">
+                <div style="max-width: 500px; margin: 0 auto; background-color: #000000; color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+                    
+                    <div style="background: linear-gradient(90deg, #D4AF37 0%, #F1D78A 50%, #D4AF37 100%); padding: 15px; text-align: center;">
+                        <span style="color: #000; font-weight: 900; letter-spacing: 4px; font-size: 14px; text-transform: uppercase;">VIP ACCESS PASS</span>
+                    </div>
+
+                    <div style="padding: 40px 30px;">
+                        <p style="color: #888; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">EVENTO</p>
+                        <h1 style="margin: 0 0 20px 0; font-size: 28px; line-height: 1.1; font-weight: 800;">${eventTitle}</h1>
+                        
+                        <div style="border-left: 2px solid #333; padding-left: 15px; margin-bottom: 30px;">
+                            <p style="margin: 0; font-size: 14px; color: #ccc;">📍 ${address}</p>
+                            <p style="margin: 5px 0 0 0; font-size: 14px; color: #fff;">🗓️ ${eventDate} <span style="color: #666;">|</span> ⏰ ${eventTime}H</p>
+                        </div>
+
+                        <div style="background-color: #111; border: 1px dashed #444; border-radius: 12px; padding: 20px; text-align: center;">
+                            <p style="margin: 0 0 5px 0; font-size: 10px; color: #666; text-transform: uppercase;">TU CÓDIGO DE ENTRADA</p>
+                            <p style="margin: 0; font-size: 24px; font-family: 'Courier New', monospace; font-weight: bold; letter-spacing: 5px; color: #fff;">${ticketCode}</p>
+                        </div>
+                    </div>
+
+                    <div style="background-color: #111; padding: 20px; text-align: center; border-top: 1px solid #222;">
+                        <p style="margin: 0; color: #555; font-size: 10px;">Presenta este código al personal de la agencia en la entrada.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            `
+        });
+
+        // ---------------------------------------------------------
+        // 📋 DISEÑO B: EL REPORTE DE INTELIGENCIA (Para la Agencia)
+        // ---------------------------------------------------------
+        if (agencyEmail) {
+            await resend.emails.send({
+                from: 'Stratos System <onboarding@resend.dev>',
+                to: agencyEmail,
+                subject: `🔔 NUEVO LEAD: ${attendeeName}`,
+                html: `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+                        <h2 style="color: #000; margin: 0;">Nuevo registro confirmado</h2>
+                        <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Para el evento: <strong>${eventTitle}</strong></p>
+                    </div>
+                    
+                    <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <table width="100%" cellpadding="5">
+                            <tr>
+                                <td style="width: 30px;">👤</td>
+                                <td><strong>${attendeeName}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>📧</td>
+                                <td><a href="mailto:${attendeeEmail}" style="color: #2563EB; text-decoration: none;">${attendeeEmail}</a></td>
+                            </tr>
+                            <tr>
+                                <td>📱</td>
+                                <td>${attendeePhone}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="margin-top: 20px; text-align: center;">
+                        <a href="https://stratos-beta.vercel.app" style="background-color: #000; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 12px; font-weight: bold;">VER EN MI PANEL</a>
+                    </div>
+                </div>
+                `
+            });
+        }
+    }
+
     revalidatePath("/");
     return { success: true };
 
   } catch (e: any) {
-    // Si ya está apuntado, devolvemos éxito para que el botón se ponga verde
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
     return { success: false, error: String(e.message || e) };
   }
