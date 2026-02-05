@@ -2530,3 +2530,72 @@ export async function checkOpenHouseStatusAction(eventId: string) {
         return { isJoined: false };
     }
 }
+
+// G. OBTENER MIS TICKETS (VERSION FINAL: CON DATOS DE AGENCIA Y TELEFONO)
+export async function getUserTicketsAction() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    const tickets = await prisma.openHouseAttendee.findMany({
+      where: { userId: user.id },
+      include: {
+        openHouse: {
+          include: {
+            _count: { select: { attendees: true } },
+            property: {
+              include: {
+                // 🔥 CRÍTICO: TRAER DATOS DEL DUEÑO/AGENCIA
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    surname: true,
+                    companyName: true, // Nombre de la agencia
+                    phone: true,       // Fijo
+                    mobile: true,      // Móvil
+                    email: true,
+                    avatar: true,
+                    role: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return { success: true, data: tickets };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+// H. CANCELAR TICKET (RETIRADA TÁCTICA)
+export async function cancelTicketAction(ticketId: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    // Verificamos que el ticket sea suyo antes de borrar
+    const ticket = await prisma.openHouseAttendee.findUnique({
+      where: { id: ticketId }
+    });
+
+    if (!ticket || ticket.userId !== user.id) {
+        return { success: false, error: "Forbidden" };
+    }
+
+    // Borramos el registro (La agencia dejará de verle en su lista)
+    await prisma.openHouseAttendee.delete({
+      where: { id: ticketId }
+    });
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
