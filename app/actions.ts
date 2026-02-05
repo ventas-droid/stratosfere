@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from './lib/prisma'; 
 import { cookies } from "next/headers";
 import { Resend } from 'resend';
+import { buildStratosfereEmailHtml } from "@/app/utils/email-template"; // Ajuste la ruta si es necesario
 // ... imports ...
 
 // 🔥 PEGAR ESTO AL PRINCIPIO DEL ARCHIVO (DESPUÉS DE LOS IMPORTS)
@@ -2324,14 +2325,12 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (CON DISEÑO DE CORREO "BLACK TICKET")
+// C. APUNTARSE A UN EVENTO (CON PLANTILLA CORPORATIVA "STRATOSFERE OS")
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
-    // Importación segura para evitar errores si no está arriba
     const { Resend } = require('resend'); 
     
     const user = await getCurrentUser();
-    // Permitimos usuarios registrados O invitados con email
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
     // 1. BUSCAR EVENTO Y AGENCIA
@@ -2347,12 +2346,11 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     if (event.status !== 'SCHEDULED') return { success: false, error: "EVENT_CLOSED" };
     if (event._count.attendees >= event.capacity) return { success: false, error: "FULL_CAPACITY" };
 
-    // Datos del asistente
     const attendeeEmail = user?.email || guestData?.email;
-    const attendeeName = user?.name || guestData?.name || "Invitado VIP";
+    const attendeeName = user?.name || guestData?.name || "Invitado";
     const attendeePhone = user?.phone || guestData?.phone || "No especificado";
 
-    // 2. CREAR TICKET EN BASE DE DATOS
+    // 2. CREAR TICKET EN BD
     const newAttendee = await prisma.openHouseAttendee.create({
         data: {
             openHouseId: eventId,
@@ -2365,7 +2363,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     });
 
     // =====================================================
-    // 📨 3. DISEÑO DE CORREOS (RESEND)
+    // 📨 3. ENVÍO DE CORREOS (PLANTILLA STRATOSFERE)
     // =====================================================
     const resendApiKey = process.env.RESEND_API_KEY;
 
@@ -2377,88 +2375,74 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         const eventTime = new Date(event.startTime).toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
         const address = event.property.address || "Ubicación Privada";
         const ticketCode = newAttendee.id.slice(-6).toUpperCase();
-        const agencyEmail = event.property.user?.email;
         const eventTitle = event.title || "Open House Exclusivo";
-        const agencyName = event.property.user?.companyName || "Stratos Agency";
+        const agencyEmail = event.property.user?.email;
 
         // ---------------------------------------------------------
-        // 💎 DISEÑO A: EL "BLACK TICKET" (Para el Cliente)
+        // 🎫 A) EMAIL AL CLIENTE (TICKET OFICIAL)
         // ---------------------------------------------------------
-        await resend.emails.send({
-            from: 'Stratos Access <onboarding@resend.dev>', // Si tiene dominio, úselo aquí
-            to: attendeeEmail,
-            subject: `🎟️ ACCESO CONFIRMADO: ${eventTitle}`,
-            html: `
-            <!DOCTYPE html>
-            <html>
-            <body style="background-color: #f4f4f5; font-family: 'Arial', sans-serif; padding: 20px; margin: 0;">
-                <div style="max-width: 500px; margin: 0 auto; background-color: #000000; color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
-                    
-                    <div style="background: linear-gradient(90deg, #D4AF37 0%, #F1D78A 50%, #D4AF37 100%); padding: 15px; text-align: center;">
-                        <span style="color: #000; font-weight: 900; letter-spacing: 4px; font-size: 14px; text-transform: uppercase;">VIP ACCESS PASS</span>
-                    </div>
+        const emailHtmlClient = buildStratosfereEmailHtml({
+            title: `Entrada Confirmada: ${eventTitle}`,
+            preheader: "Tu código de acceso para el Open House",
+            headline: "¡Estás dentro, General!",
+            bodyHtml: `
+                <p>Hola <strong>${attendeeName}</strong>,</p>
+                <p>Tu plaza para el evento <strong>${eventTitle}</strong> ha sido reservada con éxito.</p>
+                
+                <div style="background:#F5F5F7; border-radius:12px; padding:20px; margin:20px 0; border:1px solid #E5E5EA;">
+                    <p style="margin:0 0 10px 0; font-size:12px; color:#666; text-transform:uppercase; letter-spacing:1px; font-weight:700;">DETALLES DE LA MISIÓN</p>
+                    <p style="margin:5px 0;">📍 <strong>Ubicación:</strong> ${address}</p>
+                    <p style="margin:5px 0;">🗓️ <strong>Fecha:</strong> ${eventDate}</p>
+                    <p style="margin:5px 0;">⏰ <strong>Hora:</strong> ${eventTime}H</p>
+                </div>
 
-                    <div style="padding: 40px 30px;">
-                        <p style="color: #888; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px;">EVENTO</p>
-                        <h1 style="margin: 0 0 20px 0; font-size: 28px; line-height: 1.1; font-weight: 800;">${eventTitle}</h1>
-                        
-                        <div style="border-left: 2px solid #333; padding-left: 15px; margin-bottom: 30px;">
-                            <p style="margin: 0; font-size: 14px; color: #ccc;">📍 ${address}</p>
-                            <p style="margin: 5px 0 0 0; font-size: 14px; color: #fff;">🗓️ ${eventDate} <span style="color: #666;">|</span> ⏰ ${eventTime}H</p>
-                        </div>
-
-                        <div style="background-color: #111; border: 1px dashed #444; border-radius: 12px; padding: 20px; text-align: center;">
-                            <p style="margin: 0 0 5px 0; font-size: 10px; color: #666; text-transform: uppercase;">TU CÓDIGO DE ENTRADA</p>
-                            <p style="margin: 0; font-size: 24px; font-family: 'Courier New', monospace; font-weight: bold; letter-spacing: 5px; color: #fff;">${ticketCode}</p>
-                        </div>
-                    </div>
-
-                    <div style="background-color: #111; padding: 20px; text-align: center; border-top: 1px solid #222;">
-                        <p style="margin: 0; color: #555; font-size: 10px;">Presenta este código al personal de la agencia en la entrada.</p>
+                <div style="text-align:center; margin-top:20px;">
+                    <p style="font-size:12px; color:#888; text-transform:uppercase;">TU CÓDIGO DE ACCESO</p>
+                    <div style="font-family:monospace; font-size:24px; font-weight:900; letter-spacing:4px; background:#000; color:#fff; display:inline-block; padding:10px 20px; border-radius:8px;">
+                        ${ticketCode}
                     </div>
                 </div>
-            </body>
-            </html>
-            `
+            `,
+            ctaText: "Ver Propiedad",
+            ctaUrl: `https://stratosfere.com/map?propertyId=${event.property.id}`, // Ajuste su URL real
+            footerText: "Presenta este código al llegar."
+        });
+
+        await resend.emails.send({
+            from: 'Stratosfere <onboarding@resend.dev>', // Use su remite habitual
+            to: attendeeEmail,
+            subject: `🎟️ Entrada: ${eventTitle}`,
+            html: emailHtmlClient
         });
 
         // ---------------------------------------------------------
-        // 📋 DISEÑO B: EL REPORTE DE INTELIGENCIA (Para la Agencia)
+        // 🔔 B) EMAIL A LA AGENCIA (ALERTA DE INTELIGENCIA)
         // ---------------------------------------------------------
         if (agencyEmail) {
-            await resend.emails.send({
-                from: 'Stratos System <onboarding@resend.dev>',
-                to: agencyEmail,
-                subject: `🔔 NUEVO LEAD: ${attendeeName}`,
-                html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                    <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
-                        <h2 style="color: #000; margin: 0;">Nuevo registro confirmado</h2>
-                        <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Para el evento: <strong>${eventTitle}</strong></p>
-                    </div>
+            const emailHtmlAgency = buildStratosfereEmailHtml({
+                title: "Nuevo Lead Registrado",
+                headline: "Nuevo Asistente Confirmado",
+                bodyHtml: `
+                    <p>Un nuevo usuario se ha apuntado a tu evento <strong>${eventTitle}</strong>.</p>
                     
-                    <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
-                        <table width="100%" cellpadding="5">
-                            <tr>
-                                <td style="width: 30px;">👤</td>
-                                <td><strong>${attendeeName}</strong></td>
-                            </tr>
-                            <tr>
-                                <td>📧</td>
-                                <td><a href="mailto:${attendeeEmail}" style="color: #2563EB; text-decoration: none;">${attendeeEmail}</a></td>
-                            </tr>
-                            <tr>
-                                <td>📱</td>
-                                <td>${attendeePhone}</td>
-                            </tr>
-                        </table>
+                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px;">
+                        <ul style="list-style:none; padding:0; margin:0; color:#166534;">
+                            <li style="margin-bottom:5px;">👤 <strong>${attendeeName}</strong></li>
+                            <li style="margin-bottom:5px;">📧 ${attendeeEmail}</li>
+                            <li>📱 ${attendeePhone}</li>
+                        </ul>
                     </div>
+                `,
+                ctaText: "Gestionar Lista",
+                ctaUrl: "https://stratosfere.com/agency/dashboard", // Ajuste URL
+                footerText: "Este lead ya está guardado en tu base de datos."
+            });
 
-                    <div style="margin-top: 20px; text-align: center;">
-                        <p style="font-size: 12px; color: #999;">Accede a tu panel para gestionar la lista completa.</p>
-                    </div>
-                </div>
-                `
+            await resend.emails.send({
+                from: 'Stratosfere System <onboarding@resend.dev>',
+                to: agencyEmail,
+                subject: `🔔 Nuevo Lead: ${attendeeName}`,
+                html: emailHtmlAgency
             });
         }
     }
@@ -2467,12 +2451,10 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     return { success: true };
 
   } catch (e: any) {
-    // Si ya está apuntado, devolvemos éxito para que el botón se ponga verde sin dar error
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
     return { success: false, error: String(e.message || e) };
   }
 }
-
 // D. CANCELAR EVENTO (AGENCIA)
 export async function cancelOpenHouseAction(eventId: string) {
     try {
