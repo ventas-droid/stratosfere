@@ -2325,51 +2325,43 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (VERSIÓN: DATOS COMPLETOS + LINK PÚBLICO)
+// C. APUNTARSE A UN EVENTO (LINK CORREGIDO A HOME + DEBUG AGENCIA)
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
     const { Resend } = require('resend'); 
     
+    // 1. OBTENER USUARIO
     const user = await getCurrentUser();
-    // Validación de seguridad básica
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
-    // 1. BUSCAR EVENTO + PROPIEDAD + DUEÑO (AGENCIA)
-    // 🔥 IMPORTANTE: El include anidado es vital para sacar los datos de la agencia
+    // 2. BUSCAR EVENTO Y DUEÑO
     const event = await prisma.openHouse.findUnique({ 
         where: { id: eventId },
         include: { 
             _count: { select: { attendees: true } },
-            property: { 
-                include: { 
-                    user: true // Traemos al dueño para sacar su teléfono/email
-                } 
-            }
+            property: { include: { user: true } }
         }
     });
     
     if (!event) return { success: false, error: "NOT_FOUND" };
 
-    // Datos del ASISTENTE (Cliente)
+    // Datos Asistente
     const attendeeEmail = user?.email || guestData?.email;
     const attendeeName = user?.name || guestData?.name || "Invitado";
     const attendeePhone = user?.phone || guestData?.phone || "Sin teléfono";
 
-    // 2. GUARDAR EN BD (UPSERT - Evita errores si ya existe)
+    // 3. GUARDAR TICKET (UPSERT)
     let newAttendee;
-    const userIdOrGuest = user?.id || "guest"; // Clave segura
-
     if (user?.id) {
         newAttendee = await prisma.openHouseAttendee.upsert({
             where: { openHouseId_userId: { openHouseId: eventId, userId: user.id } },
-            update: {}, // Si existe, no hacemos nada (solo recuperamos datos)
+            update: {}, 
             create: {
                 openHouseId: eventId, userId: user.id, email: attendeeEmail,
                 name: attendeeName, phone: attendeePhone, status: "CONFIRMED"
             }
         });
     } else {
-        // Invitados sin ID de usuario
         newAttendee = await prisma.openHouseAttendee.create({
             data: {
                 openHouseId: eventId, email: attendeeEmail,
@@ -2379,74 +2371,67 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     }
 
     // =====================================================
-    // 📨 3. PREPARACIÓN DE VARIABLES PARA EMAIL
+    // 📨 4. PREPARACIÓN DE ENVÍOS
     // =====================================================
     const resendApiKey = process.env.RESEND_API_KEY;
 
     if (resendApiKey) {
         const resend = new Resend(resendApiKey);
         
-        // --- A) DATOS DEL EVENTO ---
-        const eventTitle = event.title || "Open House Exclusivo";
+        // Datos Básicos
+        const eventTitle = event.title || "Open House";
         const address = event.property.address || "Ubicación Privada";
         const ticketCode = newAttendee.id.slice(-6).toUpperCase();
         
-        const dateObj = new Date(event.startTime);
-        const eventDate = dateObj.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
-        const eventTime = dateObj.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+        const d = new Date(event.startTime);
+        const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
+        const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
 
-        // --- B) DATOS DE LA AGENCIA (ORGANIZADOR) ---
-        // Aseguramos que existan con "||" fallback
+        // Datos Agencia (Dueño)
         const agencyUser = event.property.user;
-        const agencyName = agencyUser?.companyName || agencyUser?.name || "Agencia Stratosfere";
+        const agencyName = agencyUser?.companyName || agencyUser?.name || "Agencia Organizadora";
         const agencyPhone = agencyUser?.mobile || agencyUser?.phone || "No disponible";
-        const agencyEmail = agencyUser?.email; // Si esto es null, no se envía copia a agencia
+        
+        // 🔥 SELECCIÓN INTELIGENTE DE EMAIL DE AGENCIA
+        // Intentamos coger el del dueño. Si no existe, usamos el suyo (user.email) para que le llegue la prueba.
+        let targetAgencyEmail = agencyUser?.email;
+        
+        if (!targetAgencyEmail && user?.email) {
+            console.log("⚠️ [AVISO] No hay email de dueño. Usando email del usuario actual para pruebas.");
+            targetAgencyEmail = user.email;
+        }
 
-        // --- C) ENLACE PÚBLICO (SOLUCIÓN ERROR 401) ---
-        // En lugar de ir al mapa (privado), vamos a la ficha pública de la propiedad
-        const publicLink = `https://stratosfere.com/properties/${event.property.id}`; 
-        // O si prefiere el mapa pero sabe que pedirá login:
-        // const mapLink = `https://stratosfere.com/map?propertyId=${event.property.id}`;
-
-        // =====================================================
-        // 📨 4. ENVÍO DE CORREOS
-        // =====================================================
+        // ✅ LINK SEGURO CORREGIDO
+        // Apuntamos a la raíz. El sistema redirigirá según el rol (Particular/Agencia)
+        const safeLink = "https://stratosfere.com"; 
 
         // ---------------------------------------------------------
-        // 📧 CORREO 1: AL CLIENTE (TICKET + DATOS AGENCIA)
+        // A) EMAIL AL CLIENTE
         // ---------------------------------------------------------
         const emailHtmlClient = buildStratosfereEmailHtml({
-            title: `Entrada: ${eventTitle}`,
+            title: `Entrada Confirmada`,
             headline: `¡Estás dentro, ${attendeeName}!`,
             bodyHtml: `
                 <p>Tu plaza para <strong>${eventTitle}</strong> está confirmada.</p>
-                
                 <div style="background:#F5F5F7; border-radius:12px; padding:20px; margin:20px 0;">
-                    <p style="margin:0 0 10px 0; font-size:11px; color:#666; font-weight:bold; text-transform:uppercase;">COORDENADAS</p>
-                    <p style="margin:5px 0;">📍 <strong>${address}</strong></p>
-                    <p style="margin:5px 0;">🗓️ ${eventDate} • ⏰ ${eventTime}H</p>
+                    <p style="margin:0 0 5px 0;">📍 <strong>${address}</strong></p>
+                    <p style="margin:0;">🗓️ ${eventDate} • ${eventTime}H</p>
                 </div>
-
-                <div style="border:1px solid #E5E5EA; border-radius:12px; padding:20px; margin-bottom:20px;">
-                    <p style="margin:0 0 10px 0; font-size:11px; color:#666; font-weight:bold; text-transform:uppercase;">CONTACTO ORGANIZADOR</p>
-                    <p style="margin:0; font-size:16px; font-weight:bold;">${agencyName}</p>
-                    <p style="margin:5px 0;">📞 <a href="tel:${agencyPhone}" style="color:#000; text-decoration:none;">${agencyPhone}</a></p>
-                    ${agencyEmail ? `<p style="margin:0;">✉️ <a href="mailto:${agencyEmail}" style="color:#000; text-decoration:none;">${agencyEmail}</a></p>` : ''}
+                <div style="border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:20px;">
+                    <p style="font-size:10px; text-transform:uppercase; color:#888; margin:0 0 5px 0;">CONTACTO ORGANIZADOR</p>
+                    <p style="font-weight:bold; margin:0;">${agencyName}</p>
+                    <p style="margin:0;">📞 <a href="tel:${agencyPhone}" style="color:#000; text-decoration:none;">${agencyPhone}</a></p>
                 </div>
-
                 <div style="text-align:center;">
-                    <p style="font-size:11px; color:#888; text-transform:uppercase; margin-bottom:5px;">CÓDIGO DE ACCESO</p>
-                    <div style="font-family:monospace; font-size:24px; font-weight:900; letter-spacing:4px; background:#000; color:#fff; display:inline-block; padding:10px 20px; border-radius:8px;">
-                        ${ticketCode}
-                    </div>
+                    <p style="font-size:10px; color:#888; margin-bottom:5px;">TU CÓDIGO DE ACCESO</p>
+                    <div style="font-family:monospace; font-size:24px; font-weight:900; background:#000; color:#fff; display:inline-block; padding:10px 20px; border-radius:8px;">${ticketCode}</div>
                 </div>
             `,
-            ctaText: "Ver Propiedad",
-            ctaUrl: publicLink, // ✅ SOLUCIONADO: Enlace a ficha pública (no da 401)
-            footerText: "Presenta este código al llegar al evento."
+            ctaText: "Ir a Stratosfere",
+            ctaUrl: safeLink, // Ahora lleva a la home
+            footerText: "Presenta este código al llegar."
         });
 
-        console.log(`📨 Enviando Ticket a Cliente: ${attendeeEmail}`);
         await resend.emails.send({
             from: 'Stratosfere <onboarding@resend.dev>',
             to: attendeeEmail,
@@ -2455,35 +2440,43 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         });
 
         // ---------------------------------------------------------
-        // 📧 CORREO 2: A LA AGENCIA (DATOS DEL CLIENTE)
+        // B) EMAIL A LA AGENCIA (AVISO)
         // ---------------------------------------------------------
-        if (agencyEmail) {
+        if (targetAgencyEmail) {
+            console.log(`🔔 Intentando enviar aviso a: ${targetAgencyEmail}`);
+            
             const emailHtmlAgency = buildStratosfereEmailHtml({
-                title: "Nuevo Asistente",
-                headline: "Nuevo Lead Confirmado",
+                title: "Nuevo Lead",
+                headline: "Nuevo Asistente Registrado",
                 bodyHtml: `
-                    <p>Un nuevo usuario se ha registrado para el evento: <strong>${eventTitle}</strong>.</p>
-                    
-                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:20px; margin-top:20px;">
-                        <p style="margin:0 0 10px 0; font-size:11px; color:#166534; font-weight:bold; text-transform:uppercase;">DATOS DEL LEAD</p>
+                    <p>¡Atención! Nuevo registro para: <strong>${eventTitle}</strong></p>
+                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px;">
                         <ul style="list-style:none; padding:0; margin:0; color:#14532d;">
-                            <li style="margin-bottom:8px;">👤 <strong>Nombre:</strong> ${attendeeName}</li>
-                            <li style="margin-bottom:8px;">📧 <strong>Email:</strong> <a href="mailto:${attendeeEmail}" style="color:#14532d;">${attendeeEmail}</a></li>
-                            <li style="margin-bottom:0;">📱 <strong>Teléfono:</strong> ${attendeePhone}</li>
+                            <li>👤 <strong>${attendeeName}</strong></li>
+                            <li>📧 <a href="mailto:${attendeeEmail}">${attendeeEmail}</a></li>
+                            <li>📱 ${attendeePhone}</li>
                         </ul>
                     </div>
                 `,
-                ctaText: "Ver Panel de Agencia",
-                ctaUrl: "https://stratosfere.com/dashboard"
+                ctaText: "Ver Stratosfere",
+                ctaUrl: safeLink
             });
 
-            console.log(`🔔 Enviando Aviso a Agencia: ${agencyEmail}`);
-            await resend.emails.send({
+            // Capturamos el error específico de este envío
+            const { error } = await resend.emails.send({
                 from: 'Stratosfere System <onboarding@resend.dev>',
-                to: agencyEmail,
+                to: targetAgencyEmail, 
                 subject: `🔔 Nuevo Lead: ${attendeeName}`,
                 html: emailHtmlAgency
             });
+
+            if (error) {
+                console.error("❌ ERROR CRÍTICO AL ENVIAR A AGENCIA:", error);
+            } else {
+                console.log("✅ Aviso Agencia enviado con éxito.");
+            }
+        } else {
+            console.warn("⚠️ No se encontró ningún email para enviar el aviso de agencia.");
         }
     }
 
@@ -2491,8 +2484,6 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     return { success: true };
 
   } catch (e: any) {
-    console.error("💥 Error en joinOpenHouseAction:", e);
-    // Si es duplicado, devolvemos éxito para la UI
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
     return { success: false, error: String(e.message || e) };
   }
