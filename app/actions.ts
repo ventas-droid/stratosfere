@@ -2531,7 +2531,7 @@ export async function checkOpenHouseStatusAction(eventId: string) {
     }
 }
 
-// G. OBTENER MIS TICKETS (VERSION FINAL: CON DATOS DE AGENCIA Y TELEFONO)
+// G. OBTENER MIS TICKETS (AHORA SÍ TRAE LAS FOTOS)
 export async function getUserTicketsAction() {
   try {
     const user = await getCurrentUser();
@@ -2545,18 +2545,25 @@ export async function getUserTicketsAction() {
             _count: { select: { attendees: true } },
             property: {
               include: {
-                // 🔥 CRÍTICO: TRAER DATOS DEL DUEÑO/AGENCIA
+                // 🔥 AQUÍ FALTABAN LOS CAMPOS DE IMAGEN
                 user: {
                   select: {
                     id: true,
+                    role: true,
                     name: true,
                     surname: true,
-                    companyName: true, // Nombre de la agencia
-                    phone: true,       // Fijo
-                    mobile: true,      // Móvil
                     email: true,
-                    avatar: true,
-                    role: true
+                    
+                    // DATOS DE AGENCIA
+                    companyName: true,
+                    companyLogo: true, // <--- FALTABA ESTE (Avatar Agencia)
+                    coverImage: true,  // <--- FALTABA ESTE (Fondo)
+                    
+                    // CONTACTO
+                    phone: true,
+                    mobile: true,
+                    website: true,
+                    licenseNumber: true
                   }
                 }
               }

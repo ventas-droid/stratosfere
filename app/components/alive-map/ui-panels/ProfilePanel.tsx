@@ -273,25 +273,52 @@ export default function ProfilePanel({
       }
   };
 
-  // --- 🔥 FUNCIONES DE EVENTOS ---
+  // A. VOLAR AL EVENTO (VERSIÓN MAESTRA QUE TRANSMITE IMÁGENES)
   const handleTicketFlyTo = (ticket: any) => {
       if (soundEnabled) playSynthSound('click');
-      const prop = ticket.openHouse?.property;
-      if (!prop) return;
+      
+      const rawProp = ticket.openHouse?.property;
+      if (!rawProp) return;
+
+      // 1. EXTRAER DATOS DEL DUEÑO (Ahora sí vienen con logo y cover)
+      const rawUser = rawProp.user || {};
+
+      // 2. FABRICAR LA IDENTIDAD PARA EL DETAILS PANEL
+      const builtIdentity = {
+          id: rawUser.id,
+          name: rawUser.companyName || rawUser.name || "Agencia",
+          // 🔥 Si es agencia, usamos companyLogo. Si no, avatar.
+          avatar: rawUser.companyLogo || rawUser.avatar || null, 
+          coverImage: rawUser.coverImage || null, // El fondo
+          role: rawUser.role || "AGENCIA",
+          email: rawUser.email,
+          phone: rawUser.mobile || rawUser.phone,
+          companyName: rawUser.companyName,
+          licenseNumber: rawUser.licenseNumber,
+          website: rawUser.website
+      };
+
+      // 3. EMPAQUETAR PARA EL ENVÍO
+      const targetProp = {
+          ...rawProp,
+          coordinates: [rawProp.longitude, rawProp.latitude],
+          img: rawProp.mainImage || (rawProp.images && rawProp.images[0]?.url) || "",
+          price: rawProp.price, 
+          
+          // Inyectamos la identidad fabricada
+          user: builtIdentity,          
+          ownerSnapshot: builtIdentity, 
+      };
 
       if (typeof window !== 'undefined') {
-          const detailsObj = {
-              ...prop,
-              img: prop.mainImage || (prop.images && prop.images[0]?.url) || "",
-              price: prop.price,
-              coordinates: [prop.longitude, prop.latitude]
-          };
-          window.dispatchEvent(new CustomEvent('open-details-signal', { detail: detailsObj }));
+          // A) Disparar apertura de ficha
+          window.dispatchEvent(new CustomEvent('open-details-signal', { detail: targetProp }));
       
-          if (prop.latitude && prop.longitude) {
+          // B) Disparar vuelo de mapa
+          if (rawProp.latitude && rawProp.longitude) {
               window.dispatchEvent(new CustomEvent('fly-to-location', { 
                   detail: { 
-                      center: [prop.longitude, prop.latitude],
+                      center: [rawProp.longitude, rawProp.latitude], 
                       zoom: 18.5, 
                       pitch: 60 
                   } 
@@ -299,7 +326,6 @@ export default function ProfilePanel({
           }
       }
   };
-
   const handleCancelTicket = async (e: any, ticketId: string) => {
       e.stopPropagation();
       if(!confirm("¿Cancelar asistencia?\nSe liberará tu plaza y se avisará a la agencia.")) return;
