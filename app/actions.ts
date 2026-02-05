@@ -2327,9 +2327,11 @@ export async function getOpenHouseAction(propertyId: string) {
 // C. APUNTARSE A UN EVENTO (CON DISEÑO DE CORREO "BLACK TICKET")
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
+    // Importación segura para evitar errores si no está arriba
     const { Resend } = require('resend'); 
     
     const user = await getCurrentUser();
+    // Permitimos usuarios registrados O invitados con email
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
     // 1. BUSCAR EVENTO Y AGENCIA
@@ -2350,7 +2352,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     const attendeeName = user?.name || guestData?.name || "Invitado VIP";
     const attendeePhone = user?.phone || guestData?.phone || "No especificado";
 
-    // 2. CREAR TICKET EN BD
+    // 2. CREAR TICKET EN BASE DE DATOS
     const newAttendee = await prisma.openHouseAttendee.create({
         data: {
             openHouseId: eventId,
@@ -2377,6 +2379,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         const ticketCode = newAttendee.id.slice(-6).toUpperCase();
         const agencyEmail = event.property.user?.email;
         const eventTitle = event.title || "Open House Exclusivo";
+        const agencyName = event.property.user?.companyName || "Stratos Agency";
 
         // ---------------------------------------------------------
         // 💎 DISEÑO A: EL "BLACK TICKET" (Para el Cliente)
@@ -2452,7 +2455,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
                     </div>
 
                     <div style="margin-top: 20px; text-align: center;">
-                        <a href="https://stratos-beta.vercel.app" style="background-color: #000; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-size: 12px; font-weight: bold;">VER EN MI PANEL</a>
+                        <p style="font-size: 12px; color: #999;">Accede a tu panel para gestionar la lista completa.</p>
                     </div>
                 </div>
                 `
@@ -2464,6 +2467,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     return { success: true };
 
   } catch (e: any) {
+    // Si ya está apuntado, devolvemos éxito para que el botón se ponga verde sin dar error
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
     return { success: false, error: String(e.message || e) };
   }
