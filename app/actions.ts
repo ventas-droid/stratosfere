@@ -2325,7 +2325,7 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (OPTIMIZADO PARA BANDEJA DE ENTRADA)
+// C. APUNTARSE A UN EVENTO (CORREO OFICIAL INFO@STRATOSFERE.COM)
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
     const { Resend } = require('resend'); 
@@ -2377,32 +2377,32 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     if (resendApiKey) {
         const resend = new Resend(resendApiKey);
         
-        // Datos
+        // Datos Evento
         const eventTitle = event.title || "Open House";
-        const address = event.property.address || "Ubicación Privada";
-        const ticketCode = newAttendee.id.slice(-6).toUpperCase();
-        
         const d = new Date(event.startTime);
         const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
         const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+        
+        const address = event.property.address || "Ubicación Privada";
+        const propertyRef = event.property.refCode || "Sin Ref";
+        const ticketCode = newAttendee.id.slice(-6).toUpperCase();
 
+        // Datos Agencia
         const agencyUser = event.property.user;
         const agencyName = agencyUser?.companyName || agencyUser?.name || "Agencia Organizadora";
         const agencyPhone = agencyUser?.mobile || agencyUser?.phone || "";
         const agencyEmail = agencyUser?.email;
 
         const platformLink = "https://stratosfere.com"; 
-
-        // ✅ MEJORA DE ENTREGABILIDAD
-        // Usamos un nombre más "oficial" y añadimos reply_to
-        const senderEmail = 'Stratosfere Tickets <info@stratosfere.com>'; 
-        const replyAddress = 'soporte@stratosfere.com'; // O el email que prefiera para respuestas
+        
+        // 🔥 REMITE OFICIAL: SU CORREO REAL 🔥
+        const senderEmail = 'Stratosfere <info@stratosfere.com>'; 
 
         // ---------------------------------------------------------
         // A) CORREO AL CLIENTE
         // ---------------------------------------------------------
         const emailHtmlClient = buildStratosfereEmailHtml({
-            title: `Confirmación de Entrada`, // Título más formal
+            title: `Confirmación de Entrada`,
             headline: `¡Estás dentro, ${attendeeName}!`,
             bodyHtml: `
                 <p>Tu plaza para <strong>${eventTitle}</strong> está confirmada.</p>
@@ -2428,12 +2428,12 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         await resend.emails.send({
             from: senderEmail, 
             to: attendeeEmail,
-            reply_to: replyAddress, // ✅ Ayuda a que Gmail vea que es real
+            // LOGICA INTELIGENTE: Si el cliente responde, le escribe a la AGENCIA.
+            // Si la agencia no tiene email (raro), entonces le escribe a usted (info@)
+            reply_to: agencyEmail || 'info@stratosfere.com', 
             subject: `🎟️ Tu entrada para ${eventTitle}`,
             html: emailHtmlClient,
-            headers: {
-                'X-Entity-Ref-ID': ticketCode, // Header técnico que a veces ayuda
-            }
+            headers: { 'X-Entity-Ref-ID': ticketCode }
         });
 
         // ---------------------------------------------------------
@@ -2444,24 +2444,34 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
                 title: "Nuevo Lead Confirmado",
                 headline: "Nuevo Asistente Registrado",
                 bodyHtml: `
-                    <p>Nuevo registro para: <strong>${eventTitle}</strong></p>
-                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px;">
+                    <p>Se ha registrado un nuevo asistente para el evento: <strong>${eventTitle}</strong></p>
+                    
+                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px; margin-bottom:15px;">
+                        <p style="font-size:10px; font-weight:bold; color:#166534; text-transform:uppercase; margin:0 0 10px 0;">DATOS DEL INTERESADO</p>
                         <ul style="list-style:none; padding:0; margin:0; color:#14532d;">
-                            <li>👤 <strong>${attendeeName}</strong></li>
-                            <li>📧 <a href="mailto:${attendeeEmail}">${attendeeEmail}</a></li>
+                            <li style="margin-bottom:5px;">👤 <strong>${attendeeName}</strong></li>
+                            <li style="margin-bottom:5px;">📧 <a href="mailto:${attendeeEmail}">${attendeeEmail}</a></li>
                             <li>📱 ${attendeePhone}</li>
                         </ul>
                     </div>
+
+                    <div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:15px;">
+                        <p style="font-size:10px; font-weight:bold; color:#6B7280; text-transform:uppercase; margin:0 0 10px 0;">CONTEXTO DEL EVENTO</p>
+                        <p style="margin:0 0 5px 0; color:#111;">📍 <strong>${address}</strong></p>
+                        <p style="margin:0 0 5px 0; font-size:14px;">🗓️ ${eventDate} • ${eventTime}H</p>
+                        <p style="margin:5px 0 0 0; font-family:monospace; background:#e5e7eb; display:inline-block; padding:2px 6px; border-radius:4px; font-size:12px;">REF: ${propertyRef}</p>
+                    </div>
                 `,
-                ctaText: "Ver Panel",
+                ctaText: "Ver en Panel",
                 ctaUrl: platformLink
             });
 
             await resend.emails.send({
                 from: senderEmail, 
                 to: agencyEmail,
-                reply_to: replyAddress,
-                subject: `🔔 Nuevo Lead: ${attendeeName}`,
+                // Si la agencia responde, le escribe al CLIENTE
+                reply_to: attendeeEmail, 
+                subject: `🔔 Nuevo Lead (Ref: ${propertyRef}): ${attendeeName}`,
                 html: emailHtmlAgency
             });
         }
@@ -2475,31 +2485,6 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     return { success: false, error: String(e.message || e) };
   }
 }
-// D. CANCELAR EVENTO (AGENCIA)
-export async function cancelOpenHouseAction(eventId: string) {
-    try {
-        const user = await getCurrentUser();
-        if (!user) return { success: false, error: "UNAUTH" };
-
-        const event = await prisma.openHouse.findUnique({
-            where: { id: eventId },
-            include: { property: true }
-        });
-
-        if (!event || event.property.userId !== user.id) return { success: false, error: "FORBIDDEN" };
-
-        await prisma.openHouse.update({
-            where: { id: eventId },
-            data: { status: "CANCELLED" }
-        });
-
-        revalidatePath("/");
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: "ERROR" };
-    }
-}
-
 // E. VER LISTA DE INVITADOS (SOLO AGENCIA/DUEÑO)
 export async function getOpenHouseAttendeesAction(openHouseId: string) {
   try {
