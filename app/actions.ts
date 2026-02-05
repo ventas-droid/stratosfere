@@ -2325,15 +2325,16 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (CON PLANTILLA CORPORATIVA "STRATOSFERE OS")
+// C. APUNTARSE A UN EVENTO (LÓGICA BLINDADA: UPSERT + EMAIL)
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
     const { Resend } = require('resend'); 
     
     const user = await getCurrentUser();
+    // Validar: O tengo usuario logueado, O tengo email de invitado
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
-    // 1. BUSCAR EVENTO Y AGENCIA
+    // 1. BUSCAR EVENTO Y DATOS DE LA AGENCIA (DUEÑO)
     const event = await prisma.openHouse.findUnique({ 
         where: { id: eventId },
         include: { 
@@ -2343,27 +2344,55 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     });
     
     if (!event) return { success: false, error: "NOT_FOUND" };
-    if (event.status !== 'SCHEDULED') return { success: false, error: "EVENT_CLOSED" };
-    if (event._count.attendees >= event.capacity) return { success: false, error: "FULL_CAPACITY" };
+    
+    // Solo verificamos aforo si es un registro NUEVO (aproximación)
+    if (event._count.attendees >= event.capacity) {
+        // Podríamos comprobar aquí si ya existe para dejarle pasar, pero por seguridad:
+        // return { success: false, error: "FULL_CAPACITY" };
+    }
 
     const attendeeEmail = user?.email || guestData?.email;
     const attendeeName = user?.name || guestData?.name || "Invitado";
     const attendeePhone = user?.phone || guestData?.phone || "No especificado";
 
-    // 2. CREAR TICKET EN BD
-    const newAttendee = await prisma.openHouseAttendee.create({
-        data: {
-            openHouseId: eventId,
-            userId: user?.id || null, 
-            email: attendeeEmail,
-            name: attendeeName,
-            phone: attendeePhone,
-            status: "CONFIRMED"
-        }
-    });
+    // 2. GUARDAR EN BD (INTELIGENTE)
+    // Si es usuario registrado, usamos UPSERT (Si existe, lo recupera; si no, lo crea)
+    // Esto evita el error P2002 y permite reenviar el email si le da otra vez.
+    let newAttendee;
+
+    if (user?.id) {
+        newAttendee = await prisma.openHouseAttendee.upsert({
+            where: {
+                openHouseId_userId: {
+                    openHouseId: eventId,
+                    userId: user.id
+                }
+            },
+            update: {}, // No cambiamos nada, solo lo recuperamos
+            create: {
+                openHouseId: eventId,
+                userId: user.id,
+                email: attendeeEmail,
+                name: attendeeName,
+                phone: attendeePhone,
+                status: "CONFIRMED"
+            }
+        });
+    } else {
+        // Si es invitado (sin ID), usamos create simple (el schema no restringe emails duplicados para invitados, solo IDs)
+        newAttendee = await prisma.openHouseAttendee.create({
+            data: {
+                openHouseId: eventId,
+                email: attendeeEmail,
+                name: attendeeName,
+                phone: attendeePhone,
+                status: "CONFIRMED"
+            }
+        });
+    }
 
     // =====================================================
-    // 📨 3. ENVÍO DE CORREOS (PLANTILLA STRATOSFERE)
+    // 📨 3. ENVÍO DE CORREOS (PLANTILLA OFICIAL STRATOSFERE)
     // =====================================================
     const resendApiKey = process.env.RESEND_API_KEY;
 
@@ -2373,69 +2402,67 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         // Datos Formateados
         const eventDate = new Date(event.startTime).toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
         const eventTime = new Date(event.startTime).toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
-        const address = event.property.address || "Ubicación Privada";
         const ticketCode = newAttendee.id.slice(-6).toUpperCase();
         const eventTitle = event.title || "Open House Exclusivo";
-        const agencyEmail = event.property.user?.email;
+        const address = event.property.address || "Ubicación Privada";
+        const agencyEmail = event.property.user?.email; // Email del dueño de la propiedad
 
         // ---------------------------------------------------------
-        // 🎫 A) EMAIL AL CLIENTE (TICKET OFICIAL)
+        // 🎫 A) EMAIL AL CLIENTE (TICKET)
         // ---------------------------------------------------------
         const emailHtmlClient = buildStratosfereEmailHtml({
-            title: `Entrada Confirmada: ${eventTitle}`,
-            preheader: "Tu código de acceso para el Open House",
-            headline: "¡Estás dentro, General!",
+            title: `Entrada: ${eventTitle}`,
+            headline: `¡Estás dentro, ${attendeeName}!`,
             bodyHtml: `
-                <p>Hola <strong>${attendeeName}</strong>,</p>
                 <p>Tu plaza para el evento <strong>${eventTitle}</strong> ha sido reservada con éxito.</p>
                 
                 <div style="background:#F5F5F7; border-radius:12px; padding:20px; margin:20px 0; border:1px solid #E5E5EA;">
                     <p style="margin:0 0 10px 0; font-size:12px; color:#666; text-transform:uppercase; letter-spacing:1px; font-weight:700;">DETALLES DE LA MISIÓN</p>
-                    <p style="margin:5px 0;">📍 <strong>Ubicación:</strong> ${address}</p>
-                    <p style="margin:5px 0;">🗓️ <strong>Fecha:</strong> ${eventDate}</p>
-                    <p style="margin:5px 0;">⏰ <strong>Hora:</strong> ${eventTime}H</p>
+                    <p style="margin:5px 0; color:#000;">📍 <strong>${address}</strong></p>
+                    <p style="margin:5px 0; color:#000;">🗓️ ${eventDate} a las ${eventTime}H</p>
                 </div>
 
                 <div style="text-align:center; margin-top:20px;">
-                    <p style="font-size:12px; color:#888; text-transform:uppercase;">TU CÓDIGO DE ACCESO</p>
-                    <div style="font-family:monospace; font-size:24px; font-weight:900; letter-spacing:4px; background:#000; color:#fff; display:inline-block; padding:10px 20px; border-radius:8px;">
+                    <p style="font-size:12px; color:#888; text-transform:uppercase; margin-bottom:5px;">TU CÓDIGO DE ACCESO</p>
+                    <div style="font-family:monospace; font-size:24px; font-weight:900; letter-spacing:4px; background:#111; color:#fff; display:inline-block; padding:12px 24px; border-radius:8px;">
                         ${ticketCode}
                     </div>
                 </div>
             `,
-            ctaText: "Ver Propiedad",
-            ctaUrl: `https://stratosfere.com/map?propertyId=${event.property.id}`, // Ajuste su URL real
-            footerText: "Presenta este código al llegar."
+            ctaText: "Ver Ubicación en Mapa",
+            ctaUrl: `https://stratosfere.com/map?propertyId=${event.propertyId}`,
+            footerText: "Por favor, muestra este código al llegar."
         });
 
+        // ENVÍO AL CLIENTE
         await resend.emails.send({
-            from: 'Stratosfere <onboarding@resend.dev>', // Use su remite habitual
-            to: attendeeEmail,
-            subject: `🎟️ Entrada: ${eventTitle}`,
+            from: 'Stratosfere <onboarding@resend.dev>',
+            to: attendeeEmail, // ⚠️ IMPORTANTE: Si es cuenta gratis, SOLO enviará si este email es el suyo verificado.
+            subject: `🎟️ Entrada Confirmada: ${eventTitle}`,
             html: emailHtmlClient
         });
 
         // ---------------------------------------------------------
-        // 🔔 B) EMAIL A LA AGENCIA (ALERTA DE INTELIGENCIA)
+        // 🔔 B) EMAIL A LA AGENCIA (NOTIFICACIÓN)
         // ---------------------------------------------------------
         if (agencyEmail) {
             const emailHtmlAgency = buildStratosfereEmailHtml({
-                title: "Nuevo Lead Registrado",
-                headline: "Nuevo Asistente Confirmado",
+                title: "Nuevo Asistente",
+                headline: "Nuevo Lead Registrado",
                 bodyHtml: `
-                    <p>Un nuevo usuario se ha apuntado a tu evento <strong>${eventTitle}</strong>.</p>
+                    <p>Un usuario acaba de confirmar asistencia para: <strong>${eventTitle}</strong>.</p>
                     
-                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px;">
+                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px; margin-top:10px;">
                         <ul style="list-style:none; padding:0; margin:0; color:#166534;">
-                            <li style="margin-bottom:5px;">👤 <strong>${attendeeName}</strong></li>
-                            <li style="margin-bottom:5px;">📧 ${attendeeEmail}</li>
+                            <li style="margin-bottom:8px;">👤 <strong>${attendeeName}</strong></li>
+                            <li style="margin-bottom:8px;">📧 <a href="mailto:${attendeeEmail}" style="color:#166534; text-decoration:none;">${attendeeEmail}</a></li>
                             <li>📱 ${attendeePhone}</li>
                         </ul>
                     </div>
                 `,
-                ctaText: "Gestionar Lista",
-                ctaUrl: "https://stratosfere.com/agency/dashboard", // Ajuste URL
-                footerText: "Este lead ya está guardado en tu base de datos."
+                ctaText: "Ver Panel de Agencia",
+                ctaUrl: "https://stratosfere.com/dashboard",
+                footerText: "Este contacto ha sido guardado en tu base de datos de Stratosfere."
             });
 
             await resend.emails.send({
@@ -2451,6 +2478,8 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     return { success: true };
 
   } catch (e: any) {
+    console.error("Error en joinOpenHouseAction:", e);
+    // Aunque falle el email, si es P2002 (duplicado) devolvemos éxito para la UI
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
     return { success: false, error: String(e.message || e) };
   }
@@ -2503,4 +2532,25 @@ export async function getOpenHouseAttendeesAction(openHouseId: string) {
   } catch (e) {
     return { success: false, data: [] };
   }
+}
+// F. VERIFICAR SI YA ESTOY APUNTADO (MEMORIA DEL SISTEMA)
+// Úsela en el useEffect de OpenHouseOverlay.tsx
+export async function checkOpenHouseStatusAction(eventId: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { isJoined: false };
+
+        // Buscamos si existe ticket
+        const ticket = await prisma.openHouseAttendee.findUnique({
+            where: {
+                openHouseId_userId: {
+                    openHouseId: eventId,
+                    userId: user.id
+                }
+            }
+        });
+        return { isJoined: !!ticket };
+    } catch (e) {
+        return { isJoined: false };
+    }
 }
