@@ -2430,7 +2430,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
 
         // Envíamos al Cliente
         await resend.emails.send({
-            from: 'Stratosfere <onboarding@resend.dev>', // ⚠️ CAMBIE ESTO POR SU DOMINIO CUANDO LO TENGA VERIFICADO (ej: 'no-reply@stratosfere.com')
+            from: 'Stratosfere <info@stratosfere.com>', // ⚠️ CAMBIE ESTO POR SU DOMINIO CUANDO LO TENGA VERIFICADO (ej: 'no-reply@stratosfere.com')
             to: attendeeEmail,
             subject: `🎟️ Entrada: ${eventTitle}`,
             html: emailHtmlClient
@@ -2460,7 +2460,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
 
             // Envíamos a la Agencia REAL
             await resend.emails.send({
-                from: 'Stratosfere System <onboarding@resend.dev>',
+                from: 'Stratosfere System <info@stratosfere.com>',
                 to: agencyEmail, // AQUÍ SE ENVÍA A 'ventas@bernabeurealty.com'
                 subject: `🔔 Nuevo Lead: ${attendeeName}`,
                 html: emailHtmlAgency
