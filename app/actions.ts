@@ -966,9 +966,10 @@ export async function deleteFromStockAction(propertyId: string) {
 // --- AÑADIR AL FINAL DE actions.ts ---
 
 // B. MIS PROPIEDADES (PERFIL) - Recuperada
+// B. MIS PROPIEDADES (PERFIL) - Recuperada + FIX PLURAL
 export async function getPropertiesAction() {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(); // O la función que use para el usuario actual
     if (!user) return { success: false, data: [] };
 
     const properties = await prisma.property.findMany({
@@ -976,31 +977,45 @@ export async function getPropertiesAction() {
       orderBy: { createdAt: "desc" },
       include: {
         images: true,
-        // ✅ CLAVE: identidad “viva” del owner (tú) para avatar/cover cross-device
-        user: { select: USER_IDENTITY_SELECT },
+        user: { select: USER_IDENTITY_SELECT }, // Asegúrese que USER_IDENTITY_SELECT está definido arriba
+        
+        // 🔥 CORRECCIÓN FINAL: USAMOS EL PLURAL 'openHouses'
+        openHouses: {
+           include: {
+             attendees: true 
+           },
+           // Opcional: Ordenamos para coger el más reciente si hubiera varios
+           orderBy: { createdAt: 'desc' }
+        }
       },
     });
 
     const mappedProps = properties.map((p: any) => {
-      // Gestión de imagen principal
+      // 1. GESTIÓN DE IMAGEN PRINCIPAL
       const realImg =
         (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
 
       let allImages = (p.images || []).map((img: any) => img.url);
       if (allImages.length === 0 && realImg) allImages = [realImg];
 
-      // ✅ Identidad unificada (igual que global)
+      // 2. IDENTIDAD
       const identity = buildIdentity(p.user, p.ownerSnapshot);
-
-      // ✅ ownerSnapshot siempre disponible (para legacy sin snapshot)
       const safeOwnerSnapshot =
         (p.ownerSnapshot && typeof p.ownerSnapshot === "object") ? p.ownerSnapshot : identity;
+
+      // 🔥 3. NORMALIZACIÓN DEL OPEN HOUSE (PLURAL -> SINGULAR)
+      // Como la DB devuelve un array 'openHouses', cogemos el primero (el más reciente)
+      // y lo llamamos 'openHouse' para que el frontend funcione sin tocar nada más.
+      const activeOH = (p.openHouses && p.openHouses.length > 0) ? p.openHouses[0] : null;
 
       return {
         ...p,
         id: p.id,
+        
+        // ENVIAMOS EL EVENTO ACTIVO AL FRONTEND
+        openHouse: activeOH,
+        openHouseAttendeesCount: activeOH?.attendees?.length || 0,
 
-        // ✅ CLAVE: ahora DetailsPanel SIEMPRE tendrá avatar/cover
         ownerSnapshot: safeOwnerSnapshot,
         user: identity,
 
@@ -1010,12 +1025,10 @@ export async function getPropertiesAction() {
         price: new Intl.NumberFormat("es-ES").format(p.price || 0),
         rawPrice: p.price,
 
-        // Datos normalizados
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: p.communityFees || 0,
 
-        // Booleanos seguros
         pool: !!p.pool,
         garage: !!p.garage,
         elevator: !!p.elevator,
@@ -1028,7 +1041,6 @@ export async function getPropertiesAction() {
     return { success: false, data: [] };
   }
 }
-
 
 // ✅ CHAT GENERAL — ACTIONS (server)
 
@@ -2325,7 +2337,7 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (CORREO OFICIAL INFO@STRATOSFERE.COM)
+// C. APUNTARSE A UN EVENTO (CORREO OFICIAL INFO@STRATOSFERE.COM) + PROTECCIÓN AFORO
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
     const { Resend } = require('resend'); 
@@ -2334,16 +2346,29 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     const user = await getCurrentUser();
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
-    // 2. DATOS
+    // 2. DATOS + CHECK DE SEGURIDAD (AFORO)
     const event = await prisma.openHouse.findUnique({ 
         where: { id: eventId },
         include: { 
-            _count: { select: { attendees: true } },
+            // CAMBIO TÁCTICO: Traemos los asistentes CONFIRMADOS para contar bien
+            attendees: { where: { status: "CONFIRMED" } },
             property: { include: { user: true } }
         }
     });
     
     if (!event) return { success: false, error: "NOT_FOUND" };
+
+    // --- 🛑 EL MURO: CONTROL DE AFORO ---
+    const currentAttendees = event.attendees.length;
+    // Si hay límite y ya llegamos al tope...
+    if (event.capacity && currentAttendees >= event.capacity) {
+        // Verificamos si YO ya estoy dentro (para no bloquear mi propia entrada si recargo)
+        const isAlreadyIn = user?.id && event.attendees.find(a => a.userId === user.id);
+        if (!isAlreadyIn) {
+             return { success: false, error: "SOLD_OUT" }; // Código clave para bloquear
+        }
+    }
+    // ------------------------------------
 
     const attendeeEmail = user?.email || guestData?.email;
     const attendeeName = user?.name || guestData?.name || "Invitado";
@@ -2354,7 +2379,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     if (user?.id) {
         newAttendee = await prisma.openHouseAttendee.upsert({
             where: { openHouseId_userId: { openHouseId: eventId, userId: user.id } },
-            update: {}, 
+            update: { status: "CONFIRMED" }, // Reactivar si estaba cancelado
             create: {
                 openHouseId: eventId, userId: user.id, email: attendeeEmail,
                 name: attendeeName, phone: attendeePhone, status: "CONFIRMED"
@@ -2370,7 +2395,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     }
 
     // =====================================================
-    // 📨 4. ENVÍO DE CORREOS
+    // 📨 4. ENVÍO DE CORREOS (SU LÓGICA INTACTA)
     // =====================================================
     const resendApiKey = process.env.RESEND_API_KEY;
 
@@ -2428,8 +2453,6 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
         await resend.emails.send({
             from: senderEmail, 
             to: attendeeEmail,
-            // LOGICA INTELIGENTE: Si el cliente responde, le escribe a la AGENCIA.
-            // Si la agencia no tiene email (raro), entonces le escribe a usted (info@)
             reply_to: agencyEmail || 'info@stratosfere.com', 
             subject: `🎟️ Tu entrada para ${eventTitle}`,
             html: emailHtmlClient,
@@ -2469,7 +2492,6 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
             await resend.emails.send({
                 from: senderEmail, 
                 to: agencyEmail,
-                // Si la agencia responde, le escribe al CLIENTE
                 reply_to: attendeeEmail, 
                 subject: `🔔 Nuevo Lead (Ref: ${propertyRef}): ${attendeeName}`,
                 html: emailHtmlAgency
@@ -2579,7 +2601,7 @@ export async function getUserTicketsAction() {
     return { success: false, error: String(e) };
   }
 }
-// H. CANCELAR TICKET (RETIRADA TÁCTICA)
+// H. CANCELAR TICKET (RETIRADA TÁCTICA - POR ID DE TICKET)
 export async function cancelTicketAction(ticketId: string) {
   try {
     const user = await getCurrentUser();
@@ -2594,7 +2616,7 @@ export async function cancelTicketAction(ticketId: string) {
         return { success: false, error: "Forbidden" };
     }
 
-    // Borramos el registro (La agencia dejará de verle en su lista)
+    // Borramos el registro
     await prisma.openHouseAttendee.delete({
       where: { id: ticketId }
     });
@@ -2606,3 +2628,65 @@ export async function cancelTicketAction(ticketId: string) {
   }
 }
 
+// I. CANCELAR ASISTENCIA (RETIRADA TÁCTICA - POR ID DE EVENTO)
+// 🔥 ESTA ES LA QUE FALTABA Y DABA ERROR EN EL OVERLAY
+export async function leaveOpenHouseAction(openHouseId: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "UNAUTH" };
+
+    // Buscamos el ticket exacto usando ID de evento + ID de usuario
+    const ticket = await prisma.openHouseAttendee.findUnique({
+      where: {
+        openHouseId_userId: {
+          openHouseId: openHouseId,
+          userId: user.id
+        }
+      }
+    });
+
+    if (!ticket) return { success: false, error: "NO_TICKET" };
+
+    // Ejecutamos la baja
+    await prisma.openHouseAttendee.delete({
+      where: { id: ticket.id }
+    });
+
+    revalidatePath("/");
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+// J. VER ASISTENTES (RADAR DE AGENCIA)
+export async function getEventAttendeesAction(eventId: string) {
+  try {
+    const attendees = await prisma.openHouseAttendee.findMany({
+      where: {
+        openHouseId: eventId,
+        status: 'CONFIRMED'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatar: true, // ✅ CORRECTO (Antes era 'image')
+            phone: true,
+            mobile: true  // ✅ Añadido extra por si el tlf está aquí
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return { success: true, attendees };
+  } catch (error) {
+    console.error("Error obteniendo asistentes:", error);
+    return { success: false, error: "No se pudo cargar la lista de invitados" };
+  }
+}

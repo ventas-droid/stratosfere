@@ -2102,22 +2102,28 @@ if (passedConversationId) {
 };
 
 
-window.addEventListener("open-details-signal", handleOpenDetails);
-window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
 window.addEventListener("reload-profile-assets", handleReload);
 window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
 
 // ✅ CHAT
 window.addEventListener("open-chat-signal", handleOpenChatSignal as any);
 
+// 🔥🔥 AQUÍ ESTABA EL ERROR: TIENE QUE SER 'ADD', NO 'REMOVE' 🔥🔥
+window.addEventListener("open-chat-with-user", handleOpenChatSignal as any); 
+
+
+// --- FASE DE LIMPIEZA (RETURN) ---
 return () => {
   window.removeEventListener("open-details-signal", handleOpenDetails);
   window.removeEventListener("toggle-fav-signal", handleToggleFavSignal);
   window.removeEventListener("reload-profile-assets", handleReload);
   window.removeEventListener("agency-profile-updated", handleAgencyProfileUpdated);
 
-  // ✅ CHAT
+  // ✅ CHAT STANDARD
   window.removeEventListener("open-chat-signal", handleOpenChatSignal as any);
+  
+  // 🔥🔥 LIMPIEZA (AQUÍ SÍ VA 'REMOVE') 🔥🔥
+  window.removeEventListener("open-chat-with-user", handleOpenChatSignal as any);
 };
 
 // ✅ deps mínimos para no re-enganchar listeners por cambios de listas

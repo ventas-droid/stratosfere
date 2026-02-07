@@ -1,59 +1,114 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import { getOpenHouseAttendeesAction } from "@/app/actions";
-import { Users, Mail, Phone, Loader2, CalendarClock } from "lucide-react";
 
-export default function GuestList({ openHouseId }: { openHouseId: string }) {
-    const [guests, setGuests] = useState<any[]>([]);
+import React, { useEffect, useState } from 'react';
+import { getEventAttendeesAction } from '@/app/actions';
+import { Loader2, User, Mail, Phone, Calendar } from 'lucide-react';
+
+// ELIMINAMOS "import Image from 'next/image'" PARA EVITAR EL BLOQUEO
+// Usaremos <img> estándar html
+
+export default function GuestList({ openHouseId, capacity }: { openHouseId: string, capacity: number }) {
+    const [attendees, setAttendees] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        getOpenHouseAttendeesAction(openHouseId).then(res => {
-            if (res.success) setGuests(res.data);
-            setLoading(false);
-        });
+        if (openHouseId) {
+            loadAttendees();
+        }
     }, [openHouseId]);
 
-    if (loading) return <div className="p-8 flex flex-col items-center text-xs text-gray-400 gap-2"><Loader2 className="animate-spin text-gray-900" size={20}/> Cargando lista...</div>;
+    async function loadAttendees() {
+        try {
+            const res = await getEventAttendeesAction(openHouseId);
+            if (res.success) {
+                setAttendees(res.attendees || []);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    }
 
-    if (guests.length === 0) return (
-        <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
-            <Users className="mx-auto text-gray-300 mb-2" size={32}/>
-            <p className="text-sm font-bold text-gray-500">Aún no hay inscritos.</p>
-            <p className="text-xs text-gray-400">Los usuarios aparecerán aquí cuando se apunten.</p>
-        </div>
-    );
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-32 text-slate-400 gap-2">
+                <Loader2 className="animate-spin" size={20}/>
+                <span className="text-xs font-medium">Escaneando invitados...</span>
+            </div>
+        );
+    }
+
+    if (attendees.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-40 text-center p-4">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-2">
+                    <User className="text-slate-300" size={20}/>
+                </div>
+                <p className="text-xs font-bold text-slate-500">Lista de invitados vacía</p>
+                <p className="text-[10px] text-slate-400 mt-1">Comparte el evento para conseguir leads.</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="bg-black text-white px-4 py-3 rounded-t-xl flex justify-between items-center sticky top-0 z-10">
-                <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                    <Users size={12}/> Lista de Asistentes
-                </span>
-                <span className="bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{guests.length} PAX</span>
+        <div className="space-y-1 p-2">
+            {/* CONTADOR DE AFORO */}
+            <div className="flex items-center justify-between px-2 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <span>Total: {attendees.length} Pax</span>
+                <span>Restantes: {Math.max(0, capacity - attendees.length)}</span>
             </div>
-            <div className="overflow-y-auto max-h-[300px] bg-white border border-t-0 border-gray-200 rounded-b-xl shadow-inner">
-                {guests.map((g, i) => (
-                    <div key={i} className="p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group">
-                        <div className="flex justify-between items-start mb-1">
-                            <p className="text-sm font-black text-gray-900">{g.name || "Usuario Anónimo"}</p>
-                            <span className="text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                                {new Date(g.createdAt).toLocaleDateString()}
-                            </span>
-                        </div>
-                        <div className="grid grid-cols-1 gap-1">
-                            <div className="flex items-center gap-2 text-xs text-gray-600 group-hover:text-blue-600 transition-colors cursor-pointer" title="Copiar Email">
-                                <Mail size={12} className="shrink-0"/> 
-                                <span className="truncate">{g.email}</span>
+
+            {/* LISTA */}
+            <div className="space-y-2">
+                {attendees.map((ticket) => {
+                    const user = ticket.user;
+                    const date = new Date(ticket.createdAt);
+                    
+                    return (
+                        <div key={ticket.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-slate-100 group">
+                            
+                            {/* AVATAR (USANDO IMG NORMAL PARA EVITAR ERRORES) */}
+                            <div className="relative w-8 h-8 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+                                {user.avatar ? (
+                                    <img 
+                                        src={user.avatar} 
+                                        alt="Avatar" 
+                                        className="w-full h-full object-cover" 
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-400">
+                                        {user.name?.[0] || "?"}
+                                    </div>
+                                )}
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-gray-600 group-hover:text-green-600 transition-colors">
-                                <Phone size={12} className="shrink-0"/> 
-                                <span>{g.phone || "Sin teléfono"}</span>
+
+                            {/* DATOS */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start">
+                                    <h4 className="text-xs font-bold text-slate-900 truncate">{user.name}</h4>
+                                    <span className="text-[9px] text-slate-300 font-mono">
+                                        {date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    {user.email && (
+                                        <span className="text-[9px] text-slate-500 truncate flex items-center gap-1">
+                                            {user.email}
+                                        </span>
+                                    )}
+                                </div>
+                                {(user.mobile || user.phone) && (
+                                    <div className="text-[9px] text-emerald-600 font-mono mt-0.5 flex items-center gap-1">
+                                        <Phone size={8}/> {user.mobile || user.phone}
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
 }
+

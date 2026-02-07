@@ -12,8 +12,8 @@ import {
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
     Droplets, Paintbrush, Truck, Briefcase, Sparkles, Lock,
     
-    // 🔥 NUEVOS ICONOS
-    Ticket, Calendar, Navigation, Clock
+    // 🔥 NUEVOS ICONOS PARA TICKETS
+    Ticket, Calendar, Navigation, Clock, Users, 
 } from 'lucide-react';
 
 import { 
@@ -22,7 +22,7 @@ import {
     getUserMeAction, 
     updateUserAction, 
     logoutAction,
-    // 🔥 NUEVAS ACCIONES
+    // 🔥 IMPORTAMOS LAS ACCIONES DE TICKETS
     getUserTicketsAction, 
     cancelTicketAction 
 } from '@/app/actions';
@@ -85,7 +85,7 @@ export default function ProfilePanel({
   // --- ESTADOS ---
   const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKETS'>('MAIN');
   const [myProperties, setMyProperties] = useState<any[]>([]);
-  const [myTickets, setMyTickets] = useState<any[]>([]); // Estado Tickets
+  const [myTickets, setMyTickets] = useState<any[]>([]); // ESTADO PARA TICKETS
   const [servicesModalProp, setServicesModalProp] = useState<any | null>(null);
 
   const [user, setUser] = useState({ 
@@ -151,7 +151,7 @@ export default function ProfilePanel({
         setMyProperties([]);
       }
 
-      // 🔥 CARGAR TICKETS
+      // 🔥 CARGAR TICKETS (NUEVO)
       const ticketsRes = await getUserTicketsAction();
       if (ticketsRes.success && ticketsRes.data) {
           setMyTickets(ticketsRes.data);
@@ -273,23 +273,20 @@ export default function ProfilePanel({
       }
   };
 
-  // A. VOLAR AL EVENTO (VERSIÓN MAESTRA QUE TRANSMITE IMÁGENES)
+  // --- FUNCIONES DE TICKETS (NUEVO) ---
   const handleTicketFlyTo = (ticket: any) => {
       if (soundEnabled) playSynthSound('click');
       
       const rawProp = ticket.openHouse?.property;
       if (!rawProp) return;
 
-      // 1. EXTRAER DATOS DEL DUEÑO (Ahora sí vienen con logo y cover)
       const rawUser = rawProp.user || {};
 
-      // 2. FABRICAR LA IDENTIDAD PARA EL DETAILS PANEL
       const builtIdentity = {
           id: rawUser.id,
           name: rawUser.companyName || rawUser.name || "Agencia",
-          // 🔥 Si es agencia, usamos companyLogo. Si no, avatar.
           avatar: rawUser.companyLogo || rawUser.avatar || null, 
-          coverImage: rawUser.coverImage || null, // El fondo
+          coverImage: rawUser.coverImage || null,
           role: rawUser.role || "AGENCIA",
           email: rawUser.email,
           phone: rawUser.mobile || rawUser.phone,
@@ -298,34 +295,25 @@ export default function ProfilePanel({
           website: rawUser.website
       };
 
-      // 3. EMPAQUETAR PARA EL ENVÍO
       const targetProp = {
           ...rawProp,
           coordinates: [rawProp.longitude, rawProp.latitude],
           img: rawProp.mainImage || (rawProp.images && rawProp.images[0]?.url) || "",
           price: rawProp.price, 
-          
-          // Inyectamos la identidad fabricada
           user: builtIdentity,          
           ownerSnapshot: builtIdentity, 
       };
 
       if (typeof window !== 'undefined') {
-          // A) Disparar apertura de ficha
           window.dispatchEvent(new CustomEvent('open-details-signal', { detail: targetProp }));
-      
-          // B) Disparar vuelo de mapa
           if (rawProp.latitude && rawProp.longitude) {
               window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                  detail: { 
-                      center: [rawProp.longitude, rawProp.latitude], 
-                      zoom: 18.5, 
-                      pitch: 60 
-                  } 
+                  detail: { center: [rawProp.longitude, rawProp.latitude], zoom: 18.5, pitch: 60 } 
               }));
           }
       }
   };
+
   const handleCancelTicket = async (e: any, ticketId: string) => {
       e.stopPropagation();
       if(!confirm("¿Cancelar asistencia?\nSe liberará tu plaza y se avisará a la agencia.")) return;
@@ -449,7 +437,7 @@ export default function ProfilePanel({
                   </button>
                 )}
 
-                {/* BOTÓN: MIS EVENTOS */}
+                {/* BOTÓN: MIS EVENTOS (NUEVO) */}
                 <button onClick={() => setInternalView('TICKETS')} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-indigo-100 cursor-pointer relative overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     <div className="flex items-center gap-4">
@@ -566,7 +554,7 @@ export default function ProfilePanel({
           </div>
         )}
 
-   {/* --- VISTA: MIS TICKETS (DATOS REALES Y CONTENIDO) --- */}
+   {/* --- VISTA: MIS TICKETS (CON INDICADOR DE AFORO) --- */}
         {internalView === ('TICKETS' as any) && (
            <div className="animate-fade-in-right space-y-6 pt-4">
               <div className="flex items-center gap-3 mb-6">
@@ -586,7 +574,6 @@ export default function ProfilePanel({
                   </div>
               ) : (
                   <div className="space-y-4">
-                      {/* Filtro visual anti-duplicados */}
                       {Array.from(new Map(myTickets.map(item => [item.openHouseId, item])).values()).map((ticket) => {
                           
                           if (!ticket?.openHouse || !ticket?.openHouse?.property) return null;
@@ -594,8 +581,6 @@ export default function ProfilePanel({
                           const event = ticket.openHouse;
                           const prop = ticket.openHouse.property;
                           
-                          // 🔍 RASTREO DE IDENTIDAD (PRIORIDAD: USUARIO VIVO > SNAPSHOT)
-                          // Esto asegura que si el usuario tiene nombre, SALGA.
                           const liveUser = prop.user || {};
                           const snapshot = (typeof prop.ownerSnapshot === 'object' ? prop.ownerSnapshot : {}) || {};
                           
@@ -609,12 +594,9 @@ export default function ProfilePanel({
                               snapshot.mobile || snapshot.phone || 
                               "";
 
-                          // Fechas
                           const dateObj = new Date(event.startTime);
                           const time = dateObj.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-                          // 🔍 RASTREO DE CONTENIDO (DJ, CATERING...)
-                          // Si no hay amenities en BD, buscamos palabras clave en el título o descripción
                           const rawAmenities = event.amenities || [];
                           const textSearch = (event.title + " " + (event.description || "")).toLowerCase();
                           
@@ -626,6 +608,11 @@ export default function ProfilePanel({
                               if (textSearch.includes('vip')) computedTags.push('VIP ACCESS');
                               if (textSearch.includes('regalo') || textSearch.includes('welcome')) computedTags.push('WELCOME PACK');
                           }
+
+                          // CÁLCULO DE AFORO
+                          const capacity = event.capacity || 0;
+                          const attendeesCount = event._count?.attendees || 0;
+                          const isFull = capacity > 0 && attendeesCount >= capacity;
 
                           return (
                               <div key={ticket.id} onClick={() => handleTicketFlyTo(ticket)} className="bg-white p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer">
@@ -641,13 +628,26 @@ export default function ProfilePanel({
                                       </div>
                                       <div className="flex-1 min-w-0">
                                           <div className="flex justify-between items-start mb-1">
-                                              <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate">OPEN HOUSE</span>
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                  <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate border border-indigo-100">OPEN HOUSE</span>
+                                                  
+                                                  {/* 🔥 ETIQUETA DE AFORO AÑADIDA AQUÍ 🔥 */}
+                                                  {capacity > 0 && (
+                                                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border flex items-center gap-1 ${
+                                                          isFull 
+                                                          ? "bg-amber-50 text-amber-700 border-amber-200" 
+                                                          : "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                                      }`}>
+                                                          {/* Usamos un icono simple si Users no está importado, o texto directo */}
+                                                          {isFull ? "COMPLETO" : `${attendeesCount}/${capacity} PAX`}
+                                                      </span>
+                                                  )}
+                                              </div>
                                               <span className="font-mono text-xs font-bold text-slate-400 flex items-center gap-1"><Clock size={10}/> {time}H</span>
                                           </div>
-                                          <h4 className="font-bold text-[#1c1c1e] text-base leading-tight truncate">{event.title || "Evento"}</h4>
+                                          <h4 className="font-bold text-[#1c1c1e] text-base leading-tight truncate mt-1">{event.title || "Evento"}</h4>
                                           <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase mt-0.5 flex items-center gap-1"><MapPin size={10}/> {prop.address || "Ubicación Privada"}</p>
                                           
-                                          {/* 🔥 DATOS REALES DEL ORGANIZADOR */}
                                           <div className="mt-2 p-2 bg-slate-50 rounded-lg border border-slate-100 flex flex-col gap-0.5">
                                               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">ORGANIZADO POR:</p>
                                               <p className="text-xs font-black text-slate-900 truncate">{agencyName}</p>
@@ -660,7 +660,6 @@ export default function ProfilePanel({
                                       </div>
                                   </div>
 
-                                  {/* 🔥 ETIQUETAS DE CONTENIDO (DJ, CATERING...) */}
                                   {(event.description || computedTags.length > 0) && (
                                       <div className="mb-4 pl-1">
                                           {event.description && (
@@ -684,7 +683,6 @@ export default function ProfilePanel({
                                       </div>
                                   )}
 
-                                  {/* BOTONES */}
                                   <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
                                       <button onClick={(e) => { e.stopPropagation(); handleTicketFlyTo(ticket); }} className="flex-1 bg-[#1c1c1e] text-white h-9 rounded-xl text-[10px] font-bold uppercase tracking-wide flex items-center justify-center gap-2 hover:bg-indigo-600 hover:scale-[1.02] transition-all shadow-md active:scale-95 cursor-pointer">
                                           <Navigation size={12} /> IR AL SITIO
