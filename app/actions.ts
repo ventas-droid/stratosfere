@@ -2642,37 +2642,112 @@ export async function cancelTicketAction(ticketId: string) {
   }
 }
 
-// I. CANCELAR ASISTENCIA (RETIRADA TÁCTICA - POR ID DE EVENTO)
-// 🔥 ESTA ES LA QUE FALTABA Y DABA ERROR EN EL OVERLAY
+// I. CANCELAR ASISTENCIA (RETIRADA TÁCTICA - CON AVISO A AGENCIA)
 export async function leaveOpenHouseAction(openHouseId: string) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "UNAUTH" };
 
-    // Buscamos el ticket exacto usando ID de evento + ID de usuario
+    // 1. BUSCAMOS EL TICKET + DATOS DE LA AGENCIA (CRÍTICO PARA AVISAR)
     const ticket = await prisma.openHouseAttendee.findUnique({
       where: {
         openHouseId_userId: {
           openHouseId: openHouseId,
           userId: user.id
         }
+      },
+      include: {
+        openHouse: {
+            include: {
+                property: {
+                    include: { user: true } // <--- Necesitamos esto para tener el email de la agencia
+                }
+            }
+        }
       }
     });
 
     if (!ticket) return { success: false, error: "NO_TICKET" };
 
-    // Ejecutamos la baja
+    // 2. EJECUTAMOS LA BAJA (LIBERAMOS LA PLAZA)
     await prisma.openHouseAttendee.delete({
       where: { id: ticket.id }
     });
 
+    // 3. NOTIFICACIÓN TÁCTICA (EMAIL A LA AGENCIA)
+    // Esto ocurre después de borrar, para no bloquear al usuario si falla el email
+    const resendApiKey = process.env.RESEND_API_KEY;
+
+    if (resendApiKey) {
+        try {
+            const { Resend } = require('resend'); 
+            const resend = new Resend(resendApiKey);
+
+            // Datos para el informe
+            const eventTitle = ticket.openHouse.title || "Open House";
+            const userName = user.name || "Un usuario";
+            const userEmail = user.email;
+            const propertyRef = ticket.openHouse.property.refCode || "Sin Ref";
+
+            // Datos Agencia
+            const agencyUser = ticket.openHouse.property.user;
+            const agencyEmail = agencyUser?.email; // Ahora sí lo tenemos
+            const senderEmail = 'Stratosfere <info@stratosfere.com>';
+
+            // A) AVISO A LA AGENCIA (¡PLAZA LIBRE!)
+            if (agencyEmail) {
+                console.log(`📧 AVISANDO BAJA A AGENCIA: ${agencyEmail}`);
+                await resend.emails.send({
+                    from: senderEmail,
+                    to: agencyEmail,
+                    reply_to: userEmail || undefined, // Para que puedan responder al usuario si quieren
+                    subject: `📉 Plaza Liberada (Ref: ${propertyRef}): ${userName} canceló`,
+                    html: `
+                        <div style="font-family:sans-serif; border:1px solid #ddd; padding:20px; border-radius:10px;">
+                            <h2 style="color:#d97706;">Un asistente ha cancelado</h2>
+                            <p>El usuario <strong>${userName}</strong> se ha dado de baja del evento <strong>${eventTitle}</strong>.</p>
+                            
+                            <div style="background:#FFFBEB; border:1px solid #FCD34D; padding:15px; border-radius:8px; margin:15px 0; color:#92400E;">
+                                <strong>✅ Una plaza ha quedado libre.</strong>
+                                <br/>El aforo se ha actualizado automáticamente.
+                            </div>
+
+                            <ul style="font-size:12px; color:#666;">
+                                <li>Usuario: ${userName}</li>
+                                <li>Email: ${userEmail}</li>
+                                <li>Ref Propiedad: ${propertyRef}</li>
+                            </ul>
+                        </div>
+                    `
+                });
+            }
+
+            // B) CONFIRMACIÓN AL USUARIO (OPCIONAL PERO RECOMENDADO)
+            if (userEmail) {
+                await resend.emails.send({
+                    from: senderEmail,
+                    to: userEmail,
+                    subject: `🗑️ Asistencia cancelada: ${eventTitle}`,
+                    html: `
+                        <p>Hola ${userName},</p>
+                        <p>Confirmamos que hemos anulado tu entrada para <strong>${eventTitle}</strong>.</p>
+                        <p>Tu plaza ha sido liberada.</p>
+                    `
+                });
+            }
+
+        } catch (emailError) {
+            console.error("❌ Error enviando emails de baja (pero la baja se realizó):", emailError);
+        }
+    }
+
     revalidatePath("/");
     return { success: true };
   } catch (e) {
+    console.error("Error leaveOpenHouseAction:", e);
     return { success: false, error: String(e) };
   }
 }
-
 // J. VER ASISTENTES (RADAR DE AGENCIA)
 export async function getEventAttendeesAction(eventId: string) {
   try {
