@@ -2104,13 +2104,16 @@ if (passedConversationId) {
 
 // ... dentro del useEffect ...
 
+// 🔥🔥 ESTAS SON LAS QUE FALTABAN (POR ESO NO SE ABRÍA NADA) 🔥🔥
+window.addEventListener("open-details-signal", handleOpenDetails);
+window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
+
+// ESTAS YA LAS TENÍA
 window.addEventListener("reload-profile-assets", handleReload);
 window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
 
 // ✅ CHAT
 window.addEventListener("open-chat-signal", handleOpenChatSignal as any);
-
-// 🔥🔥 AQUÍ ESTABA EL ERROR: TIENE QUE SER 'ADD', NO 'REMOVE' 🔥🔥
 window.addEventListener("open-chat-with-user", handleOpenChatSignal as any); 
 
 
@@ -2124,13 +2127,12 @@ return () => {
   // ✅ CHAT STANDARD
   window.removeEventListener("open-chat-signal", handleOpenChatSignal as any);
   
-  // 🔥🔥 LIMPIEZA (AQUÍ SÍ VA 'REMOVE') 🔥🔥
+  // 🔥🔥 LIMPIEZA NUEVO EVENTO 🔥🔥
   window.removeEventListener("open-chat-with-user", handleOpenChatSignal as any);
 };
 
 // ✅ deps mínimos para no re-enganchar listeners por cambios de listas
 }, [soundEnabled, systemMode, identityVerified, activeUserKey]);
-
    // ✅ VUELO GLOBAL — escucha "map-fly-to" (Mi Stock, Vault, columnas, etc.)
 useEffect(() => {
   const onFly = (e: any) => {
