@@ -2337,22 +2337,24 @@ export async function getOpenHouseAction(propertyId: string) {
   }
 }
 
-// C. APUNTARSE A UN EVENTO (CORREO OFICIAL INFO@STRATOSFERE.COM) + PROTECCIÓN AFORO
+// =====================================================
+// 🎟️ 3. APUNTARSE A UN OPEN HOUSE (BLINDADO)
+// =====================================================
 export async function joinOpenHouseAction(eventId: string, guestData?: any) {
   try {
-    const { Resend } = require('resend'); 
-    
-    // 1. VALIDACIÓN
+    // 1. VALIDACIÓN USUARIO
     const user = await getCurrentUser();
+    // Si no es usuario logueado y no me pasan datos de invitado, error.
     if (!user && !guestData?.email) return { success: false, error: "NEED_EMAIL" };
 
-    // 2. DATOS + CHECK DE SEGURIDAD (AFORO)
+    // 2. RECUPERAR DATOS + SEGURIDAD
     const event = await prisma.openHouse.findUnique({ 
         where: { id: eventId },
         include: { 
-            // CAMBIO TÁCTICO: Traemos los asistentes CONFIRMADOS para contar bien
-            attendees: { where: { status: "CONFIRMED" } },
-            property: { include: { user: true } }
+            attendees: { where: { status: "CONFIRMED" } }, // Solo contamos los confirmados
+            property: { 
+                include: { user: true } // 🔥 IMPORTANTE: Traer al dueño para enviarle el mail
+            }
         }
     });
     
@@ -2360,32 +2362,33 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
 
     // --- 🛑 EL MURO: CONTROL DE AFORO ---
     const currentAttendees = event.attendees.length;
-    // Si hay límite y ya llegamos al tope...
     if (event.capacity && currentAttendees >= event.capacity) {
-        // Verificamos si YO ya estoy dentro (para no bloquear mi propia entrada si recargo)
+        // Si yo ya estaba dentro, me deja pasar. Si soy nuevo, me bloquea.
         const isAlreadyIn = user?.id && event.attendees.find(a => a.userId === user.id);
         if (!isAlreadyIn) {
-             return { success: false, error: "SOLD_OUT" }; // Código clave para bloquear
+             return { success: false, error: "SOLD_OUT" };
         }
     }
-    // ------------------------------------
 
+    // 3. PREPARAR DATOS DEL ASISTENTE
     const attendeeEmail = user?.email || guestData?.email;
     const attendeeName = user?.name || guestData?.name || "Invitado";
     const attendeePhone = user?.phone || guestData?.phone || "Sin teléfono";
 
-    // 3. BASE DE DATOS
+    // 4. GUARDAR EN BASE DE DATOS
     let newAttendee;
     if (user?.id) {
+        // Usuario registrado: Upsert (por si ya existía cancelado, lo reactiva)
         newAttendee = await prisma.openHouseAttendee.upsert({
             where: { openHouseId_userId: { openHouseId: eventId, userId: user.id } },
-            update: { status: "CONFIRMED" }, // Reactivar si estaba cancelado
+            update: { status: "CONFIRMED" }, 
             create: {
                 openHouseId: eventId, userId: user.id, email: attendeeEmail,
                 name: attendeeName, phone: attendeePhone, status: "CONFIRMED"
             }
         });
     } else {
+        // Invitado anónimo: Create
         newAttendee = await prisma.openHouseAttendee.create({
             data: {
                 openHouseId: eventId, email: attendeeEmail,
@@ -2395,107 +2398,117 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
     }
 
     // =====================================================
-    // 📨 4. ENVÍO DE CORREOS (SU LÓGICA INTACTA)
+    // 📨 5. ENVÍO DE CORREOS (CORREGIDO)
     // =====================================================
     const resendApiKey = process.env.RESEND_API_KEY;
 
     if (resendApiKey) {
-        const resend = new Resend(resendApiKey);
-        
-        // Datos Evento
-        const eventTitle = event.title || "Open House";
-        const d = new Date(event.startTime);
-        const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
-        const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
-        
-        const address = event.property.address || "Ubicación Privada";
-        const propertyRef = event.property.refCode || "Sin Ref";
-        const ticketCode = newAttendee.id.slice(-6).toUpperCase();
+        try {
+            // Importación dinámica segura
+            const { Resend } = require('resend'); 
+            const resend = new Resend(resendApiKey);
+            
+            // Datos Evento
+            const eventTitle = event.title || "Open House";
+            const d = new Date(event.startTime);
+            const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
+            const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+            
+            const address = event.property.address || "Ubicación Privada";
+            const propertyRef = event.property.refCode || "Sin Ref";
+            const ticketCode = newAttendee.id.slice(-6).toUpperCase();
 
-        // Datos Agencia
-        const agencyUser = event.property.user;
-        const agencyName = agencyUser?.companyName || agencyUser?.name || "Agencia Organizadora";
-        const agencyPhone = agencyUser?.mobile || agencyUser?.phone || "";
-        const agencyEmail = agencyUser?.email;
+            // Datos Agencia
+            const agencyUser = event.property.user;
+            const agencyName = agencyUser?.companyName || agencyUser?.name || "Agencia Organizadora";
+            const agencyPhone = agencyUser?.mobile || agencyUser?.phone || "";
+            const agencyEmail = agencyUser?.email;
 
-        const platformLink = "https://stratosfere.com"; 
-        
-        // 🔥 REMITE OFICIAL: SU CORREO REAL 🔥
-        const senderEmail = 'Stratosfere <info@stratosfere.com>'; 
+            const platformLink = "https://stratosfere.com"; 
+            const senderEmail = 'Stratosfere <info@stratosfere.com>'; 
 
-        // ---------------------------------------------------------
-        // A) CORREO AL CLIENTE
-        // ---------------------------------------------------------
-        const emailHtmlClient = buildStratosfereEmailHtml({
-            title: `Confirmación de Entrada`,
-            headline: `¡Estás dentro, ${attendeeName}!`,
-            bodyHtml: `
-                <p>Tu plaza para <strong>${eventTitle}</strong> está confirmada.</p>
-                <div style="background:#F5F5F7; border-radius:12px; padding:20px; margin:20px 0;">
-                    <p style="margin:0 0 5px 0;">📍 <strong>${address}</strong></p>
-                    <p style="margin:0;">🗓️ ${eventDate} • ${eventTime}H</p>
-                </div>
-                <div style="border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:20px;">
-                    <p style="font-size:10px; text-transform:uppercase; color:#888; margin:0 0 5px 0;">ORGANIZADO POR</p>
-                    <p style="font-weight:bold; margin:0;">${agencyName}</p>
-                    <p style="margin:0;">📞 ${agencyPhone}</p>
-                    ${agencyEmail ? `<p style="margin:0;">✉️ ${agencyEmail}</p>` : ''}
-                </div>
-                <div style="text-align:center;">
-                    <p style="font-size:10px; color:#888; margin-bottom:5px;">TU CÓDIGO DE ACCESO</p>
-                    <div style="font-family:monospace; font-size:24px; font-weight:900; background:#000; color:#fff; display:inline-block; padding:10px 20px; border-radius:8px;">${ticketCode}</div>
-                </div>
-            `,
-            ctaText: "Ver Mi Entrada",
-            ctaUrl: platformLink
-        });
-
-        await resend.emails.send({
-            from: senderEmail, 
-            to: attendeeEmail,
-            reply_to: agencyEmail || 'info@stratosfere.com', 
-            subject: `🎟️ Tu entrada para ${eventTitle}`,
-            html: emailHtmlClient,
-            headers: { 'X-Entity-Ref-ID': ticketCode }
-        });
-
-        // ---------------------------------------------------------
-        // B) CORREO A LA AGENCIA
-        // ---------------------------------------------------------
-        if (agencyEmail) {
-            const emailHtmlAgency = buildStratosfereEmailHtml({
-                title: "Nuevo Lead Confirmado",
-                headline: "Nuevo Asistente Registrado",
+            // ---------------------------------------------------------
+            // A) CORREO AL CLIENTE
+            // ---------------------------------------------------------
+            // Verificar si tenemos la función helper, si no, usar texto plano
+            const emailHtmlClient = typeof buildStratosfereEmailHtml === 'function' ? buildStratosfereEmailHtml({
+                title: `Confirmación de Entrada`,
+                headline: `¡Estás dentro, ${attendeeName}!`,
                 bodyHtml: `
-                    <p>Se ha registrado un nuevo asistente para el evento: <strong>${eventTitle}</strong></p>
-                    
-                    <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px; margin-bottom:15px;">
-                        <p style="font-size:10px; font-weight:bold; color:#166534; text-transform:uppercase; margin:0 0 10px 0;">DATOS DEL INTERESADO</p>
-                        <ul style="list-style:none; padding:0; margin:0; color:#14532d;">
-                            <li style="margin-bottom:5px;">👤 <strong>${attendeeName}</strong></li>
-                            <li style="margin-bottom:5px;">📧 <a href="mailto:${attendeeEmail}">${attendeeEmail}</a></li>
-                            <li>📱 ${attendeePhone}</li>
-                        </ul>
+                    <p>Tu plaza para <strong>${eventTitle}</strong> está confirmada.</p>
+                    <div style="background:#F5F5F7; border-radius:12px; padding:20px; margin:20px 0;">
+                        <p style="margin:0 0 5px 0;">📍 <strong>${address}</strong></p>
+                        <p style="margin:0;">🗓️ ${eventDate} • ${eventTime}H</p>
                     </div>
-
-                    <div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:15px;">
-                        <p style="font-size:10px; font-weight:bold; color:#6B7280; text-transform:uppercase; margin:0 0 10px 0;">CONTEXTO DEL EVENTO</p>
-                        <p style="margin:0 0 5px 0; color:#111;">📍 <strong>${address}</strong></p>
-                        <p style="margin:0 0 5px 0; font-size:14px;">🗓️ ${eventDate} • ${eventTime}H</p>
-                        <p style="margin:5px 0 0 0; font-family:monospace; background:#e5e7eb; display:inline-block; padding:2px 6px; border-radius:4px; font-size:12px;">REF: ${propertyRef}</p>
+                    <div style="border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:20px;">
+                        <p style="font-size:10px; text-transform:uppercase; color:#888; margin:0 0 5px 0;">ORGANIZADO POR</p>
+                        <p style="font-weight:bold; margin:0;">${agencyName}</p>
+                        <p style="margin:0;">📞 ${agencyPhone}</p>
+                        ${agencyEmail ? `<p style="margin:0;">✉️ ${agencyEmail}</p>` : ''}
+                    </div>
+                    <div style="text-align:center;">
+                        <p style="font-size:10px; color:#888; margin-bottom:5px;">TU CÓDIGO DE ACCESO</p>
+                        <div style="font-family:monospace; font-size:24px; font-weight:900; background:#000; color:#fff; display:inline-block; padding:10px 20px; border-radius:8px;">${ticketCode}</div>
                     </div>
                 `,
-                ctaText: "Ver en Panel",
+                ctaText: "Ver Mi Entrada",
                 ctaUrl: platformLink
-            });
+            }) : `<p>Estás apuntado a ${eventTitle}. Código: ${ticketCode}</p>`;
 
-            await resend.emails.send({
-                from: senderEmail, 
-                to: agencyEmail,
-                reply_to: attendeeEmail, 
-                subject: `🔔 Nuevo Lead (Ref: ${propertyRef}): ${attendeeName}`,
-                html: emailHtmlAgency
-            });
+            if (attendeeEmail) {
+                await resend.emails.send({
+                    from: senderEmail, 
+                    to: attendeeEmail,
+                    // 🔥 FIX: Si agencyEmail es null, usamos info@... para evitar crash
+                    reply_to: agencyEmail || 'info@stratosfere.com', 
+                    subject: `🎟️ Tu entrada para ${eventTitle}`,
+                    html: emailHtmlClient,
+                    headers: { 'X-Entity-Ref-ID': ticketCode }
+                });
+            }
+
+            // ---------------------------------------------------------
+            // B) CORREO A LA AGENCIA
+            // ---------------------------------------------------------
+            if (agencyEmail) {
+                const emailHtmlAgency = typeof buildStratosfereEmailHtml === 'function' ? buildStratosfereEmailHtml({
+                    title: "Nuevo Lead Confirmado",
+                    headline: "Nuevo Asistente Registrado",
+                    bodyHtml: `
+                        <p>Se ha registrado un nuevo asistente para el evento: <strong>${eventTitle}</strong></p>
+                        
+                        <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:15px; margin-bottom:15px;">
+                            <p style="font-size:10px; font-weight:bold; color:#166534; text-transform:uppercase; margin:0 0 10px 0;">DATOS DEL INTERESADO</p>
+                            <ul style="list-style:none; padding:0; margin:0; color:#14532d;">
+                                <li style="margin-bottom:5px;">👤 <strong>${attendeeName}</strong></li>
+                                <li style="margin-bottom:5px;">📧 <a href="mailto:${attendeeEmail}">${attendeeEmail}</a></li>
+                                <li>📱 ${attendeePhone}</li>
+                            </ul>
+                        </div>
+
+                        <div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:15px;">
+                            <p style="font-size:10px; font-weight:bold; color:#6B7280; text-transform:uppercase; margin:0 0 10px 0;">CONTEXTO DEL EVENTO</p>
+                            <p style="margin:0 0 5px 0; color:#111;">📍 <strong>${address}</strong></p>
+                            <p style="margin:0 0 5px 0; font-size:14px;">🗓️ ${eventDate} • ${eventTime}H</p>
+                            <p style="margin:5px 0 0 0; font-family:monospace; background:#e5e7eb; display:inline-block; padding:2px 6px; border-radius:4px; font-size:12px;">REF: ${propertyRef}</p>
+                        </div>
+                    `,
+                    ctaText: "Ver en Panel",
+                    ctaUrl: platformLink
+                }) : `<p>Nuevo lead: ${attendeeName}</p>`;
+
+                await resend.emails.send({
+                    from: senderEmail, 
+                    to: agencyEmail,
+                    // 🔥 FIX: Si attendeeEmail es null, pasamos undefined para que Resend no falle
+                    reply_to: attendeeEmail || undefined, 
+                    subject: `🔔 Nuevo Lead (Ref: ${propertyRef}): ${attendeeName}`,
+                    html: emailHtmlAgency
+                });
+            }
+        } catch (emailError) {
+            console.error("❌ Error enviando emails (pero el registro se guardó):", emailError);
+            // No hacemos throw para no cancelar el registro si falla el mail
         }
     }
 
@@ -2504,6 +2517,7 @@ export async function joinOpenHouseAction(eventId: string, guestData?: any) {
 
   } catch (e: any) {
     if (e.code === 'P2002') return { success: true, message: "ALREADY_JOINED" };
+    console.error("Error joinOpenHouseAction:", e);
     return { success: false, error: String(e.message || e) };
   }
 }
