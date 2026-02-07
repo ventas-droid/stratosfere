@@ -2102,6 +2102,8 @@ if (passedConversationId) {
 };
 
 
+// ... dentro del useEffect ...
+
 window.addEventListener("reload-profile-assets", handleReload);
 window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
 
