@@ -1,53 +1,110 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
     ArrowLeft, Users, Calendar, MapPin, 
     MessageCircle, Phone, Mail, ChevronRight, 
-    Clock, Loader2, Trash2, AlertTriangle // <--- AÑADIDO Trash2 y AlertTriangle
+    Clock, Loader2, Trash2, RefreshCw
 } from 'lucide-react';
-// 🔥 IMPORTAMOS LA NUEVA ACCIÓN
 import { getPropertiesAction, getEventAttendeesAction, cancelOpenHouseAction } from '@/app/actions';
 
 export default function AgencyEventManager({ onClose }: { onClose: () => void }) {
+    // ESTADOS
     const [view, setView] = useState<'LIST' | 'DETAILS'>('LIST');
     const [events, setEvents] = useState<any[]>([]);
     const [selectedEvent, setSelectedEvent] = useState<any>(null);
     const [attendees, setAttendees] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [loadingAttendees, setLoadingAttendees] = useState(false);
-    const [deleting, setDeleting] = useState(false); // Estado para el borrado
+    
+    // ESTADOS DE CARGA
+    const [loading, setLoading] = useState(true); // Carga inicial fuerte
+    const [loadingAttendees, setLoadingAttendees] = useState(false); // Carga de detalles
+    const [deleting, setDeleting] = useState(false);
 
-    // 1. CARGAR EVENTOS
-    useEffect(() => {
-        loadAgencyEvents();
-    }, []);
+    // 🧠 CEREBRO DEL RADAR (Referencias para no perder el hilo en los intervalos)
+    const selectedEventRef = useRef<any>(null);
+    const viewRef = useRef<string>('LIST');
 
-    async function loadAgencyEvents() {
-        setLoading(true);
+    // Sincronizar Refs con Estado (Truco para que el interval lea el estado actual)
+    useEffect(() => { selectedEventRef.current = selectedEvent; }, [selectedEvent]);
+    useEffect(() => { viewRef.current = view; }, [view]);
+
+    // ============================================================
+    // 📡 1. FUNCIÓN DE RECARGA INTELIGENTE (EL RADAR)
+    // ============================================================
+    const refreshData = useCallback(async (isBackground = false) => {
+        // Solo mostramos spinner si NO es una actualización de fondo
+        if (!isBackground) setLoading(true);
+
         try {
+            // A) SIEMPRE RECARGAMOS LA LISTA MAESTRA
             const res = await getPropertiesAction();
             if (res.success && res.data) {
                 const activeEvents = res.data.filter((p: any) => {
                     const oh = p.openHouse || p.open_house || p.open_house_data;
                     return oh && oh.id; 
                 });
+                // Actualizamos solo si hay cambios para evitar parpadeos innecesarios (React lo gestiona bien)
                 setEvents(activeEvents);
             }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    }
 
+            // B) SI EL USUARIO ESTÁ MIRANDO UN EVENTO ESPECÍFICO, RECARGAMOS SUS ASISTENTES
+            const currentSelected = selectedEventRef.current;
+            const currentView = viewRef.current;
+
+            if (currentView === 'DETAILS' && currentSelected) {
+                const oh = currentSelected.openHouse || currentSelected.open_house;
+                if (oh?.id) {
+                    const attRes = await getEventAttendeesAction(oh.id);
+                    if (attRes.success) {
+                        // Aquí actualizamos la lista de invitados en tiempo real
+                        setAttendees(attRes.attendees || []);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Fallo en radar:", e);
+        } finally {
+            if (!isBackground) setLoading(false);
+        }
+    }, []);
+
+    // ============================================================
+    // ⚡ 2. INICIO DE MOTORES (HOOKS)
+    // ============================================================
+    useEffect(() => {
+        // 1. Carga Inicial Inmediata
+        refreshData(false);
+
+        // 2. ACTIVAR RADAR (Intervalo cada 3 segundos)
+        // Esto hace que si alguien se apunta, aparezca "mágicamente" a los 3 seg.
+        const radarInterval = setInterval(() => {
+            refreshData(true); // true = Silencioso (sin spinner)
+        }, 3000); 
+
+        // 3. ESCUCHAR SEÑALES DEL SISTEMA (Para inmediatez absoluta si la acción es local)
+        const handleSystemSignal = () => refreshData(true);
+        window.addEventListener("reload-agency-data", handleSystemSignal);
+        window.addEventListener("open-chat-with-user", handleSystemSignal); // Por si acaso
+
+        // Limpieza al cerrar
+        return () => {
+            clearInterval(radarInterval);
+            window.removeEventListener("reload-agency-data", handleSystemSignal);
+            window.removeEventListener("open-chat-with-user", handleSystemSignal);
+        };
+    }, [refreshData]);
+
+
+    // ============================================================
+    // 🎮 3. INTERACCIONES UI
+    // ============================================================
     const handleSelectEvent = async (eventProp: any) => {
         const oh = eventProp.openHouse || eventProp.open_house || eventProp.open_house_data;
         if (!oh || !oh.id) return;
 
         setSelectedEvent(eventProp);
         setView('DETAILS');
-        setLoadingAttendees(true);
+        setLoadingAttendees(true); // Spinner local solo la primera vez
         try {
             const res = await getEventAttendeesAction(oh.id);
             if (res.success) {
@@ -72,40 +129,38 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
         }
     };
 
-    // 🔥 NUEVA FUNCIÓN: CANCELAR EVENTO
     const handleCancelEvent = async () => {
         if (!selectedEvent) return;
         const oh = selectedEvent.openHouse || selectedEvent.open_house;
         if (!oh?.id) return;
 
-        if (!confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto cancelará el evento permanentemente y se notificará a los usuarios. Esta acción no se puede deshacer.")) {
-            return;
-        }
+        if (!confirm("⚠️ ¿CANCELAR EVENTO?\n\nSe borrará el evento y se notificará a los asistentes.")) return;
 
         setDeleting(true);
         try {
             const res = await cancelOpenHouseAction(oh.id);
             if (res.success) {
-                // Éxito: Volvemos a la lista y recargamos
                 setView('LIST');
                 setSelectedEvent(null);
-                await loadAgencyEvents(); // Recarga la lista para que desaparezca
-                alert("✅ Evento cancelado correctamente.");
+                await refreshData(false); // Recarga forzosa
+                alert("✅ Evento cancelado.");
             } else {
-                alert("Error al cancelar: " + res.error);
+                alert("Error: " + res.error);
             }
         } catch (e) {
-            console.error(e);
             alert("Error de conexión");
         } finally {
             setDeleting(false);
         }
     };
 
+    // ============================================================
+    // 🖼️ 4. RENDERIZADO
+    // ============================================================
     return (
         <div className="flex flex-col h-full bg-[#F5F5F7] animate-in slide-in-from-right duration-300">
             
-            {/* --- VISTA 1: LISTA --- */}
+            {/* VISTA LISTA */}
             {view === 'LIST' && (
                 <>
                     <div className="p-6 bg-white border-b border-slate-100 sticky top-0 z-10">
@@ -114,6 +169,15 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                                 <ArrowLeft size={20} className="text-slate-600"/>
                             </button>
                             <h2 className="text-xl font-black text-slate-900 tracking-tight">Gestión de Eventos</h2>
+                            
+                            {/* INDICADOR DE RADAR: PUNTITO VERDE QUE LATE */}
+                            <div className="ml-auto flex items-center gap-2">
+                                <span className="relative flex h-3 w-3">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest hidden sm:block">LIVE</span>
+                            </div>
                         </div>
                         <p className="text-sm text-slate-500 font-medium ml-10">
                             Controla asistencia y contacta con tus leads.
@@ -166,7 +230,7 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                                                         <span className="text-slate-400">Cupo: {capacity}</span>
                                                     </div>
                                                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full ${occupancy > 90 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(occupancy, 100)}%` }}/>
+                                                        <div className={`h-full rounded-full transition-all duration-500 ${occupancy > 90 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(occupancy, 100)}%` }}/>
                                                     </div>
                                                 </div>
                                             </div>
@@ -182,7 +246,7 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                 </>
             )}
 
-            {/* --- VISTA 2: DETALLES --- */}
+            {/* VISTA DETALLES */}
             {view === 'DETAILS' && selectedEvent && (
                 <>
                     <div className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm">
@@ -194,15 +258,17 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                                 <h2 className="text-sm font-black text-slate-900 truncate uppercase tracking-wide">LISTA DE INVITADOS</h2>
                                 <p className="text-xs text-slate-500 truncate">{selectedEvent.openHouse?.title || "Evento"}</p>
                             </div>
+                            {/* INDICADOR DE SINCRONIZACIÓN EN DETALLES */}
+                            <RefreshCw size={14} className="text-slate-300 animate-spin opacity-50"/>
                         </div>
                         
                         <div className="px-6 pb-4 flex gap-4">
                             <div className="flex-1 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
-                                <div className="text-2xl font-black text-slate-900">{attendees.length}</div>
+                                <div className="text-2xl font-black text-slate-900 transition-all">{attendees.length}</div>
                                 <div className="text-[9px] font-bold text-slate-400 uppercase">Confirmados</div>
                             </div>
                             <div className="flex-1 bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center">
-                                <div className="text-2xl font-black text-indigo-600">{(selectedEvent.openHouse?.capacity || 50) - attendees.length}</div>
+                                <div className="text-2xl font-black text-indigo-600 transition-all">{(selectedEvent.openHouse?.capacity || 50) - attendees.length}</div>
                                 <div className="text-[9px] font-bold text-slate-400 uppercase">Libres</div>
                             </div>
                         </div>
@@ -215,14 +281,13 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                             <div className="flex flex-col items-center justify-center h-60 text-center opacity-50">
                                 <Users size={40} className="text-slate-300 mb-3"/>
                                 <p className="text-sm font-bold text-slate-600">Aún nadie se ha apuntado</p>
-                                <p className="text-xs text-slate-400">Comparte el evento para conseguir leads.</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 {attendees.map((ticket) => {
                                     const user = ticket.user;
                                     return (
-                                        <div key={ticket.id} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-indigo-100 hover:shadow-md hover:bg-slate-50 transition-all group">
+                                        <div key={ticket.id} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 hover:border-indigo-100 hover:shadow-md hover:bg-slate-50 transition-all group animate-in slide-in-from-bottom-2 duration-300">
                                             <div className="w-12 h-12 rounded-full bg-slate-200 overflow-hidden relative shrink-0 border-2 border-white shadow-sm">
                                                 {user.avatar ? (
                                                     <img src={user.avatar} className="w-full h-full object-cover" alt=""/>
@@ -247,18 +312,13 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                         )}
                     </div>
 
-                    {/* 🔥 ZONA DE PELIGRO: FOOTER DE CANCELACIÓN */}
                     <div className="p-4 bg-white border-t border-red-100">
                         <button 
                             onClick={handleCancelEvent}
                             disabled={deleting}
                             className="w-full py-4 rounded-xl bg-red-50 text-red-600 font-bold text-xs tracking-widest uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 border border-red-200"
                         >
-                            {deleting ? (
-                                <><Loader2 size={14} className="animate-spin"/> CANCELANDO...</>
-                            ) : (
-                                <><Trash2 size={14}/> CANCELAR EVENTO</>
-                            )}
+                            {deleting ? ( <><Loader2 size={14} className="animate-spin"/> CANCELANDO...</> ) : ( <><Trash2 size={14}/> CANCELAR EVENTO</> )}
                         </button>
                     </div>
                 </>
