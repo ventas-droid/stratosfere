@@ -2781,7 +2781,7 @@ export async function getEventAttendeesAction(eventId: string) {
 }
 
 // =====================================================
-// 🗑️ 5. CANCELAR EVENTO (NOTIFICANDO A TODOS)
+// 🗑️ 5. CANCELAR EVENTO (NOTIFICANDO A TODOS) - BLINDADO
 // =====================================================
 export async function cancelOpenHouseAction(openHouseId: string) {
   try {
@@ -2804,94 +2804,100 @@ export async function cancelOpenHouseAction(openHouseId: string) {
     // Seguridad: Solo el dueño puede cancelar
     if (event.property.userId !== user.id) return { success: false, error: "No eres el organizador" };
 
-    // 2. PREPARACIÓN DE CORREOS (LÓGICA IDÉNTICA A SU REGISTRO)
+    // 2. PREPARACIÓN DE CORREOS (CON PROTECCIÓN DE ERRORES)
     const resendApiKey = process.env.RESEND_API_KEY;
     
     if (resendApiKey) {
-        const resend = new Resend(resendApiKey);
+        try {
+            // 🔥 IMPORTACIÓN SEGURA: Evita que rompa si falta el import arriba
+            const { Resend } = require('resend'); 
+            const resend = new Resend(resendApiKey);
 
-        // Datos Formateados (Igual que en su lógica de registro)
-        const eventTitle = event.title || "Open House";
-        const d = new Date(event.startTime);
-        const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
-        const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
-        const address = event.property.address || "Ubicación Privada";
-        
-        // Datos Agencia
-        const agencyName = event.property.user?.companyName || event.property.user?.name || "Agencia";
-        const senderEmail = 'Stratosfere <info@stratosfere.com>'; // Su remitente oficial
+            // Datos Formateados
+            const eventTitle = event.title || "Open House";
+            const d = new Date(event.startTime);
+            const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
+            const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
+            const address = event.property.address || "Ubicación Privada";
+            
+            // Datos Agencia
+            const agencyName = event.property.user?.companyName || event.property.user?.name || "Agencia";
+            const senderEmail = 'Stratosfere <info@stratosfere.com>'; // Su remitente oficial
 
-        // Array de promesas para envío masivo
-        const emailPromises = [];
+            // Array de promesas para envío masivo
+            const emailPromises = [];
 
-        // A) CORREOS A LOS CLIENTES (UNO POR UNO)
-        for (const ticket of event.attendees) {
-            if (ticket.email) {
-                // Construimos el HTML usando su helper (si está disponible en el ámbito)
-                // Si 'buildStratosfereEmailHtml' no es global, asegúrese de importarlo o definirlo.
-                const emailHtmlClient = typeof buildStratosfereEmailHtml === 'function' 
+            // A) CORREOS A LOS CLIENTES (UNO POR UNO)
+            for (const ticket of event.attendees) {
+                if (ticket.email) {
+                    // Verificamos si existe el helper de HTML, si no, texto plano
+                    const emailHtmlClient = typeof buildStratosfereEmailHtml === 'function' 
+                        ? buildStratosfereEmailHtml({
+                            title: "Evento Cancelado",
+                            headline: "Cancelación de Open House",
+                            bodyHtml: `
+                                <p>Hola <strong>${ticket.name || 'Invitado'}</strong>,</p>
+                                <p>Te informamos que el evento <strong>${eventTitle}</strong> ha sido cancelado por el organizador.</p>
+                                
+                                <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; padding:20px; margin:20px 0; color:#991B1B;">
+                                    <p style="margin:0 0 5px 0;">🚫 <strong>EVENTO CANCELADO</strong></p>
+                                    <p style="margin:0 0 5px 0;">📍 ${address}</p>
+                                    <p style="margin:0;">🗓️ Previsto: ${eventDate} • ${eventTime}H</p>
+                                </div>
+
+                                <p>Disculpa las molestias ocasionadas.</p>
+                                <p style="font-size:12px; color:#666;">Atentamente,<br/>${agencyName}</p>
+                            `,
+                            ctaText: "Ver Propiedades Similares",
+                            ctaUrl: "https://stratosfere.com"
+                        }) 
+                        : `<p>El evento ${eventTitle} ha sido cancelado.</p>`;
+
+                    emailPromises.push(
+                        resend.emails.send({
+                            from: senderEmail,
+                            to: ticket.email,
+                            subject: `🚫 CANCELADO: ${eventTitle}`,
+                            html: emailHtmlClient
+                        })
+                    );
+                }
+            }
+
+            // B) CORREO DE CONFIRMACIÓN A LA AGENCIA (USTED)
+            if (user.email) {
+                 const emailHtmlAgency = typeof buildStratosfereEmailHtml === 'function'
                     ? buildStratosfereEmailHtml({
-                        title: "Evento Cancelado",
-                        headline: "Cancelación de Open House",
+                        title: "Evento Eliminado",
+                        headline: "Cancelación Exitosa",
                         bodyHtml: `
-                            <p>Hola <strong>${ticket.name || 'Invitado'}</strong>,</p>
-                            <p>Te informamos que el evento <strong>${eventTitle}</strong> ha sido cancelado por el organizador.</p>
-                            
-                            <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; padding:20px; margin:20px 0; color:#991B1B;">
-                                <p style="margin:0 0 5px 0;">🚫 <strong>EVENTO CANCELADO</strong></p>
-                                <p style="margin:0 0 5px 0;">📍 ${address}</p>
-                                <p style="margin:0;">🗓️ Previsto: ${eventDate} • ${eventTime}H</p>
+                            <p>Has cancelado el evento: <strong>${eventTitle}</strong></p>
+                            <div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:15px; margin:15px 0;">
+                                <p>✅ Se ha eliminado el evento de la plataforma.</p>
+                                <p>📬 Se han enviado notificaciones a <strong>${event.attendees.length} asistentes</strong>.</p>
                             </div>
-
-                            <p>Disculpa las molestias ocasionadas.</p>
-                            <p style="font-size:12px; color:#666;">Atentamente,<br/>${agencyName}</p>
                         `,
-                        ctaText: "Ver Propiedades Similares",
-                        ctaUrl: "https://stratosfere.com"
-                    }) 
-                    : `<p>El evento ${eventTitle} ha sido cancelado.</p>`; // Fallback por seguridad
+                        ctaText: "Volver al Panel",
+                        ctaUrl: "https://stratosfere.com/dashboard"
+                    })
+                    : `<p>Evento cancelado y asistentes notificados.</p>`;
 
                 emailPromises.push(
                     resend.emails.send({
                         from: senderEmail,
-                        to: ticket.email,
-                        subject: `🚫 CANCELADO: ${eventTitle}`,
-                        html: emailHtmlClient
+                        to: user.email,
+                        subject: `🗑️ Confirmación: ${eventTitle} eliminado`,
+                        html: emailHtmlAgency
                     })
                 );
             }
+
+            // Disparamos todos los correos sin bloquear si uno falla
+            await Promise.allSettled(emailPromises);
+
+        } catch (emailError) {
+            console.error("❌ Error enviando emails (pero procedemos a borrar):", emailError);
         }
-
-        // B) CORREO DE CONFIRMACIÓN A LA AGENCIA (USTED)
-        if (user.email) {
-             const emailHtmlAgency = typeof buildStratosfereEmailHtml === 'function'
-                ? buildStratosfereEmailHtml({
-                    title: "Evento Eliminado",
-                    headline: "Cancelación Exitosa",
-                    bodyHtml: `
-                        <p>Has cancelado el evento: <strong>${eventTitle}</strong></p>
-                        <div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:15px; margin:15px 0;">
-                            <p>✅ Se ha eliminado el evento de la plataforma.</p>
-                            <p>📬 Se han enviado notificaciones a <strong>${event.attendees.length} asistentes</strong>.</p>
-                        </div>
-                    `,
-                    ctaText: "Volver al Panel",
-                    ctaUrl: "https://stratosfere.com/dashboard"
-                })
-                : `<p>Evento cancelado y asistentes notificados.</p>`;
-
-            emailPromises.push(
-                resend.emails.send({
-                    from: senderEmail,
-                    to: user.email,
-                    subject: `🗑️ Confirmación: ${eventTitle} eliminado`,
-                    html: emailHtmlAgency
-                })
-            );
-        }
-
-        // Disparamos todos los correos
-        await Promise.all(emailPromises);
     }
 
     // 3. DEMOLICIÓN FINAL (BORRAR DE LA DB)
