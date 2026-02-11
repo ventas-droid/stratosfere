@@ -71,7 +71,7 @@ const buildRefCode = () => {
 };
 
 // =========================================================
-// 🔐 1. IDENTIFICACIÓN Y SESIÓN
+// 🔐 1. IDENTIFICACIÓN Y SESIÓN (CON RADAR ACTIVADO)
 // =========================================================
 
 async function getCurrentUser() {
@@ -81,6 +81,17 @@ async function getCurrentUser() {
   if (!sessionEmail) return null;
 
   try {
+    // 📡 RADAR: Detectamos movimiento y actualizamos la hora
+    // Esto hace que el punto verde del Admin funcione
+    await prisma.user.update({
+        where: { email: sessionEmail },
+        data: { 
+            lastLoginAt: new Date(),
+            loginCount: { increment: 1 } 
+        }
+    });
+
+    // Buscamos al usuario para devolverlo
     const user = await prisma.user.findUnique({ where: { email: sessionEmail } });
     return user;
   } catch (e) {

@@ -34,6 +34,10 @@ model User {
   messagesSent             Message[]
   blocksOut                UserBlock[]               @relation("UserBlocksOut")
   blocksIn                 UserBlock[]               @relation("UserBlocksIn")
+// 👇 AÑADA ESTO PARA LA INTELIGENCIA TÁCTICA 👇
+  lastLoginAt   DateTime? @default(now())  // Última vez que abrió la app
+  loginCount    Int       @default(0)      // Cuántas veces ha entrado en total
+  lastActiveAt  DateTime? @default(now())  // Última vez que movió el ratón (aprox)
 
   // ✅ Agency access (source of truth)
   agencyTrialStartedAt DateTime?
