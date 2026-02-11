@@ -2,25 +2,31 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 
-// 1. TODOS LOS ICONOS JUNTOS (CORREGIDO: Sin duplicados)
+// 🔥 AQUÍ ESTÁ LA CLAVE: IMPORTS ARRIBA DEL TODO
+import { 
+    getCampaignByPropertyAction, 
+    getPropertyByIdAction,
+    getActiveManagementAction // <--- ESTA ES LA NUEVA QUE NECESITAMOS
+} from "@/app/actions";
+
 import { 
     X, Heart, Phone, Sparkles, User, ShieldCheck, Briefcase,
     Star, Home, Maximize2, ArrowUp,
     Car, Trees, Waves, Sun, Box, Thermometer, 
-    Camera, Globe, Plane, Hammer, Ruler, 
+    Camera, Globe, Plane, Hammer, Ruler, Handshake, Coins,
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
     Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye, ChevronDown,
     FileDown, PlayCircle
 } from 'lucide-react';
 
-import { getCampaignByPropertyAction, getPropertyByIdAction } from "@/app/actions";
 import { PDFDownloadLink } from '@react-pdf/renderer';
-
-// 2. RUTA DEL PDF CORREGIDA
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
 import AgencyExtrasViewer from "./AgencyExtrasViewer";
 import OpenHouseOverlay from "./OpenHouseOverlay";
-import GuestList from "./GuestList"; // Asegúrese de que la ruta sea correcta
+import GuestList from "./GuestList";
+
+
+
 // --- DICCIONARIO MAESTRO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
     'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
@@ -56,14 +62,156 @@ export default function AgencyDetailsPanel({
   currentUser 
 }: any) {
     
+    // ============================================================
+    // 1. ESTADOS DE UI (MODALES Y UTILIDADES) - NO TOCAR
+    // ============================================================
+    // Separamos la propiedad del mapa (initial) de la que mostramos (selected)
     const [selectedProp, setSelectedProp] = useState(initialProp);
+    
     const [showContactModal, setShowContactModal] = useState(false);
-    const [showOpenHouse, setShowOpenHouse] = useState(true); // Se abre por defecto si hay evento
+    const [showOpenHouse, setShowOpenHouse] = useState(true); 
+    const [showB2BModal, setShowB2BModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
-const [isDescExpanded, setIsDescExpanded] = useState(false);
+    const [isDescExpanded, setIsDescExpanded] = useState(false);
+
+   // ============================================================
+    // 2. ESTADOS DE IDENTIDAD (BLINDAJE ANTI-PARPADEO)
+    // ============================================================
+    
+    // A) BASE: Lo que dice el mapa
+    const [baseOwnerData, setBaseOwnerData] = useState(
+      initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {}
+    );
+    
+    // B) ESCUDO: Lo que dice el contrato
+    const [managedOwner, setManagedOwner] = useState<any>(null);
+    const [campaignData, setCampaignData] = useState<any>(null);
+
+    // 🔥 C) ESTADO DE CARGA (NUEVO): 
+    // ¿Debemos verificar antes de mostrar la cara?
+    // Si viene como particular, asumimos que puede haber un gestor oculto -> TRUE (Bloqueamos)
+    // Si ya viene como AGENCIA, confiamos -> FALSE (Mostramos directo)
+    const initialRole = String(baseOwnerData?.role || "").toUpperCase();
+    const [isCheckingIdentity, setIsCheckingIdentity] = useState(
+        initialRole !== 'AGENCIA' && initialRole !== 'AGENCY'
+    );
+
+    // ============================================================
+    // 3. LOGICA DE ACTUALIZACIÓN DEL MAPA (SIN PARPADEOS)
+    // ============================================================
+    useEffect(() => { 
+      // CASO A: Cambiamos de casa (ID diferente) -> RESET TOTAL
+      if (initialProp?.id && initialProp.id !== selectedProp?.id) {
+          setSelectedProp(initialProp); 
+          setBaseOwnerData(initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {});
+          
+          // 🔥 IMPORTANTE: Solo borramos a la agencia si cambiamos de casa
+          setManagedOwner(null); 
+          setCampaignData(null);
+      } 
+      // CASO B: Es la misma casa, pero el mapa manda actualización (Vuelo/Refresco)
+      else if (initialProp) {
+          setSelectedProp((prev: any) => ({ ...prev, ...initialProp }));
+          // Actualizamos la base por si acaso, PERO NO TOCAMOS managedOwner
+          setBaseOwnerData((prev: any) => ({
+              ...prev,
+              ...(initialProp?.user || initialProp?.ownerSnapshot || {})
+          }));
+      }
+    }, [initialProp, initialAgencyData]);
+
+   // ============================================================
+    // 🦅 4. RADAR DE GESTIÓN
+    // ============================================================
+    useEffect(() => {
+        const fetchContract = async () => {
+            if (!selectedProp?.id) return;
+            
+            // Si cambiamos de casa, activamos el escudo de nuevo si es particular
+            const currentRole = String(baseOwnerData?.role || "").toUpperCase();
+            if (currentRole !== 'AGENCIA') setIsCheckingIdentity(true);
+
+            // Si ya tenemos gestor cargado para esta ID, no hacemos nada
+            if (managedOwner && campaignData?.propertyId === selectedProp.id) {
+                setIsCheckingIdentity(false);
+                return;
+            }
+
+            try {
+                const res = await getActiveManagementAction(selectedProp.id);
+                
+                if (res?.success && res?.data && res.data.agency) {
+                    console.log("🦅 GESTIÓN DETECTADA:", res.data.agency.companyName);
+                    setCampaignData(res.data);
+                    
+                    const manager = res.data.agency;
+                    setManagedOwner({
+                        ...manager,
+                        name: manager.companyName || manager.name || "Agencia Gestora",
+                        companyName: manager.companyName,
+                        avatar: manager.companyLogo || manager.avatar,
+                        companyLogo: manager.companyLogo || manager.avatar,
+                        coverImage: manager.coverImage || manager.cover,
+                        phone: manager.mobile || manager.phone,
+                        mobile: manager.mobile || manager.phone,
+                        email: manager.email,
+                        role: 'AGENCIA', 
+                        licenseType: 'PRO',
+                        id: manager.id
+                    });
+                }
+            } catch (e) {
+                console.error("Fallo en radar:", e);
+            } finally {
+                // 🔥 CLAVE: Pase lo que pase, levantamos el escudo al terminar
+                // Si encontró agencia, se verá la agencia.
+                // Si no encontró nada, se verá a Isidro (ahora sí confirmado).
+                setIsCheckingIdentity(false);
+            }
+        };
+
+        fetchContract();
+    }, [selectedProp?.id]);
+
+    // ============================================================
+    // 5. LISTENERS EN VIVO (MANTIENEN LA CONSISTENCIA)
+    // ============================================================
+    useEffect(() => {
+        const handleProfileUpdate = (e: any) => {
+            const updatedProfile = e.detail;
+            // Actualizamos ambos para asegurar consistencia
+            setBaseOwnerData((prev: any) => ({ ...prev, ...updatedProfile }));
+            if (managedOwner) {
+                setManagedOwner((prev: any) => ({ ...prev, ...updatedProfile }));
+            }
+        };
+        window.addEventListener('agency-profile-updated', handleProfileUpdate);
+        return () => window.removeEventListener('agency-profile-updated', handleProfileUpdate);
+    }, [managedOwner]); // Dependencia añadida para saber si hay managedOwner
+
+    useEffect(() => {
+        const handleLiveUpdate = (e: any) => {
+            const { id, updates } = e.detail;
+            if (selectedProp && String(selectedProp.id) === String(id)) {
+                setSelectedProp((prev: any) => ({ ...prev, ...updates }));
+            }
+        };
+        window.addEventListener('update-property-signal', handleLiveUpdate);
+        return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
+    }, [selectedProp]);
+
+    // ============================================================
+    // 🛡️ DECISIÓN FINAL DE IDENTIDAD (NO ROMPER NADA ABAJO)
+    // ============================================================
+    // Esta variable 'ownerData' es la que usa el resto de tu código.
+    // Aquí hacemos el truco: Si existe managedOwner, IGNORAMOS al del mapa.
+    const ownerData = managedOwner || baseOwnerData;
+
+    // Lógica original de isOwner
     const isOwner = selectedProp?.isOwner || (currentUser?.id && selectedProp?.userId && currentUser.id === selectedProp.userId);
-const copyRefCode = async () => {
+
+    const copyRefCode = async () => {
       const ref = String(selectedProp?.refCode || "");
       if (!ref) return;
       try {
@@ -82,58 +230,16 @@ const copyRefCode = async () => {
       setTimeout(() => setCopiedRef(false), 2000);
     };
 
-    const [ownerData, setOwnerData] = useState(
-      initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {}
-    );
-
-    useEffect(() => { 
-      setSelectedProp(initialProp); 
-      setOwnerData(initialAgencyData || initialProp?.user || initialProp?.ownerSnapshot || {});
-    }, [initialProp, initialAgencyData]);
-
-    // LISTENERS DE ACTUALIZACIÓN
-    useEffect(() => {
-        const handleProfileUpdate = (e: any) => {
-            const updatedProfile = e.detail;
-            setOwnerData((prev: any) => ({
-                ...prev,
-                companyName: updatedProfile.name,
-                companyLogo: updatedProfile.avatar,
-                coverImage: updatedProfile.cover,
-                phone: updatedProfile.phone,
-                mobile: updatedProfile.mobile,
-                email: updatedProfile.email,
-                zone: updatedProfile.zone,
-                tagline: updatedProfile.tagline
-            }));
-        };
-        window.addEventListener('agency-profile-updated', handleProfileUpdate);
-        return () => window.removeEventListener('agency-profile-updated', handleProfileUpdate);
-    }, []);
-
-    useEffect(() => {
-        const handleLiveUpdate = (e: any) => {
-            const { id, updates } = e.detail;
-            if (selectedProp && String(selectedProp.id) === String(id)) {
-                setSelectedProp((prev: any) => ({ ...prev, ...updates }));
-            }
-        };
-        window.addEventListener('update-property-signal', handleLiveUpdate);
-        return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
-    }, [selectedProp]);
-
-    // DATOS DE AGENTE
+    // DATOS DE AGENTE (LIMPIEZA DE RANGOS VIEJOS)
     const activeOwner = ownerData; 
     const name = activeOwner.companyName || activeOwner.name || "Usuario";
     
-    let roleLabel = "AGENCIA"; 
-    if (activeOwner.role === 'PARTICULAR') roleLabel = "PARTICULAR";
-    else {
-        const lic = activeOwner.licenseType;
-        if (lic === 'STARTER') roleLabel = "ESSENTIAL PARTNER";
-        else if (lic === 'PRO') roleLabel = "PRO PARTNER";
-        else if (lic === 'CORP') roleLabel = "CORPORATE";
-        else roleLabel = "AGENCIA CERTIFICADA";
+    // 🏷️ Lógica Moderna: Solo nos importa si es Agencia o Civil
+    let roleLabel = "AGENCIA CERTIFICADA"; 
+    
+    const role = String(activeOwner.role || "").toUpperCase();
+    if (role === 'PARTICULAR' || role === 'OWNER' || role === 'CIVIL') {
+        roleLabel = "PARTICULAR VERIFICADO";
     }
 
     const avatar = activeOwner.companyLogo || activeOwner.avatar || null;
@@ -208,6 +314,74 @@ const copyRefCode = async () => {
         ? selectedProp.description.replace(/<[^>]+>/g, '') 
         : null;
 
+   // ============================================================
+    // 💰 LÓGICA B2B (MASTER: CONTRATO > PROPIEDAD)
+    // ============================================================
+    
+    // 1. ¿Quién mira? (Rol real)
+    const visitorRole = String(currentUser?.role || "").toUpperCase();
+    const isAgencyVisitor = visitorRole.includes('AGEN') || visitorRole === 'REAL_ESTATE' || visitorRole === 'PRO' || visitorRole === 'CORP' || visitorRole === 'ADMIN';
+
+    // 2. ¿Hay Botín? (PRIORIDAD: CONTRATO FIRMADO 'campaignData')
+    // Si campaignData existe (porque el radar lo encontró), usamos sus datos.
+    const sharePercent = Number(
+        campaignData?.terms?.sharePct ||       // 1. Contrato (caja terms)
+        campaignData?.commissionSharePct ||    // 2. Contrato (raíz)
+        selectedProp?.commissionSharePct ||    // 3. Propiedad original (backup)
+        selectedProp?.b2b?.sharePct || 
+        0
+    );
+
+    // 3. Configuración de Visibilidad
+    const visibilityMode = String(
+        campaignData?.commissionShareVisibility || 
+        selectedProp?.commissionShareVisibility || 
+        selectedProp?.b2b?.visibility ||
+        (campaignData ? 'AGENCY' : 'PRIVATE') // Si hay contrato, por defecto es visible a agencias
+    ).toUpperCase();
+    
+    // 4. Decisión de Visualización
+    let canSeeCommission = false;
+
+    if (sharePercent > 0) {
+        if (visibilityMode === 'PUBLIC' || visibilityMode === 'PÚBLICO') {
+            canSeeCommission = true;
+        } 
+        else if ((visibilityMode === 'AGENCIAS' || visibilityMode === 'AGENCY' || visibilityMode === 'AGENCIES') && isAgencyVisitor) {
+            canSeeCommission = true;
+        }
+    }
+
+    // 5. Cálculos Matemáticos (Para pintar el dinero en el botón)
+    const numericPrice = Number(String(selectedProp?.price || "0").replace(/[^0-9]/g, ""));
+    
+    // La comisión base también viene del contrato (ej: 5%)
+    // Si no hay contrato, miramos la propiedad. Si no, asumimos 0.
+    const baseComm = Number(
+        campaignData?.terms?.commissionPct || 
+        campaignData?.commissionPct ||
+        selectedProp?.commissionPct || 
+        selectedProp?.activeCampaign?.commission ||
+        0 
+    );
+    
+    // Cálculo Financiero Real
+    let estimatedEarnings = 0;
+
+    if (baseComm > 0) {
+         // Modelo: % del total de la comisión (Ej: 50% de un 5%)
+         estimatedEarnings = (numericPrice * (baseComm / 100)) * (sharePercent / 100);
+    } else {
+         // Modelo: % directo del precio de venta (si no hay comisión base definida)
+         estimatedEarnings = numericPrice * (sharePercent / 100);
+    }
+    
+    const formattedEarnings = new Intl.NumberFormat("es-ES", { 
+        style: "currency", 
+        currency: "EUR",
+        maximumFractionDigits: 0 
+    }).format(estimatedEarnings);
+
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             {/* FONDO CRYSTAL */}
@@ -215,62 +389,88 @@ const copyRefCode = async () => {
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
                 
-               {/* --- HEADER CORPORATIVO --- */}
+              {/* --- HEADER CORPORATIVO (CON BLINDAJE ANTI-PARPADEO) --- */}
                 <div className="relative shrink-0 z-20 h-72 overflow-hidden bg-gray-100">
-                    <div className="absolute inset-0">
-                        {cover ? (
-                            <img src={cover} className="w-full h-full object-cover" alt="Fondo Agencia" />
-                        ) : (
-                            <div className="w-full h-full bg-slate-200" />
-                        )}
-                    </div>
-
-                    <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col justify-between h-full">
-                         <div className="flex justify-between items-start">
-                            <div className="relative group">
-                                <div className="w-24 h-24 rounded-2xl bg-white p-1 shadow-2xl shadow-black/20 border border-white/50 rotate-1 group-hover:rotate-0 transition-transform duration-500">
-                                    {avatar ? (
-                                        <img src={avatar} className="w-full h-full rounded-xl object-cover bg-white" alt="Logo" />
-                                    ) : (
-                                        <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center text-slate-300">
-                                            <User size={40} />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="absolute -bottom-3 -right-3 bg-emerald-500 text-white px-2 py-1 rounded-full border-[3px] border-white shadow-lg flex items-center gap-1">
-                                    <ShieldCheck size={12} strokeWidth={3} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Verificado</span>
+                    
+                    {/* A) ESCUDO: Si estamos verificando, mostramos CARGANDO (Caja Gris) */}
+                    {isCheckingIdentity ? (
+                        <div className="absolute inset-0 z-50 bg-slate-100 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-4 animate-pulse">
+                                {/* Círculo Gris (Simula Avatar) */}
+                                <div className="w-24 h-24 rounded-2xl bg-slate-200 border-4 border-white shadow-sm rotate-1"></div>
+                                {/* Barras Grises (Simulan Texto) */}
+                                <div className="h-6 w-48 bg-slate-200 rounded-lg"></div>
+                                <div className="h-4 w-32 bg-slate-200 rounded-lg"></div>
+                                
+                                <div className="flex items-center gap-2 mt-4 px-3 py-1 bg-white/50 rounded-full">
+                                     <div className="h-2 w-2 rounded-full bg-slate-400 animate-ping"></div>
+                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                        VERIFICANDO GESTOR...
+                                     </span>
                                 </div>
                             </div>
-                            <button onClick={onClose} className="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-lg">
-                                <X size={20} />
-                            </button>
-                         </div>
-
-                         <div>
-                            <h2 className="text-3xl font-black text-white leading-none mb-2 tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-                                {name}
-                            </h2>
-                            {ownerData.tagline && (
-                                <p className="text-white/90 text-xs font-bold italic tracking-wide mb-4 drop-shadow-md border-l-2 border-emerald-400 pl-3">
-                                    "{ownerData.tagline}"
-                                </p>
-                            )}
-                            <div className="flex flex-wrap gap-2">
-                                <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
-                                    <Briefcase size={12} className="text-emerald-400"/> 
-                                    {roleLabel}
-                                </span>
-                               {ownerData.zone && (
-                                    <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-blue-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
-                                        <Globe size={12} className="text-blue-400"/> {ownerData.zone}
-                                    </span>
+                        </div>
+                    ) : (
+                        /* B) CONTENIDO REAL: Su código original entra aquí cuando ya sabemos la verdad */
+                        <>
+                            <div className="absolute inset-0">
+                                {cover ? (
+                                    <img src={cover} className="w-full h-full object-cover" alt="Fondo Agencia" />
+                                ) : (
+                                    <div className="w-full h-full bg-slate-200" />
                                 )}
                             </div>
-                         </div>
-                    </div>
-                </div>
 
+                            <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col justify-between h-full">
+                                 <div className="flex justify-between items-start">
+                                    <div className="relative group">
+                                        <div className="w-24 h-24 rounded-2xl bg-white p-1 shadow-2xl shadow-black/20 border border-white/50 rotate-1 group-hover:rotate-0 transition-transform duration-500">
+                                            {avatar ? (
+                                                <img src={avatar} className="w-full h-full rounded-xl object-cover bg-white" alt="Logo" />
+                                            ) : (
+                                                <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center text-slate-300">
+                                                    <User size={40} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* Solo mostramos verificado si es PRO real */}
+                                        {(activeOwner.role === 'AGENCIA' || activeOwner.licenseType === 'PRO') && (
+                                            <div className="absolute -bottom-3 -right-3 bg-emerald-500 text-white px-2 py-1 rounded-full border-[3px] border-white shadow-lg flex items-center gap-1">
+                                                <ShieldCheck size={12} strokeWidth={3} />
+                                                <span className="text-[9px] font-black uppercase tracking-widest">Verificado</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={onClose} className="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-lg">
+                                        <X size={20} />
+                                    </button>
+                                 </div>
+
+                                 <div>
+                                    <h2 className="text-3xl font-black text-white leading-none mb-2 tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                                        {name}
+                                    </h2>
+                                    {ownerData.tagline && (
+                                        <p className="text-white/90 text-xs font-bold italic tracking-wide mb-4 drop-shadow-md border-l-2 border-emerald-400 pl-3">
+                                            "{ownerData.tagline}"
+                                        </p>
+                                    )}
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-emerald-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
+                                            <Briefcase size={12} className="text-emerald-400"/> 
+                                            {roleLabel}
+                                        </span>
+                                       {ownerData.zone && (
+                                            <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-blue-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
+                                                <Globe size={12} className="text-blue-400"/> {ownerData.zone}
+                                            </span>
+                                        )}
+                                    </div>
+                                 </div>
+                            </div>
+                        </>
+                    )}
+                </div>
                 {/* --- CONTENIDO SCROLL --- */}
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-40 bg-[#F5F5F7]">
                     
@@ -530,8 +730,21 @@ const copyRefCode = async () => {
                     <div className="h-6"></div>
                 </div>
 
-                {/* --- FOOTER: CONTACTAR AGENTE --- */}
+               {/* --- FOOTER: ACCIONES --- */}
                 <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20 relative">
+                  
+                  {/* 🔥 BOTÓN B2B (DORADO) - SE MUESTRA SI HAY NEGOCIO 🔥 */}
+                  {canSeeCommission && (
+                      <button
+                        onClick={() => setShowB2BModal(true)}
+                        className="w-14 h-14 bg-gradient-to-br from-amber-200 to-yellow-400 text-yellow-900 rounded-[20px] border border-yellow-300 shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 animate-pulse-slow z-50 relative"
+                        title={`Colaboración disponible: ${sharePercent}%`}
+                      >
+                        <Handshake size={24} strokeWidth={2.5} />
+                      </button>
+                  )}
+
+                  {/* BOTÓN CONTACTAR (NEGRO) */}
                   <button
                     onClick={() => setShowContactModal(true)}
                     className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs"
@@ -686,7 +899,7 @@ const copyRefCode = async () => {
                     </div>
                 )}
                 
-             {/* 🔥 POPUP OPEN HOUSE: CONEXIÓN REAL (DATOS DE SU AGENCIA) 🔥 */}
+            {/* 🔥 POPUP OPEN HOUSE: CONEXIÓN REAL (DATOS DE SU AGENCIA) 🔥 */}
                {showOpenHouse && (
                    <OpenHouseOverlay 
                        property={selectedProp} 
@@ -694,6 +907,83 @@ const copyRefCode = async () => {
                    />
                )}
 
+             {/* ============================================================== */}
+               {/* 🤝 MODAL B2B: EL JUEGO DE LA AGENCIA (CIERRE TORNILLO)         */}
+               {/* ============================================================== */}
+               {showB2BModal && (
+                    <div 
+                        className="fixed inset-0 z-[60000] flex items-center justify-center bg-black/80 backdrop-blur-md p-6 animate-fade-in"
+                        onClick={() => setShowB2BModal(false)}
+                    >
+                        <div 
+                            className="bg-gradient-to-br from-slate-900 to-slate-800 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl border border-white/10 relative animate-scale-in"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            
+                            {/* Confeti / Brillo de fondo */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-500/20 rounded-full blur-[80px] pointer-events-none"/>
+
+                           {/* 🔩 BOTÓN TORNILLO (GIRA AL PASAR EL MOUSE) */}
+                            <button 
+                                onClick={() => setShowB2BModal(false)} 
+                                className="absolute top-4 right-4 w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all duration-500 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-lg z-20 hover:rotate-90 active:scale-90"
+                            >
+                                <X size={20} />
+                            </button>
+
+                            <div className="p-8 text-center relative z-10">
+                                <div className="w-20 h-20 bg-gradient-to-br from-amber-300 to-yellow-600 rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-yellow-500/20 mb-6 rotate-3">
+                                    <Handshake size={40} className="text-white drop-shadow-md"/>
+                                </div>
+
+                                <h3 className="text-2xl font-black text-white leading-tight mb-2">
+                                    Colaboración Activa
+                                </h3>
+                                <p className="text-slate-400 text-xs font-medium mb-8 px-4">
+                                    Esta propiedad admite colaboración inmediata. Trae a tu comprador y comparte honorarios.
+                                </p>
+
+                                {/* TARJETA DE DINERO */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"/>
+                                    
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">Tu Comisión</span>
+                                        <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px] font-black border border-amber-500/30">
+                                            {sharePercent}% DEL TOTAL
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center justify-center gap-3 mt-4">
+                                        <Coins size={28} className="text-amber-400"/>
+                                        <span className="text-4xl font-black text-white tracking-tight">
+                                            {formattedEarnings}
+                                        </span>
+                                    </div>
+                                    <p className="text-[9px] text-slate-500 mt-2 font-mono uppercase">ESTIMADO (+ IVA)</p>
+                                </div>
+
+                                <button 
+                                    onClick={() => {
+                                        setShowB2BModal(false);
+                                        if (typeof window !== 'undefined') {
+                                            window.dispatchEvent(new CustomEvent('open-chat-signal', { 
+                                                detail: { 
+                                                    propertyId: selectedProp?.id, 
+                                                    toUserId: ownerData?.id, 
+                                                    message: `Hola, soy compañero. Me interesa la colaboración al ${sharePercent}% para la propiedad REF: ${selectedProp?.refCode || 'Sin Ref'}.` 
+                                                } 
+                                            }));
+                                        }
+                                    }}
+                                    className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <Briefcase size={16}/> Aceptar Colaboración
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

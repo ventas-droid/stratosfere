@@ -329,8 +329,13 @@ model Campaign {
   commissionPct    Float @default(0)
   commissionIvaPct Float @default(0)
 
-  commissionSharePct        Float                     @default(0)
-  commissionShareVisibility CommissionShareVisibility @default(AGENCIES)
+  // 🔥 CAMPOS NUEVOS PARA EL CONTRATO DETALLADO (VITALES PARA EL STOCK)
+  mandateType String? @default("SIMPLE") // "EXCLUSIVE" | "SIMPLE" | "OPEN"
+  valuation   Float?  @default(0)        // Precio de valoración acordado
+  duration    String? @default("6 Meses") // Texto libre: "6 Meses", "1 Año", etc.
+
+  commissionSharePct            Float                     @default(0)
+  commissionShareVisibility     CommissionShareVisibility @default(AGENCIES)
 
   exclusiveMandate Boolean @default(true)
   exclusiveMonths  Int     @default(6)

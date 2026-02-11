@@ -290,7 +290,7 @@ useEffect(() => {
   }
 }, [systemMode, rightPanel]);
 
-   // ✅ Propuestas (Campaign) en columna derecha
+  // ✅ Propuestas (Campaign) en columna derecha
 const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
 const [ownerProposals, setOwnerProposals] = useState<any[]>([]);
 const [ownerProposalsLoading, setOwnerProposalsLoading] = useState(false);
@@ -324,8 +324,6 @@ const loadOwnerProposals = async () => {
     const r = await fn();
     if (reqId !== ownerProposalsReqRef.current) return;
 
-    console.log("getOwnerProposalsAction ->", r);
-
     if (!r?.success) {
       console.warn("getOwnerProposalsAction failed:", r?.error);
       setOwnerProposals([]);
@@ -333,8 +331,7 @@ const loadOwnerProposals = async () => {
     }
 
     const rawList = Array.isArray(r?.data) ? r.data : [];
-    console.log("OwnerProposals rawList:", rawList.length, rawList?.map((x: any) => x?.id));
-
+    
     // ✅ anti-duplicados por id
     const dedup = new Map<string, any>();
     for (const x of rawList) {
@@ -343,7 +340,7 @@ const loadOwnerProposals = async () => {
       if (!dedup.has(id)) dedup.set(id, x);
     }
 
-    // ✅ BLINDAJE: si SERVICES_CATALOG no existe, no rompe
+    // ✅ BLINDAJE: catálogo de servicios
     const catalog: any[] =
       (globalThis as any)?.SERVICES_CATALOG && Array.isArray((globalThis as any).SERVICES_CATALOG)
         ? (globalThis as any).SERVICES_CATALOG
@@ -352,6 +349,7 @@ const loadOwnerProposals = async () => {
         : [];
 
     const normalized = Array.from(dedup.values()).map((raw: any) => {
+      // 1. Mapeo de Servicios
       const services = (Array.isArray(raw?.serviceIds) ? raw.serviceIds : [])
         .map((sid: any) => String(sid).trim())
         .filter(Boolean)
@@ -361,6 +359,33 @@ const loadOwnerProposals = async () => {
             ? { id: String(hit.id), label: String(hit.label || hit.name || sid), mode: hit.mode || hit.category }
             : { id: sid, label: sid, mode: undefined };
         });
+
+      // 2. 🔥 RED DE ARRASTRE DE DATOS (CORREGIDA PARA COINCIDIR CON RADAR) 🔥
+      // Unificamos todo en un objeto fuente 'src' para buscar fácil
+      const terms = raw?.terms || raw?.financials || {};
+      const src = { ...raw, ...terms }; 
+
+      // -- EXTRACCIÓN DE DINERO (BUSCANDO LO QUE ENVÍA EL RADAR) --
+      const totalAmount = Number(src.totalAmount || src.commissionTotalEur || src.amount || 0);
+      
+      const commissionPct = Number(src.commissionPct || src.commission || 0);
+      
+      // OJO: El radar envía 'commissionIvaPct', no 'vatPct'
+      const vatPct = Number(src.commissionIvaPct || src.vatPct || src.ivaPct || src.vat || 21);
+
+      // -- EXTRACCIÓN DE TIEMPO Y EXCLUSIVA --
+      // OJO: El radar envía 'exclusiveMonths', no 'durationMonths'
+      const duration = Number(src.exclusiveMonths || src.durationMonths || src.months || src.duration || 0);
+      
+      // OJO: El radar envía 'exclusiveMandate'
+      const isExclusive = Boolean(
+          src.exclusiveMandate === true || src.isExclusive === true || src.exclusive === true || 
+          String(src.exclusiveMandate) === "true" || String(src.isExclusive) === "true"
+      );
+
+      // Cálculos derivados (Base e IVA en euros)
+      const baseEur = totalAmount > 0 ? (totalAmount / (1 + (vatPct/100))) : 0;
+      const ivaEur = totalAmount - baseEur;
 
       return {
         id: String(raw?.id || ""),
@@ -374,6 +399,19 @@ const loadOwnerProposals = async () => {
         conversationId: raw?.conversationId ? String(raw.conversationId) : "",
 
         services,
+
+        // 🔥🔥 TRADUCCIÓN FINAL PARA EL PANEL VISUAL 🔥🔥
+        terms: {
+            exclusive: isExclusive,
+            months: duration,
+            commissionPct: commissionPct,
+            ivaPct: vatPct,
+            
+            // DINERO:
+            commissionTotalEur: totalAmount,
+            commissionBaseEur: baseEur, 
+            ivaAmountEur: ivaEur
+        }
       };
     });
 
@@ -2806,42 +2844,60 @@ if (!gateUnlocked) {
        {/* 5. INSPECTOR Y DETALLES (DUAL: MODO AGENCIA vs USUARIO) */}
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
            
-    {/* =========================================================
-               EL PORTERO: DECIDE SI ABRIR COLUMNA AGENCIA O PARTICULAR
+  {/* =========================================================
+               EL PORTERO CON CHIVATOS (DEBUG)
                ========================================================= */}
            {activePanel === 'DETAILS' && (
                (() => {
                    const owner = selectedProp?.user || null;
 
-// fallbacks por si algún payload trae role/company en root
-const ownerRole = String(owner?.role || selectedProp?.role || "").toUpperCase();
-const ownerCompanyName = owner?.companyName || selectedProp?.companyName || null;
-const ownerCompanyLogo = owner?.companyLogo || selectedProp?.companyLogo || null;
-const ownerCif = owner?.cif || selectedProp?.cif || null;
-const ownerLicense = owner?.licenseNumber || selectedProp?.licenseNumber || null;
+                   // 1. ANÁLISIS DEL DUEÑO (LA CASA)
+                   const ownerRole = String(owner?.role || selectedProp?.role || "").toUpperCase();
+                   const isOwnerAgency =
+                      ownerRole === "AGENCIA" ||
+                      ownerRole === "AGENCY" ||
+                      !!owner?.companyName ||
+                      !!selectedProp?.companyName;
 
-const isAgency =
-  ownerRole === "AGENCIA" ||
-  ownerRole === "AGENCY" ||
-  !!ownerCompanyName ||
-  !!ownerCompanyLogo ||
-  !!ownerCif ||
-  !!ownerLicense;
-  
+                   // 2. ANÁLISIS DEL VISITANTE (USTED)
+                   const roleVisitante = String(agencyProfileData?.role || "").toUpperCase();
+                   
+                   // Logica de ser agencia: Miramos ROL, MODO o si tiene DATOS DE EMPRESA
+                   const soyAgencia = 
+                        systemMode === 'AGENCY' || 
+                        roleVisitante === 'AGENCIA' || 
+                        roleVisitante === 'AGENCY' ||
+                        !!agencyProfileData?.cif ||
+                        !!agencyProfileData?.licenseNumber;
 
-                // 3. ABRIMOS LA PUERTA CORRESPONDIENTE
-                    return isAgency ? (
+                   // 🕵️ CHIVATO: ¿QUÉ ESTÁ VIENDO EL SISTEMA?
+                   console.log("🕵️ PORTERO DICE:");
+                   console.log("   - Casa ID:", selectedProp?.id);
+                   console.log("   - Dueño Casa:", ownerRole, "(¿Es Agencia?:", isOwnerAgency, ")");
+                   console.log("   - Visitante (Usted):", roleVisitante);
+                   console.log("   - Modo Sistema:", systemMode);
+                   console.log("   - ¿Usted es Agencia?:", soyAgencia);
+
+                   // 3. DECISIÓN FINAL
+                   const usarPanelPro = isOwnerAgency || soyAgencia;
+                   
+                   console.log("   - 🚪 PUERTA ELEGIDA:", usarPanelPro ? "PANEL PRO (Agencia)" : "PANEL CIVIL (Particular)");
+
+                   // 4. ABRIMOS LA PUERTA
+                   return usarPanelPro ? (
                         <AgencyDetailsPanel 
+                            key={`agency-panel-${selectedProp?.id}`} 
                             selectedProp={selectedProp} 
                             onClose={() => setActivePanel('NONE')} 
                             onToggleFavorite={handleToggleFavorite} 
                             favorites={uiFavs}
                             onOpenInspector={() => setActivePanel('INSPECTOR')}
-                            agencyData={owner} // El dueño de la casa
-                            currentUser={agencyProfileData} // <--- 🔥 ¡ESTA ES LA CLAVE QUE FALTABA!
+                            agencyData={owner} 
+                            currentUser={agencyProfileData} 
                         />
                     ) : (
                        <DetailsPanel 
+                           key={`civil-panel-${selectedProp?.id}`}
                            selectedProp={selectedProp} 
                            onClose={() => setActivePanel('NONE')} 
                            onToggleFavorite={handleToggleFavorite} 
@@ -2849,7 +2905,6 @@ const isAgency =
                            soundEnabled={soundEnabled} 
                            playSynthSound={playSynthSound} 
                            onOpenInspector={() => setActivePanel('INSPECTOR')} 
-                      // 🔥 CAMBIO CORRECTO: Usamos la misma variable que usa arriba
                            currentUser={agencyProfileData}
                        />
                    );

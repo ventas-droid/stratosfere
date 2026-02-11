@@ -130,59 +130,62 @@ const handleSave = async () => {
 };
 
 const handleImageUpload = async (
-  e: React.ChangeEvent<HTMLInputElement>,
-  type: "avatar" | "cover"
-) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: "avatar" | "cover"
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const preview = URL.createObjectURL(file);
+    const preview = URL.createObjectURL(file);
 
-  setProfile((prev) => ({
-    ...prev,
-    [type]: preview,
-    ...(type === "avatar" ? { avatar: preview } : {}),
-    ...(type === "cover" ? { cover: preview } : {}),
-  }));
+    // 1. Mostrar Previsualización
+    setProfile((prev) => ({
+      ...prev,
+      [type]: preview,
+      ...(type === "avatar" ? { avatar: preview } : {}),
+      ...(type === "cover" ? { cover: preview } : {}),
+    }));
 
-  setIsUploading((prev) => ({ ...prev, [type]: true }));
+    setIsUploading((prev) => ({ ...prev, [type]: true }));
 
-  try {
-    const url = await uploadToCloudinary(file);
+    try {
+      const url = await uploadToCloudinary(file);
 
-    if (url) {
-      const bustedUrl = bust(url);
+      if (url) {
+        const bustedUrl = bust(url);
 
-      setProfile((prev) => {
-        const next = {
-          ...prev,
-          [type]: bustedUrl,
-          ...(type === "avatar" ? { avatar: bustedUrl } : {}),
-          ...(type === "cover" ? { cover: bustedUrl } : {}),
-        };
-
-        emitAgencyProfileUpdated({
-          id: userId,
-          companyName: next.name,
-          role: "AGENCIA",
-          avatar: type === "avatar" ? bustedUrl : next.avatar,
-          cover: type === "cover" ? bustedUrl : next.cover,
-          companyLogo: type === "avatar" ? bustedUrl : next.avatar,
-          coverImage: type === "cover" ? bustedUrl : next.cover,
+        // 2. Guardar URL real en el estado (SIN emitir evento dentro)
+        setProfile((prev) => {
+          const next = {
+            ...prev,
+            [type]: bustedUrl,
+            ...(type === "avatar" ? { avatar: bustedUrl } : {}),
+            ...(type === "cover" ? { cover: bustedUrl } : {}),
+          };
+          return next;
         });
 
-        return next;
-      });
+        // 3. Emitir evento AQUÍ (Fuera del setProfile, seguro)
+        emitAgencyProfileUpdated({
+          id: userId,
+          companyName: profile.name,
+          role: "AGENCIA",
+          // Usamos la nueva URL si es la que acabamos de subir, o la vieja si no
+          avatar: type === "avatar" ? bustedUrl : profile.avatar,
+          cover: type === "cover" ? bustedUrl : profile.cover,
+          companyLogo: type === "avatar" ? bustedUrl : profile.avatar,
+          coverImage: type === "cover" ? bustedUrl : profile.cover,
+        });
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    } finally {
+      setIsUploading((prev) => ({ ...prev, [type]: false }));
+      try {
+        URL.revokeObjectURL(preview);
+      } catch {}
     }
-  } catch (error) {
-    console.error("Upload error:", error);
-  } finally {
-    setIsUploading((prev) => ({ ...prev, [type]: false }));
-    try {
-      URL.revokeObjectURL(preview);
-    } catch {}
-  }
-};
+  };
 
 const handleLogout = async () => {
   if (confirm("¿Cerrar sesión de agencia?")) {

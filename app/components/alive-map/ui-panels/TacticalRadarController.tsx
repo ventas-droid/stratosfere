@@ -323,32 +323,55 @@ useEffect(() => {
     }
   };
 
-  // --- 4. LÓGICA DE NEGOCIO (LEER NANOCARD) ---
+  // --- 4. LÓGICA DE NEGOCIO (LEER NANOCARD BLINDADA) ---
  const handleTrabajar = async (target: any) => {
+  // 1. Fijar objetivo
   setSelectedTarget(target);
-
   const pid = String(target?.id || "").trim();
-  const isProcessed = processedIds.includes(pid);
 
-  if (isProcessed) {
-    setMsgStatus("SENT");
+  try {
+      // 2. CONSULTA DE INTELIGENCIA AL SERVIDOR (Server Truth)
+      // Preguntamos: "¿Tengo algo con esta propiedad?"
+      const campRes: any = await getCampaignByPropertyAction(pid);
+      
+      if (campRes?.success && campRes?.data) {
+          const campaign = campRes.data;
+          
+          // 3. CLASIFICACIÓN DEL OBJETIVO
+          // Usamos 'as any' para evitar errores de tipo si no actualizó el useState arriba
+          if (campaign.status === 'ACCEPTED') {
+              setMsgStatus("ACCEPTED" as any); // 🏆 ¡VICTORIA!
+          } else if (campaign.status === 'REJECTED') {
+              setMsgStatus("REJECTED" as any); // ❌ Misión fallida
+          } else {
+              setMsgStatus("SENT"); // ⏳ En espera (Pendiente)
+          }
 
-    // ✅ Server truth: buscamos Campaign y abrimos su conversación
-    const campRes: any = await getCampaignByPropertyAction(pid);
-    const cid = campRes?.success ? campRes?.data?.conversationId : null;
+          // 4. ENLACE DE COMUNICACIONES (CHAT)
+          const cid = campaign.conversationId;
+          if (cid) {
+            await openConversation(String(cid));
+          } else {
+            // Si hay campaña pero no chat, abrimos panel vacío pero en modo COMMS
+            setActiveTab("COMMS");
+            setChatHistory([]);
+          }
 
-    if (cid) {
-      await openConversation(String(cid));
-    } else {
-      // fallback suave: abre COMMS sin historial (no rompe)
-      setActiveTab("COMMS");
-      setChatHistory([]);
-    }
-  } else {
-    setMsgStatus("IDLE");
-    setActiveTab("RADAR");
-    setConversationId(null);
-    setChatHistory([]);
+      } else {
+        // 5. OBJETIVO NUEVO (LIMPIO PARA ATACAR)
+        setMsgStatus("IDLE");
+        setActiveTab("RADAR");
+        setConversationId(null);
+        setChatHistory([]);
+        
+        // Reseteamos servicios seleccionados por seguridad
+        setProposalServiceIds([]); 
+      }
+  } catch (error) {
+      console.error("Error táctico en handleTrabajar:", error);
+      // En caso de duda, dejamos atacar
+      setMsgStatus("IDLE");
+      setActiveTab("RADAR");
   }
 };
   const handleVolarAPropiedad = (e: any, target: any) => {
@@ -400,7 +423,7 @@ const openDetailsAndFlyFromTarget = async (target: any) => {
   }
 };
 
-// --- 5. ACEPTAR/PROPONER ENCARGO (REAL) ---
+// --- 5. ACEPTAR/PROPONER ENCARGO (VERSIÓN NUCLEAR: ENVÍA TODO) ---
 const aceptarEncargo = async () => {
   if (!selectedTarget) return;
 
@@ -410,7 +433,7 @@ const aceptarEncargo = async () => {
   setMsgStatus("SENDING");
 
   try {
-    // ✅ serviceIds = selección del AGENTE (ONLINE + OFFLINE), sin packs
+    // ✅ 1. PREPARACIÓN DE SERVICIOS
     const serviceIds = Array.from(
       new Set(
         (Array.isArray(proposalServiceIds) ? proposalServiceIds : [])
@@ -420,46 +443,88 @@ const aceptarEncargo = async () => {
       )
     );
 
+    // ✅ 2. PREPARACIÓN DEL MENSAJE
     const defaultMsg = buildDefaultProposalMessage({
-  agencyRole: undefined,
-  refCode: selectedTarget?.refCode,
-  price: selectedTarget?.price,
-});
+      agencyRole: undefined,
+      refCode: selectedTarget?.refCode,
+      price: selectedTarget?.price,
+    });
 
-const res: any = await sendCampaignAction({
-  propertyId: pid,
-  message: defaultMsg,
-  serviceIds,
-status: "SENT",
-});
+    // ✅ 3. PREPARACIÓN MATEMÁTICA (Calculamos antes de enviar para evitar nulos)
+    // Estos valores vienen de sus estados (useState) al principio del archivo
+    const numericPct = Number(commissionPct || 0);
+    const numericIva = Number(commissionIvaPct || 21);
+    // Usamos commissionTotalEur que ya calcula usted arriba en el componente
+    const numericTotal = Number.isFinite(commissionTotalEur) ? commissionTotalEur : 0;
+    const numericMonths = Number(exclusiveMonths || 0);
+    const isExclusive = Boolean(exclusiveMandate);
+    const numericShare = Number(commissionSharePct || 0);
 
-if (!res?.success) {
-  console.error("sendCampaignAction failed:", res?.error);
-  setMsgStatus("IDLE");
-  return;
-}
+    // ✅ 4. CONSTRUCCIÓN DEL PAQUETE NUCLEAR
+    // Enviamos los datos en TODOS los formatos posibles para que la Base de Datos no tenga excusa.
+    const payload = {
+      propertyId: pid,
+      message: defaultMsg,
+      serviceIds,
+      status: "SENT",
 
-const convId = res?.data?.conversationId ? String(res.data.conversationId) : null;
-
-// ✅ fuerza abrir columna OWNER_PROPOSALS en UIPanels + seleccionar campaña
-const campaignId = String(
-  res?.data?.id || res?.data?.campaignId || res?.data?.campaign?.id || ""
-).trim();
-
-if (typeof window !== "undefined") {
-  window.dispatchEvent(
-    new CustomEvent("open-chat-signal", {
-      detail: {
-        conversationId: convId || "",   // chat de la campaña
-        campaignId,                     // ID campaign real
-        openProposal: true,             // fuerza la columna HUD/Propuestas
-        propertyId: pid,                // opcional pero útil
+      // --- FORMATO A (Columnas sueltas) ---
+      commissionPct: numericPct,
+      commissionIvaPct: numericIva,
+      totalAmount: numericTotal,
+      exclusiveMandate: isExclusive,
+      exclusiveMonths: numericMonths,
+      commissionSharePct: numericShare,
+      commissionShareVisibility: commissionShareVisibility,
+      
+      // --- FORMATO B (Objeto "terms" para bases de datos modernas/JSON) ---
+      terms: {
+          commissionPct: numericPct,
+          ivaPct: numericIva,
+          commissionTotalEur: numericTotal, // Clave específica que busca el Panel
+          totalAmount: numericTotal,
+          months: numericMonths,
+          durationMonths: numericMonths,
+          exclusive: isExclusive,
+          isExclusive: isExclusive,
+          sharePct: numericShare
       },
-    })
-  );
-}
 
-    // ✅ refrescar procesados desde server truth
+      // Precio de referencia
+      priceAtProposal: parsePriceNumber(selectedTarget?.price)
+    };
+
+    // 🕵️ CHIVATO: Descomentar para ver en consola qué se envía
+    console.log("🚀 LANZANDO PROPUESTA NUCLEAR:", payload);
+
+    // 🚀 5. DISPARO FINAL (Con 'as any' para forzar el envío aunque TS se queje)
+    const res: any = await sendCampaignAction(payload as any);
+
+    if (!res?.success) {
+      console.error("sendCampaignAction failed:", res?.error);
+      setMsgStatus("IDLE");
+      return;
+    }
+
+    // --- GESTIÓN DE ÉXITO (Igual que antes) ---
+    const convId = res?.data?.conversationId ? String(res.data.conversationId) : null;
+    const campaignId = String(
+      res?.data?.id || res?.data?.campaignId || res?.data?.campaign?.id || ""
+    ).trim();
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("open-chat-signal", {
+          detail: {
+            conversationId: convId || "",
+            campaignId,
+            openProposal: true,
+            propertyId: pid,
+          },
+        })
+      );
+    }
+
     try {
       const idsRes: any = await getMyAgencyCampaignPropertyIdsAction();
       if (idsRes?.success && Array.isArray(idsRes?.data)) {
@@ -472,23 +537,20 @@ if (typeof window !== "undefined") {
     if (convId) {
       setConversationId(convId);
       setActiveTab("COMMS");
-
       const msgsRes: any = await getConversationMessagesAction(convId);
-      const msgs = msgsRes?.success && Array.isArray(msgsRes.data) ? msgsRes.data : [];
-
-      setChatHistory(
-        msgs.map((m: any) => ({
-          sender: String(m?.senderId || "") === String(meId || "") ? "me" : "other",
-          text: String(m?.text ?? m?.content ?? ""),
-        }))
-      );
-
-      try {
-        await markConversationReadAction(convId);
-      } catch {}
+      if(msgsRes?.success) {
+          setChatHistory(
+            (msgsRes.data || []).map((m: any) => ({
+              sender: String(m?.senderId || "") === String(meId || "") ? "me" : "other",
+              text: String(m?.text ?? m?.content ?? ""),
+            }))
+          );
+      }
+      try { await markConversationReadAction(convId); } catch {}
     } else {
       setActiveTab("COMMS");
     }
+
   } catch (e) {
     console.error("aceptarEncargo error:", e);
     setMsgStatus("IDLE");

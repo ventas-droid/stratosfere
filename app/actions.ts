@@ -768,151 +768,128 @@ export async function getFavoritesAction() {
 }
 
 // =========================================================
-// 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO) - VERSIÓN CORREGIDA
+// 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO & CÁLCULO FINANCIERO)
 // =========================================================
 
-// B. OBTENER PORTAFOLIO COMPLETO (PROPIAS + FAVORITOS)
 export async function getAgencyPortfolioAction() {
   try {
-    const user = await getUserMeAction();
-    if (!user.success || !user.data) return { success: false, data: [] };
+    const userRes = await getUserMeAction();
+    if (!userRes.success || !userRes.data) return { success: false, data: [] };
+    const user = userRes.data;
 
-    // 🔥 DEFINICIÓN DE LA IDENTIDAD (EL "DNI" DE LA AGENCIA)
-    const identitySelect = {
-        select: {
-            id: true,
-            role: true,        // Vital para saber si es Agencia o Particular
-            name: true,
-            companyName: true,
-            companyLogo: true, // Logo
-            coverImage: true,  // Fondo Corporativo
-            tagline: true,     // Slogan
-            zone: true,
-            licenseType: true, // El Pack ( Pro...)
-            phone: true,
-            mobile: true,
-            email: true,
-            cif: true,
-            licenseNumber: true
-        }
-    };
-
-    // 1. Mis Propiedades (Soy dueño) -> 🔥 INCLUIMOS EL DNI Y LOS EVENTOS
+    // Solo traemos propiedades donde:
+    // 1. SOY EL DUEÑO ORIGINAL (userId = yo)
+    // 2. O TENGO UN CONTRATO FIRMADO (campaign = ACCEPTED)
+    // (Eliminamos Favoritos para no ensuciar el Stock de Gestión)
     const myProperties = await prisma.property.findMany({
-      where: { userId: user.data.id },
+      where: { 
+          OR: [
+              { userId: user.id }, 
+              { campaigns: { some: { agencyId: user.id, status: "ACCEPTED" } } } 
+          ]
+      },
       include: { 
           images: true,
-          user: identitySelect, // <--- AQUÍ SE CARGA LA IDENTIDAD
-          
-          // 🔥🔥 1. RECUPERAMOS LOS EVENTOS (FALTABA ESTO) 🔥🔥
-          openHouses: {
-             where: { status: "SCHEDULED" },
-             orderBy: { startTime: 'asc' },
-             take: 1
-          }
-      }
+          // Traemos al dueño original para guardarlo en 'clientData' (uso interno)
+          user: {
+            select: {
+                id: true, role: true, name: true, surname: true, email: true, phone: true, avatar: true
+            }
+          }, 
+          // Solo traemos MI campaña aceptada (EL CONTRATO)
+          campaigns: { where: { agencyId: user.id, status: "ACCEPTED" } },
+          openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
+      },
+      orderBy: { updatedAt: 'desc' }
     });
 
-    // 2. Mis Favoritos -> 🔥 INCLUIMOS EL DNI DE SUS DUEÑOS Y EVENTOS
-    const myFavorites = await prisma.favorite.findMany({
-      where: { userId: user.data.id },
-      include: { 
-          property: { 
-              include: { 
-                  images: true,
-                  user: identitySelect, // <--- AQUÍ TAMBIÉN
-                  
-                  // 🔥🔥 2. AQUÍ TAMBIÉN FALTABA 🔥🔥
-                  openHouses: {
-                     where: { status: "SCHEDULED" },
-                     orderBy: { startTime: 'asc' },
-                     take: 1
-                  }
-              } 
-          } 
-      }
-    });
+    // 4. FORMATEO SAAS CON CÁLCULO FINANCIERO
+    const cleanList = myProperties.map((p: any) => {
+        if (!p) return null;
 
-   // 3. Unificar listas (✅ favorito REAL incluso si es propiedad mía)
-    const favIdSet = new Set(
-      (myFavorites || [])
-        .map((f: any) => String(f?.propertyId || f?.property?.id || ""))
-        .filter(Boolean)
-    );
+        const originalOwner = p.user || {};
+        const openHouseObj = (p.openHouses && p.openHouses.length > 0) ? { ...p.openHouses[0], enabled: true } : null;
 
-    const owned = (myProperties || []).map((p: any) => {
-      const isFav = favIdSet.has(String(p?.id));
-      return {
-        ...p,
-        isOwner: true,
-        isFavorited: isFav,
-        isFavorite: isFav,
-        isFav: isFav,
-      };
-    });
+        // 🔥 LOGICA DE CONTRATO (CAMPAÑA) 🔥
+        const winningCampaign = p.campaigns && p.campaigns.length > 0 ? p.campaigns[0] : null;
+        
+        let displayUser = originalOwner;
+        let isManaged = false;
 
-    const favs = (myFavorites || []).map((f: any) => ({
-      ...(f?.property || {}),
-      isOwner: false,
-      isFavorited: true,
-      isFavorite: true,
-      isFav: true,
-    }));
+        // Si hay campaña ganadora, procesamos los datos financieros
+        if (winningCampaign) {
+            isManaged = true;
+            
+            // A) NORMALIZACIÓN DE DATOS (Usamos columnas directas o JSON si existe)
+            // Aseguramos que los números sean números
+            winningCampaign.commissionPct = Number(winningCampaign.commissionPct || 0);
+            winningCampaign.commissionSharePct = Number(winningCampaign.commissionSharePct || 0);
+            winningCampaign.mandateType = winningCampaign.mandateType || "SIMPLE";
+            
+            // B) CÁLCULO DE IMPORTES (EUROS)
+            // Para pintar el dinero en los modales
+            const price = p.price || 0;
+            const comm = winningCampaign.commissionPct; // Ej: 5%
+            
+            const base = (price * comm) / 100;
+            const iva = base * 0.21; // 21% IVA
+            const total = base + iva;
+            
+            winningCampaign.financials = {
+                base: base,
+                ivaAmount: iva,
+                total: total
+            };
 
-    // 4. Eliminar duplicados
-    const combined = [...owned];
-    const ownedIds = new Set(owned.map((p:any) => p.id));
-    
-    favs.forEach((f:any) => {
-        if (!ownedIds.has(f.id)) combined.push(f);
-    });
+            // 🔥 C) SUPLANTACIÓN DE IDENTIDAD (EL TRUCO FINAL)
+            // Si la gestiono yo, para el frontend YO SOY EL DUEÑO VISUAL.
+            // Esto obliga a index.tsx a ver "AGENCIA" y abrir el panel PRO.
+            displayUser = {
+                ...user, // Mis datos de agencia (UserMe)
+                role: 'AGENCIA', // Forzamos el rol explícitamente
+                licenseType: 'PRO',
+                // Aseguramos que la foto sea el logo
+                avatar: user.companyLogo || user.avatar,
+                companyLogo: user.companyLogo,
+                companyName: user.companyName || user.name
+            };
+        }
 
-  // 5. Formatear para el Mapa (NORMALIZADO: ownerSnapshot manda)
-  const cleanList = combined
-  .map((p: any) => {
-    if (!p) return null;
+        return {
+            ...p,
+            id: p.id,
+            refCode: p.refCode, 
+            
+            // AQUÍ ESTÁ LA MAGIA:
+            // user: Es lo que ve la tarjeta y el portero (Agencia si está firmada)
+            // clientData: Es el dueño real (Particular) para tu uso interno (contactar propietario)
+            user: displayUser, 
+            ownerSnapshot: displayUser, 
+            clientData: originalOwner,
 
-    // 1) Preferimos snapshot (es lo que Details/AgencyDetails esperan)
-    const snap =
-      p.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null;
+            activeCampaign: winningCampaign, 
+            radarType: winningCampaign ? (winningCampaign.mandateType || "SIMPLE") : null,
+            
+            // Datos B2B listos para consumir por el Botón Dorado
+            b2b: winningCampaign ? {
+                sharePct: Number(winningCampaign.commissionSharePct || 0),
+                visibility: winningCampaign.commissionShareVisibility || 'PRIVATE'
+            } : null,
 
-    // 2) Si no hay snapshot, caemos al user incluido por Prisma
-    const creator = p.user || snap || {};
-
-    // 🔥🔥 3. PROCESAR EL EVENTO PARA EL PANEL 🔥🔥
-    let openHouseObj = null;
-    if (p.openHouses && p.openHouses.length > 0) {
-        openHouseObj = { ...p.openHouses[0], enabled: true };
-    }
-
-    return {
-      ...p,
-      id: p.id,
-
-      // ✅ Mantén ambos por compatibilidad:
-      ownerSnapshot: snap || (Object.keys(creator).length ? creator : null),
-      user: Object.keys(creator).length ? creator : null,
-
-      // Gestión de imágenes
-      images: (p.images || []).map((img: any) => img.url),
-      img: p.images?.[0]?.url || p.mainImage || null,
-
-      // Datos numéricos y coordenadas
-      price: new Intl.NumberFormat("es-ES").format(p.price || 0),
-      rawPrice: p.price,
-      coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
-      m2: Number(p.mBuilt || 0),
-      communityFees: p.communityFees || 0,
-      
-      // 🔥🔥 4. ENTREGAMOS EL PAQUETE AL FRONTEND 🔥🔥
-      openHouse: openHouseObj,
-      open_house_data: openHouseObj
-    };
-  })
-  .filter(Boolean);
+            isOwner: p.userId === user.id, 
+            isCaptured: isManaged, 
+            
+            images: (p.images || []).map((img: any) => img.url),
+            img: p.images?.[0]?.url || p.mainImage || null,
+            
+            price: new Intl.NumberFormat("es-ES").format(p.price || 0),
+            openHouse: openHouseObj
+        };
+    }).filter(Boolean);
 
     return { success: true, data: cleanList };
   } catch (error) {
+    console.error("Error getting agency portfolio:", error);
     return { success: false, error: "Error de conexión" };
   }
 }
@@ -933,7 +910,7 @@ export async function deleteFromStockAction(propertyId: string) {
     });
 
     if (ownedProp) {
-      // ✅ limpieza segura (sin depender de cascade)
+      // ✅ Limpieza segura de datos relacionados
       await prisma.image.deleteMany({ where: { propertyId: pid } });
       await prisma.favorite.deleteMany({ where: { propertyId: pid } });
       await prisma.property.delete({ where: { id: pid } });
@@ -942,14 +919,13 @@ export async function deleteFromStockAction(propertyId: string) {
       return { success: true, type: "property_deleted" };
     }
 
-    // 2) NO SOY DUEÑO -> BORRAR SOLO MI FAVORITO (✅ por clave compuesta)
+    // 2) NO SOY DUEÑO -> BORRAR SOLO MI FAVORITO
     const where = {
       userId_propertyId: { userId: me.id, propertyId: pid },
     };
 
     const existing = await prisma.favorite.findUnique({ where });
     if (!existing) {
-      // ✅ idempotente: si ya no existe, no “falla”
       return { success: true, type: "favorite_noop" };
     }
 
@@ -957,12 +933,12 @@ export async function deleteFromStockAction(propertyId: string) {
 
     revalidatePath("/");
     return { success: true, type: "favorite_removed" };
+
   } catch (e: any) {
     console.error("deleteFromStockAction error:", e);
     return { success: false, error: String(e?.message || e) };
   }
 }
-
 // --- AÑADIR AL FINAL DE actions.ts ---
 
 // B. MIS PROPIEDADES (PERFIL) - Recuperada
@@ -2912,5 +2888,234 @@ export async function cancelOpenHouseAction(openHouseId: string) {
   } catch (error: any) {
     console.error("Error cancelOpenHouseAction:", error);
     return { success: false, error: String(error.message || "Error al cancelar") };
+  }
+}
+
+// =====================================================
+// 🤝 7. RESPONDER CAMPAÑA (PROPIETARIO ACEPTA/RECHAZA) - FINAL
+// =====================================================
+export async function respondToCampaignAction(campaignId: string, decision: "ACCEPT" | "REJECT") {
+  console.log(`🚀 [SERVER] Iniciando respondToCampaignAction. ID: ${campaignId}, Decisión: ${decision}`);
+
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "Sesión caducada" };
+
+    // 1. OBTENER CAMPAÑA
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        property: { include: { user: true } }, 
+        agency: true 
+      }
+    });
+
+    if (!campaign) return { success: false, error: "Campaña no encontrada" };
+    
+    // Seguridad
+    if (campaign.property.userId !== user.id) {
+        return { success: false, error: "No eres el dueño de esta propiedad" };
+    }
+
+    // 2. ACTUALIZAR ESTADO EN DB
+    const newStatus = decision === "ACCEPT" ? "ACCEPTED" : "REJECTED";
+    
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: newStatus }
+    });
+
+    // 3. SI ACEPTA -> TRANSFERENCIA DE PODERES
+    if (decision === "ACCEPT") {
+      
+      // A) Crear asignación
+      await prisma.propertyAssignment.upsert({
+        where: { propertyId: campaign.propertyId }, 
+        update: {
+          agencyId: campaign.agencyId,
+          status: "ACTIVE",
+          campaignId: campaign.id
+        },
+        create: {
+          propertyId: campaign.propertyId,
+          agencyId: campaign.agencyId,
+          status: "ACTIVE",
+          campaignId: campaign.id
+        }
+      });
+
+      // B) ENVIAR EMAIL (Usando el import global de la línea 6)
+      const resendApiKey = process.env.RESEND_API_KEY;
+      if (resendApiKey) {
+        try {
+            // Usamos la clase Resend importada arriba. No re-importamos.
+            const resend = new Resend(resendApiKey);
+
+            await resend.emails.send({
+                from: 'Stratosfere <info@stratosfere.com>', // Su remitente real
+                to: campaign.agency.email, 
+                subject: `🚀 ¡CAPTACIÓN ÉXITO! ${campaign.property.address}`,
+                html: `
+                  <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <h2 style="color: #059669;">¡Nuevo Mandato Conseguido!</h2>
+                    <p>El propietario ha aceptado tu propuesta para <strong>${campaign.property.address}</strong>.</p>
+                    <p>Ya tienes acceso completo al expediente.</p>
+                    <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel</a>
+                  </div>
+                `
+            });
+            console.log("✅ [SERVER] Email enviado a la agencia.");
+        } catch (mailError) {
+            console.error("⚠️ [SERVER] Falló email (pero la DB está OK):", mailError);
+        }
+      }
+    }
+
+    revalidatePath("/");
+    return { success: true };
+
+  } catch (error: any) {
+    console.error("💥 [SERVER] Error crítico:", error);
+    return { success: false, error: String(error.message || "Error del servidor") };
+  }
+}
+// =========================================================
+// 🏠 2. GESTIÓN DE PROPIETARIO (CON DATOS COMPLETOS DE AGENCIA)
+// =========================================================
+
+export async function getMyPropertiesAction() {
+  try {
+    const userRes = await getUserMeAction();
+    if (!userRes.success || !userRes.data) return { success: false, data: [] };
+    const user = userRes.data;
+
+    const properties = await prisma.property.findMany({
+      where: { userId: user.id },
+      include: {
+        images: true,
+        // 🔥 AQUÍ ESTABA EL CORTE: AHORA TRAEMOS TODOS LOS DATOS DE LA AGENCIA
+        campaigns: { 
+            where: { OR: [{ status: "SENT" }, { status: "ACCEPTED" }] },
+            include: { 
+                agency: { 
+                    select: { 
+                        id: true, 
+                        name: true, 
+                        companyName: true,
+                        email: true,
+                        phone: true,
+                        mobile: true,
+                        avatar: true,
+                        companyLogo: true, // Importante para el logo
+                        coverImage: true,  // Importante para el fondo
+                        licenseNumber: true,
+                        website: true,
+                        role: true
+                    } 
+                } 
+            } 
+        },
+        openHouses: true
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const processed = properties.map((p: any) => {
+        let activeCampaign = p.campaigns.find((c: any) => c.status === "ACCEPTED");
+        if (!activeCampaign) activeCampaign = p.campaigns.find((c: any) => c.status === "SENT");
+
+        if (activeCampaign) {
+            // Parseo de mensaje (igual que antes)
+            if (!activeCampaign.commissionPct && activeCampaign.message) {
+                 const msg = activeCampaign.message;
+                 const commMatch = msg.match(/(\d+(?:[.,]\d+)?)\s*%/);
+                 if (commMatch) activeCampaign.commissionPct = parseFloat(commMatch[1].replace(',', '.'));
+                 if (msg.toLowerCase().includes("exclusiva")) activeCampaign.mandateType = "EXCLUSIVE";
+                 const durationMatch = msg.match(/(\d+)\s*meses/i);
+                 if (durationMatch) activeCampaign.duration = `${durationMatch[1]} Meses`;
+            }
+            activeCampaign.services = Array.isArray(activeCampaign.serviceIds) ? activeCampaign.serviceIds : [];
+            
+            // Cálculo Financiero (igual que antes)
+            const comm = activeCampaign.commissionPct || activeCampaign.commission || 0;
+            const price = p.price || 0;
+            const ivaPct = 21; 
+            const base = (price * comm) / 100;
+            const ivaAmt = (base * ivaPct) / 100;
+            const total = base + ivaAmt;
+
+            activeCampaign.financials = {
+                base: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(base),
+                ivaAmount: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(ivaAmt),
+                total: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(total),
+                ivaPct: ivaPct
+            };
+        }
+
+        // Nombre para la tarjeta
+        const agencyName = activeCampaign?.agency?.companyName || activeCampaign?.agency?.name || "Agencia Asociada";
+
+        return {
+            ...p,
+            id: p.id,
+            images: (p.images || []).map((i: any) => i.url),
+            img: p.images?.[0]?.url || p.mainImage || null,
+            formattedPrice: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(p.price || 0),
+            activeCampaign: activeCampaign,
+            isManaged: activeCampaign?.status === "ACCEPTED",
+            agencyName: agencyName 
+        };
+    });
+
+    return { success: true, data: processed };
+  } catch (error) {
+    console.error("Error getMyPropertiesAction:", error);
+    return { success: false, error: "Error al cargar propiedades" };
+  }
+}
+
+// =========================================================
+// 🦅 RADAR DE GESTIÓN: ¿QUIÉN CONTROLA ESTA PROPIEDAD?
+// =========================================================
+export async function getActiveManagementAction(propertyId: string) {
+  try {
+    const me = await getCurrentUser();
+    if (!me?.id) return { success: false, error: "UNAUTH" };
+
+    // Buscamos si ALGUIEN (cualquier agencia) tiene un contrato ACEPTADO
+    const winningCampaign = await prisma.campaign.findFirst({
+      where: {
+        propertyId: propertyId,
+        status: "ACCEPTED" // 🔥 La clave: solo nos importa el contrato vigente
+      },
+      include: {
+        // Traemos los datos de la agencia que ganó para pintar su ficha
+        agency: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+            companyLogo: true, // Vital para el logo
+            avatar: true,
+            coverImage: true,  // Vital para el fondo
+            phone: true,
+            mobile: true,
+            email: true,
+            licenseNumber: true,
+            role: true,
+            zone: true,
+            tagline: true
+          }
+        }
+      }
+    });
+
+    if (!winningCampaign) return { success: false, data: null };
+
+    return { success: true, data: winningCampaign };
+
+  } catch (e: any) {
+    console.error("getActiveManagementAction error:", e);
+    return { success: false, error: "Error consultando gestión" };
   }
 }
