@@ -68,8 +68,8 @@ export default function PremiumUpgradePanel({ onClose, property }: any) {
           return; // ⛔ AQUÍ SE DETIENE PARA NO COBRAR
       }
 
-      // ===========================================================================
-      // 💰 ZONA DE COBRO REAL (Se ejecuta si pone MODO_PRUEBAS = false)
+     // ===========================================================================
+      // 💰 ZONA DE COBRO REAL
       // ===========================================================================
       const amount = planType === 'EXPRESS' ? PRICE_EXPRESS : PRICE_FULL;
       const desc = `Nano Card Premium (${planType === 'EXPRESS' ? '15 Días' : '30 Días'})`;
@@ -78,6 +78,10 @@ export default function PremiumUpgradePanel({ onClose, property }: any) {
          await startPropertyPayment(property.id, {
              amount: amount,   
              description: desc,
+             
+             // 🔥🔥🔥 ESTA ES LA LÍNEA QUE FALTA. SI NO LA PONE, COBRA 9.90€ 🔥🔥🔥
+             kind: 'PREMIUM_BOOST', 
+             
              redirectPath: window.location.pathname + "?premium_activated=1"
          });
 
