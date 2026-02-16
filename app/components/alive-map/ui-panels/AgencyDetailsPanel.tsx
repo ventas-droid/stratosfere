@@ -104,24 +104,58 @@ export default function AgencyDetailsPanel({
         if (onOpenInspector) onOpenInspector();
     };
 // ============================================================
-    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (FIX "OFICINA" Y AVATAR)
+    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN V3 (FIX DEFINITIVO AVATAR)
     // ============================================================
     useEffect(() => {
         const verifyRealData = async () => {
             if (selectedProp?.id) {
                 try {
+                    // 1. Pedimos datos frescos al servidor
                     const realData = await getPropertyByIdAction(selectedProp.id);
+                    
                     if (realData) {
+                        // Actualizamos la propiedad (corrige "Oficina" -> "Piso")
                         setSelectedProp((prev: any) => ({ 
                             ...prev, 
                             ...realData,
                             type: realData.type || prev.type 
                         }));
-                        if (realData.user) {
-                            setBaseOwnerData((prev: any) => ({
-                                ...prev,
-                                ...realData.user
-                            }));
+
+                        // 2. CORRECCIÓN DE IDENTIDAD (EL PROBLEMA DEL AVATAR)
+                        
+                        // CASO A: La base de datos nos devuelve al dueño (Ideal)
+                        if (realData.user && Object.keys(realData.user).length > 0) {
+                            setBaseOwnerData((prev: any) => ({ ...prev, ...realData.user }));
+                        } 
+                        // CASO B: La base de datos no trajo al dueño, PERO YO SOY EL DUEÑO
+                        // (Esto pasa mucho en "Mi Cartera")
+                        else if (currentUser && realData.userId === currentUser.id) {
+                            console.log("🦅 Inyectando identidad local de agencia...");
+                            
+                            // FORZAMOS LOS DATOS DE 'currentUser' EN EL FORMATO QUE EL PANEL ENTIENDE
+                            setBaseOwnerData({
+                                id: currentUser.id,
+                                name: currentUser.name || currentUser.companyName || "Agencia",
+                                companyName: currentUser.companyName || currentUser.name,
+                                email: currentUser.email,
+                                
+                                // Mapeo agresivo de teléfonos
+                                phone: currentUser.mobile || currentUser.phone || currentUser.telephone,
+                                mobile: currentUser.mobile || currentUser.phone,
+                                
+                                // Mapeo agresivo de imágenes (Avatar / Logo)
+                                avatar: currentUser.companyLogo || currentUser.avatar || currentUser.image,
+                                companyLogo: currentUser.companyLogo || currentUser.avatar || currentUser.image,
+                                
+                                // Portada
+                                coverImage: currentUser.coverImage || currentUser.cover,
+                                
+                                // Rol y Licencia
+                                role: currentUser.role || 'AGENCIA',
+                                licenseType: currentUser.licenseType || 'PRO',
+                                tagline: currentUser.tagline || "",
+                                zone: currentUser.zone || ""
+                            });
                         }
                     }
                 } catch (error) {
@@ -130,7 +164,7 @@ export default function AgencyDetailsPanel({
             }
         };
         verifyRealData();
-    }, [selectedProp?.id]);
+    }, [selectedProp?.id, currentUser]); // Dependencia crítica: currentUser
 
     // ============================================================
     // 🚁 CONTROLADOR DE VUELO (FIX: ACTIVOS Y FAVORITOS)
