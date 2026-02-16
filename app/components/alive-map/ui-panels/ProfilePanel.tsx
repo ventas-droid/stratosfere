@@ -197,46 +197,59 @@ export default function ProfilePanel({
       if (onEdit) onEdit(property);
   };
   
- // 🔥 CORRECCIÓN: INTERCAMBIO DE IDENTIDAD (AGENCIA vs PROPIETARIO)
- // 🔥 HANDLER DE VUELO CON SUPLANTACIÓN DE IDENTIDAD COMPLETA
+// 🔥 HANDLER DE VUELO CON IDENTIDAD SAAS (Multiusuario Real)
   const handleFlyTo = (e: any, property: any) => {
       if (e && e.stopPropagation) e.stopPropagation();
       
       if (typeof window !== 'undefined') {
-          // 1. Clonamos para no tocar el original
+          // 1. Clonamos la propiedad para no alterar la original
           let targetProp = { ...property };
 
-          // 2. SI HAY AGENCIA: LA PONEMOS AL MANDO
+          // 2. LÓGICA DE IDENTIDAD (¿QUIÉN ES EL DUEÑO?)
           const activeCampaign = property.activeCampaign;
+          
           if (activeCampaign && activeCampaign.status === 'ACCEPTED' && activeCampaign.agency) {
+              // A) CASO AGENCIA: Inyectamos identidad corporativa
               const agency = activeCampaign.agency;
-              
-              // INYECTAMOS TODOS LOS DATOS DE LA AGENCIA
               targetProp.user = {
                   id: agency.id,
-                  // Prioridad: Nombre Empresa > Nombre Personal
                   name: agency.companyName || agency.name || "Agencia Asociada",
-                  // Prioridad: Logo Empresa > Avatar Personal
                   avatar: agency.companyLogo || agency.avatar || null, 
-                  role: "AGENCIA", // Forzamos el rol para que salga el badge verde
-                  
-                  // Datos de contacto
+                  role: "AGENCIA",
                   email: agency.email,
-                  phone: agency.mobile || agency.phone, // Móvil preferido
+                  phone: agency.mobile || agency.phone,
                   mobile: agency.mobile,
-                  
-                  // Datos cosméticos y legales
-                  coverImage: agency.coverImage || null, // 🔥 EL FONDO QUE FALTABA
+                  coverImage: agency.coverImage || null,
                   companyName: agency.companyName,
                   licenseNumber: agency.licenseNumber,
                   website: agency.website
               };
-              
-              // Guardamos al dueño real en la sombra (por si acaso)
-              targetProp.realOwner = property.user; 
+              targetProp.realOwner = property.user; // Backup del dueño
+          } else {
+              // B) CASO PARTICULAR (SAAS PURO):
+              // Inyectamos SU perfil actual (el que está cargado en la variable 'user' del componente).
+              // Esto asegura que se envíe su Foto, Email y Teléfono ACTUALIZADOS.
+              targetProp.user = {
+                  ...targetProp.user, // Mantenemos ID original
+                  
+                  // Sobreescribimos con los datos frescos del panel
+                  name: user.name,
+                  email: user.email,
+                  avatar: user.avatar,  // <--- Aquí va su foto
+                  coverImage: user.cover,
+                  phone: user.phone,    // <--- Aquí va su fijo
+                  mobile: user.mobile,  // <--- Aquí va su móvil
+                  role: user.role,
+                  companyName: user.companyName,
+                  
+                  // Flags de rol
+                  isPro: user.role === 'AGENCIA',
+                  isOwner: true
+              };
           }
 
-          // 3. ENVÍO AL MAPA
+          // 3. ENVIAMOS LA SEÑAL AL SISTEMA (Details Panel / HoloInspector)
+          // Ahora 'targetProp' lleva la foto y el contacto correctos.
           window.dispatchEvent(new CustomEvent('open-details-signal', { detail: targetProp }));
 
           // 4. MOVIMIENTO DE CÁMARA
