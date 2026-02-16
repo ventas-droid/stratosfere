@@ -5,7 +5,7 @@ import {
     X, Heart, Phone, Sparkles, Star, Home, Maximize2, Building2, ArrowUp,
     Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, 
-    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa,
+    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, ChevronDown,
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown,
 } from 'lucide-react';
 import { toggleFavoriteAction, getPropertyByIdAction } from "@/app/actions";
@@ -62,7 +62,7 @@ const copyRefCode = async () => {
 
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
-
+const [isDescExpanded, setIsDescExpanded] = useState(false);
     // Sincronizar propiedad seleccionada
     useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
 // 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
@@ -377,10 +377,39 @@ const copyPhone = () => {
                         </div>
                     </div>
 
-                    {/* Descripción */}
+                   {/* Descripción (SUSTITUIR ESTO) */}
                     {selectedProp?.description && (
-                        <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white">
-                            <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-line font-medium">{selectedProp.description}</p>
+                        <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white transition-all duration-300">
+                             {/* Etiqueta pequeña arriba */}
+                            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-2">
+                                Descripción
+                            </span>
+
+                            <div className="relative">
+                                {/* AQUÍ ESTÁ LA MAGIA: 'line-clamp-4' corta el texto si no está expandido */}
+                                <p className={`text-slate-600 text-xs leading-relaxed whitespace-pre-line font-medium ${!isDescExpanded ? 'line-clamp-4' : ''}`}>
+                                    {selectedProp.description}
+                                </p>
+                                
+                                {/* Sombra blanca para difuminar el final */}
+                                {!isDescExpanded && selectedProp.description.length > 200 && (
+                                    <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-white to-transparent"></div>
+                                )}
+                            </div>
+
+                            {/* Botón de Leer Más / Menos */}
+                            {selectedProp.description.length > 200 && (
+                                <button 
+                                    onClick={() => setIsDescExpanded(!isDescExpanded)} 
+                                    className="mt-3 text-blue-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 hover:text-blue-800 transition-colors cursor-pointer"
+                                >
+                                    {isDescExpanded ? (
+                                        <>Leer menos <ArrowUp size={12}/></>
+                                    ) : (
+                                        <>Leer descripción completa <ChevronDown size={12}/></>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     )}
 
