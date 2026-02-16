@@ -3,111 +3,71 @@
 import React, { useState, useEffect } from 'react';
 import { 
     X, Heart, Phone, Sparkles, Star, Home, Maximize2, Building2, ArrowUp,
-    Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck,
+    Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck, Flame, Wind, 
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, ChevronDown,
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown,
 } from 'lucide-react';
 import { toggleFavoriteAction, getPropertyByIdAction } from "@/app/actions";
 
-// 🔥 HERRAMIENTAS PDF (Añadidas)
+// 🔥 HERRAMIENTAS PDF
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
-// --- DICCIONARIO DE ICONOS ---
+
+// --- 1. DICCIONARIO DE ICONOS (ACTUALIZADO CON SOFA, FUEGO Y VIENTO) ---
 const ICON_MAP: Record<string, any> = {
-    'pool': Waves, 'piscina': Waves, 'garage': Car, 'garaje': Car, 'parking': Car,
-    'garden': Trees, 'jardin': Trees, 'jardín': Trees, 'elevator': ArrowUp, 'ascensor': ArrowUp,
-    'terrace': Sun, 'terraza': Sun, 'storage': Box, 'trastero': Box, 
-    'ac': Thermometer, 'aire': Thermometer, 'security': ShieldCheck, 'seguridad': ShieldCheck,
+    'pool': Waves, 'piscina': Waves, 
+    'garage': Car, 'garaje': Car, 'parking': Car,
+    'garden': Trees, 'jardin': Trees, 'jardín': Trees, 
+    'elevator': ArrowUp, 'ascensor': ArrowUp,
+    'terrace': Sun, 'terraza': Sun, 
+    'storage': Box, 'trastero': Box, 
+    'ac': Thermometer, 'aire': Thermometer, 
+    
+    // 🔥 ESTOS ERAN LOS QUE FALTABAN:
+    'security': ShieldCheck, 'seguridad': ShieldCheck, 'alarma': ShieldCheck,
+    'heating': Flame, 'calefaccion': Flame, 'calefacción': Flame,
+    'furnished': Sofa, 'amueblado': Sofa,
+    'balcony': Wind, 'balcon': Wind, 'balcón': Wind,
+
     'foto': Camera, 'video': Globe, 'drone': Plane, 'tour3d': Box, 'plano_2d': Ruler
 };
 
-const PHYSICAL_KEYWORDS = ['pool', 'piscina', 'garage', 'garaje', 'garden', 'jardin', 'terrace', 'terraza', 'storage', 'trastero', 'ac', 'aire', 'security', 'elevator', 'ascensor'];
+// --- 2. LISTA BLANCA (ACTUALIZADA PARA DEJAR PASAR LOS NUEVOS) ---
+const PHYSICAL_KEYWORDS = [
+    'pool', 'piscina', 
+    'garage', 'garaje', 
+    'garden', 'jardin', 
+    'terrace', 'terraza', 
+    'storage', 'trastero', 
+    'ac', 'aire', 
+    'security', 'seguridad', 
+    'elevator', 'ascensor',
+    // 🔥 PASES VIP AÑADIDOS:
+    'heating', 'calefaccion', 'calefacción',
+    'furnished', 'amueblado',
+    'balcony', 'balcon', 'balcón'
+];
 
 export default function DetailsPanel({ 
-  selectedProp: initialProp, // Renombrado para evitar choques
+  selectedProp: initialProp, 
   onClose, 
   onToggleFavorite, 
   favorites, 
-  currentUser,      // Para el PDF
-  onOpenInspector   // <--- 🔥 ¡ESTE ES EL QUE FALTABA!
+  currentUser,      
+  onOpenInspector   
 }: any) {
     
-  
-
-    // ... el resto de su código sigue igual ...
     const [selectedProp, setSelectedProp] = useState(initialProp);
-   const [copiedRef, setCopiedRef] = useState(false);
-
-const copyRefCode = async () => {
-  const ref = String(selectedProp?.refCode || "");
-  if (!ref) return;
-
-  try {
-    await navigator.clipboard.writeText(ref);
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = ref;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  }
-
-  setCopiedRef(true);
-  setTimeout(() => setCopiedRef(false), 2000);
-};
-
+    const [copiedRef, setCopiedRef] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
-const [isDescExpanded, setIsDescExpanded] = useState(false);
+    const [isDescExpanded, setIsDescExpanded] = useState(false);
+
     // Sincronizar propiedad seleccionada
     useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
-// 🔥 DATOS DE IDENTIDAD (Lectura Directa de la Nube)
-// PRIORIDAD: ownerSnapshot -> user (y fallback seguro)
-const ownerFromSnapshot =
-  (selectedProp?.user && typeof selectedProp.user === "object")
-    ? selectedProp.user
-    : (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === "object")
-      ? selectedProp.ownerSnapshot
-      : {};
 
-
-// Nombre: agencia -> companyName, particular -> name
-const ownerName =
-  (ownerFromSnapshot as any)?.companyName ||
-  (ownerFromSnapshot as any)?.name ||
-  "Propietario";
-
-// Avatar: agencia -> companyLogo, particular -> avatar
-const ownerAvatar =
-  (ownerFromSnapshot as any)?.companyLogo ||
-  (ownerFromSnapshot as any)?.avatar ||
-  null;
-
-// Cover: coverImage (DB) o cover (estado local antiguo)
-const ownerCover =
-  (ownerFromSnapshot as any)?.coverImage ||
-  (ownerFromSnapshot as any)?.cover ||
-  null;
-
-// Contacto: preferimos mobile (móvil) y si no phone
-const ownerPhone =
-  (ownerFromSnapshot as any)?.mobile ||
-  (ownerFromSnapshot as any)?.phone ||
-  "Consultar";
-
-const ownerEmail =
-  (ownerFromSnapshot as any)?.email ||
-  "---";
-
-const ownerRole =
-  String((ownerFromSnapshot as any)?.role || "PARTICULAR").toUpperCase();
-
-
-    // Listener para actualizaciones en vivo (Nano Card -> Detalle)
+    // Listener para actualizaciones en vivo
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -119,106 +79,117 @@ const ownerRole =
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
+    // Copiar referencia
+    const copyRefCode = async () => {
+      const ref = String(selectedProp?.refCode || "");
+      if (!ref) return;
+      try {
+        await navigator.clipboard.writeText(ref);
+      } catch {
+        const ta = document.createElement("textarea");
+        ta.value = ref;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedRef(true);
+      setTimeout(() => setCopiedRef(false), 2000);
+    };
+
+    // Copiar teléfono
+    const copyPhone = () => {
+      if(ownerPhone === "Consultar") return;
+      navigator.clipboard.writeText(ownerPhone);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
+    // --- DATOS DEL DUEÑO (IDENTIDAD) ---
+    const ownerFromSnapshot =
+      (selectedProp?.user && typeof selectedProp.user === "object")
+        ? selectedProp.user
+        : (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === "object")
+          ? selectedProp.ownerSnapshot
+          : {};
+
+    const ownerName = (ownerFromSnapshot as any)?.companyName || (ownerFromSnapshot as any)?.name || "Propietario";
+    const ownerAvatar = (ownerFromSnapshot as any)?.companyLogo || (ownerFromSnapshot as any)?.avatar || null;
+    const ownerCover = (ownerFromSnapshot as any)?.coverImage || (ownerFromSnapshot as any)?.cover || null;
+    const ownerPhone = (ownerFromSnapshot as any)?.mobile || (ownerFromSnapshot as any)?.phone || "Consultar";
+    const ownerEmail = (ownerFromSnapshot as any)?.email || "---";
+    const ownerRole = String((ownerFromSnapshot as any)?.role || "PARTICULAR").toUpperCase();
+
+    // ❤️ FAVORITOS
+    const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
+
+    const handleHeartClick = (e: any) => {
+      if (e?.stopPropagation) e.stopPropagation();
+      if (!selectedProp?.id) return;
+      const newStatus = !isFavorite;
+      if (onToggleFavorite) onToggleFavorite({ ...selectedProp, isFav: newStatus });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("update-property-signal", { detail: { id: selectedProp.id, updates: { isFav: newStatus, isFavorite: newStatus, isFavorited: newStatus } } }));
+        window.dispatchEvent(new CustomEvent("fav-change-signal", { detail: { id: selectedProp.id, isFavorite: newStatus } }));
+      }
+    };
+
+    // ✅ CHAT: abrir conversación
+    const handleMessageOwner = (e: any) => {
+      if (e?.stopPropagation) e.stopPropagation();
+      const propertyId = String(selectedProp?.id || "");
+      const toUserId = String(selectedProp?.user?.id || selectedProp?.ownerSnapshot?.id || selectedProp?.userId || selectedProp?.ownerId || "");
+      if (!propertyId || !toUserId) return;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("open-chat-signal", { detail: { propertyId, toUserId } }));
+      }
+    };
+
     if (!selectedProp) return null;
 
-    // --- LOGICA DE PARSEO ---
+    // --- LOGICA DE PARSEO CORREGIDA (AQUÍ ESTABA EL PROBLEMA) ---
     const cleanKey = (raw: any) => String(raw || "").replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ]/g, "").toLowerCase();
+    
     const getNiceLabel = (key: string) => {
-        const labels: any = { 'pool': 'Piscina', 'garage': 'Garaje', 'garden': 'Jardín', 'elevator': 'Ascensor', 'terrace': 'Terraza', 'storage': 'Trastero' };
+        const labels: any = { 
+            'pool': 'Piscina', 'garage': 'Garaje', 'garden': 'Jardín', 
+            'elevator': 'Ascensor', 'terrace': 'Terraza', 'storage': 'Trastero',
+            // Traducciones nuevas
+            'heating': 'Calefacción', 'furnished': 'Amueblado', 
+            'security': 'Seguridad', 'balcony': 'Balcón', 'ac': 'Aire Acond.'
+        };
         return labels[key] || key.charAt(0).toUpperCase() + key.slice(1);
     };
 
     const allTags = new Set<string>();
+    
+    // 1. Array de servicios (Texto)
     if (selectedProp?.selectedServices) {
         let s = selectedProp.selectedServices;
         (Array.isArray(s) ? s : String(s).split(',')).forEach(x => allTags.add(cleanKey(x)));
     }
-    ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac'].forEach(k => {
+
+    // 2. 🔥 Booleans de base de datos (HEMOS AÑADIDO LOS QUE FALTABAN)
+    ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac', 'heating', 'furnished', 'security', 'balcony'].forEach(k => {
         if (['true','Si','Sí',1,true].includes(selectedProp?.[k])) allTags.add(cleanKey(k));
     });
 
     const physicalItems: any[] = [];
     allTags.forEach(tag => {
         if(!tag || ['elevator','ascensor'].includes(tag)) return;
-        const item = { id: tag, label: getNiceLabel(tag), icon: ICON_MAP[tag] || Star };
-        if(PHYSICAL_KEYWORDS.includes(tag)) physicalItems.push(item);
+        
+        // El filtro ahora deja pasar 'furnished', 'heating', etc.
+        if(PHYSICAL_KEYWORDS.includes(tag)) {
+             const item = { id: tag, label: getNiceLabel(tag), icon: ICON_MAP[tag] || Star };
+             physicalItems.push(item);
+        }
     });
 
     const hasElevator = allTags.has('elevator') || allTags.has('ascensor') || selectedProp?.elevator === true;
     const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
-  
-  
-  // ❤️ SINCRONIZACIÓN TOTAL (Corazón + Bóveda + NanoCard)
-// 1. Verificación blindada (convierte IDs a texto para que no falle nunca)
-const isFavorite = (favorites || []).some(
-  (f: any) => String(f?.id) === String(selectedProp?.id)
-);
 
-// ❤️ CONECTOR DE SINCRONIZACIÓN (Detalles -> UI global)
-const handleHeartClick = (e: any) => {
-  if (e?.stopPropagation) e.stopPropagation();
-
-  if (!selectedProp?.id) return;
-
-  // 1) Nuevo estado deseado
-  const newStatus = !isFavorite;
-
-  // 2) Acción real (pasamos intención explícita)
-  if (onToggleFavorite) onToggleFavorite({ ...selectedProp, isFav: newStatus });
-
-  // 3) Broadcast a NanoCard / Vault / UI
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("update-property-signal", {
-        detail: {
-          id: selectedProp.id,
-          updates: { isFav: newStatus, isFavorite: newStatus, isFavorited: newStatus },
-        },
-      })
-    );
-
-    window.dispatchEvent(
-      new CustomEvent("fav-change-signal", {
-        detail: { id: selectedProp.id, isFavorite: newStatus },
-      })
-    );
-  }
-};
-
-   
-   // ✅ CHAT: abrir conversación con el propietario (desde DETAILS)
-const handleMessageOwner = (e: any) => {
-  if (e?.stopPropagation) e.stopPropagation();
-
-  const propertyId = String(selectedProp?.id || "");
-  const toUserId = String(
-    selectedProp?.user?.id ||
-      selectedProp?.ownerSnapshot?.id ||
-      selectedProp?.userId ||
-      selectedProp?.ownerId ||
-      ""
-  );
-
-  if (!propertyId || !toUserId) return;
-
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("open-chat-signal", {
-        detail: { propertyId, toUserId },
-      })
-    );
-  }
-};
-
-const copyPhone = () => {
-  if(ownerPhone === "Consultar") return;
-  navigator.clipboard.writeText(ownerPhone);
-  setCopied(true);
-  setTimeout(() => setCopied(false), 2000);
-};
-
-
-    // ⚡️ HELPER PARA COLOR DE CERTIFICADO
     const getEnergyColor = (letter: string) => {
         const l = String(letter || '').toUpperCase();
         if (l === 'A') return 'bg-green-600';
@@ -227,7 +198,7 @@ const copyPhone = () => {
         if (l === 'D') return 'bg-yellow-400';
         if (l === 'E') return 'bg-yellow-500';
         if (l === 'F') return 'bg-orange-500';
-        return 'bg-red-500'; // G o desconocido
+        return 'bg-red-500'; 
     };
 
     return (
