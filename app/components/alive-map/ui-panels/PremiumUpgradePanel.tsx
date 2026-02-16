@@ -33,7 +33,7 @@ export default function PremiumUpgradePanel({ onClose, property }: any) {
       // ✅ true = Simula el éxito y enciende el fuego (GRATIS)
       // ❌ false = Llama a la pasarela de pago real (COBRAR)
       // ===========================================================================
-      const MODO_PRUEBAS = true; 
+      const MODO_PRUEBAS = false; 
 
       if (MODO_PRUEBAS) {
           // A) Simulamos éxito visual

@@ -44,12 +44,17 @@ export async function POST(req: Request) {
         ? (body.metadata as Record<string, any>)
         : {};
 
-    // Aceptamos kind o type por compat
+    // Aceptamos kind o type por compatibilidad
+    // 🔥 AÑADIMOS PREMIUM_BOOST A LA LISTA DE TIPOS VÁLIDOS
     const kind = String(metaObj.kind || metaObj.type || "")
       .trim()
       .toUpperCase();
 
-    if (kind !== "AGENCY_SUBSCRIPTION" && kind !== "PROPERTY_PUBLISH") {
+    if (
+        kind !== "AGENCY_SUBSCRIPTION" && 
+        kind !== "PROPERTY_PUBLISH" && 
+        kind !== "PREMIUM_BOOST"
+    ) {
       return NextResponse.json({ ok: false, error: "Invalid kind" }, { status: 400 });
     }
 
@@ -58,16 +63,39 @@ export async function POST(req: Request) {
     // Webhook por pago (token en query)
     const webhookUrl = `${origin}/api/mollie/webhook?token=${encodeURIComponent(webhookToken)}`;
 
-    // Base payload (server-truth: ignoramos amount/description del cliente)
+    // 💰 LÓGICA DE PRECIOS DINÁMICA
+    let amountValue = PUBLISH_PRICE_EUR; // Default fallback
+    let description = "Stratosfere Service";
+
+    if (kind === "AGENCY_SUBSCRIPTION") {
+        amountValue = AGENCY_PRICE_EUR;
+        description = "Stratosfere Agency — 49,90€/mes";
+    } 
+    else if (kind === "PROPERTY_PUBLISH") {
+        amountValue = PUBLISH_PRICE_EUR;
+        description = "Stratosfere — Publicar propiedad 9,90€";
+    }
+    else if (kind === "PREMIUM_BOOST") {
+        // 🔥 LOGICA PREMIUM: Confiamos en el amount enviado (validado)
+        // Solo permitimos 29.90 o 49.90 para evitar manipulaciones raras
+        const reqAmount = String(body.amount);
+        if (reqAmount === "29.90" || reqAmount === "49.90") {
+            amountValue = reqAmount;
+            description = `Nano Card Premium (${reqAmount}€)`;
+        } else {
+            // Si intentan algo raro, forzamos el precio base de Premium Express
+            amountValue = "29.90";
+            description = "Nano Card Premium (Standard)";
+        }
+    }
+
+    // Base payload (server-truth)
     const paymentPayload: any = {
       amount: {
         currency: "EUR",
-        value: kind === "AGENCY_SUBSCRIPTION" ? AGENCY_PRICE_EUR : PUBLISH_PRICE_EUR,
+        value: amountValue,
       },
-      description:
-        kind === "AGENCY_SUBSCRIPTION"
-          ? "Stratosfere Agency — 49,90€/mes"
-          : "Stratosfere — Publicar propiedad 9,90€",
+      description,
       redirectUrl,
       webhookUrl,
       metadata: {
@@ -77,10 +105,7 @@ export async function POST(req: Request) {
     };
 
     // ------------------------------------------------------------------
-    // 🏢 AGENCY: “Netflix mode”
-    // - Requiere userId
-    // - Crea/reutiliza Customer
-    // - sequenceType='first' SOLO AQUÍ (guarda mandato/tarjeta)
+    // 🏢 AGENCY: “Netflix mode” (INTACTO)
     // ------------------------------------------------------------------
     if (kind === "AGENCY_SUBSCRIPTION") {
       const userId = String(metaObj.userId || "").trim();
@@ -126,84 +151,82 @@ export async function POST(req: Request) {
     }
 
     // ------------------------------------------------------------------
-// 🏠 PROPERTY_PUBLISH: pago único limpio
-// - Requiere propertyId
-// - Requiere userId (para verificar ownership)
-// - PROHIBIDO customerId/sequenceType aquí
-// ------------------------------------------------------------------
-if (kind === "PROPERTY_PUBLISH") {
-  const propertyId = String(metaObj.propertyId || "").trim();
-  if (!propertyId) {
-    return NextResponse.json({ ok: false, error: "Missing propertyId" }, { status: 400 });
-  }
+    // 🏠 PROPERTY_PUBLISH O PREMIUM_BOOST: pago único limpio
+    // - Verificación de propiedad y dueño
+    // ------------------------------------------------------------------
+    if (kind === "PROPERTY_PUBLISH" || kind === "PREMIUM_BOOST") {
+      const propertyId = String(metaObj.propertyId || "").trim();
+      if (!propertyId) {
+        return NextResponse.json({ ok: false, error: "Missing propertyId" }, { status: 400 });
+      }
 
-  const userId = String(metaObj.userId || "").trim();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
-  }
+      const userId = String(metaObj.userId || "").trim();
+      if (!userId) {
+        return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
+      }
 
-  // 🔒 Verificamos que la propiedad pertenece al usuario
-  const prop = await prisma.property.findUnique({
-    where: { id: propertyId },
-    select: { id: true, userId: true },
-  });
+      // 🔒 Verificamos que la propiedad pertenece al usuario
+      const prop = await prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true, userId: true },
+      });
 
-  if (!prop) {
-    return NextResponse.json({ ok: false, error: "Property not found" }, { status: 404 });
-  }
+      if (!prop) {
+        return NextResponse.json({ ok: false, error: "Property not found" }, { status: 404 });
+      }
 
-  if (!prop.userId) {
-    return NextResponse.json(
-      { ok: false, error: "Property has no userId (cannot verify owner)" },
-      { status: 400 }
-    );
-  }
+      if (!prop.userId) {
+        return NextResponse.json(
+          { ok: false, error: "Property has no userId (cannot verify owner)" },
+          { status: 400 }
+        );
+      }
 
-  if (String(prop.userId) !== userId) {
-    return NextResponse.json({ ok: false, error: "Forbidden (not owner)" }, { status: 403 });
-  }
-}
+      if (String(prop.userId) !== userId) {
+        return NextResponse.json({ ok: false, error: "Forbidden (not owner)" }, { status: 403 });
+      }
+    }
 
-// 1) Crear pago en Mollie
-const payment = await mollie.payments.create(paymentPayload);
+    // 1) Crear pago en Mollie
+    const payment = await mollie.payments.create(paymentPayload);
 
-// 2) Guardar un ServiceOrder “publicación” (schema REAL)
-if (kind === "PROPERTY_PUBLISH") {
-  const propertyId = String((paymentPayload?.metadata as any)?.propertyId || "").trim();
+    // 2) Guardar un ServiceOrder (Recibo)
+    // Sirve tanto para PUBLISH como para PREMIUM_BOOST
+    if (kind === "PROPERTY_PUBLISH" || kind === "PREMIUM_BOOST") {
+      const propertyId = String((paymentPayload?.metadata as any)?.propertyId || "").trim();
 
-  await prisma.serviceOrder.create({
-    data: {
-      // Campos obligatorios del schema
-      serviceId: "PUBLISH_PROPERTY",
-      name: "Publicación propiedad",
-      price: parseFloat(PUBLISH_PRICE_EUR),
-      paid: false,
+      await prisma.serviceOrder.create({
+        data: {
+          // Campos obligatorios del schema
+          serviceId: kind, // "PROPERTY_PUBLISH" o "PREMIUM_BOOST"
+          name: description,
+          price: parseFloat(amountValue),
+          paid: false,
 
-      // Tracking Mollie
-      provider: "MOLLIE",
-      providerPayId: String(payment.id),
+          // Tracking Mollie
+          provider: "MOLLIE",
+          providerPayId: String(payment.id),
 
-      // Tu schema lo tiene obligatorio (aunque tenga default)
-      payStatus: "OPEN",
-      paidAt: null,
-      metadata: (paymentPayload?.metadata ?? undefined) as any,
+          payStatus: "OPEN",
+          paidAt: null,
+          metadata: (paymentPayload?.metadata ?? undefined) as any,
 
-      propertyId,
-    },
-  });
-}
+          propertyId,
+        },
+      });
+    }
 
-const checkoutUrl =
-  typeof (payment as any)?.getCheckoutUrl === "function"
-    ? (payment as any).getCheckoutUrl()
-    : (payment as any)?._links?.checkout?.href || null;
+    const checkoutUrl =
+      typeof (payment as any)?.getCheckoutUrl === "function"
+        ? (payment as any).getCheckoutUrl()
+        : (payment as any)?._links?.checkout?.href || null;
 
-return NextResponse.json({
-  ok: true,
-  paymentId: payment.id,
-  status: payment.status,
-  checkoutUrl,
-});
+    return NextResponse.json({
+      ok: true,
+      paymentId: payment.id,
+      status: payment.status,
+      checkoutUrl,
+    });
 
   } catch (err: any) {
     console.error("Error create-payment:", err);

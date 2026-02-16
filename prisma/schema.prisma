@@ -120,8 +120,10 @@ model Property {
   simpleNoteUrl     String?
   energyCertUrl     String?
 
-  // 🔥 SAAS: Pay to Win
-  promotedTier      String   @default("FREE") 
+ // 🔥 SAAS: Pay to Win
+  promotedTier      String    @default("FREE") 
+  isPromoted        Boolean   @default(false)  // <--- AÑADIR ESTA
+  promotedUntil     DateTime?                  // <--- AÑADIR ESTA
 
   // 🔥 SAAS: B2B (Comisiones)
   mandateType       String?  @default("ABIERTO")

@@ -33,7 +33,6 @@ function addOneMonth(d: Date) {
 }
 
 // Crea Subscription en Mollie vía REST (robusto: no dependemos de nombres internos del SDK)
-// Docs: Create subscription (customerId + interval + amount) :contentReference[oaicite:1]{index=1}
 async function createMollieSubscription(params: {
   apiKey: string;
   customerId: string;
@@ -111,17 +110,16 @@ export async function POST(req: Request) {
       .toUpperCase();
 
     const isAgencyRecurring = Boolean(payment?.subscriptionId && payment?.customerId);
-
     const now = new Date();
 
-   // -------------------------------------------------------------
-    // A) PARTICULAR 9,90€ — LÓGICA BLINDADA (Publicar o Esconder)
-    // -------------------------------------------------------------
+    // =============================================================
+    // A) PARTICULAR 9,90€ (PROPERTY_PUBLISH) — INTACTO
+    // =============================================================
     if (kind === "PROPERTY_PUBLISH") {
       const propertyId = String((metadata as any).propertyId || "").trim();
       if (!propertyId) return NextResponse.json({ ok: true });
 
-      // 1. Actualizamos el Recibo (ServiceOrder) - Esto ya lo hacía bien
+      // 1. Actualizamos el Recibo (ServiceOrder)
       await prisma.serviceOrder.updateMany({
         where: {
           propertyId,
@@ -130,16 +128,15 @@ export async function POST(req: Request) {
         data: {
           provider: "MOLLIE",
           providerPayId: String(payment.id),
-          payStatus, // PAID, CANCELED, FAILED, OPEN...
+          payStatus,
           paid: payStatus === "PAID",
           paidAt: payStatus === "PAID" ? now : null,
           metadata: metadata ?? undefined,
         },
       });
 
-      // 2. 🔥 GOLPE DE AUTORIDAD EN LA PROPIEDAD 🔥
+      // 2. ACTUALIZAR ESTADO PROPIEDAD
       if (payStatus === "PAID") {
-        // ✅ ÉXITO: El dinero está en la saca. PUBLICAMOS.
         await prisma.property.update({
           where: { id: propertyId },
           data: { status: "PUBLICADO" },
@@ -147,9 +144,6 @@ export async function POST(req: Request) {
         console.log(`✅ Property PUBLICADO (id=${propertyId}) - Pago confirmado.`);
       } 
       else if (["FAILED", "CANCELED", "EXPIRED"].includes(payStatus)) {
-        // ❌ FRACASO: Si el usuario canceló o falló la tarjeta...
-        // ...NOS ASEGURAMOS de que la propiedad esté OCULTA.
-        // Esto corrige cualquier error previo. Si no paga, no se ve.
         await prisma.property.update({
           where: { id: propertyId },
           data: { status: "PENDIENTE_PAGO" },
@@ -160,17 +154,54 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // -------------------------------------------------------------
-    // B) AGENCY 49,90€/mes — “Netflix”
-    // 1) Primer pago (kind=AGENCY_SUBSCRIPTION) → crea Subscription mensual en Mollie
-    // 2) Pagos recurrentes (payment.subscriptionId) → renueva periodo en BD
-    // -------------------------------------------------------------
-    if (kind === "AGENCY_SUBSCRIPTION" || isAgencyRecurring) {
+    // =============================================================
+    // 🔥 B) NUEVO: PREMIUM BOOST (29.90€ / 49.90€) 🔥
+    // =============================================================
+    else if (kind === "PREMIUM_BOOST") {
+      const propertyId = String((metadata as any).propertyId || "").trim();
+      if (propertyId) {
+        // 1. Actualizar el Recibo (ServiceOrder)
+        await prisma.serviceOrder.updateMany({
+            where: { providerPayId: String(payment.id) },
+            data: { 
+                payStatus, 
+                paid: payStatus === "PAID", 
+                paidAt: payStatus === "PAID" ? now : null 
+            }
+        });
+
+        // 2. ACTIVAR FUEGO EN PROPIEDAD
+        if (payStatus === "PAID") {
+            const amountPaid = parseFloat(payment.amount.value);
+            // Si pagó > 35€ es el plan de 30 días, si no, es el de 15 días
+            const daysToAdd = amountPaid > 35 ? 30 : 15;
+            
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + daysToAdd);
+
+            await prisma.property.update({
+                where: { id: propertyId },
+                data: {
+                    promotedTier: "PREMIUM",
+                    isPromoted: true,
+                    promotedUntil: expiryDate,
+                    status: "PUBLICADO" // Aseguramos que se vea
+                }
+            });
+            console.log(`🔥 FUEGO ACTIVADO en ID ${propertyId} por ${daysToAdd} días (Pago: ${amountPaid}€).`);
+        }
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // =============================================================
+    // C) AGENCY 49,90€/mes — “Netflix” (AGENCY_SUBSCRIPTION) — INTACTO
+    // =============================================================
+    else if (kind === "AGENCY_SUBSCRIPTION" || isAgencyRecurring) {
       // 1) Resolver userId
       let userId = String((metadata as any).userId || "").trim();
 
-      // Si es pago recurrente y no viene userId en metadata,
-      // lo resolvemos por providerSubId
+      // Si es pago recurrente y no viene userId en metadata, lo resolvemos por providerSubId
       if (!userId && isAgencyRecurring) {
         const existing = await prisma.subscription.findFirst({
           where: {
@@ -200,8 +231,8 @@ export async function POST(req: Request) {
 
       const customerId = sub?.providerCustomerId || (isAgencyRecurring ? String(payment.customerId || "") : "");
       if (!customerId) {
-        console.error("❌ AGENCY: falta providerCustomerId (no se puede crear suscripción en Mollie)");
-        // Aun así activamos 30 días como “modo degradado”
+        console.error("❌ AGENCY: falta providerCustomerId");
+        // Modo degradado: activar 30 días
         const start = now;
         const end = addOneMonth(now);
         await prisma.subscription.upsert({
@@ -226,7 +257,6 @@ export async function POST(req: Request) {
       }
 
       // 3) Crear Mollie Subscription SOLO tras el primer pago pagado
-      // (si ya existe providerSubId, no creamos otra)
       if (payStatus === "PAID" && kind === "AGENCY_SUBSCRIPTION" && !sub?.providerSubId) {
         const origin = new URL(req.url).origin;
         const webhookUrl = `${origin}/api/mollie/webhook?token=${encodeURIComponent(expectedToken || "")}`;
@@ -245,7 +275,7 @@ export async function POST(req: Request) {
           data: {
             provider: "MOLLIE",
             providerCustomerId: customerId,
-            providerSubId: created.id, // 👈 AQUÍ guardas el Subscription ID real
+            providerSubId: created.id, 
           },
         });
 
@@ -265,7 +295,6 @@ export async function POST(req: Request) {
             status: "ACTIVE",
             provider: "MOLLIE",
             providerCustomerId: customerId,
-            // si viene subscriptionId en el pago (recurring), mantenemos coherencia
             providerSubId: String(payment.subscriptionId || sub?.providerSubId || ""),
             currentPeriodStart: now,
             currentPeriodEnd: newEnd,

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { getUserMeAction } from "@/app/actions";
@@ -8,9 +7,12 @@ type StartPropertyPaymentOpts = {
   redirectPath?: string;  // default window.location.pathname + "?paid=1"
   description?: string;   // default "Publicación propiedad — 9,90€"
   refCode?: string;       // opcional para description
+  // 🔥 NUEVO: Tipo de pago. Si no se pone, asume "PROPERTY_PUBLISH" (9.90€)
+  kind?: "PROPERTY_PUBLISH" | "PREMIUM_BOOST"; 
 };
 
 function toAmountString(v?: string) {
+  // Si viene vacío o inválido, ponemos el precio base de publicación
   const n = Number(v ?? "9.90");
   if (!Number.isFinite(n) || n <= 0) return "9.90";
   return n.toFixed(2);
@@ -34,12 +36,14 @@ export async function startPropertyPayment(
 
   const redirectUrl = new URL(redirectPath, origin).toString();
 
+  // 🔥 SEGURIDAD: Si no especificamos tipo, es el clásico de publicar (9.90)
+  const kind = opts.kind || "PROPERTY_PUBLISH";
+
   const description =
     (opts.description ?? "Publicación propiedad — 9,90€") +
     (opts.refCode ? ` (${opts.refCode})` : "");
 
-  // ✅ Best-effortt: metemos userId/email para que el webhook sepa a quién activar
-  // (si falla, seguimos igualmente y el pago se crea igual)
+  // Recuperamos usuario (Best-effort)
   let userId: string | undefined;
   let userEmail: string | undefined;
 
@@ -59,15 +63,15 @@ export async function startPropertyPayment(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      amount: toAmountString(opts.amount),
+      amount: toAmountString(opts.amount), // Enviamos el monto (9.90, 29.90 o 49.90)
       currency: "EUR",
       description,
       redirectUrl,
       metadata: {
-        kind: "PROPERTY_PUBLISH",
+        kind: kind, // 🔥 Enviamos el tipo para que el servidor sepa qué hacer
         propertyId: pid,
-        userId,           // ✅ NUEVO
-        email: userEmail, // ✅ opcional (útil para logs/soporte)
+        userId,           
+        email: userEmail, 
       },
     }),
   });
@@ -88,3 +92,4 @@ export async function startPropertyPayment(
 
   window.location.assign(String(json.checkoutUrl));
 }
+
