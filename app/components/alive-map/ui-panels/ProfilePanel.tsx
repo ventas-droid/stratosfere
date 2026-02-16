@@ -505,8 +505,27 @@ export default function ProfilePanel({
                                 </div>
                             )}
 
-                            <div className="pt-3 border-t border-slate-100 flex gap-2">
+                          <div className="pt-3 border-t border-slate-100 flex gap-2">
+                                
+                                {/* Botón Servicios (Store) - YA LO TIENE */}
                                 <button onClick={(e) => { e.stopPropagation(); if(soundEnabled) playSynthSound('click'); setServicesModalProp(prop); }} className="px-3 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center"><Store size={14}/></button>
+                                
+                                {/* 👇👇👇 PEGUE ESTO AQUÍ (BOTÓN FUEGO) 👇👇👇 */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (typeof window !== 'undefined') {
+                                            // Usamos 'prop' que es la variable de su bucle
+                                            window.dispatchEvent(new CustomEvent('open-premium-signal', { detail: prop }));
+                                        }
+                                    }}
+                                    className="px-3 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center shadow-lg shadow-orange-500/30"
+                                    title="Potenciar (Nano Card Premium)"
+                                >
+                                    <Zap size={14} fill="currentColor" />
+                                </button>
+                                {/* 👆👆👆 FIN DEL PEGADO 👆👆👆 */}
+
                                 {isManaged ? (
                                     <div className="flex-1 py-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 cursor-not-allowed"><Lock size={12} /> GESTIONADO</div>
                                 ) : (

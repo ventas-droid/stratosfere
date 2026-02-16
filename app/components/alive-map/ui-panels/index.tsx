@@ -9,7 +9,7 @@ import {
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
-  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2 
+  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2, Crown,
 } from 'lucide-react';
 
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
@@ -35,7 +35,7 @@ import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
 import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
-
+import PremiumUpgradePanel from "./PremiumUpgradePanel";
 import PlanOverlay from "@/app/components/billing/PlanOverlay";
 import { useMyPlan } from "@/app/components/billing/useMyPlan";
 
@@ -441,6 +441,7 @@ useEffect(() => {
 
 
   const [selectedProp, setSelectedProp] = useState<any>(null);
+ const [premiumProp, setPremiumProp] = useState<any>(null);
   const [editingProp, setEditingProp] = useState<any>(null);
   const [marketProp, setMarketProp] = useState<any>(null);
   const [previousMode, setPreviousMode] = useState<"EXPLORER" | "AGENCY">("EXPLORER");
@@ -2206,6 +2207,19 @@ useEffect(() => {
       return () => { window.removeEventListener('edit-market-signal', handleEditMarket); };
   }, []);
 
+  // 🔥🔥🔥 NUEVO: ESCUCHA PARA ABRIR NANO CARD PREMIUM 🔥🔥🔥
+  useEffect(() => {
+      const handleOpenPremium = (e: any) => {
+          const p = e.detail; // La propiedad que queremos mejorar
+          if (p) {
+              setPremiumProp(p);
+              if (soundEnabled) playSynthSound('click'); // Sonido táctico
+          }
+      };
+      window.addEventListener("open-premium-signal", handleOpenPremium);
+      return () => window.removeEventListener("open-premium-signal", handleOpenPremium);
+  }, [soundEnabled]);
+ 
   const handleStratosLaunch = (data: any) => {
       if(soundEnabled) playSynthSound('warp');
       const TYPE_TRANSLATOR: Record<string, string> = {
@@ -2635,7 +2649,7 @@ if (!gateUnlocked) {
                {/* Ahora el sistema usará obligatoriamente los que están definidos al final del archivo, que sí funcionan bien. */}
            </>
        )}
-       {/* MODO EXPLORADOR (BARRA USUARIO) */}
+    {/* MODO EXPLORADOR (BARRA USUARIO) */}
        {systemMode === 'EXPLORER' && (
            <>
                {(showAdvancedConsole || !landingComplete) && <StratosConsole isInitial={!landingComplete} onClose={() => setShowAdvancedConsole(false)} onLaunch={handleStratosLaunch} />}
@@ -2643,97 +2657,133 @@ if (!gateUnlocked) {
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
                       <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
+                        {/* BOTONES IZQUIERDA (Menu + Ajustes) */}
                         <div className="flex items-center gap-1">
                             <button onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
                             <button onClick={() => { playSynthSound('click'); setShowAdvancedConsole(true); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${showAdvancedConsole ? 'text-white bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`}><SlidersHorizontal size={18}/></button>
                         </div>
+                        
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+                        
+                        {/* BARRA BUSCADORA CENTRAL */}
                         <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50 focus-within:bg-blue-500/5 transition-all group">
                           <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
                           <input value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleAICommand(e); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); (e.target as HTMLInputElement).blur(); } }} className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text" placeholder="LOCALIZACIÓN..." />
                           <Mic size={16} className="text-white/30"/>
                         </div>
+                        
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
+                        
+                        {/* ARSENAL DERECHA (Aquí están los nuevos botones) */}
                         <div className="flex items-center gap-1">
- <button
-  onClick={() => {
-    playSynthSound('click');
-    setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE');
-  }}
-  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-    activePanel === 'MARKETPLACE' ? 'text-emerald-400' : 'text-white/50 hover:text-white'
-  }`}
->
-  <Store size={18} />
-</button>
+                            {/* 1. MERCADO INMOBILIARIO */}
+                            <button
+                              onClick={() => {
+                                playSynthSound('click');
+                                setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE');
+                              }}
+                              className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+                                activePanel === 'MARKETPLACE' ? 'text-emerald-400 bg-white/10' : 'text-white/50 hover:text-white'
+                              }`}
+                              title="Mercado"
+                            >
+                              <Store size={18} />
+                            </button>
 
-<button
-  onClick={() => {
-    playSynthSound('click');
-   if (chatOpen) {
-  setChatOpen(false);
-} else {
-  openChatPanel();
-}
+                            {/* 2. 🔥 AGENCIAS (NUEVO) */}
+                            <button
+                                onClick={() => {
+                                    playSynthSound('click');
+                                    setActivePanel(activePanel === 'AGENCIES_LIST' ? 'NONE' : 'AGENCIES_LIST');
+                                }}
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+                                    activePanel === 'AGENCIES_LIST' ? 'text-indigo-400 bg-white/10' : 'text-white/50 hover:text-white'
+                                }`}
+                                title="Directorio Agencias"
+                            >
+                                <Briefcase size={18} />
+                            </button>
 
-  }}
- className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-  chatOpen ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'
-}`}
+                            {/* 3. 👑 PREMIUM NANO STORE (NUEVO) */}
+                            <button
+                                onClick={() => {
+                                    playSynthSound('click');
+                                    setActivePanel(activePanel === 'PREMIUM_STORE' ? 'NONE' : 'PREMIUM_STORE');
+                                }}
+                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+                                    activePanel === 'PREMIUM_STORE' ? 'text-orange-400 bg-white/10' : 'text-white/50 hover:text-white'
+                                }`}
+                                title="Premium Store"
+                            >
+                                <Crown size={18} />
+                            </button>
 
->
-  <span className="relative inline-flex">
-    <MessageCircle size={18} />
-    {unreadTotal > 0 && (
-      <>
-        {/* punto parpadeando tipo blackberry */}
-        <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-        {/* contador */}
-        <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
-          {unreadTotal > 9 ? "9+" : unreadTotal}
-        </span>
-      </>
-    )}
-  </span>
-</button>
+                            {/* 4. CHAT */}
+                            <button
+                              onClick={() => {
+                                playSynthSound('click');
+                               if (chatOpen) {
+                                  setChatOpen(false);
+                                } else {
+                                  openChatPanel();
+                                }
+                              }}
+                             className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+                              chatOpen ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'
+                            }`}
+                            >
+                              <span className="relative inline-flex">
+                                <MessageCircle size={18} />
+                                {unreadTotal > 0 && (
+                                  <>
+                                    <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                                    <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
+                                      {unreadTotal > 9 ? "9+" : unreadTotal}
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                            </button>
 
-<button
-  onClick={() => {
-    playSynthSound('click');
-    setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI');
-  }}
-  className={`p-3 rounded-full transition-all relative group ${
-    activePanel === 'AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'
-  }`}
->
-  <Sparkles size={18} className="relative z-10" />
-</button>
+                            {/* 5. IA */}
+                            <button
+                              onClick={() => {
+                                playSynthSound('click');
+                                setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI');
+                              }}
+                              className={`p-3 rounded-full transition-all relative group ${
+                                activePanel === 'AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'
+                              }`}
+                            >
+                              <Sparkles size={18} className="relative z-10" />
+                            </button>
 
-<button
-  onClick={() => {
-    playSynthSound('click');
-    toggleRightPanel('VAULT');
-  }}
-  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-    rightPanel === 'VAULT' ? 'text-red-500' : 'text-white/50 hover:text-white'
-  }`}
->
-  <Heart size={18} />
-</button>
+                            {/* 6. FAVORITOS (VAULT) */}
+                            <button
+                              onClick={() => {
+                                playSynthSound('click');
+                                toggleRightPanel('VAULT');
+                              }}
+                              className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+                                rightPanel === 'VAULT' ? 'text-red-500' : 'text-white/50 hover:text-white'
+                              }`}
+                            >
+                              <Heart size={18} />
+                            </button>
 
-<button
-  onClick={() => {
-    playSynthSound('click');
-    toggleRightPanel('PROFILE');
-  }}
-  className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-    rightPanel === 'PROFILE' ? 'text-white' : 'text-white/50 hover:text-white'
-  }`}
->
-  <User size={18} />
-</button>
-</div>
-
+                            {/* 7. PERFIL */}
+                            <button
+                              onClick={() => {
+                                playSynthSound('click');
+                                toggleRightPanel('PROFILE');
+                              }}
+                              className={`p-3 rounded-full hover:bg-white/10 transition-all ${
+                                rightPanel === 'PROFILE' ? 'text-white' : 'text-white/50 hover:text-white'
+                              }`}
+                            >
+                              <User size={18} />
+                            </button>
+                        </div>
                       </div>
                   </div>
                </div>
@@ -3294,8 +3344,39 @@ disabled={chatUploading}
   pricingHref="/pricing"
   landingHref="/"
 />
+{/* 👇👇👇 PEGUE EL PASO 3 AQUÍ (PANEL PREMIUM) 👇👇👇 */}
+{premiumProp && (
+   <PremiumUpgradePanel 
+       property={premiumProp}
+       onClose={() => setPremiumProp(null)}
+   />
+)}
+{/* 👆👆👆 FIN DEL PEGADO 👆👆👆 */}
+{/* ======================================================== */}
+           {/* 🔥 ZONA DE DESPLIEGUE: PANELES NUEVOS (AGENCIA Y PREMIUM) */}
+           {/* ======================================================== */}
 
+           {/* 1. DIRECTORIO DE AGENCIAS (Modo Búsqueda) */}
+           {activePanel === 'AGENCIES_LIST' && (
+                <AgencyMarketPanel 
+                    onClose={() => setActivePanel('NONE')} 
+                    // Le pasamos la ubicación del usuario (homeBase) para que busque agencias cercanas
+                    activeProperty={homeBase || { city: "España" }} 
+                />
+           )}
 
+           {/* 2. TIENDA PREMIUM (Nano Card & Fuego) */}
+           {/* Se abre si pulsas el botón de la barra (PREMIUM_STORE) O si pulsas el rayo en una casa (premiumProp) */}
+           {(activePanel === 'PREMIUM_STORE' || premiumProp) && (
+               <PremiumUpgradePanel 
+                   // Si venimos del botón global, usamos un título genérico
+                   property={premiumProp || { title: "Suscripción Nano Card", img: null }} 
+                   onClose={() => {
+                       setPremiumProp(null); // Limpiamos la propiedad seleccionada
+                       if (activePanel === 'PREMIUM_STORE') setActivePanel('NONE'); // Cerramos el panel
+                   }}
+               />
+           )}
 
        {/* IA / OMNI INTELLIGENCE */}
        {activePanel === 'AI' && (

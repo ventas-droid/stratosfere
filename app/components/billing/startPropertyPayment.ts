@@ -4,15 +4,15 @@
 import { getUserMeAction } from "@/app/actions";
 
 type StartPropertyPaymentOpts = {
-  amount?: string;        // default "0.90"
+  amount?: string;        // default "9.90"
   redirectPath?: string;  // default window.location.pathname + "?paid=1"
-  description?: string;   // default "Publicación propiedad — 0,90€"
+  description?: string;   // default "Publicación propiedad — 9,90€"
   refCode?: string;       // opcional para description
 };
 
 function toAmountString(v?: string) {
-  const n = Number(v ?? "0.90");
-  if (!Number.isFinite(n) || n <= 0) return "0.90";
+  const n = Number(v ?? "9.90");
+  if (!Number.isFinite(n) || n <= 0) return "9.90";
   return n.toFixed(2);
 }
 
@@ -35,7 +35,7 @@ export async function startPropertyPayment(
   const redirectUrl = new URL(redirectPath, origin).toString();
 
   const description =
-    (opts.description ?? "Publicación propiedad — 0,90€") +
+    (opts.description ?? "Publicación propiedad — 9,90€") +
     (opts.refCode ? ` (${opts.refCode})` : "");
 
   // ✅ Best-effortt: metemos userId/email para que el webhook sepa a quién activar
