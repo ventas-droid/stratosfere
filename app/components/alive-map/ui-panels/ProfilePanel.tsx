@@ -436,6 +436,8 @@ export default function ProfilePanel({
                       const st = String((prop as any)?.status || "").toUpperCase();
                       const isPendingPayment = st === "PENDIENTE_PAGO";
                       const isPublished = st === "PUBLICADO";
+// 🔥 DETECTOR DE PREMIUM (FUEGO)
+                      const isPremium = prop.promotedTier === 'PREMIUM' || prop.isPromoted === true;
 
                       // 🔥 LOGICA SAAS
                       const activeCampaign = prop.activeCampaign;
@@ -443,8 +445,15 @@ export default function ProfilePanel({
                       const agencyName = prop.agencyName || activeCampaign?.agency?.companyName || "Agencia";
 
                       return (
-                        <div key={prop.id} onClick={(e) => handleFlyTo(e, prop)} className={`group p-5 rounded-[24px] shadow-sm border transition-all cursor-pointer relative overflow-hidden ${isManaged ? 'bg-slate-50 border-indigo-200' : 'bg-white border-transparent hover:border-slate-200'}`}>
-                            
+                        <div 
+                            key={prop.id} 
+                            onClick={(e) => handleFlyTo(e, prop)} 
+                            className={`group p-5 rounded-[24px] shadow-sm transition-all cursor-pointer relative overflow-hidden ${
+                                isManaged ? 'bg-slate-50 border border-indigo-200' : 
+                                isPremium ? 'bg-gradient-to-b from-amber-50 to-white border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : 
+                                'bg-white border border-transparent hover:border-slate-200'
+                            }`}
+                        >
                             {isManaged && <div className="absolute top-0 right-0 left-0 bg-indigo-600 h-1.5 w-full" />}
 
                             <div className="flex gap-4 mb-4 mt-2">
@@ -460,23 +469,30 @@ export default function ProfilePanel({
                                 </div>
                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="flex justify-between items-start">
-                                        <h4 className="font-bold text-slate-900 truncate text-lg group-hover:text-indigo-600 transition-colors pr-4">{prop?.title || "Sin título"}</h4>
+                                        {/* TÍTULO + CORONA SI ES PREMIUM */}
+                                        <h4 className={`font-bold truncate text-lg transition-colors pr-2 flex items-center gap-2 ${isPremium ? 'text-amber-600' : 'text-slate-900 group-hover:text-indigo-600'}`}>
+                                            {prop?.title || "Sin título"}
+                                            {isPremium && <Crown size={14} fill="currentColor" className="text-amber-500 animate-pulse"/>}
+                                        </h4>
+
                                         {!isManaged && (
-                                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${isPendingPayment ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+                                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${isPendingPayment ? "bg-amber-100 text-amber-700" : (isPublished ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500")}`}>
                                                 {isPendingPayment ? "PENDIENTE" : (isPublished ? "ONLINE" : "OFFLINE")}
                                             </span>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider">REF: {prop.refCode || "---"}</span>
+                                        {isPremium && <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">PREMIUM</span>}
                                     </div>
                                     <div className="flex items-center gap-1 text-xs text-slate-400 mt-1.5 truncate">
                                         <MapPin size={12} /><span className="truncate">{prop?.location || prop?.address || "Ubicación Privada"}</span>
                                     </div>
-                                    <p className="text-lg font-black text-slate-900 mt-1">{prop.price}</p>
+                                    <p className={`text-lg font-black mt-1 ${isPremium ? 'text-amber-600' : 'text-slate-900'}`}>{prop.price}</p>
                                 </div>
                             </div>
-{/* TARJETA DE GESTIÓN O TAGS (CORREGIDA) */}
+
+                            {/* TARJETA DE GESTIÓN O TAGS (CORREGIDA CON ESTILO PREMIUM) */}
                             {isManaged && activeCampaign ? (
                                 // CASO A: AGENCIA (Tarjeta Azul)
                                 <div className="mb-4 bg-white p-4 rounded-[20px] border border-indigo-100 shadow-sm relative">
@@ -496,11 +512,13 @@ export default function ProfilePanel({
                                     </button>
                                 </div>
                             ) : (
-                                // CASO B: PARTICULAR (Tarjeta Gris - CORREGIDA)
-                                <div className="mb-4 bg-slate-50 p-4 rounded-[20px] border border-slate-100/80 shadow-sm">
+                                // CASO B: PARTICULAR (Tarjeta Gris O PREMIUM)
+                                <div className={`mb-4 p-4 rounded-[20px] border shadow-sm ${isPremium ? 'bg-white border-amber-200' : 'bg-slate-50 border-slate-100/80'}`}>
                                     <div className="flex items-center gap-2 mb-2 opacity-70">
-                                        <User size={10} className="text-slate-500" />
-                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">GESTIÓN PARTICULAR</span>
+                                        {isPremium ? <Zap size={10} className="text-amber-500"/> : <User size={10} className="text-slate-500" />}
+                                        <span className={`text-[9px] font-black uppercase tracking-widest ${isPremium ? 'text-amber-600' : 'text-slate-500'}`}>
+                                            {isPremium ? 'POTENCIADO CON FUEGO' : 'GESTIÓN PARTICULAR'}
+                                        </span>
                                     </div>
                                     
                                     {/* USAMOS serviceIds (filtrado) EN LUGAR DE prop.selectedServices */}
@@ -523,21 +541,23 @@ export default function ProfilePanel({
                                 {/* Botón Servicios (Store) - YA LO TIENE */}
                                 <button onClick={(e) => { e.stopPropagation(); if(soundEnabled) playSynthSound('click'); setServicesModalProp(prop); }} className="px-3 py-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center"><Store size={14}/></button>
                                 
-                                {/* 👇👇👇 PEGUE ESTO AQUÍ (BOTÓN FUEGO) 👇👇👇 */}
+                                {/* BOTÓN RAYO: SE PONE DORADO SI ES PREMIUM */}
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (typeof window !== 'undefined') {
-                                            // Usamos 'prop' que es la variable de su bucle
                                             window.dispatchEvent(new CustomEvent('open-premium-signal', { detail: prop }));
                                         }
                                     }}
-                                    className="px-3 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center shadow-lg shadow-orange-500/30"
-                                    title="Potenciar (Nano Card Premium)"
+                                    className={`px-3 py-2 rounded-xl transition-colors flex items-center justify-center shadow-lg ${
+                                        isPremium 
+                                        ? 'bg-amber-500 text-white shadow-amber-500/30' 
+                                        : 'bg-orange-500 text-white hover:bg-orange-600 shadow-orange-500/30'
+                                    }`}
+                                    title={isPremium ? "Modo Fuego Activado" : "Potenciar"}
                                 >
                                     <Zap size={14} fill="currentColor" />
                                 </button>
-                                {/* 👆👆👆 FIN DEL PEGADO 👆👆👆 */}
 
                                 {isManaged ? (
                                     <div className="flex-1 py-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 cursor-not-allowed"><Lock size={12} /> GESTIONADO</div>

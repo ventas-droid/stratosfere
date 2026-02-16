@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { parseOmniSearch, CONTEXT_CONFIG } from './smart-search';
 import MapNanoCard from './ui-panels/MapNanoCard';
-import PremiumNanoCard from './ui-panels/PremiumNanoCard';
+
 // 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
 // import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
 const STRATOS_PROPERTIES : any[] = [];
@@ -365,8 +365,8 @@ if (src) {
     return () => window.removeEventListener('fly-to-location', handleFlyTo);
   }, []);
 
- // --------------------------------------------------------------------
-  // D. PINTOR DE MARCADORES (UPDATE MARKERS) - BLINDADO Y CON PREMIUM
+// --------------------------------------------------------------------
+  // D. PINTOR DE MARCADORES (UNIFICADO: SOLO USAMOS MapNanoCard)
   // --------------------------------------------------------------------
   const updateMarkers = () => {
     const mapInstance = map.current;
@@ -380,10 +380,10 @@ if (src) {
     // Ordenar visualmente para que las del sur queden por delante (Efecto 3D)
     features.sort((a: any, b: any) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
     
-    // ✅ IDs SIEMPRE como string para evitar parpadeos
+    // IDs como string
     const visibleIds = new Set(features.map((f: any) => String(f.properties.id)));
 
-    // Limpiar marcadores viejos que ya no están en pantalla
+    // Limpiar marcadores viejos
     Object.keys(markersRef.current).forEach((id) => {
       if (!visibleIds.has(id)) {
         markersRef.current[id].remove();
@@ -402,7 +402,7 @@ if (src) {
       const root = createRoot(el);
       const p = feature.properties;
 
-      // 1. RECUPERACIÓN DE IMAGEN REAL (Lógica original intacta)
+      // 1. RECUPERACIÓN DE IMAGEN
       let safeImages: any[] = [];
       if (Array.isArray(p.images)) {
         safeImages = p.images.map((i: any) => (typeof i === "string" ? i : i?.url)).filter(Boolean);
@@ -412,14 +412,13 @@ if (src) {
             safeImages = Array.isArray(parsed) ? parsed : [p.images];
         } catch (e) { safeImages = [p.images]; }
       }
-      
       if (safeImages.length === 0 && p.img) safeImages = [p.img];
       const safeImg = safeImages[0] || null;
 
-      // 2. CORRECCIÓN DE METROS (Lógica original intacta)
+      // 2. METROS
       const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
-      // 3. PARSEO DE JSON (Lógica original intacta)
+      // 3. PARSEO DE USUARIO/SNAPSHOT
       const parseMaybeJSON = (v: any) => {
         if (!v) return null;
         if (typeof v === "object") return v;
@@ -440,35 +439,18 @@ if (src) {
 
       p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
       p.description = p.description || p.desc || "";
-      p.energyConsumption = p.energyConsumption || p.certificadoEnergetico || "";
-      p.energyEmissions = p.energyEmissions || p.emisiones || "";
-      p.energyPending = p.energyPending ?? false;
 
-      // 🔥 AQUÍ ESTÁ EL ÚNICO CAMBIO: DETECCIÓN DE PREMIUM 🔥
-      const isPremium = p.promotedTier && p.promotedTier !== 'FREE';
-
+      // 🔥 AQUÍ ESTÁ EL CAMBIO: USAMOS SIEMPRE MapNanoCard 🔥
+      // Él ya sabe leer "promotedTier" y ponerse Premium solo.
+      
       root.render(
-        isPremium ? (
-          // 💎 OPCIÓN A: TARJETA DE ÉLITE (Si paga)
-          <PremiumNanoCard 
-             property={{
-                ...p, 
-                id,
-                img: safeImg,    // Usamos la imagen ya procesada
-                mBuilt: finalM2  // Usamos los metros ya procesados
-             }} 
-             onClick={(e: any) => {
-                e?.stopPropagation();
-                // Disparamos los mismos eventos que la tarjeta normal para abrir Details
-                window.dispatchEvent(new CustomEvent("open-details-signal", { detail: { ...p, id } }));
-                window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
-             }}
-          />
-        ) : (
-          // 📦 OPCIÓN B: TARJETA ESTÁNDAR (Su código original EXACTO)
           <MapNanoCard
             id={id}
             data={p}
+            // Pasamos los flags Premium explícitamente por si acaso
+            promotedTier={p.promotedTier}
+            isPromoted={p.isPromoted}
+            
             price={p.price}
             priceValue={p.priceValue}
             rawPrice={p.priceValue}
@@ -495,7 +477,6 @@ if (src) {
             energyEmissions={p.energyEmissions}
             energyPending={p.energyPending}
           />
-        )
       );
 
       const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
