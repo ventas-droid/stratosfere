@@ -103,7 +103,49 @@ export default function AgencyDetailsPanel({
         if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'photo');
         if (onOpenInspector) onOpenInspector();
     };
+// ============================================================
+    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (FIX "OFICINA" Y AVATAR)
+    // ============================================================
+    useEffect(() => {
+        const verifyRealData = async () => {
+            if (selectedProp?.id) {
+                try {
+                    const realData = await getPropertyByIdAction(selectedProp.id);
+                    if (realData) {
+                        setSelectedProp((prev: any) => ({ 
+                            ...prev, 
+                            ...realData,
+                            type: realData.type || prev.type 
+                        }));
+                        if (realData.user) {
+                            setBaseOwnerData((prev: any) => ({
+                                ...prev,
+                                ...realData.user
+                            }));
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error reparando datos:", error);
+                }
+            }
+        };
+        verifyRealData();
+    }, [selectedProp?.id]);
 
+    // ============================================================
+    // 🚁 CONTROLADOR DE VUELO (FIX: ACTIVOS Y FAVORITOS)
+    // ============================================================
+    useEffect(() => {
+        const lat = Number(selectedProp?.location?.lat || selectedProp?.lat);
+        const lng = Number(selectedProp?.location?.lng || selectedProp?.lng);
+        const isValidCoordinate = (n: number) => n && !isNaN(n) && n !== 0;
+
+        if (isValidCoordinate(lat) && isValidCoordinate(lng)) {
+            window.dispatchEvent(new CustomEvent("fly-to-location", {
+                detail: { latitude: lat, longitude: lng, duration: 1.5 } 
+            }));
+        }
+    }, [selectedProp?.id, selectedProp?.lat, selectedProp?.location]);
     // ============================================================
     // 4. LÓGICA DE ACTUALIZACIÓN
     // ============================================================
