@@ -324,7 +324,7 @@ export async function getPropertyByIdAction(propertyId: string) {
   }
 }
 
-// C. GUARDAR PROPIEDAD (BLINDADO: PROTEGE EL RANGO PREMIUM)
+// C. GUARDAR PROPIEDAD (BLINDADO FINAL: PROTEGE PAGOS Y RANGO AL EDITAR)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
@@ -372,7 +372,9 @@ export async function savePropertyAction(data: any) {
       role: user.role || null
     };
 
-    // 5. CONSTRUCCIÓN DEL OBJETO (CORREGIDO: SIN promotedTier)
+    // 5. PAYLOAD LIMPIO (SIN STATUS NI PROMOTEDTIER)
+    // ⚠️ ATENCIÓN: He quitado 'status' y 'promotedTier' de aquí.
+    // Esto asegura que NUNCA se sobreescriban al editar.
     const payload = {
         userId: user.id,
         type: data.type || 'Piso',
@@ -391,7 +393,6 @@ export async function savePropertyAction(data: any) {
         door: data.door ? String(data.door) : null,
         elevator: Boolean(data.elevator),
 
-        // BOOLEANOS
         pool: servicesSet.has('pool'),
         garage: servicesSet.has('garage'),
         garden: servicesSet.has('garden'),
@@ -403,33 +404,25 @@ export async function savePropertyAction(data: any) {
         furnished: servicesSet.has('furnished'),
         security: servicesSet.has('security'),
 
-        // DETALLES
         state: data.state || null,         
         orientation: data.orientation || null, 
         exterior: data.exterior !== undefined ? Boolean(data.exterior) : true,
 
-        // 🛑 HE ELIMINADO promotedTier DE AQUÍ 🛑
-        // Esto evita que al guardar se sobreescriba "PREMIUM" con "FREE".
-        // El estado Premium ahora solo lo toca la pasarela de pago.
-
-        // CAMPOS MULTIMEDIA & B2B
+        // MULTIMEDIA & B2B
         videoUrl: data.videoUrl || null,
         tourUrl: data.tourUrl || null,
         simpleNoteUrl: data.simpleNoteUrl || null,
         energyCertUrl: data.energyCertUrl || null,
 
-        // DATOS DE AGENCIA
         mandateType: data.mandateType || "ABIERTO",
         commissionPct: data.commissionPct ? Number(data.commissionPct) : 0,
         sharePct: data.sharePct ? Number(data.sharePct) : 0,
         shareVisibility: data.shareVisibility || "PRIVATE",
         
-        // GESTIÓN FINAL
         selectedServices: finalServices,
         mainImage: mainImage,
         
-        // Lógica de Estado
-        status: (user.role === 'AGENCIA' || (data.id && data.id.length > 10)) ? 'PUBLICADO' : 'PENDIENTE_PAGO',
+        // ❌ AQUÍ NO PONEMOS STATUS NI PROMOTEDTIER
         
         ownerSnapshot: ownerSnapshot,
         communityFees: Number(data.communityFees || 0), 
@@ -454,15 +447,17 @@ export async function savePropertyAction(data: any) {
 
     let result;
 
-    // --- BLOQUE DE GUARDADO ---
+    // --- LÓGICA DE GUARDADO ---
     if (data.id && data.id.length > 20) {
-      // ✅ EDICIÓN
+      // ✅ EDICIÓN: PROHIBIDO TOCAR STATUS O PREMIUM
       const existing = await prisma.property.findUnique({ where: { id: data.id } });
       const { ownerSnapshot: _dontTouch, ...payloadNoSnap } = payload as any;
 
       if (existing && existing.userId === user.id) {
         await prisma.image.deleteMany({ where: { propertyId: data.id } });
 
+        // UPDATE: Solo actualizamos datos físicos. 
+        // STATUS y PREMIUM se quedan como estén en la base de datos.
         result = await prisma.property.update({
           where: { id: data.id },
           data: {
@@ -472,54 +467,44 @@ export async function savePropertyAction(data: any) {
           include: includeOptions,
         });
       } else {
-        // Fallback
-        const recent = await prisma.property.findFirst({
-          where: {
-            userId: user.id,
-            address: payload.address,
-            createdAt: { gte: new Date(Date.now() - 10_000) },
-          },
-          orderBy: { createdAt: "desc" },
-          include: includeOptions,
-        });
-
-        if (recent) return { success: true, property: recent, deduped: true };
-
+        // Fallback: Crear si no existe (raro)
+        // Solo en este caso extremo definimos status por defecto
         result = await prisma.property.create({
-          data: { ...payload, ownerSnapshot, images: imageCreateLogic },
+          data: { 
+              ...payload, 
+              ownerSnapshot, 
+              images: imageCreateLogic,
+              status: user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO',
+              promotedTier: 'FREE' 
+          },
           include: includeOptions,
         });
       }
     } else {
-      // ✅ CREACIÓN
-      const recent = await prisma.property.findFirst({
-        where: {
-          userId: user.id,
-          address: payload.address,
-          createdAt: { gte: new Date(Date.now() - 10_000) },
-        },
-        orderBy: { createdAt: "desc" },
-        include: includeOptions,
-      });
-
-      if (recent) return { success: true, property: recent, deduped: true };
+      // ✅ CREACIÓN NUEVA: AQUÍ SÍ DEFINIMOS EL ESTADO INICIAL
+      const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
 
       result = await prisma.$transaction(async (tx: any) => {
         // 1) Crear
         const created = await tx.property.create({
-          data: { ...(payload as any), ownerSnapshot, images: imageCreateLogic } as any,
+          data: { 
+              ...(payload as any), 
+              ownerSnapshot, 
+              images: imageCreateLogic,
+              // 🔥 ESTADO DE NACIMIENTO
+              status: initialStatus, 
+              promotedTier: "FREE" 
+          } as any,
           include: includeOptions as any,
         });
 
         // 2) Generar RefCode
-        if (created?.refCode) return created;
-
         const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         let out = "";
         for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
         const refCode = `SF-${out}`;
 
-        // 3) Actualizar con RefCode
+        // 3) Actualizar
         return await tx.property.update({
           where: { id: created.id },
           data: { refCode } as any,
@@ -531,9 +516,7 @@ export async function savePropertyAction(data: any) {
     // --- GUARDADO OPEN HOUSE (INTACTO) ---
     if (result && result.id && data.openHouse) {
         let ohData = data.openHouse;
-        if (typeof ohData === 'string') {
-            try { ohData = JSON.parse(ohData); } catch (e) {}
-        }
+        if (typeof ohData === 'string') { try { ohData = JSON.parse(ohData); } catch (e) {} }
         if (ohData && (ohData.enabled === true || String(ohData.enabled) === "true")) {
             await saveOpenHouseAction({
                 propertyId: result.id,
