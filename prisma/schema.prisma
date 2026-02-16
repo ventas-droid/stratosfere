@@ -6,141 +6,142 @@ datasource db {
   provider = "postgresql"
   url      = env("POSTGRES_URL")
 }
-
 model User {
-  id                       String                    @id @default(cuid())
-  email                    String                    @unique
-  name                     String?
-  phone                    String?
-  avatar                   String?
-  role                     UserRole                  @default(PARTICULAR)
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  cif                      String?
-  companyName              String?
-  licenseNumber            String?
-  password                 String?
-  surname                  String?
-  website                  String?
-  companyLogo              String?
-  coverImage               String?
-  licenseType              String?                   @default("STARTER")
-  mobile                   String?
-  tagline                  String?
-  zone                     String?
-  favorites                Favorite[]
-  properties               Property[]
+  id                     String                    @id @default(cuid()) @map("_id")
+  email                  String                    @unique
+  name                   String?
+  phone                  String?
+  avatar                 String?
+  role                   UserRole                  @default(PARTICULAR)
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  cif                    String?
+  companyName            String?
+  licenseNumber          String?
+  password               String?
+  surname                String?
+  website                String?
+  companyLogo            String?
+  coverImage             String?
+  licenseType            String?                   @default("STARTER")
+  mobile                 String?
+  tagline                String?
+  zone                   String?
+  
+  // Relaciones Básicas
+  favorites              Favorite[]
+  properties             Property[]
   conversationParticipants ConversationParticipant[]
-  messagesSent             Message[]
-  blocksOut                UserBlock[]               @relation("UserBlocksOut")
-  blocksIn                 UserBlock[]               @relation("UserBlocksIn")
-// 👇 AÑADA ESTO PARA LA INTELIGENCIA TÁCTICA 👇
-  lastLoginAt   DateTime? @default(now())  // Última vez que abrió la app
-  loginCount    Int       @default(0)      // Cuántas veces ha entrado en total
-  lastActiveAt  DateTime? @default(now())  // Última vez que movió el ratón (aprox)
+  messagesSent           Message[]
+  blocksOut              UserBlock[]               @relation("UserBlocksOut")
+  blocksIn               UserBlock[]               @relation("UserBlocksIn")
 
-  // ✅ Agency access (source of truth)
-  agencyTrialStartedAt DateTime?
-  agencyTrialEndsAt    DateTime?
-  agencyGraceEndsAt    DateTime?
+  // Inteligencia Táctica
+  lastLoginAt            DateTime? @default(now())  
+  loginCount             Int       @default(0)      
+  lastActiveAt           DateTime? @default(now())  
 
-  // ✅ Opposite relations (SaaS / Radar)
-  subscription      Subscription?
-  agencyContacts    AgencyContact[]
-  agencyCampaigns   Campaign[]
-  agencyAssignments PropertyAssignment[]
-  agencyTasks       Task[]
-  // 🔥 NUEVA RELACIÓN: ASISTENCIA A EVENTOS OPEN HOUSE
-  openHouseAttendances      OpenHouseAttendee[]
+  // 🔥 EL PUENTE SAAS (Agencia) - UNIFICADO
+  // Esta línea conecta con PropertyAssignment.agency
+  assignments            PropertyAssignment[]
 
+  // ✅ Datos de Agencia
+  agencyTrialStartedAt   DateTime?
+  agencyTrialEndsAt      DateTime?
+  agencyGraceEndsAt      DateTime?
+
+  // ✅ Relaciones Inversas
+  subscription           Subscription?
+  agencyContacts         AgencyContact[]
+  agencyCampaigns        Campaign[]
+  agencyTasks            Task[]
+  
+  // 🔥 OPEN HOUSE
+  openHouseAttendances   OpenHouseAttendee[]
 }
-
 model Property {
-  id                String   @id @default(cuid())
-  refCode           String?  @unique
-  userId            String?
-  address           String
-  city              String?
-  region            String?
-  postcode          String?
-  latitude          Float?
-  longitude         Float?
+  id             String   @id @default(cuid())
+  refCode        String?  @unique
+  userId         String?
   
-  // TIPO Y DATOS BÁSICOS
-  type              String   @default("Piso")
-  floor             String?
-  door              String?
-  elevator          Boolean  @default(false)
-  mBuilt            Float
-  rooms             Int
-  baths             Int
+  // Datos Físicos
+  address        String
+  city           String?
+  region         String?
+  postcode       String?
+  latitude       Float?
+  longitude      Float?
+  type           String   @default("Piso")
+  floor          String?
+  door           String?
+  elevator       Boolean  @default(false)
+  mBuilt         Float
+  rooms          Int
+  baths          Int
 
-  // 🔥 CARACTERÍSTICAS Y EXTRAS (LISTA COMPLETA)
-  pool              Boolean  @default(false)
-  garage            Boolean  @default(false)
-  garden            Boolean  @default(false)
-  security          Boolean  @default(false)
+  // Extras
+  pool           Boolean  @default(false)
+  garage         Boolean  @default(false)
+  garden         Boolean  @default(false)
+  security       Boolean  @default(false)
+  terrace        Boolean  @default(false)
+  balcony        Boolean  @default(false)
+  storage        Boolean  @default(false)
+  ac             Boolean  @default(false)
+  heating        Boolean  @default(false)
+  furnished      Boolean  @default(false)
   
-  // ✅ NUEVOS CAMPOS EXTRAS (Ya los tenía, los mantenemos)
-  terrace           Boolean  @default(false)
-  balcony           Boolean  @default(false)
-  storage           Boolean  @default(false)
-  ac                Boolean  @default(false)
-  heating           Boolean  @default(false)
-  furnished         Boolean  @default(false)
-  
-  // ✅ DETALLES DE ESTADO
-  state             String?
-  orientation       String?
-  exterior          Boolean? @default(true)
+  // Detalles
+  state          String?
+  orientation    String?
+  exterior       Boolean? @default(true)
 
-  // CAMPOS RESTANTES
-  title             String?
-  description       String?
+  // Marketing
+  title          String?
+  description    String?
+  mainImage      String?
+  price          Float?
+  communityFees  Float?
+  selectedServices String[]
+  status         String   @default("BORRADOR")
+  views          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ownerSnapshot  Json?
+
+  // Energía
   energyConsumption String?
   energyEmissions   String?
   energyPending     Boolean  @default(false)
-  mainImage         String?
-  price             Float?
-  communityFees     Float?
-  selectedServices  String[]
-  status            String   @default("BORRADOR")
-  views             Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  ownerSnapshot     Json?
 
-  // =========================================================
-  // 🔥 NOVEDAD: CAMPOS SAAS AGENCIA (Multimedia & Legal)
-  // =========================================================
-  videoUrl          String?  // YouTube / Vimeo
-  tourUrl           String?  // Matterport / 3D
-  simpleNoteUrl     String?  // URL al PDF Nota Simple
-  energyCertUrl     String?  // URL al PDF Certificado
+  // 🔥 SAAS: Multimedia & Legal
+  videoUrl          String?
+  tourUrl           String?
+  simpleNoteUrl     String?
+  energyCertUrl     String?
 
-  // =========================================================
-  // 🔥 NOVEDAD: COLABORACIÓN B2B (MLS)
-  // =========================================================
-  mandateType       String?  @default("ABIERTO") // "EXCLUSIVA" | "ABIERTO"
-  commissionPct     Float    @default(0)         // Lo que cobra la agencia captadora
-  sharePct          Float    @default(0)         // Lo que comparte (ej: 1.5%)
-  shareVisibility   String   @default("PRIVATE") // "PRIVATE" | "AGENCIES" | "PUBLIC"
+  // 🔥 SAAS: Pay to Win
+  promotedTier      String   @default("FREE") 
+
+  // 🔥 SAAS: B2B (Comisiones)
+  mandateType       String?  @default("ABIERTO")
+  commissionPct     Float    @default(0)
+  sharePct          Float    @default(0)
+  shareVisibility   String   @default("PRIVATE")
 
   // RELACIONES
-  favoritedBy       Favorite[]
-  images            Image[]
   user              User?    @relation(fields: [userId], references: [id])
-  serviceOrders     ServiceOrder[]
-
-  // ✅ RELACIONES SAAS
-  campaigns         Campaign[]
-  assignment        PropertyAssignment?
-  tasks             Task[]
   
-  // ✅ RELACIÓN EVENTOS
+  // 🔥 CONEXIÓN CON AGENCIA
+  assignment        PropertyAssignment?
+
+  images            Image[]
+  favoritedBy       Favorite[]
+  serviceOrders     ServiceOrder[]
+  campaigns         Campaign[]
+  tasks             Task[]
   openHouses        OpenHouse[]
 }
-
 model Image {
   id         String   @id @default(cuid())
   url        String
@@ -365,18 +366,27 @@ enum CampaignStatus {
 }
 
 model PropertyAssignment {
-  id         String   @id @default(cuid())
-  propertyId String   @unique
-  agencyId   String
-  campaignId String?
-  status     String   @default("ACTIVE") // ACTIVE|ENDED
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  
+  // Conexiones (El puente)
+  propertyId  String   @unique  // @unique es vital: 1 casa = 1 agencia asignada
+  agencyId    String
+  campaignId  String?
+  
+  // Estado
+  status      String   @default("ACTIVE") // ACTIVE | ENDED
+  
+  // Auditoría
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  agency   User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  // Relaciones (Los cables del puente)
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agency      User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
+  // Índices de Velocidad
   @@index([agencyId])
+  @@index([status])
 }
 
 model Task {

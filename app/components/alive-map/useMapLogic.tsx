@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { parseOmniSearch, CONTEXT_CONFIG } from './smart-search';
 import MapNanoCard from './ui-panels/MapNanoCard';
-
+import PremiumNanoCard from './ui-panels/PremiumNanoCard';
 // 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
 // import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
 const STRATOS_PROPERTIES : any[] = [];
@@ -365,8 +365,8 @@ if (src) {
     return () => window.removeEventListener('fly-to-location', handleFlyTo);
   }, []);
 
-  // --------------------------------------------------------------------
-  // D. PINTOR DE MARCADORES (UPDATE MARKERS) - CORREGIDO
+ // --------------------------------------------------------------------
+  // D. PINTOR DE MARCADORES (UPDATE MARKERS) - BLINDADO Y CON PREMIUM
   // --------------------------------------------------------------------
   const updateMarkers = () => {
     const mapInstance = map.current;
@@ -402,7 +402,7 @@ if (src) {
       const root = createRoot(el);
       const p = feature.properties;
 
-      // 1. RECUPERACIÓN DE IMAGEN REAL (Sin imágenes falsas)
+      // 1. RECUPERACIÓN DE IMAGEN REAL (Lógica original intacta)
       let safeImages: any[] = [];
       if (Array.isArray(p.images)) {
         safeImages = p.images.map((i: any) => (typeof i === "string" ? i : i?.url)).filter(Boolean);
@@ -413,94 +413,89 @@ if (src) {
         } catch (e) { safeImages = [p.images]; }
       }
       
-      // Si no hay array, miramos la propiedad suelta 'img'
       if (safeImages.length === 0 && p.img) safeImages = [p.img];
-
-      // Si no hay foto, pasamos null (La NanoCard sabrá qué hacer, pero no inventamos nada)
       const safeImg = safeImages[0] || null;
 
-      // 🔥 2. CORRECCIÓN CRÍTICA DE METROS CUADRADOS
-      // Buscamos el dato en todas las variantes posibles para que nunca salga "0" si el dato existe
+      // 2. CORRECCIÓN DE METROS (Lógica original intacta)
       const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
-  // ✅ Mapbox puede degradar objetos -> rehidratamos desde JSON string si hace falta
-const parseMaybeJSON = (v: any) => {
-  if (!v) return null;
-  if (typeof v === "object") return v;
-  if (typeof v === "string") {
-    try {
-      const j = JSON.parse(v);
-      return j && typeof j === "object" ? j : null;
-    } catch {}
-  }
-  return null;
-};
+      // 3. PARSEO DE JSON (Lógica original intacta)
+      const parseMaybeJSON = (v: any) => {
+        if (!v) return null;
+        if (typeof v === "object") return v;
+        if (typeof v === "string") {
+          try {
+            const j = JSON.parse(v);
+            return j && typeof j === "object" ? j : null;
+          } catch {}
+        }
+        return null;
+      };
 
-const snapObj = parseMaybeJSON(p.ownerSnapshot);
-const userObj = parseMaybeJSON(p.user) || snapObj;
+      const snapObj = parseMaybeJSON(p.ownerSnapshot);
+      const userObj = parseMaybeJSON(p.user) || snapObj;
 
-// Rehidratamos SIEMPRE a objeto si existe
-if (snapObj) p.ownerSnapshot = snapObj;
-if (userObj) p.user = userObj;
+      if (snapObj) p.ownerSnapshot = snapObj;
+      if (userObj) p.user = userObj;
 
-// Asegura rol en root (fallback para paneles)
-p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
+      p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
+      p.description = p.description || p.desc || "";
+      p.energyConsumption = p.energyConsumption || p.certificadoEnergetico || "";
+      p.energyEmissions = p.energyEmissions || p.emisiones || "";
+      p.energyPending = p.energyPending ?? false;
 
+      // 🔥 AQUÍ ESTÁ EL ÚNICO CAMBIO: DETECCIÓN DE PREMIUM 🔥
+      const isPremium = p.promotedTier && p.promotedTier !== 'FREE';
 
-// Garantiza campos mínimos para Details/NanoCard
-p.description = p.description || p.desc || "";
-p.energyConsumption = p.energyConsumption || p.certificadoEnergetico || "";
-p.energyEmissions = p.energyEmissions || p.emisiones || "";
-p.energyPending = p.energyPending ?? false;
-
-  
       root.render(
-        <MapNanoCard
-          id={id}
-          data={p}
-          // Datos Financieros
-          price={p.price}
-          priceValue={p.priceValue}
-          rawPrice={p.priceValue}
-          
-          // Datos Físicos
-          rooms={p.rooms}
-          baths={p.baths}
-          
-          // 🔥 AQUÍ PASAMOS EL DATO UNIFICADO
-          mBuilt={finalM2}
-          m2={finalM2} 
-          
-          // Equipamiento
-          selectedServices={p.selectedServices}
-          elevator={p.elevator}
-          specs={p.specs}
-          type={p.type}
-          
-          // Imágenes
-          img={safeImg}
-          images={safeImages}
-          
-          // Coordenadas
-          lat={feature.geometry.coordinates[1]}
-          lng={feature.geometry.coordinates[0]}
-          
-          // Información General
-          role={p.role}
-          title={p.title}
-          description={p.description}
-          
-          // Dirección
-          address={p.address || p.location}
-          city={p.city || p.location}
-          location={p.location || p.city || p.address}
-          
-          // Datos Técnicos
-          communityFees={p.communityFees}
-          energyConsumption={p.energyConsumption}
-          energyEmissions={p.energyEmissions}
-          energyPending={p.energyPending}
-        />
+        isPremium ? (
+          // 💎 OPCIÓN A: TARJETA DE ÉLITE (Si paga)
+          <PremiumNanoCard 
+             property={{
+                ...p, 
+                id,
+                img: safeImg,    // Usamos la imagen ya procesada
+                mBuilt: finalM2  // Usamos los metros ya procesados
+             }} 
+             onClick={(e: any) => {
+                e?.stopPropagation();
+                // Disparamos los mismos eventos que la tarjeta normal para abrir Details
+                window.dispatchEvent(new CustomEvent("open-details-signal", { detail: { ...p, id } }));
+                window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
+             }}
+          />
+        ) : (
+          // 📦 OPCIÓN B: TARJETA ESTÁNDAR (Su código original EXACTO)
+          <MapNanoCard
+            id={id}
+            data={p}
+            price={p.price}
+            priceValue={p.priceValue}
+            rawPrice={p.priceValue}
+            rooms={p.rooms}
+            baths={p.baths}
+            mBuilt={finalM2}
+            m2={finalM2} 
+            selectedServices={p.selectedServices}
+            elevator={p.elevator}
+            specs={p.specs}
+            type={p.type}
+            img={safeImg}
+            images={safeImages}
+            lat={feature.geometry.coordinates[1]}
+            lng={feature.geometry.coordinates[0]}
+            role={p.role}
+            title={p.title}
+            description={p.description}
+            address={p.address || p.location}
+            city={p.city || p.location}
+            location={p.location || p.city || p.address}
+            communityFees={p.communityFees}
+            energyConsumption={p.energyConsumption}
+            energyEmissions={p.energyEmissions}
+            energyPending={p.energyPending}
+          />
+        )
       );
 
       const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
@@ -510,7 +505,6 @@ p.energyPending = p.energyPending ?? false;
       markersRef.current[id] = marker;
     });
   };
-
   // --------------------------------------------------------------------
   // E. BÚSQUEDA OMNI V3 (AUTO-ZOOM) - 🇪🇸 SOLO ESPAÑA (CALIBRADO) 🇪🇸
   // --------------------------------------------------------------------

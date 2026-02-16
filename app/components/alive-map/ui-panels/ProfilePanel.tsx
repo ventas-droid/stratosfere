@@ -34,9 +34,24 @@ import { uploadToCloudinary } from '@/app/utils/upload';
 const normalizeKey = (v: any) => String(v || '').toLowerCase().trim();
 
 const getServiceIds = (prop: any): string[] => {
+    // 1. Obtenemos la lista sucia
     const ids = Array.isArray(prop?.selectedServices) ? prop.selectedServices : [];
-    const NON_SERVICE_KEYS = new Set(['pool','piscina','garden','jardin','jardín','garage','garaje','security','seguridad','elevator','ascensor','parking','aparcamiento','trastero','storage','terraza','terraz','balcon','balcón','aire','air','aircon','ac','calefaccion','calefacción','heating','m2','mbuilt','m_built','bed','beds','bath','baths','room','rooms']);
-    const filtered = ids.filter((id: any) => id && !NON_SERVICE_KEYS.has(String(id).toLowerCase().trim()));
+    
+    // 2. LISTA NEGRA (Aquí añadimos lo que queremos esconder: Pack Basic, Balcón, Amueblado...)
+    const BASURA_A_ESCONDER = new Set([
+        'pool','piscina','garden','jardin','jardín','garage','garaje',
+        'security','seguridad','elevator','ascensor','parking','aparcamiento',
+        'trastero','storage','terraza','terraz','balcon','balcón','balcony', // <--- Balcón fuera
+        'aire','air','aircon','ac','calefaccion','calefacción','heating',
+        'm2','mbuilt','m_built','bed','beds','bath','baths','room','rooms',
+        'furnished','amueblado', // <--- Amueblado fuera
+        'pack_basic','pack_premium','pack_pro' // <--- Packs fuera
+    ]);
+
+    // 3. Filtramos
+    const filtered = ids.filter((id: any) => id && !BASURA_A_ESCONDER.has(String(id).toLowerCase().trim()));
+    
+    // 4. Devolvemos limpia
     return Array.from(new Set(filtered));
 };
 
@@ -448,9 +463,9 @@ export default function ProfilePanel({
                                     <p className="text-lg font-black text-slate-900 mt-1">{prop.price}</p>
                                 </div>
                             </div>
-
-                            {/* TARJETA DE GESTIÓN O TAGS */}
+{/* TARJETA DE GESTIÓN O TAGS (CORREGIDA) */}
                             {isManaged && activeCampaign ? (
+                                // CASO A: AGENCIA (Tarjeta Azul)
                                 <div className="mb-4 bg-white p-4 rounded-[20px] border border-indigo-100 shadow-sm relative">
                                     <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
                                         <div className="flex items-center gap-1.5">
@@ -468,18 +483,26 @@ export default function ProfilePanel({
                                     </button>
                                 </div>
                             ) : (
-                                prop.selectedServices && prop.selectedServices.length > 0 && (
-                                    <div className="mb-4 bg-slate-50 p-4 rounded-[20px] border border-slate-100/80 shadow-sm">
-                                        <div className="flex items-center gap-2 mb-3 opacity-70">
-                                            <Zap size={10} className="text-yellow-500 fill-yellow-500" /><span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Estrategia Activa</span>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
+                                // CASO B: PARTICULAR (Tarjeta Gris - CORREGIDA)
+                                <div className="mb-4 bg-slate-50 p-4 rounded-[20px] border border-slate-100/80 shadow-sm">
+                                    <div className="flex items-center gap-2 mb-2 opacity-70">
+                                        <User size={10} className="text-slate-500" />
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">GESTIÓN PARTICULAR</span>
+                                    </div>
+                                    
+                                    {/* USAMOS serviceIds (filtrado) EN LUGAR DE prop.selectedServices */}
+                                    {serviceIds && serviceIds.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             {serviceIds.slice(0, 4).map((srvId: string) => (
-                                                <div key={srvId} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase bg-white border-slate-200 text-slate-500"><span>{srvId}</span></div>
+                                                <div key={srvId} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase bg-white border-slate-200 text-slate-500">
+                                                    <span>{srvId}</span>
+                                                </div>
                                             ))}
                                         </div>
-                                    </div>
-                                )
+                                    ) : (
+                                        <p className="text-[10px] text-slate-400 font-medium italic mt-1">Venta directa sin intermediarios.</p>
+                                    )}
+                                </div>
                             )}
 
                             <div className="pt-3 border-t border-slate-100 flex gap-2">
@@ -500,7 +523,6 @@ export default function ProfilePanel({
             )}
           </div>
         )}
-
         {/* --- VISTA: TICKETS (CORREGIDA - NO CIERRA PANEL) --- */}
         {internalView === 'TICKETS' && (
            <div className="animate-fade-in-right space-y-6 pt-4">
@@ -572,18 +594,67 @@ export default function ProfilePanel({
         )}
       </div>
 
-      {/* MODAL 1: SERVICIOS */}
+     {/* MODAL 1: SERVICIOS / ESTRATEGIA (DISEÑO PREMIUM) */}
       {servicesModalProp && (
-        <div className="fixed inset-0 z-[999999] pointer-events-auto flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setServicesModalProp(null)}>
-            <div className="w-[min(400px,92vw)] bg-white rounded-[2rem] border border-slate-200 shadow-2xl p-6 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-black text-slate-900">Servicios</h3>
-                    <button className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200" onClick={() => setServicesModalProp(null)}><X size={14}/></button>
+        <div 
+            className="fixed inset-0 z-[999999] pointer-events-auto flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in" 
+            onClick={() => setServicesModalProp(null)}
+        >
+            <div 
+                className="w-[min(400px,92vw)] bg-white rounded-[32px] overflow-hidden shadow-2xl relative animate-scale-in" 
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* CABECERA CON FONDO */}
+                <div className="bg-slate-50 p-6 pb-8 border-b border-slate-100 text-center relative">
+                    {/* BOTÓN CIERRE TORNILLO (Gira al pasar el mouse) */}
+                    <button 
+                        onClick={() => setServicesModalProp(null)}
+                        className="absolute top-4 right-4 w-10 h-10 bg-white hover:bg-slate-100 rounded-full flex items-center justify-center transition-all duration-500 shadow-sm border border-slate-200 text-slate-400 hover:text-slate-900 z-20 hover:rotate-90 active:scale-90 cursor-pointer"
+                    >
+                        <X size={20} />
+                    </button>
+
+                    <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-slate-100 mx-auto flex items-center justify-center mb-4 text-emerald-500">
+                        <Store size={32} />
+                    </div>
+                    
+                    <h3 className="text-xl font-black text-slate-900 mb-1">Estrategia de Venta</h3>
+                    <p className="text-xs text-slate-500 font-medium px-8">
+                        Herramientas activas para acelerar la operación.
+                    </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    {getServiceIds(servicesModalProp).map((srvId: string) => (
-                        <span key={srvId} className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold uppercase text-slate-600 border border-slate-200">{srvId}</span>
-                    ))}
+
+                {/* CUERPO DEL MODAL */}
+                <div className="p-6">
+                    {getServiceIds(servicesModalProp).length > 0 ? (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            {getServiceIds(servicesModalProp).map((srvId: string) => (
+                                <div key={srvId} className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{srvId}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        // ESTADO VACÍO (INVITACIÓN A MARKETPLACE)
+                        <div className="text-center py-4">
+                            <p className="text-sm text-slate-400 mb-6 italic">
+                                Actualmente usas la estrategia orgánica básica.
+                            </p>
+                            
+                            <button 
+                                onClick={() => { 
+                                    setServicesModalProp(null); 
+                                    toggleRightPanel('NONE'); 
+                                    if(toggleMainPanel) toggleMainPanel('MARKETPLACE'); 
+                                }}
+                                className="w-full py-4 bg-[#1c1c1e] text-white rounded-2xl text-xs font-bold uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                            >
+                                <Zap size={14} className="text-yellow-400 group-hover:text-white transition-colors"/> 
+                                Potenciar Anuncio
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

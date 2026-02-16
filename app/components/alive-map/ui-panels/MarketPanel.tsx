@@ -1,383 +1,229 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-    X, ArrowRight, Check, Star, Award, Crown, TrendingUp, Zap,
-    Camera, Video, Globe, Box, Ruler, Megaphone, FileText, ArrowUp,
-    FileCheck, Activity, LayoutGrid, MapPin, Droplets, Paintbrush, Truck, ShieldCheck
+    X, MessageCircle, Phone, MapPin, 
+    ShieldCheck, Star, Trophy, ExternalLink, 
+    Check, Zap, Camera, Video, FileText, 
+    Briefcase, LayoutGrid, Globe, Crown
 } from 'lucide-react';
-import { savePropertyAction } from '@/app/actions';
-// ==================================================================================
-// 1. CATÁLOGO EXACTO (PRECIOS REALES DEL SISTEMA)
-// ==================================================================================
-const SERVICES_CATALOG = [
-  // --- PACKS ---
-  { id: "pack_basic", name: "KIT INICIADO", price: 29.9, category: "PACKS", icon: Star, desc: "Foto Pro + Plano + Certificado." },
-  { id: "pack_pro", name: "KIT VISIBILIDAD", price: 99.9, category: "PACKS", icon: Award, desc: "Tour 3D + Portales Top + Redes." },
-  { id: "pack_elite", name: "STRATOS GOD MODE", price: 199.9, category: "PACKS", icon: Crown, desc: "Todo incluido + Abogado + Open House." },
-  { id: "pack_investor", name: "PACK INVERSOR", price: 149.9, category: "PACKS", icon: TrendingUp, desc: "Dossier rentabilidad + Emailing." },
-  { id: "pack_express", name: "VENTA EXPRESS", price: 79.9, category: "PACKS", icon: Zap, desc: "Destacado agresivo 15 días." },
 
-  // --- ONLINE ---
-  { id: "foto", name: "FOTOGRAFÍA HDR", price: 99, category: "ONLINE", icon: Camera, desc: "Calidad revista. 20 fotos." },
-  { id: "video", name: "VÍDEO CINE", price: 199.9, category: "ONLINE", icon: Video, desc: "Narrativa emocional 4K." },
-  { id: "drone", name: "FOTOGRAFÍA DRONE", price: 120, category: "ONLINE", icon: Globe, desc: "Vistas aéreas del entorno." },
-  { id: "tour3d", name: "TOUR VIRTUAL 3D", price: 150, category: "ONLINE", icon: Box, desc: "Matterport inmersivo." },
-  { id: "destacado", name: "POSICIONAMIENTO", price: 49, category: "ONLINE", icon: ArrowUp, desc: "Siempre primero en listas." },
-  { id: "ads", name: "PAID SOCIAL ADS", price: 79.9, category: "ONLINE", icon: Megaphone, desc: "Campaña Instagram & FB." },
-  { id: "plano_2d", name: "PLANO TÉCNICO", price: 59, category: "ONLINE", icon: Ruler, desc: "Cotas y distribución 2D." },
-  { id: "plano_3d", name: "PLANO 3D", price: 89, category: "ONLINE", icon: Box, desc: "Volumetría amueblada." },
-  { id: "email", name: "EMAIL INVERSORES", price: 149, category: "ONLINE", icon: FileText, desc: "Acceso a base de datos VIP." },
-  { id: "copy", name: "COPYWRITING PRO", price: 39, category: "ONLINE", icon: FileText, desc: "Textos persuasivos de venta." },
+// ==================================================================================
+// 1. DICCIONARIO DE SERVICIOS (El mismo que usa la Agencia en su Radar)
+// ==================================================================================
+const SERVICE_ICONS: Record<string, any> = {
+    'foto': Camera, 'video': Video, 'drone': Globe, 'tour3d': LayoutGrid,
+    'destacado': Zap, 'ads': Zap, 'legal': FileText, 'certificado': FileText,
+    'openhouse': Trophy, 'homestaging': LayoutGrid, 'limpieza': Zap
+};
 
-  // --- OFFLINE ---
-  { id: "certificado", name: "CERTIFICADO ENERG.", price: 120, category: "OFFLINE", icon: FileCheck, desc: "Etiqueta oficial obligatoria." },
-  { id: "cedula", name: "CÉDULA HABITAB.", price: 90, category: "OFFLINE", icon: FileText, desc: "Trámite ayuntamiento." },
-  { id: "nota_simple", name: "NOTA SIMPLE", price: 20, category: "OFFLINE", icon: FileText, desc: "Verificación registral." },
-  { id: "tasacion", name: "TASACIÓN OFICIAL", price: 250, category: "OFFLINE", icon: Activity, desc: "Valoración bancaria." },
-  { id: "lona", name: "LONA FACHADA XL", price: 49.9, category: "OFFLINE", icon: LayoutGrid, desc: "Visibilidad física 24/7." },
-  { id: "buzoneo", name: "BUZONEO PREMIUM", price: 29.9, category: "OFFLINE", icon: MapPin, desc: "Dominio del barrio (2000 u)." },
-  { id: "revista", name: "REVISTA LUXURY", price: 59.9, category: "OFFLINE", icon: FileText, desc: "Prensa papel local." },
-  { id: "openhouse", name: "OPEN HOUSE VIP", price: 149.9, category: "OFFLINE", icon: Zap, desc: "Evento puertas abiertas." },
-  { id: "homestaging", name: "HOME STAGING", price: 299, category: "OFFLINE", icon: Box, desc: "Muebles de cartón/reales." },
-  { id: "limpieza", name: "LIMPIEZA PRO", price: 89.9, category: "OFFLINE", icon: Droplets, desc: "Puesta a punto total." },
-  { id: "pintura", name: "LAVADO DE CARA", price: 450, category: "OFFLINE", icon: Paintbrush, desc: "Pintura blanco neutro." },
-  { id: "mudanza", name: "MUDANZA", price: 300, category: "OFFLINE", icon: Truck, desc: "Servicio logística." },
-  { id: "seguro", name: "SEGURO IMPAGO", price: 199, category: "OFFLINE", icon: ShieldCheck, desc: "Protección alquiler/venta." },
+const SERVICE_LABELS: Record<string, string> = {
+    'foto': 'Fotografía HDR', 'video': 'Vídeo Cine 4K', 'drone': 'Vuelo Drone',
+    'tour3d': 'Tour Virtual', 'legal': 'Asesoría Jurídica', 'openhouse': 'Open House VIP',
+    'ads': 'Campaña Social Ads', 'destacado': 'Posicionamiento Top'
+};
+
+// ==================================================================================
+// 2. SIMULACIÓN DE BASE DE DATOS (AGENCIES PER ZONE)
+// ==================================================================================
+// Esto es lo que el servidor devolvería: "SELECT * FROM Agencies WHERE Zone = 'Manilva' LIMIT 3"
+const SPONSORED_AGENCIES = [
+    {
+        id: "agency_bernabeu",
+        name: "Bernabeu Realty",
+        slogan: "Excellence in Real Estate",
+        logo: "B", // Simulado
+        coverImage: "https://images.unsplash.com/photo-1600596542815-2495db98dada?q=80&w=2088&auto=format&fit=crop", // Villa de lujo
+        description: "Especialistas en propiedades exclusivas en la Costa del Sol. Transformamos tu propiedad en un producto de deseo mediante marketing cinematográfico y gestión legal impecable.",
+        zone: "Manilva",
+        tier: "PLATINUM", // El que más paga
+        website: "https://www.bernabeurealty.com/",
+        phone: "34600000000",
+        
+        // 🔥 ESTO ES LO QUE LA AGENCIA ACTIVÓ EN SU "TACTICAL RADAR"
+        activeServices: ['video', 'drone', 'openhouse', 'legal', 'ads'],
+        
+        stats: { sold: 120, avgTime: "45 días", rating: 4.9 }
+    },
+    {
+        id: "agency_costa",
+        name: "Costa Living",
+        slogan: "Venta rápida y segura",
+        logo: "C",
+        coverImage: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=2070&auto=format&fit=crop",
+        description: "Agencia local enfocada en el trato cercano y la rapidez. Conocemos a cada vecino de Manilva.",
+        zone: "Manilva",
+        tier: "GOLD",
+        website: "#",
+        phone: "34611111111",
+        activeServices: ['foto', 'certificado', 'destacado'],
+        stats: { sold: 85, avgTime: "60 días", rating: 4.7 }
+    },
+    {
+        id: "agency_sun",
+        name: "Sun Properties",
+        slogan: "Tu casa al sol",
+        logo: "S",
+        coverImage: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop",
+        description: "Expertos en clientes internacionales. Hablamos 6 idiomas y traemos compradores de todo el mundo.",
+        zone: "Manilva",
+        tier: "GOLD",
+        website: "#",
+        phone: "34622222222",
+        activeServices: ['tour3d', 'legal', 'ads'],
+        stats: { sold: 200, avgTime: "90 días", rating: 4.5 }
+    }
 ];
 
-// 🔥 FIX: AÑADIDO 'activeProperty' PARA QUE EL BOTÓN GESTIONAR FUNCIONE
-export default function MarketPanel({ onClose, initialData, activeProperty }: any) {
+export default function AgencyMarketPanel({ onClose, activeProperty }: any) {
   
-  // ⚡️ EL CEREBRO: Aquí decidimos qué datos usar. Prioridad al Perfil (activeProperty)
-  const incomingData = activeProperty || initialData;
+  // 1. Detectar Zona de la Propiedad (Simulado)
+  const propAddress = activeProperty?.address || activeProperty?.location || "";
+  // Si la dirección contiene "Manilva", mostramos las de Manilva. Si no, mostramos vacio o nacionales.
+  // Para la demo, forzamos que SIEMPRE salgan las de Manilva si no detecta nada, para que usted lo vea.
+  const relevantAgencies = SPONSORED_AGENCIES; 
 
-  const [activeTab, setActiveTab] = useState<'ONLINE' | 'OFFLINE' | 'PACKS'>('ONLINE');
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [currentProp, setCurrentProp] = useState<any>(null);
-  
-  // 🔒 Bolsillo para guardar Piscina, Garaje, etc.
-  const preservedExtras = useRef<string[]>([]); 
-
-  // ==============================================================================
-  // 🟢 2. CARGA DE MEMORIA (AHORA ESCUCHA A 'incomingData')
-  // ==============================================================================
-  useEffect(() => {
-    // Si no hay datos, abortamos
-    if (!incomingData?.id) return;
-
-    const targetId = String(incomingData.id);
-    console.log(`🦅 Market: Intentando cargar ID: ${targetId}`);
-
-    try {
-        const savedData = localStorage.getItem('stratos_my_properties');
-        if (savedData) {
-            const allProps = JSON.parse(savedData);
-            const freshProp = allProps.find((p: any) => String(p.id) === targetId);
-
-            if (freshProp) {
-                // ✅ ENCONTRADO EN MEMORIA
-                setCurrentProp(freshProp);
-                
-                const fullList = Array.isArray(freshProp.selectedServices) 
-                    ? freshProp.selectedServices 
-                    : [];
-
-                // 1. Lo que es Marketing (Fotos, Packs...) -> Al estado visual
-                const visualServices = fullList.filter((id:string) => 
-                    SERVICES_CATALOG.some(s => s.id === id)
-                );
-
-                // 2. Lo que es Físico (Piscina, Garaje...) -> Al bolsillo secreto
-                const hiddenExtras = fullList.filter((id:string) => 
-                    !SERVICES_CATALOG.some(s => s.id === id)
-                );
-
-                console.log("✅ Datos Restaurados. Servicios:", visualServices);
-                setSelectedServices(visualServices);
-                preservedExtras.current = hiddenExtras; 
-            } else {
-                // ⚠️ NO ESTÁ EN MEMORIA (Usamos lo que llega por props)
-                console.log("⚠️ ID no hallado en Storage, usando datos directos.");
-                setCurrentProp(incomingData);
-                setSelectedServices(incomingData.selectedServices || []);
-                preservedExtras.current = [];
-            }
-        } else {
-             setCurrentProp(incomingData);
-             setSelectedServices(incomingData.selectedServices || []);
-        }
-    } catch (err) { console.error("Error cargando Market:", err); }
-  }, [incomingData?.id]); // 🔥 ESTO ES CLAVE: Escuchamos el ID correcto
-
-  // --- INTERACCIÓN ---
-  const toggleService = (id: string) => {
-    let newList;
-    if (id.startsWith('pack_')) {
-        if (selectedServices.includes(id)) {
-             newList = selectedServices.filter(s => s !== id);
-        } else {
-             const others = selectedServices.filter(s => !s.startsWith('pack_'));
-             newList = [...others, id];
-        }
-    } else {
-        if (selectedServices.includes(id)) {
-            newList = selectedServices.filter(s => s !== id);
-        } else {
-            newList = [...selectedServices, id];
-        }
-    }
-    setSelectedServices(newList);
+  const handleContact = (agency: any) => {
+      const msg = `Hola ${agency.name}, he visto vuestro perfil Premium en Stratosfere. Tengo una propiedad en ${propAddress} y me interesa vuestra propuesta de gestión.`;
+      window.open(`https://wa.me/${agency.phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
-
-  // --- CÁLCULO DE ROL ---
-  const calculateAuthority = () => { 
-      let score = 0; 
-      const count = selectedServices.filter((id) => !id.startsWith("pack_")).length; 
-      score += count * 5; 
-      if (selectedServices.includes("pack_basic")) score = Math.max(score, 20); 
-      if (selectedServices.includes("pack_express")) score = Math.max(score, 35); 
-      if (selectedServices.includes("pack_pro")) score = Math.max(score, 60); 
-      if (selectedServices.includes("pack_investor")) score = Math.max(score, 80); 
-      if (selectedServices.includes("pack_elite")) score = 100; 
-      return Math.min(100, score); 
-  };
-  
-  const authorityLevel = calculateAuthority();
-  
-  const getRoleLabel = (level: number) => { 
-      if (level >= 100) return "LEYENDA"; 
-      if (level >= 80) return "BROKER"; 
-      if (level >= 60) return "PRO SELLER"; 
-      if (level >= 35) return "AVANZADO"; 
-      return "NOVATO"; 
-  };
-
-  const getRoleStyle = (level: number) => { 
-      if (level >= 100) return { label: "LEYENDA", gradient: "from-indigo-500 via-purple-500 to-pink-500" }; 
-      if (level >= 80) return { label: "BROKER", gradient: "from-emerald-400 to-cyan-500" }; 
-      if (level >= 60) return { label: "PRO SELLER", gradient: "from-blue-400 to-indigo-500" }; 
-      if (level >= 35) return { label: "AVANZADO", gradient: "from-amber-400 to-orange-500" }; 
-      return { label: "NOVATO", gradient: "from-gray-300 to-gray-400" }; 
-  };
-  const roleStyle = getRoleStyle(authorityLevel);
-
-  // --- CÁLCULO TOTAL ---
-  const total = selectedServices.reduce((acc, id) => {
-      const item = SERVICES_CATALOG.find(s => s.id === id);
-      return acc + (item ? item.price : 0);
-  }, 0);
-
-  // --- ESTILOS DE ICONO ---
-  const getIconColor = (item: any, isPack: boolean, isActive: boolean) => {
-      if (isPack && !isActive) return "bg-white/10 text-white"; 
-      if (isPack && isActive) return "bg-blue-50 text-blue-600";
-      if (item.id.includes("video")) return "bg-purple-100 text-purple-600"; 
-      if (item.id.includes("drone")) return "bg-sky-100 text-sky-600"; 
-      return "bg-gray-100 text-gray-600"; 
-  };
-
-  // ==============================================================================
-  // 💾 3. GUARDADO TURBO (ACTUALIZACIÓN INSTANTÁNEA + SERVIDOR)
-  // ==============================================================================
-  const handleConfirm = async () => { // <--- AHORA ES ASYNC
-      if (!currentProp) return;
-
-      try {
-          const saved = localStorage.getItem('stratos_my_properties');
-          
-          // 1. Preparamos los datos nuevos
-          const finalServicesList = [...preservedExtras.current, ...selectedServices];
-          const newRole = getRoleLabel(authorityLevel);
-          
-          // 2. Construimos el objeto actualizado EN MEMORIA
-          const updatedProp = { 
-              ...currentProp, 
-              selectedServices: finalServicesList, 
-              role: newRole, 
-              impactLevel: authorityLevel,
-              strategyValue: total 
-          };
-
-          console.log("📡 Conectando con Base de Datos...", updatedProp);
-
-          // 🔥 3. GUARDADO REAL EN BASE DE DATOS (LA PIEZA QUE FALTABA)
-          // Esto asegura que si recarga o cambia de PC, los servicios siguen ahí.
-          await savePropertyAction(updatedProp);
-
-          // 4. Guardamos en disco local (Respaldo de velocidad)
-          if (saved) {
-              const allProps = JSON.parse(saved);
-              const updatedPropsList = allProps.map((p: any) => 
-                  String(p.id) === String(currentProp.id) ? updatedProp : p
-              );
-              localStorage.setItem('stratos_my_properties', JSON.stringify(updatedPropsList));
-          }
-          
-          // ⚡️ 5. DISPARO VISUAL (Para que el usuario lo vea al instante)
-          // Actualiza la ficha de detalles
-          window.dispatchEvent(new CustomEvent('update-details-live', { detail: updatedProp }));
-          // Actualiza la NanoCard en el mapa
-          window.dispatchEvent(new CustomEvent('update-marker-signal', { detail: updatedProp }));
-          // Fuerza recarga del perfil lateral
-          window.dispatchEvent(new CustomEvent('reload-profile-assets'));
-
-          if(onClose) onClose();
-
-      } catch(e) { console.error("Error guardando:", e); }
-  };
-  
-  const visibleServices = SERVICES_CATALOG.filter(s => s.category === activeTab);
 
   return (
-    <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
-      <div className="absolute inset-0 bg-[#E5E5EA]/95 backdrop-blur-3xl shadow-2xl border-r border-white/20"></div>
+    <div className="fixed inset-y-0 left-0 w-full md:w-[500px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left bg-[#F5F5F7] border-r border-slate-200 shadow-2xl">
+      
+      {/* --- CABECERA (CONTEXTO) --- */}
+      <div className="bg-white px-8 pt-10 pb-6 border-b border-slate-100 shrink-0">
+          <div className="flex justify-between items-start mb-4">
+              <div>
+                  <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none mb-2">
+                      Top Agencies.
+                  </h1>
+                  <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full w-fit border border-emerald-100">
+                      <MapPin size={12} fill="currentColor" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Zona: {activeProperty?.city || "Manilva / Sotogrande"}</span>
+                  </div>
+              </div>
+              <button onClick={onClose} className="w-10 h-10 bg-slate-50 hover:bg-slate-100 rounded-full flex items-center justify-center transition-colors">
+                  <X size={20} className="text-slate-500"/>
+              </button>
+          </div>
+          
+          <p className="text-xs text-slate-500 font-medium leading-relaxed">
+             Estas son las 3 agencias certificadas con mayor rendimiento en tu código postal. 
+             Contacta directamente para activar sus servicios.
+          </p>
+      </div>
 
-      <div className="relative z-10 flex flex-col h-full font-sans text-slate-900">
-        
-        {/* CABECERA */}
-        <div className="px-8 pt-10 pb-4 flex flex-col shrink-0">
-            <div className="flex justify-between items-start mb-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none mb-1">Market.</h1>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                    {currentProp ? currentProp.title : 'Estrategia'}
-                    </p>
-                </div>
-                {onClose && (
-                    <button onClick={onClose} className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform cursor-pointer">
-                        <X size={20} className="text-slate-900"/>
-                    </button>
-                )}
-            </div>
+      {/* --- LISTA DE AGENCIAS (EL ESCAPARATE) --- */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar space-y-8">
+          
+          {relevantAgencies.map((agency, index) => {
+              const isPlatinum = agency.tier === 'PLATINUM';
+              
+              return (
+                  <div key={agency.id} className={`group relative bg-white rounded-[32px] overflow-hidden transition-all duration-300 ${isPlatinum ? 'shadow-2xl shadow-blue-900/10 ring-1 ring-blue-100' : 'shadow-sm hover:shadow-xl border border-slate-100'}`}>
+                      
+                      {/* BADGE PLATINUM (SOLO PARA BERNABEU) */}
+                      {isPlatinum && (
+                          <div className="absolute top-4 right-4 z-20 bg-slate-900 text-white px-3 py-1 rounded-full flex items-center gap-1.5 shadow-lg">
+                              <Crown size={12} fill="#FFD700" className="text-yellow-400"/>
+                              <span className="text-[9px] font-black uppercase tracking-widest">Partner Oficial</span>
+                          </div>
+                      )}
 
-            {/* NIVEL DE IMPACTO */}
-            <div className="flex justify-between items-end mb-2 px-1">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Nivel de Impacto</span>
-                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-white shadow-sm bg-gradient-to-r ${roleStyle.gradient}`}>
-                    {roleStyle.label}
-                </span>
-            </div>
-            
-            <div className="flex gap-1 h-1.5 w-full mb-6">
-                {[...Array(20)].map((_, i) => { 
-                    const threshold = (i + 1) * 5; 
-                    const isActive = authorityLevel >= threshold; 
-                    return <div key={i} className={`flex-1 rounded-full transition-all duration-500 ${isActive ? `bg-gradient-to-r ${roleStyle.gradient}` : "bg-slate-300 opacity-50"}`} />; 
-                })}
-            </div>
+                      {/* 1. PORTADA CORPORATIVA */}
+                      <div className="h-40 relative overflow-hidden">
+                          <img src={agency.coverImage} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="Cover"/>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                          
+                          {/* Logo y Nombre sobre la imagen */}
+                          <div className="absolute bottom-4 left-6 right-6 text-white">
+                              <div className="flex items-end justify-between">
+                                  <div>
+                                      <h2 className="text-2xl font-black leading-none mb-1">{agency.name}</h2>
+                                      <p className="text-[11px] text-slate-300 font-medium tracking-wide opacity-90">{agency.slogan}</p>
+                                  </div>
+                                  <div className="w-10 h-10 bg-white text-slate-900 rounded-full flex items-center justify-center font-black text-lg shadow-lg">
+                                      {agency.logo}
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
 
-            {/* TABS */}
-            <div className="bg-white/50 p-1 rounded-xl flex shadow-inner border border-white/50">
-                {['ONLINE', 'OFFLINE', 'PACKS'].map((tab) => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab as any)}
-                        className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${activeTab === tab ? "bg-white text-slate-900 shadow-sm scale-[1.02]" : "text-slate-400 hover:text-slate-600"}`}
-                    >
-                        {tab === 'PACKS' && <Star size={10} className={`inline mr-1 mb-0.5 ${activeTab === tab ? 'text-yellow-500 fill-yellow-500' : ''}`}/>}
-                        {tab}
-                    </button>
-                ))}
-            </div>
-        </div>
+                      {/* 2. CUERPO DE LA FICHA */}
+                      <div className="p-6">
+                          
+                          {/* Descripción */}
+                          <p className="text-xs text-slate-500 font-medium leading-relaxed mb-5 line-clamp-3">
+                              {agency.description}
+                          </p>
 
-        {/* GRID */}
-        <div className="flex-1 overflow-y-auto px-6 pb-32 custom-scrollbar scrollbar-hide">
-            <div className="grid grid-cols-2 gap-3">
-                {visibleServices.map((item) => {
-                    const isActive = selectedServices.includes(item.id);
-                    const isPack = item.category === "PACKS";
-                    
-                    let cardClasses = "group relative p-4 rounded-[24px] text-left transition-all duration-200 border-2 cursor-pointer flex flex-col justify-between min-h-[160px] overflow-hidden ";
-                    let titleColor = "text-slate-900";
-                    let descColor = "text-slate-400";
-                    let priceLabelColor = "text-slate-300";
-                    let priceValueColor = "text-slate-900";
-                    let borderColor = "border-slate-50";
+                          {/* Estadísticas (Social Proof) */}
+                          <div className="grid grid-cols-3 gap-2 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                              <div className="text-center border-r border-slate-200">
+                                  <div className="text-lg font-black text-slate-900">{agency.stats.sold}</div>
+                                  <div className="text-[8px] font-bold text-slate-400 uppercase">Ventas</div>
+                              </div>
+                              <div className="text-center border-r border-slate-200">
+                                  <div className="text-lg font-black text-slate-900">{agency.stats.avgTime}</div>
+                                  <div className="text-[8px] font-bold text-slate-400 uppercase">Tiempo Medio</div>
+                              </div>
+                              <div className="text-center">
+                                  <div className="text-lg font-black text-slate-900 flex items-center justify-center gap-1">
+                                      {agency.stats.rating} <Star size={12} fill="currentColor" className="text-yellow-400"/>
+                                  </div>
+                                  <div className="text-[8px] font-bold text-slate-400 uppercase">Valoración</div>
+                              </div>
+                          </div>
 
-                    if (isPack) {
-                        if (isActive) {
-                            cardClasses += "bg-white border-blue-500 shadow-lg transform scale-[1.02] z-10";
-                        } else {
-                            cardClasses += "bg-[#1c1c1e] border-transparent hover:bg-black";
-                            titleColor = "text-white";
-                            descColor = "text-gray-400";
-                            priceLabelColor = "text-gray-500";
-                            priceValueColor = "text-white";
-                            borderColor = "border-white/10";
-                        }
-                    } else {
-                        if (isActive) {
-                            cardClasses += "bg-white border-blue-500 shadow-lg transform scale-[1.02] z-10";
-                        } else {
-                            cardClasses += "bg-white border-transparent shadow-sm hover:shadow-md hover:border-slate-200";
-                        }
-                    }
+                          {/* 3. PROPUESTA DE VALOR (SERVICIOS ACTIVOS) */}
+                          <div className="mb-6">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                  <Briefcase size={12}/> Estrategia Incluida
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                  {agency.activeServices.map(srvId => {
+                                      const Icon = SERVICE_ICONS[srvId] || Star;
+                                      const label = SERVICE_LABELS[srvId] || srvId;
+                                      return (
+                                          <div key={srvId} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg flex items-center gap-1.5">
+                                              <Icon size={12}/>
+                                              <span className="text-[9px] font-bold uppercase">{label}</span>
+                                          </div>
+                                      )
+                                  })}
+                              </div>
+                          </div>
 
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => toggleService(item.id)}
-                            className={cardClasses}
-                        >
-                            <div className="flex justify-between items-start mb-3 relative z-10">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors ${isActive ? 'bg-blue-50 text-blue-600' : getIconColor(item, isPack, isActive)}`}>
-                                    <item.icon size={18} strokeWidth={2} />
-                                </div>
-                                
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isActive ? "bg-blue-600 border-blue-600 scale-110 shadow-md" : (isPack && !isActive ? "border-white/20" : "border-slate-100 bg-slate-50")}`}>
-                                    {isActive && <Check size={12} className="text-white" strokeWidth={4} />}
-                                </div>
-                            </div>
+                          {/* 4. BOTONES DE ACCIÓN */}
+                          <div className="flex gap-3">
+                              <button 
+                                  onClick={() => window.open(agency.website, '_blank')}
+                                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors"
+                              >
+                                  <ExternalLink size={18}/>
+                              </button>
+                              <button 
+                                  onClick={() => handleContact(agency)}
+                                  className={`flex-1 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-95 transition-all ${isPlatinum ? 'bg-slate-900 text-white hover:bg-black' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                              >
+                                  <MessageCircle size={16}/> Contactar Agencia
+                              </button>
+                          </div>
 
-                            <div className="relative z-10">
-                                <h3 className={`text-[11px] font-black leading-tight mb-1 uppercase ${titleColor}`}>
-                                    {item.name}
-                                </h3>
-                                <p className={`text-[9px] font-medium line-clamp-2 leading-relaxed ${descColor}`}>
-                                    {item.desc}
-                                </p>
-                            </div>
+                      </div>
+                  </div>
+              )
+          })}
 
-                            <div className={`mt-3 pt-3 border-t flex items-center justify-between ${borderColor}`}>
-                                <span className={`text-[8px] font-black uppercase tracking-widest ${priceLabelColor}`}>
-                                    Inversión
-                                </span>
-                                <span className={`text-sm font-black tracking-tight ${priceValueColor}`}>
-                                    {/* 🔥 CORRECCIÓN DEL FORMATO DE PRECIO (GRID) 🔥 */}
-                                    {item.price.toLocaleString('es-ES')}€
-                                </span>
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
-
-        {/* FOOTER */}
-        <div className="absolute bottom-6 left-6 right-6 z-50">
-             <div className="bg-[#1d1d1f] p-4 pl-6 pr-4 rounded-[24px] shadow-2xl flex items-center justify-between text-white border border-white/10">
-                <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total Estimado</span>
-                    <span className="text-2xl font-black text-white tracking-tighter">
-                        {/* 🔥 CORRECCIÓN DEL FORMATO DE PRECIO (FOOTER) 🔥 */}
-                        {total.toLocaleString('es-ES')}€
-                    </span>
-                </div>
-                <button 
-                    onClick={handleConfirm}
-                    className="bg-white text-black px-6 py-3.5 rounded-[20px] font-black text-[10px] hover:scale-105 active:scale-95 transition-transform flex items-center gap-2 uppercase tracking-wide cursor-pointer"
-                >
-                    CONFIRMAR <ArrowRight size={14} strokeWidth={3}/>
-                </button>
-             </div>
-        </div>
+          {/* ESPACIO VACÍO (Upselling para Agencias que ven esto) */}
+          <div className="p-8 border-2 border-dashed border-slate-300 rounded-[32px] text-center opacity-50 hover:opacity-100 transition-opacity cursor-pointer group">
+              <Briefcase className="mx-auto text-slate-400 mb-2 group-hover:text-indigo-500 transition-colors" size={32}/>
+              <h3 className="font-bold text-slate-900 uppercase text-xs mb-1">Espacio Disponible en Manilva</h3>
+              <p className="text-[10px] text-slate-500">¿Eres agencia? Domina esta zona.</p>
+          </div>
 
       </div>
     </div>
   );
 }
-
-
-
