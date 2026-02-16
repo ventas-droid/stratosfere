@@ -390,32 +390,44 @@ export async function savePropertyAction(data: any) {
         furnished: servicesSet.has('furnished'),
         security: servicesSet.has('security'),
 
-        // 🔥 DETALLES (YA EXISTENTE)
+     // 🔥 DETALLES (YA EXISTENTE)
         state: data.state || null,         
         orientation: data.orientation || null, 
         exterior: data.exterior !== undefined ? Boolean(data.exterior) : true,
 
         // =========================================================
-        // 🚀 NUEVOS CAMPOS INYECTADOS (MULTIMEDIA & B2B)
+        // 🔥 1. SAAS: EL FUEGO (IMPORTANTE: FALTABA ESTE)
+        // =========================================================
+        promotedTier: data.promotedTier || "FREE",
+
+        // =========================================================
+        // 🚀 2. NUEVOS CAMPOS INYECTADOS (MULTIMEDIA & B2B)
         // =========================================================
         videoUrl: data.videoUrl || null,
         tourUrl: data.tourUrl || null,
         simpleNoteUrl: data.simpleNoteUrl || null,
         energyCertUrl: data.energyCertUrl || null,
 
+        // 🤝 DATOS DE AGENCIA
         mandateType: data.mandateType || "ABIERTO",
-        commissionPct: Number(data.commissionPct || 0),
-        sharePct: Number(data.sharePct || 0),
+        
+        // Aseguramos conversión a número para evitar errores
+        commissionPct: data.commissionPct ? Number(data.commissionPct) : 0,
+        sharePct: data.sharePct ? Number(data.sharePct) : 0,
         shareVisibility: data.shareVisibility || "PRIVATE",
+        
+        // =========================================================
+        // 🏁 CAMPOS FINALES DE GESTIÓN
         // =========================================================
 
         selectedServices: finalServices,
         
         mainImage: mainImage,
+        
+        // Lógica de Estado: Agencias publican directo, Particulares pagan
         status: (user.role === 'AGENCIA' || (data.id && data.id.length > 10)) ? 'PUBLICADO' : 'PENDIENTE_PAGO',
         
-        ownerSnapshot, // Mantenemos su snapshot
-
+        ownerSnapshot: ownerSnapshot, // Sin cambios aquí
         // MAPEO EXACTO AL ESQUEMA
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
