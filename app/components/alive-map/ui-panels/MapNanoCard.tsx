@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  Heart, Bed, Bath, Maximize2, Navigation, 
+import {
+  Heart, Bed, Bath, Maximize2, Navigation,
   Building2, Home, Briefcase, LandPlot, Warehouse, Sun, ArrowUp,
   Crown // Solo dejamos la Corona para el Premium
 } from 'lucide-react';
@@ -18,10 +18,10 @@ const safeParsePrice = (
       if (inputVal === undefined || inputVal === null) return 0;
       valToParse = inputVal;
   }
-  let str = String(valToParse); 
+  let str = String(valToParse);
   str = str.toUpperCase().trim().replace(/\s/g, "").replace(/€/g, "");
 
-  let multiplier = 1; 
+  let multiplier = 1;
   let hasSuffix = false;
 
   if (str.includes("M") || str.includes("K")) {
@@ -32,14 +32,14 @@ const safeParsePrice = (
   }
 
   if (hasSuffix) {
-      str = str.replace(/,/g, "."); 
+      str = str.replace(/,/g, ".");
   } else {
       str = str.replace(/,/g, "DECIMAL_PLACEHOLDER")
                .replace(/\./g, "")
                .replace("DECIMAL_PLACEHOLDER", ".");
   }
 
-  str = str.replace(/[^\d.]/g, ""); 
+  str = str.replace(/[^\d.]/g, "");
   const val = parseFloat(str);
   return (Number.isFinite(val) ? val : 0) * multiplier;
 };
@@ -63,7 +63,7 @@ const getPropertyIcon = (typeStr: string) => {
     if (t.includes("OFICINA")) return <Briefcase size={14} className="text-gray-500"/>;
     if (t.includes("SUELO") || t.includes("TERRENO")) return <LandPlot size={14} className="text-emerald-600"/>;
     if (t.includes("NAVE")) return <Warehouse size={14} className="text-slate-600"/>;
-    return <Building2 size={14} className="text-blue-500"/>; 
+    return <Building2 size={14} className="text-blue-500"/>;
 };
 
 // ==========================================
@@ -74,9 +74,9 @@ export default function MapNanoCard(props: any) {
 
   // 🔥 1. DETECCIÓN PREMIUM: ESTADO VIVO (REACTIVO)
   const [isPremium, setIsPremium] = useState(() => {
-      return data?.promotedTier === 'PREMIUM' || 
-             data?.isPromoted === true || 
-             props?.promotedTier === 'PREMIUM' || 
+      return data?.promotedTier === 'PREMIUM' ||
+             data?.isPromoted === true ||
+             props?.promotedTier === 'PREMIUM' ||
              props?.isPromoted === true;
   });
 
@@ -118,7 +118,7 @@ export default function MapNanoCard(props: any) {
       // Filtrar señal para esta propiedad
       if (String(e.detail.id) === String(id) && e.detail.updates) {
         const u = e.detail.updates;
-        
+
         // A) Actualizar Precio
         if (u.price || u.rawPrice || u.priceValue) {
           const newP = safeParsePrice(u.rawPrice ?? u.priceValue, u.price);
@@ -177,7 +177,7 @@ export default function MapNanoCard(props: any) {
     const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates ||
       (props.lng != null && props.lat != null ? [props.lng, props.lat] : null) ||
       (data.lng != null && data.lat != null ? [data.lng, data.lat] : null);
-    
+
     let normalizedCoords = null;
     if (Array.isArray(navCoords) && navCoords.length === 2) {
       const a = Number(navCoords[0]), b = Number(navCoords[1]);
@@ -240,9 +240,9 @@ export default function MapNanoCard(props: any) {
   useEffect(() => {
     if (cardRef.current) {
         const marker = cardRef.current.closest('.mapboxgl-marker') as HTMLElement;
-        if (marker) marker.style.zIndex = isHovered ? "99999" : "auto";
+        if (marker) marker.style.zIndex = isHovered || isPremium ? "99999" : "auto";
     }
-  }, [isHovered]);
+  }, [isHovered, isPremium]);
 
   const locationText = useMemo(() => {
      let txt = (city || location || address || "MADRID").toUpperCase();
@@ -252,36 +252,37 @@ export default function MapNanoCard(props: any) {
   const isLandOrIndustrial = ['Suelo', 'Nave', 'Oficina', 'Land', 'Industrial'].includes(type) || type.toUpperCase().includes('SUELO');
 
   // ============================================
-  // RENDERIZADO VISUAL
+  // RENDERIZADO VISUAL (MEGA-PREMIUM)
   // ============================================
   return (
-    <div ref={cardRef} className={`pointer-events-auto flex flex-col items-center group relative ${isPremium ? 'z-[100] scale-110' : 'z-[50]'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-      
-      {/* TARJETA FLOTANTE */}
-      <div 
-          className={`absolute bottom-[100%] pb-3 w-[280px] z-[100] origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} 
+    <div ref={cardRef} className={`pointer-events-auto flex flex-col items-center group relative ${isPremium ? 'z-[200]' : 'z-[50]'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+
+      {/* TARJETA FLOTANTE (COLOSAL SI ES PREMIUM) */}
+      <div
+          className={`absolute bottom-[100%] pb-5 origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isPremium ? 'w-[500px] z-[250]' : 'w-[280px] z-[100]'} ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`}
           onClick={(e) => handleAction(e, 'open')}
       >
-          {/* CONTENEDOR (CAMBIA A DORADO SI ES PREMIUM) */}
-          <div className={`flex flex-col rounded-[20px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isPremium ? 'shadow-[0_0_50px_rgba(251,191,36,0.6)] border-2 border-amber-400' : 'shadow-2xl border border-white/80'}`}>
-              
-              <div className="bg-white relative">
-                  <div className="h-44 relative overflow-hidden group/img">
-                      <img src={img} className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105" alt="Propiedad"/>
-                      
-                      {/* EFECTO DESTELLO (SOLO PREMIUM) */}
+          {/* CONTENEDOR (BORDE ORO MACIZO) */}
+          <div className={`flex flex-col rounded-[24px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isPremium ? 'shadow-[0_0_60px_rgba(251,191,36,0.7)] border-4 border-amber-400' : 'shadow-2xl border border-white/80'}`}>
+
+              <div className="relative">
+                  {/* IMAGEN PANORÁMICA ALTÍSIMA */}
+                  <div className={`relative overflow-hidden group/img ${isPremium ? 'h-80' : 'h-44'}`}>
+                      <img src={img} className="w-full h-full object-cover transition-transform duration-1000 group-hover/img:scale-105" alt="Propiedad"/>
+
+                      {/* EFECTO DESTELLO ORO */}
                       {isPremium && (
-                         <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/20 via-transparent to-white/30 pointer-events-none mix-blend-overlay"></div>
+                         <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/30 via-transparent to-white/40 pointer-events-none mix-blend-overlay"></div>
                       )}
 
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
-                      
-                      {/* BADGE TIPO (Si es Premium -> Corona. Si no -> Icono Normal) */}
-                      <div className="absolute top-3 left-3 px-2.5 py-1.5 rounded-full backdrop-blur-md bg-white/90 shadow-sm flex items-center gap-1.5 border border-white/40">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80"></div>
+
+                      {/* BADGE TIPO (CORONA PULSANTE) */}
+                      <div className="absolute top-4 left-4 px-3 py-2 rounded-full backdrop-blur-xl bg-white/95 shadow-lg flex items-center gap-2 border-2 border-white/50">
                           {isPremium ? (
                               <>
-                                <Crown size={12} className="text-amber-600 fill-amber-500 animate-pulse"/>
-                                <span className="text-[10px] font-black uppercase tracking-wide text-amber-700">PREMIUM</span>
+                                <Crown size={14} className="text-amber-600 fill-amber-500 animate-pulse"/>
+                                <span className="text-[11px] font-black uppercase tracking-widest text-amber-700">PREMIUM</span>
                               </>
                           ) : (
                               <>
@@ -291,75 +292,83 @@ export default function MapNanoCard(props: any) {
                           )}
                       </div>
 
-                      {/* BADGE PRECIO */}
-                      <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md shadow-sm border border-white/20" style={{ backgroundColor: style.hex }}>
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-white">{style.label}</span>
-                      </div>
-                      
+                      {/* BADGE PRECIO (Solo en normal) */}
+                      {!isPremium && (
+                        <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md shadow-sm border border-white/20" style={{ backgroundColor: style.hex }}>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-white">{style.label}</span>
+                        </div>
+                      )}
+
                       {/* FAVORITO */}
-                      <div className="absolute top-3 right-3 z-20">
-                          <button onClick={(e) => handleAction(e, 'fav')} className={`w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-md border border-white/20 transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm ${liked ? 'bg-red-500 text-white border-transparent' : 'bg-black/20 text-white hover:bg-black/40'}`}>
-                              <Heart size={14} className={`transition-transform duration-300 ${liked ? "fill-current scale-105" : "scale-100"}`} />
+                      <div className="absolute top-4 right-4 z-20">
+                          <button onClick={(e) => handleAction(e, 'fav')} className={`w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-xl border-2 transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg ${liked ? 'bg-red-500 text-white border-red-400' : 'bg-black/30 text-white border-white/30 hover:bg-black/50'}`}>
+                              <Heart size={18} className={`transition-transform duration-300 ${liked ? "fill-current scale-105" : "scale-100"}`} />
                           </button>
                       </div>
                   </div>
-                  
-                  {/* INFO PROPIEDAD */}
-                  <div className="p-4 pt-3">
-                      <div className="flex justify-between items-start mb-0.5">
-                          <span className="text-xl font-bold text-gray-900 tracking-tight">{displayLabel}</span>
-                          {floor && (
-                              <div className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded text-[10px] font-semibold text-gray-500">
-                                  <ArrowUp size={10}/> <span>P.{floor}</span>
-                              </div>
+
+                  {/* INFO PROPIEDAD (FONDO DEGRADADO PREMIUM) */}
+                  <div className={`p-6 pt-5 ${isPremium ? 'bg-gradient-to-b from-[#FFFBEB] to-white' : 'bg-white'}`}>
+                      {/* TÍTULO Y PRECIO GIGANTE */}
+                      <div className="mb-2">
+                          {isPremium && data?.title && (
+                              <h3 className="text-xl font-black text-gray-900 truncate mb-1">{data.title}</h3>
                           )}
-                      </div>
-                      
-                      <div className="flex items-center gap-1 text-gray-500 mb-3">
-                          <Navigation size={10} style={{ color: style.hex }}/>
-                          <span className="text-[10px] font-medium uppercase tracking-wider truncate text-gray-400">{locationText}</span>
+                          <div className="flex justify-between items-start items-center">
+                              <span className={`font-black tracking-tight leading-none ${isPremium ? 'text-4xl text-amber-600 drop-shadow-sm' : 'text-xl text-gray-900'}`}>{displayLabel}</span>
+                              {floor && (
+                                  <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                                      <ArrowUp size={12}/> <span>P.{floor}</span>
+                                  </div>
+                              )}
+                          </div>
                       </div>
 
-                      {/* DATOS FÍSICOS (Habitaciones / Baños) */}
-                      <div className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg border border-gray-100/50">
+                      <div className="flex items-center gap-1.5 text-gray-500 mb-5">
+                          <Navigation size={12} style={{ color: style.hex }}/>
+                          <span className="text-xs font-bold uppercase tracking-wider truncate text-gray-500">{locationText}</span>
+                      </div>
+
+                      {/* DATOS FÍSICOS (Diseño más limpio) */}
+                      <div className="flex justify-between items-center py-3 px-4 bg-white rounded-xl border-2 border-gray-100 shadow-sm">
                           {isLandOrIndustrial ? (
-                              <div className="flex items-center gap-1.5 w-full justify-center">
-                                  <Maximize2 size={14} className="text-gray-400"/>
-                                  <span className="text-xs font-semibold text-gray-700">{mBuilt} m²</span>
+                              <div className="flex items-center gap-2 w-full justify-center text-gray-700">
+                                  <Maximize2 size={18} className="text-gray-400"/>
+                                  <span className="text-sm font-bold">{mBuilt} m²</span>
                               </div>
                           ) : (
                               <>
-                                  <div className="flex items-center gap-1.5"><Bed size={14} className="text-gray-400"/><span className="text-xs font-semibold text-gray-700">{rooms}</span></div>
-                                  <div className="w-[1px] h-3 bg-gray-200"></div>
-                                  <div className="flex items-center gap-1.5"><Bath size={14} className="text-gray-400"/><span className="text-xs font-semibold text-gray-700">{baths}</span></div>
-                                  <div className="w-[1px] h-3 bg-gray-200"></div>
-                                  <div className="flex items-center gap-1.5"><Maximize2 size={14} className="text-gray-400"/><span className="text-xs font-semibold text-gray-700">{mBuilt}m</span></div>
+                                  <div className="flex items-center gap-2 text-gray-700"><Bed size={18} className="text-gray-400"/><span className="text-sm font-bold">{rooms}</span></div>
+                                  <div className="w-px h-5 bg-gray-200"></div>
+                                  <div className="flex items-center gap-2 text-gray-700"><Bath size={18} className="text-gray-400"/><span className="text-sm font-bold">{baths}</span></div>
+                                  <div className="w-px h-5 bg-gray-200"></div>
+                                  <div className="flex items-center gap-2 text-gray-700"><Maximize2 size={18} className="text-gray-400"/><span className="text-sm font-bold">{mBuilt}m²</span></div>
                               </>
                           )}
                       </div>
                   </div>
-                  
-                  {/* (AQUÍ BORRAMOS EL ERROR: Ya no hay barra de 'Elite Pack') */}
               </div>
           </div>
       </div>
 
-     {/* PIN DE MAPA (CON ONDAS SI ES PREMIUM) */}
-      <div 
-         className={`relative px-3 py-1.5 rounded-full shadow-lg transition-transform duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[2px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-xl' : 'scale-100'} ${isPremium ? 'bg-amber-500 border-amber-200' : ''}`} 
-         style={{ backgroundColor: isPremium ? '#F59E0B' : style.hex }} 
+     {/* PIN DE MAPA (GIGANTE SI ES PREMIUM) */}
+      <div
+         className={`relative rounded-full shadow-lg transition-all duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[3px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-2xl' : 'scale-100'} ${isPremium ? 'bg-amber-500 border-amber-200 scale-[1.75] z-[200] px-5 py-2.5' : 'px-3 py-1.5'}`}
+         style={{ backgroundColor: isPremium ? '#F59E0B' : style.hex }}
          onClick={(e) => handleAction(e, 'open')}
       >
          {/* ONDAS DE RADAR (SOLO PREMIUM) */}
          {isPremium && (
             <>
-                <span className="absolute inset-0 rounded-full border-2 border-amber-500 opacity-75 animate-ping"></span>
+                <span className="absolute inset-0 rounded-full border-4 border-amber-500 opacity-60 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></span>
+                <span className="absolute inset-0 rounded-full border-2 border-amber-300 opacity-80 animate-pulse"></span>
             </>
          )}
 
-         <span className="text-xs font-bold font-sans tracking-tight whitespace-nowrap text-white">{displayLabel}</span>
-         
-         <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px]" style={{ borderTopColor: isPremium ? '#F59E0B' : style.hex }}></div>
+         <span className={`${isPremium ? 'text-sm' : 'text-xs'} font-black font-sans tracking-tight whitespace-nowrap text-white`}>{displayLabel}</span>
+
+         {/* FLECHA INFERIOR MAS GRANDE */}
+         <div className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-transparent border-r-transparent ${isPremium ? '-bottom-2.5 border-l-[10px] border-r-[10px] border-t-[12px]' : '-bottom-1.5 border-l-[6px] border-r-[6px] border-t-[8px]'}`} style={{ borderTopColor: isPremium ? '#F59E0B' : style.hex }}></div>
       </div>
     </div>
   );
