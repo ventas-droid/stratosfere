@@ -139,7 +139,7 @@ export async function getGlobalPropertiesAction() {
       },
     });
 
-    const mappedProps = (properties || []).map((p: any) => {
+   const mappedProps = (properties || []).map((p: any) => {
       // 1) Imágenes coherentes (LÓGICA ORIGINAL)
       const allImages = (p.images || [])
         .map((img: any) => img?.url)
@@ -164,15 +164,12 @@ export async function getGlobalPropertiesAction() {
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
-      // 🔥🔥 6. CENTINELA DE TIEMPO (LÓGICA NUEVA AUTOMÁTICA) 🔥🔥
-      // Comprobamos si la fecha de caducidad ya pasó
+      // 🔥🔥 6. CENTINELA DE TIEMPO (SU LÓGICA PREMIUM ACTUAL) 🔥🔥
       const now = new Date();
       const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
-      // Si existe fecha Y ya ha pasado -> CADUCADO
       const isExpired = expiryDate && expiryDate < now;
 
       // Calculamos el estado REAL para el mapa
-      // Si caducó, forzamos "FREE" y apagamos el fuego
       const realTier = isExpired ? "FREE" : (p.promotedTier || "FREE");
       const realIsPromoted = isExpired ? false : !!p.isPromoted;
 
@@ -186,45 +183,35 @@ export async function getGlobalPropertiesAction() {
         ...p,
         id: p.id,
 
-        // 🔥🔥🔥 DATOS PREMIUM (INYECCIÓN TÁCTICA) 🔥🔥🔥
-        promotedTier: realTier,      // "PREMIUM" o "FREE" (según caducidad)
-        isPromoted: realIsPromoted,  // true o false
-        promotedUntil: p.promotedUntil, // La fecha real para mostrarla
+        // 🔥🔥🔥 ESTADÍSTICAS TÁCTICAS (ESTO ES LO NUEVO QUE AÑADIMOS) 🔥🔥🔥
+        views: p.views || 0,
+        photoViews: p.photoViews || 0,
+        shareCount: p.shareCount || 0,
+        // -------------------------------------------------------------------
 
-        // ✅ SNAPSHOT (NO TOCAR)
+        // 🔥 DATOS PREMIUM (SE MANTIENEN INTACTOS)
+        promotedTier: realTier,
+        isPromoted: realIsPromoted,
+        promotedUntil: p.promotedUntil,
+
+        // ✅ EL RESTO SE QUEDA IGUAL (NO SE ROMPE NADA)
         ownerSnapshot: p.ownerSnapshot ?? null,
-        
-        // ✅ USER (NO TOCAR)
         user: identity,
-
-        // ✅ COORDENADAS (NO TOCAR)
         coordinates: [lng, lat],
         longitude: lng,
         latitude: lat,
-
-        // ✅ IMÁGENES (NO TOCAR)
         images: imagesFinal,
         img: realImg,
-
-        // ✅ PRECIOS (NO TOCAR)
         price: priceFormatted,   
         rawPrice,                
         priceValue: rawPrice,    
-
-        // ✅ ESTADO (NO TOCAR)
         isFavorited: isFavoritedByMe,
-
-        // ✅ DATOS TÉCNICOS (NO TOCAR)
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: Number(p.communityFees || 0),
-
-        // ✅ ENERGÍA (NO TOCAR)
         energyConsumption: p.energyConsumption ?? null,
         energyEmissions: p.energyEmissions ?? null,
         energyPending: !!p.energyPending,
-
-        // 🔥 DATOS OPEN HOUSE
         openHouse: openHouseObj,       
         open_house_data: openHouseObj  
       };
@@ -943,7 +930,6 @@ export async function deleteFromStockAction(propertyId: string) {
 }
 // --- AÑADIR AL FINAL DE actions.ts ---
 
-// B. MIS PROPIEDADES (PERFIL) - Recuperada
 // B. MIS PROPIEDADES (PERFIL) - Recuperada + FIX PLURAL
 export async function getPropertiesAction() {
   try {
@@ -990,30 +976,31 @@ export async function getPropertiesAction() {
         ...p,
         id: p.id,
         
-        // 🔥🔥 AÑADA ESTO (ES LO QUE LE FALTA) 🔥🔥
-        // Sin esto, el botón no se pondrá dorado nunca
+        // 🔥 ESTADÍSTICAS TÁCTICAS (AÑADIR ESTO)
+        views: p.views || 0,
+        photoViews: p.photoViews || 0,
+        shareCount: p.shareCount || 0,
+        favoritedCount: p.favoritedBy?.length || 0, // Si quiere saber cuántos la guardaron
+        // ----------------------------------------
+
+        // 🔥 DATOS PREMIUM
         promotedTier: p.promotedTier || "FREE",
         isPromoted: !!p.isPromoted,
         promotedUntil: p.promotedUntil,
-        // ------------------------------------------
 
-        // ENVIAMOS EL EVENTO ACTIVO AL FRONTEND
+        // RESTO DE DATOS (YA LOS TIENE)
         openHouse: activeOH,
         openHouseAttendeesCount: activeOH?.attendees?.length || 0,
-
         ownerSnapshot: safeOwnerSnapshot,
         user: identity,
-
         coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
         images: allImages,
         img: realImg || null,
         price: new Intl.NumberFormat("es-ES").format(p.price || 0),
         rawPrice: p.price,
-
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: p.communityFees || 0,
-
         pool: !!p.pool,
         garage: !!p.garage,
         elevator: !!p.elevator,
@@ -3126,5 +3113,26 @@ export async function getActiveManagementAction(propertyId: string) {
   } catch (e: any) {
     console.error("getActiveManagementAction error:", e);
     return { success: false, error: "Error consultando gestión" };
+  }
+}
+
+// Z. SISTEMA DE ESTADÍSTICAS (Nuevo al final de actions.ts)
+export async function incrementStatsAction(propertyId: string, metric: 'view' | 'photo' | 'share') {
+  try {
+    const pid = String(propertyId || "").trim();
+    if (!pid) return;
+
+    const dataToUpdate: any = {};
+    if (metric === 'view') dataToUpdate.views = { increment: 1 };
+    if (metric === 'photo') dataToUpdate.photoViews = { increment: 1 };
+    if (metric === 'share') dataToUpdate.shareCount = { increment: 1 };
+
+    await prisma.property.update({
+      where: { id: pid },
+      data: dataToUpdate
+    });
+    // No devolvemos nada, es una operación silenciosa
+  } catch (error) {
+    console.error("Error incrementando estadísticas:", error);
   }
 }

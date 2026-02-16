@@ -104,8 +104,10 @@ model Property {
   communityFees  Float?
   selectedServices String[]
   status         String   @default("BORRADOR")
-  views          Int      @default(0)
-  createdAt      DateTime @default(now())
+ views           Int       @default(0)          // ESTA YA LA TIENE
+  photoViews      Int       @default(0)          // <--- AÑADIR ESTA
+  shareCount      Int       @default(0)          // <--- AÑADIR ESTA
+createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   ownerSnapshot  Json?
 
