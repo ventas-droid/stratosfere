@@ -308,22 +308,20 @@ export async function getPropertyByIdAction(propertyId: string) {
   }
 }
 
-// C. GUARDAR PROPIEDAD (VERSIÓN DEFINITIVA: SU LÓGICA INTACTA + NUEVOS CAMPOS AGENCIA)
+// C. GUARDAR PROPIEDAD (BLINDADO: PROTEGE EL RANGO PREMIUM)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Debes iniciar sesión." };
 
-    // 1. LIMPIEZA DE DATOS NUMÉRICOS (SU LÓGICA ORIGINAL)
+    // 1. LIMPIEZA DE DATOS NUMÉRICOS
     const cleanPrice = parseFloat(String(data.price).replace(/\D/g, '') || '0');
     const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
     const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
 
-    // 2. SINCRONIZACIÓN DE SERVICIOS (SU LÓGICA ORIGINAL)
-    // Juntamos lo que viene en la lista + los botones sueltos
+    // 2. SINCRONIZACIÓN DE SERVICIOS
     let servicesSet = new Set<string>(Array.isArray(data.selectedServices) ? data.selectedServices : []);
 
-    // Si el usuario marcó el botón en el HUD, lo aseguramos en la lista
     if (data.pool) servicesSet.add('pool');
     if (data.garage) servicesSet.add('garage');
     if (data.terrace) servicesSet.add('terrace');
@@ -335,16 +333,15 @@ export async function savePropertyAction(data: any) {
     if (data.security) servicesSet.add('security');
     if (data.balcony) servicesSet.add('balcony');
 
-    // Convertimos a array y aseguramos el pack básico
     let finalServices = Array.from(servicesSet);
     if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
 
-    // 3. GESTIÓN DE IMÁGENES (SU LÓGICA ORIGINAL)
+    // 3. GESTIÓN DE IMÁGENES
     const imagesList = Array.isArray(data.images) ? data.images : [];
     if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
-    // 4. OWNER SNAPSHOT (SU LÓGICA ORIGINAL)
+    // 4. OWNER SNAPSHOT
     const ownerSnapshot = {
       id: user.id,
       name: user.name || null,
@@ -359,7 +356,7 @@ export async function savePropertyAction(data: any) {
       role: user.role || null
     };
 
-    // 5. CONSTRUCCIÓN DEL OBJETO (AQUÍ INYECTAMOS LOS NUEVOS CAMPOS SIN ROMPER NADA)
+    // 5. CONSTRUCCIÓN DEL OBJETO (CORREGIDO: SIN promotedTier)
     const payload = {
         userId: user.id,
         type: data.type || 'Piso',
@@ -378,7 +375,7 @@ export async function savePropertyAction(data: any) {
         door: data.door ? String(data.door) : null,
         elevator: Boolean(data.elevator),
 
-        // 🔥 MAPEO DE BOOLEANOS (YA EXISTENTE)
+        // BOOLEANOS
         pool: servicesSet.has('pool'),
         garage: servicesSet.has('garage'),
         garden: servicesSet.has('garden'),
@@ -390,45 +387,35 @@ export async function savePropertyAction(data: any) {
         furnished: servicesSet.has('furnished'),
         security: servicesSet.has('security'),
 
-     // 🔥 DETALLES (YA EXISTENTE)
+        // DETALLES
         state: data.state || null,         
         orientation: data.orientation || null, 
         exterior: data.exterior !== undefined ? Boolean(data.exterior) : true,
 
-        // =========================================================
-        // 🔥 1. SAAS: EL FUEGO (IMPORTANTE: FALTABA ESTE)
-        // =========================================================
-        promotedTier: data.promotedTier || "FREE",
+        // 🛑 HE ELIMINADO promotedTier DE AQUÍ 🛑
+        // Esto evita que al guardar se sobreescriba "PREMIUM" con "FREE".
+        // El estado Premium ahora solo lo toca la pasarela de pago.
 
-        // =========================================================
-        // 🚀 2. NUEVOS CAMPOS INYECTADOS (MULTIMEDIA & B2B)
-        // =========================================================
+        // CAMPOS MULTIMEDIA & B2B
         videoUrl: data.videoUrl || null,
         tourUrl: data.tourUrl || null,
         simpleNoteUrl: data.simpleNoteUrl || null,
         energyCertUrl: data.energyCertUrl || null,
 
-        // 🤝 DATOS DE AGENCIA
+        // DATOS DE AGENCIA
         mandateType: data.mandateType || "ABIERTO",
-        
-        // Aseguramos conversión a número para evitar errores
         commissionPct: data.commissionPct ? Number(data.commissionPct) : 0,
         sharePct: data.sharePct ? Number(data.sharePct) : 0,
         shareVisibility: data.shareVisibility || "PRIVATE",
         
-        // =========================================================
-        // 🏁 CAMPOS FINALES DE GESTIÓN
-        // =========================================================
-
+        // GESTIÓN FINAL
         selectedServices: finalServices,
-        
         mainImage: mainImage,
         
-        // Lógica de Estado: Agencias publican directo, Particulares pagan
+        // Lógica de Estado
         status: (user.role === 'AGENCIA' || (data.id && data.id.length > 10)) ? 'PUBLICADO' : 'PENDIENTE_PAGO',
         
-        ownerSnapshot: ownerSnapshot, // Sin cambios aquí
-        // MAPEO EXACTO AL ESQUEMA
+        ownerSnapshot: ownerSnapshot,
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
         energyEmissions: data.energyEmissions || null,     
@@ -437,7 +424,6 @@ export async function savePropertyAction(data: any) {
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
 
-    // Include Options (SU LÓGICA ORIGINAL)
     const includeOptions = { 
       images: true,
       user: { 
@@ -452,7 +438,7 @@ export async function savePropertyAction(data: any) {
 
     let result;
 
-    // --- BLOQUE DE GUARDADO (SU LÓGICA DE TRANSACCIÓN ORIGINAL INTACTA) ---
+    // --- BLOQUE DE GUARDADO ---
     if (data.id && data.id.length > 20) {
       // ✅ EDICIÓN
       const existing = await prisma.property.findUnique({ where: { id: data.id } });
@@ -470,7 +456,7 @@ export async function savePropertyAction(data: any) {
           include: includeOptions,
         });
       } else {
-        // Fallback: Crear si no existe o ID raro
+        // Fallback
         const recent = await prisma.property.findFirst({
           where: {
             userId: user.id,
@@ -489,7 +475,7 @@ export async function savePropertyAction(data: any) {
         });
       }
     } else {
-      // ✅ CREACIÓN (CON TRANSACCIÓN Y REFCODE ORIGINAL)
+      // ✅ CREACIÓN
       const recent = await prisma.property.findFirst({
         where: {
           userId: user.id,
@@ -509,7 +495,7 @@ export async function savePropertyAction(data: any) {
           include: includeOptions as any,
         });
 
-        // 2) Generar RefCode si falta
+        // 2) Generar RefCode
         if (created?.refCode) return created;
 
         const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -525,22 +511,16 @@ export async function savePropertyAction(data: any) {
         });
       });
     }
-// ------------------------------------------------------------------
-    // 🦅 PUENTE DE GUARDADO: OPEN HOUSE (NUEVO)
-    // Si la propiedad se guardó bien (result) y hay datos de evento...
-    // ------------------------------------------------------------------
+
+    // --- GUARDADO OPEN HOUSE (INTACTO) ---
     if (result && result.id && data.openHouse) {
         let ohData = data.openHouse;
-        
-        // A veces llega como texto JSON desde el formulario
         if (typeof ohData === 'string') {
             try { ohData = JSON.parse(ohData); } catch (e) {}
         }
-
-        // Solo guardamos si está activado (enabled: true o "true")
         if (ohData && (ohData.enabled === true || String(ohData.enabled) === "true")) {
             await saveOpenHouseAction({
-                propertyId: result.id, // Usamos el ID de la propiedad que acabamos de guardar
+                propertyId: result.id,
                 title: ohData.title,
                 startTime: ohData.startTime,
                 endTime: ohData.endTime,
@@ -549,7 +529,7 @@ export async function savePropertyAction(data: any) {
             });
         }
     }
-    // ------------------------------------------------------------------
+
     revalidatePath("/");
     return { success: true, property: result };
 
@@ -557,7 +537,7 @@ export async function savePropertyAction(data: any) {
     console.error("savePropertyAction error:", error);
     return { success: false, error: String(error) };
   }
-} // ✅ CIERRE DE SAVE
+}
 
 // D. BORRAR PROPIEDAD (LÓGICA ORIGINAL MANTENIDA)
 export async function deletePropertyAction(id: string) {
@@ -1007,10 +987,17 @@ export async function getPropertiesAction() {
       // y lo llamamos 'openHouse' para que el frontend funcione sin tocar nada más.
       const activeOH = (p.openHouses && p.openHouses.length > 0) ? p.openHouses[0] : null;
 
-      return {
+     return {
         ...p,
         id: p.id,
         
+        // 🔥🔥 AÑADA ESTO (ES LO QUE LE FALTA) 🔥🔥
+        // Sin esto, el botón no se pondrá dorado nunca
+        promotedTier: p.promotedTier || "FREE",
+        isPromoted: !!p.isPromoted,
+        promotedUntil: p.promotedUntil,
+        // ------------------------------------------
+
         // ENVIAMOS EL EVENTO ACTIVO AL FRONTEND
         openHouse: activeOH,
         openHouseAttendeesCount: activeOH?.attendees?.length || 0,
