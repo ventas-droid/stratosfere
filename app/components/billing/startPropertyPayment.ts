@@ -6,7 +6,7 @@ import { getUserMeAction } from "@/app/actions";
 type StartPropertyPaymentOpts = {
   amount?: string;        // default "0.90"
   redirectPath?: string;  // default window.location.pathname + "?paid=1"
-  description?: string;   // default "Publicación propiedad — 9,90€"
+  description?: string;   // default "Publicación propiedad — 0,90€"
   refCode?: string;       // opcional para description
 };
 
