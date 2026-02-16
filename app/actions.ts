@@ -164,9 +164,20 @@ export async function getGlobalPropertiesAction() {
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
-      // 🔥🔥 2. PROCESAMOS EL EVENTO PARA EL FRONTEND 🔥🔥
+      // 🔥🔥 6. CENTINELA DE TIEMPO (LÓGICA NUEVA AUTOMÁTICA) 🔥🔥
+      // Comprobamos si la fecha de caducidad ya pasó
+      const now = new Date();
+      const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
+      // Si existe fecha Y ya ha pasado -> CADUCADO
+      const isExpired = expiryDate && expiryDate < now;
+
+      // Calculamos el estado REAL para el mapa
+      // Si caducó, forzamos "FREE" y apagamos el fuego
+      const realTier = isExpired ? "FREE" : (p.promotedTier || "FREE");
+      const realIsPromoted = isExpired ? false : !!p.isPromoted;
+
+      // 7. Eventos Open House (LÓGICA ORIGINAL)
       let openHouseObj = null;
-      // Si la base de datos nos trajo un evento, lo preparamos
       if (p.openHouses && p.openHouses.length > 0) {
          openHouseObj = { ...p.openHouses[0], enabled: true };
       }
@@ -174,6 +185,11 @@ export async function getGlobalPropertiesAction() {
       return {
         ...p,
         id: p.id,
+
+        // 🔥🔥🔥 DATOS PREMIUM (INYECCIÓN TÁCTICA) 🔥🔥🔥
+        promotedTier: realTier,      // "PREMIUM" o "FREE" (según caducidad)
+        isPromoted: realIsPromoted,  // true o false
+        promotedUntil: p.promotedUntil, // La fecha real para mostrarla
 
         // ✅ SNAPSHOT (NO TOCAR)
         ownerSnapshot: p.ownerSnapshot ?? null,
@@ -208,9 +224,9 @@ export async function getGlobalPropertiesAction() {
         energyEmissions: p.energyEmissions ?? null,
         energyPending: !!p.energyPending,
 
-        // 🔥🔥 3. AQUÍ ESTÁ LA MUNICIÓN 🔥🔥
-        openHouse: openHouseObj,       // El Panel buscará esto
-        open_house_data: openHouseObj  // Respaldo
+        // 🔥 DATOS OPEN HOUSE
+        openHouse: openHouseObj,       
+        open_house_data: openHouseObj  
       };
     });
 
