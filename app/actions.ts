@@ -234,8 +234,12 @@ export async function getPropertyByIdAction(propertyId: string) {
       include: {
         images: true,
         user: { select: USER_IDENTITY_SELECT },
+
+        // 🔥🔥🔥 INSERTE ESTA LÍNEA AQUÍ PARA ARREGLAR EL CONTADOR 🔥🔥🔥
+        favoritedBy: { select: { userId: true } },
+        // ---------------------------------------------------------------
+
         // 🔥 1. NOVEDAD: Pedimos el Open House activo a la base de datos
-        // (Solo el próximo evento programado)
         openHouses: {
             where: { status: "SCHEDULED" },
             orderBy: { startTime: 'asc' },
@@ -243,7 +247,6 @@ export async function getPropertyByIdAction(propertyId: string) {
         }
       },
     });
-
     if (!p) return { success: false, error: "NOT_FOUND" };
 
     // 1) Imágenes coherentes (NO TOCAR)
