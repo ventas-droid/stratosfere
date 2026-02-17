@@ -366,7 +366,7 @@ export async function getPropertyByIdAction(propertyId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
-// C. GUARDAR PROPIEDAD (BLINDADO FINAL: PROTEGE PAGOS Y RANGO AL EDITAR)
+// C. GUARDAR PROPIEDAD (CORREGIDA: NO RESETEA A MADRID AL EDITAR)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
@@ -414,9 +414,12 @@ export async function savePropertyAction(data: any) {
       role: user.role || null
     };
 
-    // 5. PAYLOAD LIMPIO (SIN STATUS NI PROMOTEDTIER)
-    // ⚠️ ATENCIÓN: He quitado 'status' y 'promotedTier' de aquí.
-    // Esto asegura que NUNCA se sobreescriban al editar.
+    // 🔥 FIX DE COORDENADAS 🔥
+    // Prioridad: 1. Mapa movido (coordinates) -> 2. Valor existente (latitude) -> 3. Default Madrid
+    const finalLat = data.coordinates ? data.coordinates[1] : (data.latitude ?? data.lat ?? 40.4168);
+    const finalLng = data.coordinates ? data.coordinates[0] : (data.longitude ?? data.lng ?? -3.7038);
+
+    // 5. PAYLOAD LIMPIO
     const payload = {
         userId: user.id,
         type: data.type || 'Piso',
@@ -426,8 +429,10 @@ export async function savePropertyAction(data: any) {
         mBuilt: cleanM2,
         address: data.address || "Dirección desconocida",
         city: data.city || "Madrid",
-        latitude: data.coordinates ? data.coordinates[1] : 40.4168,
-        longitude: data.coordinates ? data.coordinates[0] : -3.7038,
+        
+        // Usamos las coordenadas calculadas inteligentemente
+        latitude: Number(finalLat),
+        longitude: Number(finalLng),
         
         rooms: Number(data.rooms || 0),
         baths: Number(data.baths || 0),
@@ -464,8 +469,6 @@ export async function savePropertyAction(data: any) {
         selectedServices: finalServices,
         mainImage: mainImage,
         
-        // ❌ AQUÍ NO PONEMOS STATUS NI PROMOTEDTIER
-        
         ownerSnapshot: ownerSnapshot,
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
@@ -491,15 +494,13 @@ export async function savePropertyAction(data: any) {
 
     // --- LÓGICA DE GUARDADO ---
     if (data.id && data.id.length > 20) {
-      // ✅ EDICIÓN: PROHIBIDO TOCAR STATUS O PREMIUM
+      // ✅ EDICIÓN
       const existing = await prisma.property.findUnique({ where: { id: data.id } });
       const { ownerSnapshot: _dontTouch, ...payloadNoSnap } = payload as any;
 
       if (existing && existing.userId === user.id) {
         await prisma.image.deleteMany({ where: { propertyId: data.id } });
 
-        // UPDATE: Solo actualizamos datos físicos. 
-        // STATUS y PREMIUM se quedan como estén en la base de datos.
         result = await prisma.property.update({
           where: { id: data.id },
           data: {
@@ -509,8 +510,7 @@ export async function savePropertyAction(data: any) {
           include: includeOptions,
         });
       } else {
-        // Fallback: Crear si no existe (raro)
-        // Solo en este caso extremo definimos status por defecto
+        // Fallback Crear
         result = await prisma.property.create({
           data: { 
               ...payload, 
@@ -523,7 +523,7 @@ export async function savePropertyAction(data: any) {
         });
       }
     } else {
-      // ✅ CREACIÓN NUEVA: AQUÍ SÍ DEFINIMOS EL ESTADO INICIAL
+      // ✅ CREACIÓN NUEVA
       const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
 
       result = await prisma.$transaction(async (tx: any) => {
@@ -533,7 +533,6 @@ export async function savePropertyAction(data: any) {
               ...(payload as any), 
               ownerSnapshot, 
               images: imageCreateLogic,
-              // 🔥 ESTADO DE NACIMIENTO
               status: initialStatus, 
               promotedTier: "FREE" 
           } as any,
@@ -555,7 +554,7 @@ export async function savePropertyAction(data: any) {
       });
     }
 
-    // --- GUARDADO OPEN HOUSE (INTACTO) ---
+    // --- GUARDADO OPEN HOUSE ---
     if (result && result.id && data.openHouse) {
         let ohData = data.openHouse;
         if (typeof ohData === 'string') { try { ohData = JSON.parse(ohData); } catch (e) {} }
@@ -579,7 +578,6 @@ export async function savePropertyAction(data: any) {
     return { success: false, error: String(error) };
   }
 }
-
 // D. BORRAR PROPIEDAD (LÓGICA ORIGINAL MANTENIDA)
 export async function deletePropertyAction(id: string) {
   try {
