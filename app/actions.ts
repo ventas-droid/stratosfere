@@ -110,9 +110,8 @@ export async function loginUser(formData: FormData) {
     return { success: true };
 }
 // =========================================================
-// 🌍 2. PROPIEDADES (GLOBALES Y PRIVADAS) - VERSIÓN BLINDADA FINAL
+// 🌍 2. PROPIEDADES (GLOBALES) - CON TRANSMUTACIÓN DE IDENTIDAD
 // =========================================================
-
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -125,12 +124,18 @@ export async function getGlobalPropertiesAction() {
         images: true,
         favoritedBy: { select: { userId: true } },
 
-        // ✅ Usuario “vivo” (perfil actual) para reflejar ediciones
-        user: {
-          select: USER_IDENTITY_SELECT,
+        // 1. Dueño Original (Particular)
+        user: { select: USER_IDENTITY_SELECT },
+
+        // 🔥 2. TRANSMUTACIÓN: Buscamos si hay un contrato activo con Agencia
+        assignment: {
+            where: { status: "ACTIVE" },
+            include: {
+                agency: { select: USER_IDENTITY_SELECT } // Datos de la Agencia
+            }
         },
 
-        // 🔥🔥 1. RECUPERAMOS LOS EVENTOS DE LA BASE DE DATOS 🔥🔥
+        // 3. Eventos
         openHouses: {
             where: { status: "SCHEDULED" },
             orderBy: { startTime: 'asc' },
@@ -140,40 +145,48 @@ export async function getGlobalPropertiesAction() {
     });
 
    const mappedProps = (properties || []).map((p: any) => {
-      // 1) Imágenes coherentes (LÓGICA ORIGINAL)
-      const allImages = (p.images || [])
-        .map((img: any) => img?.url)
-        .filter(Boolean);
-
+      // --- LÓGICA DE IMÁGENES ---
+      const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
       const realImg = allImages?.[0] || p.mainImage || null;
       const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-      // 2) Favoritos (LÓGICA ORIGINAL)
+      // --- FAVORITOS ---
       const isFavoritedByMe = currentUserId
         ? (p.favoritedBy || []).some((fav: any) => fav?.userId === currentUserId)
         : false;
 
-      // 3) Identidad unificada (LÓGICA ORIGINAL)
-      const identity = buildIdentity(p.user, p.ownerSnapshot);
+      // 🔥🔥🔥 OPERACIÓN TRANSMUTACIÓN 🔥🔥🔥
+      // Por defecto, el dueño es el usuario registrado (Particular)
+      let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
+      let realTier = p.promotedTier || "FREE";
+      
+      // PERO, si hay un 'assignment' activo, la Agencia suplanta la identidad visual
+      if (p.assignment?.agency) {
+          // Construimos identidad con los datos de la Agencia
+          finalIdentity = buildIdentity(p.assignment.agency, null);
+          // Forzamos el rol para que los botones digan "Contactar Agente"
+          finalIdentity.role = 'AGENCIA'; 
+          // Heredamos el rango de la agencia (si aplica) o mantenemos el de la propiedad
+          if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
+      }
+      // -------------------------------------
 
-      // 4) Coordenadas seguras (LÓGICA ORIGINAL)
+      // --- COORDENADAS ---
       const lng = p.longitude ?? -3.7038;
       const lat = p.latitude ?? 40.4168;
 
-      // 5) Precio (LÓGICA ORIGINAL)
+      // --- PRECIO ---
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
-      // 🔥🔥 6. CENTINELA DE TIEMPO (SU LÓGICA PREMIUM ACTUAL) 🔥🔥
+      // --- ESTADO PREMIUM ---
       const now = new Date();
       const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
       const isExpired = expiryDate && expiryDate < now;
+      if (isExpired) realTier = "FREE";
+      const realIsPromoted = realTier === 'PREMIUM';
 
-      // Calculamos el estado REAL para el mapa
-      const realTier = isExpired ? "FREE" : (p.promotedTier || "FREE");
-      const realIsPromoted = isExpired ? false : !!p.isPromoted;
-
-      // 7. Eventos Open House (LÓGICA ORIGINAL)
+      // --- OPEN HOUSE ---
       let openHouseObj = null;
       if (p.openHouses && p.openHouses.length > 0) {
          openHouseObj = { ...p.openHouses[0], enabled: true };
@@ -182,38 +195,43 @@ export async function getGlobalPropertiesAction() {
       return {
         ...p,
         id: p.id,
-
-        // 🔥🔥🔥 ESTADÍSTICAS TÁCTICAS (ESTO ES LO NUEVO QUE AÑADIMOS) 🔥🔥🔥
+        // DATOS TÁCTICOS
         views: p.views || 0,
         photoViews: p.photoViews || 0,
         shareCount: p.shareCount || 0,
-        // -------------------------------------------------------------------
-
-        // 🔥 DATOS PREMIUM (SE MANTIENEN INTACTOS)
+        
+        // DATOS PREMIUM
         promotedTier: realTier,
         isPromoted: realIsPromoted,
         promotedUntil: p.promotedUntil,
 
-        // ✅ EL RESTO SE QUEDA IGUAL (NO SE ROMPE NADA)
+        // IDENTIDAD FINAL (Aquí va la Agencia si transmutó)
+        user: finalIdentity, 
         ownerSnapshot: p.ownerSnapshot ?? null,
-        user: identity,
+        
         coordinates: [lng, lat],
         longitude: lng,
         latitude: lat,
         images: imagesFinal,
         img: realImg,
-        price: priceFormatted,   
-        rawPrice,                
-        priceValue: rawPrice,    
+        price: priceFormatted,    
+        rawPrice,                 
+        priceValue: rawPrice,     
         isFavorited: isFavoritedByMe,
+        
+        // Físicos
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: Number(p.communityFees || 0),
+        
+        // Energía
         energyConsumption: p.energyConsumption ?? null,
         energyEmissions: p.energyEmissions ?? null,
         energyPending: !!p.energyPending,
-        openHouse: openHouseObj,       
-        open_house_data: openHouseObj  
+        
+        // Evento
+        openHouse: openHouseObj,        
+        open_house_data: openHouseObj   
       };
     });
 
@@ -223,7 +241,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
-// ✅ Obtener UNA propiedad completa (VERSION BLINDADA CON OPEN HOUSE)
+// ✅ Obtener UNA propiedad completa (VERSION BLINDADA CON TRANSMUTACIÓN)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
     const id = String(propertyId || "").trim();
@@ -233,13 +251,17 @@ export async function getPropertyByIdAction(propertyId: string) {
       where: { id },
       include: {
         images: true,
-        user: { select: USER_IDENTITY_SELECT },
-
-        // 🔥🔥🔥 INSERTE ESTA LÍNEA AQUÍ PARA ARREGLAR EL CONTADOR 🔥🔥🔥
+        user: { select: USER_IDENTITY_SELECT }, // Dueño Real
         favoritedBy: { select: { userId: true } },
-        // ---------------------------------------------------------------
 
-        // 🔥 1. NOVEDAD: Pedimos el Open House activo a la base de datos
+        // 🔥 TRANSMUTACIÓN: Chequeo de Agencia Gestora
+        assignment: {
+            where: { status: "ACTIVE" },
+            include: {
+                agency: { select: USER_IDENTITY_SELECT }
+            }
+        },
+
         openHouses: {
             where: { status: "SCHEDULED" },
             orderBy: { startTime: 'asc' },
@@ -249,62 +271,55 @@ export async function getPropertyByIdAction(propertyId: string) {
     });
     if (!p) return { success: false, error: "NOT_FOUND" };
 
-    // 1) Imágenes coherentes (NO TOCAR)
-    const allImages = (p.images || [])
-      .map((img: any) => img?.url)
-      .filter(Boolean);
-
+    // --- IMÁGENES ---
+    const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
     const realImg = allImages?.[0] || p.mainImage || null;
     const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-    // 2) Identidad unificada (NO TOCAR)
-    const identity = buildIdentity(p.user, p.ownerSnapshot);
+    // 🔥🔥🔥 OPERACIÓN TRANSMUTACIÓN 🔥🔥🔥
+    let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
+    
+    // Si hay contrato activo -> La Agencia toma el control visual
+    if (p.assignment?.agency) {
+        finalIdentity = buildIdentity(p.assignment.agency, null);
+        finalIdentity.role = 'AGENCIA';
+    }
+    // -------------------------------------
 
-    // 3) Coordenadas seguras (NO TOCAR)
     const lng = p.longitude ?? -3.7038;
     const lat = p.latitude ?? 40.4168;
-
-    // 4) Precio (NO TOCAR)
     const rawPrice = Number(p.price || 0);
     const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
-    // 🔥 2. NOVEDAD: Preparamos el objeto Open House para el Frontend
-    // Prisma devuelve un array 'openHouses', pero el frontend quiere un objeto único 'openHouse'
     let openHouseObj = null;
     if (p.openHouses && p.openHouses.length > 0) {
-        // Cogemos el primero y le ponemos enabled: true para que el popup sepa que está activo
         openHouseObj = { ...p.openHouses[0], enabled: true };
     }
 
-    // ✅ devolvemos en el MISMO formato que Details/Map ya saben manejar
     const mapped = {
       ...p,
       id: p.id,
       ownerSnapshot: p.ownerSnapshot ?? null,
-      user: identity,
+      
+      // ✅ Aquí enviamos la identidad ya transmutada (Agencia si aplica)
+      user: finalIdentity,
 
       coordinates: [lng, lat],
       longitude: lng,
       latitude: lat,
-
       images: imagesFinal,
       img: realImg,
-
       price: priceFormatted,
       rawPrice,
       priceValue: rawPrice,
-
       m2: Number(p.mBuilt || 0),
       mBuilt: Number(p.mBuilt || 0),
       communityFees: Number(p.communityFees || 0),
-
       energyConsumption: p.energyConsumption ?? null,
       energyEmissions: p.energyEmissions ?? null,
       energyPending: !!p.energyPending,
-
-      // 🔥 3. INYECCIÓN FINAL: Aquí pasamos el dato al frontend
       openHouse: openHouseObj, 
-      open_house_data: openHouseObj // (Doble vía por seguridad)
+      open_house_data: openHouseObj 
     };
 
     return { success: true, data: mapped };
@@ -313,7 +328,6 @@ export async function getPropertyByIdAction(propertyId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
-
 // C. GUARDAR PROPIEDAD (BLINDADO FINAL: PROTEGE PAGOS Y RANGO AL EDITAR)
 export async function savePropertyAction(data: any) {
   try {
@@ -673,7 +687,7 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
   }
 }
 
-// H. LEER FAVORITOS (BÓVEDA) ✅ UNIFICADO CON GLOBAL/PERFIL
+// H. LEER FAVORITOS (BÓVEDA) - CON TRANSMUTACIÓN
 export async function getFavoritesAction() {
   const user = await getCurrentUser();
   if (!user) return { success: false, data: [] };
@@ -684,25 +698,13 @@ export async function getFavoritesAction() {
       property: {
         include: {
           images: true,
-          user: {
-            select: {
-              id: true,
-              role: true,
-              name: true,
-              surname: true,
-              avatar: true,
-              companyName: true,
-              companyLogo: true,
-              coverImage: true,
-              phone: true,
-              mobile: true,
-              website: true,
-              tagline: true,
-              zone: true,
-              cif: true,
-              licenseNumber: true,
-            },
-          },
+          user: { select: USER_IDENTITY_SELECT }, // Dueño Original
+          
+          // 🔥 TRANSMUTACIÓN
+          assignment: {
+             where: { status: "ACTIVE" },
+             include: { agency: { select: USER_IDENTITY_SELECT } }
+          }
         },
       },
     },
@@ -713,10 +715,15 @@ export async function getFavoritesAction() {
       const p: any = f.property;
       if (!p) return null;
 
-      // Imágenes consistentes
       let allImages = (p.images || []).map((img: any) => img.url);
       if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
       const realImg = allImages[0] || null;
+
+      // 🔥 LÓGICA DE IDENTIDAD DINÁMICA
+      let finalIdentity = p.user;
+      if (p.assignment?.agency) {
+          finalIdentity = { ...p.assignment.agency, role: 'AGENCIA' };
+      }
 
       const lng = p.longitude ?? -3.7038;
       const lat = p.latitude ?? 40.4168;
@@ -724,28 +731,17 @@ export async function getFavoritesAction() {
       return {
         ...p,
         id: p.id,
+        // ✅ Identidad correcta
+        user: finalIdentity,
 
-        // ✅ CLAVE: identidad del creador para que el "portero" funcione
-        user: p.user,
-
-        // ✅ COORDENADAS PARA “VOLAR”
         coordinates: [lng, lat],
-        lng,
-        lat,
-
-        // ✅ Imágenes coherentes con el mapa/global
+        lng, lat,
         images: allImages,
         img: realImg,
-
-        // ✅ Favorito
         isFavorited: true,
-
-        // ✅ Precio numérico estable
         price: new Intl.NumberFormat("es-ES").format(p.price || 0),
         rawPrice: p.price,
         priceValue: p.price,
-
-        // ✅ Datos críticos
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: p.communityFees || 0,
