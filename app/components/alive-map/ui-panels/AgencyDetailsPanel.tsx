@@ -7,7 +7,7 @@ import {
     getCampaignByPropertyAction, 
     getPropertyByIdAction,
     getActiveManagementAction,
-    incrementStatsAction // <--- AÑADIDO (VITAL)
+    incrementStatsAction 
 } from "@/app/actions";
 
 import { 
@@ -88,23 +88,24 @@ export default function AgencyDetailsPanel({
     );
 
     // ============================================================
-    // 🔥 3. SENSORES TÁCTICOS (NUEVO CÓDIGO)
+    // 🔥 3. SENSORES TÁCTICOS
     // ============================================================
     
-    // A) SENSOR DE VISITAS: Cuenta +1 al abrir
+    // A) SENSOR DE VISITAS
     useEffect(() => {
         if (selectedProp?.id) {
             incrementStatsAction(selectedProp.id, 'view');
         }
     }, [selectedProp?.id]);
 
-    // B) SENSOR DE FOTOS: Intercepta el clic
+    // B) SENSOR DE FOTOS
     const handleMainPhotoClick = () => {
         if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'photo');
         if (onOpenInspector) onOpenInspector();
     };
-// ============================================================
-    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN V3 (FIX DEFINITIVO AVATAR)
+
+    // ============================================================
+    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN V3 (FIX DEFINITIVO AVATAR & OFICINA)
     // ============================================================
     useEffect(() => {
         const verifyRealData = async () => {
@@ -128,29 +129,19 @@ export default function AgencyDetailsPanel({
                             setBaseOwnerData((prev: any) => ({ ...prev, ...realData.user }));
                         } 
                         // CASO B: La base de datos no trajo al dueño, PERO YO SOY EL DUEÑO
-                        // (Esto pasa mucho en "Mi Cartera")
+                        // (Esto pasa mucho en "Mi Cartera" / Stock)
                         else if (currentUser && realData.userId === currentUser.id) {
                             console.log("🦅 Inyectando identidad local de agencia...");
-                            
-                            // FORZAMOS LOS DATOS DE 'currentUser' EN EL FORMATO QUE EL PANEL ENTIENDE
                             setBaseOwnerData({
                                 id: currentUser.id,
                                 name: currentUser.name || currentUser.companyName || "Agencia",
                                 companyName: currentUser.companyName || currentUser.name,
                                 email: currentUser.email,
-                                
-                                // Mapeo agresivo de teléfonos
                                 phone: currentUser.mobile || currentUser.phone || currentUser.telephone,
                                 mobile: currentUser.mobile || currentUser.phone,
-                                
-                                // Mapeo agresivo de imágenes (Avatar / Logo)
                                 avatar: currentUser.companyLogo || currentUser.avatar || currentUser.image,
                                 companyLogo: currentUser.companyLogo || currentUser.avatar || currentUser.image,
-                                
-                                // Portada
                                 coverImage: currentUser.coverImage || currentUser.cover,
-                                
-                                // Rol y Licencia
                                 role: currentUser.role || 'AGENCIA',
                                 licenseType: currentUser.licenseType || 'PRO',
                                 tagline: currentUser.tagline || "",
@@ -164,7 +155,7 @@ export default function AgencyDetailsPanel({
             }
         };
         verifyRealData();
-    }, [selectedProp?.id, currentUser]); // Dependencia crítica: currentUser
+    }, [selectedProp?.id, currentUser]);
 
     // ============================================================
     // 🚁 CONTROLADOR DE VUELO (FIX: ACTIVOS Y FAVORITOS)
@@ -180,8 +171,9 @@ export default function AgencyDetailsPanel({
             }));
         }
     }, [selectedProp?.id, selectedProp?.lat, selectedProp?.location]);
+
     // ============================================================
-    // 4. LÓGICA DE ACTUALIZACIÓN
+    // 4. LÓGICA DE ACTUALIZACIÓN (RADAR & SIGNALS)
     // ============================================================
     useEffect(() => { 
       if (initialProp?.id && initialProp.id !== selectedProp?.id) {
@@ -199,7 +191,7 @@ export default function AgencyDetailsPanel({
       }
     }, [initialProp, initialAgencyData]);
 
-    // 🦅 RADAR DE GESTIÓN
+    // RADAR DE GESTIÓN (B2B / EXCLUSIVAS)
     useEffect(() => {
         const fetchContract = async () => {
             if (!selectedProp?.id) return;
@@ -263,6 +255,7 @@ export default function AgencyDetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
+    // DECISIÓN FINAL DE DUEÑO
     const ownerData = managedOwner || baseOwnerData;
     const isOwner = selectedProp?.isOwner || (currentUser?.id && selectedProp?.userId && currentUser.id === selectedProp.userId);
 
@@ -285,6 +278,7 @@ export default function AgencyDetailsPanel({
       setTimeout(() => setCopiedRef(false), 2000);
     };
 
+    // DATOS DE DISPLAY
     const activeOwner = ownerData; 
     const name = activeOwner.companyName || activeOwner.name || "Usuario";
     
@@ -313,6 +307,7 @@ export default function AgencyDetailsPanel({
 
     if (!selectedProp) return null;
 
+    // TAGS & FEATURES
     const allTags = new Set<string>();
     
     if (selectedProp?.selectedServices) {
@@ -715,9 +710,11 @@ export default function AgencyDetailsPanel({
                       </button>
                   )}
 
-                  {/* CONTACT BUTTON */}
+                  {/* CONTACT BUTTON - CORREGIDO (role) */}
                   <button onClick={() => setShowContactModal(true)} className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs">
-                    <Phone size={18} /> Contactar Agente
+                    <Phone size={18} /> 
+                    {/* 👇 USO CORRECTO DE 'role' (no ownerRole) 👇 */}
+                    {(role === 'AGENCIA' || role === 'AGENCY') ? "Contactar Agente" : "Contactar Propietario"}
                   </button>
 
                   {/* PDF BUTTON */}
