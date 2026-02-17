@@ -156,7 +156,7 @@ export async function getGlobalPropertiesAction() {
         : false;
 
       // 🔥🔥🔥 OPERACIÓN TRANSMUTACIÓN 🔥🔥🔥
-      // Por defecto, el dueño es el usuario registrado (Particular)
+      // Por defecto, la identidad es la del dueño registral (User)
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
       let realTier = p.promotedTier || "FREE";
       
@@ -166,7 +166,7 @@ export async function getGlobalPropertiesAction() {
           finalIdentity = buildIdentity(p.assignment.agency, null);
           // Forzamos el rol para que los botones digan "Contactar Agente"
           finalIdentity.role = 'AGENCIA'; 
-          // Heredamos el rango de la agencia (si aplica) o mantenemos el de la propiedad
+          // Si la agencia es PRO, la casa parece PREMIUM (opcional, táctica de venta)
           if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
       }
       // -------------------------------------
@@ -179,7 +179,7 @@ export async function getGlobalPropertiesAction() {
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
-      // --- ESTADO PREMIUM ---
+      // --- ESTADO PREMIUM (CENTINELA DE TIEMPO) ---
       const now = new Date();
       const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
       const isExpired = expiryDate && expiryDate < now;
@@ -206,6 +206,7 @@ export async function getGlobalPropertiesAction() {
         promotedUntil: p.promotedUntil,
 
         // IDENTIDAD FINAL (Aquí va la Agencia si transmutó)
+        // El frontend recibirá esto y pintará Agencia sin dudar.
         user: finalIdentity, 
         ownerSnapshot: p.ownerSnapshot ?? null,
         
@@ -241,6 +242,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
+
 // ✅ Obtener UNA propiedad completa (VERSION BLINDADA CON TRANSMUTACIÓN)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
@@ -768,7 +770,6 @@ export async function getAgencyPortfolioAction() {
     // Solo traemos propiedades donde:
     // 1. SOY EL DUEÑO ORIGINAL (userId = yo)
     // 2. O TENGO UN CONTRATO FIRMADO (campaign = ACCEPTED)
-    // (Eliminamos Favoritos para no ensuciar el Stock de Gestión)
     const myProperties = await prisma.property.findMany({
       where: { 
           OR: [
@@ -778,10 +779,20 @@ export async function getAgencyPortfolioAction() {
       },
       include: { 
           images: true,
-          // Traemos al dueño original para guardarlo en 'clientData' (uso interno)
+          // 🔥 AQUÍ ESTABA EL ERROR: Ahora pedimos la identidad COMPLETA
           user: {
             select: {
-                id: true, role: true, name: true, surname: true, email: true, phone: true, avatar: true
+                id: true, role: true, name: true, surname: true, email: true, 
+                phone: true, mobile: true,
+                avatar: true, 
+                companyName: true, 
+                companyLogo: true, // <--- VITAL PARA QUE SALGA EL LOGO EN EL PANEL
+                coverImage: true,  // <--- VITAL PARA EL FONDO
+                licenseType: true,
+                licenseNumber: true,
+                website: true,
+                tagline: true,
+                zone: true
             }
           }, 
           // Solo traemos MI campaña aceptada (EL CONTRATO)
@@ -801,26 +812,25 @@ export async function getAgencyPortfolioAction() {
         // 🔥 LOGICA DE CONTRATO (CAMPAÑA) 🔥
         const winningCampaign = p.campaigns && p.campaigns.length > 0 ? p.campaigns[0] : null;
         
+        // IDENTIDAD POR DEFECTO: El dueño original (que ahora sí trae logo/cover si es agencia)
         let displayUser = originalOwner;
         let isManaged = false;
 
-        // Si hay campaña ganadora, procesamos los datos financieros
+        // Si hay campaña ganadora (Gestión externa), procesamos
         if (winningCampaign) {
             isManaged = true;
             
-            // A) NORMALIZACIÓN DE DATOS (Usamos columnas directas o JSON si existe)
-            // Aseguramos que los números sean números
+            // A) NORMALIZACIÓN DE DATOS
             winningCampaign.commissionPct = Number(winningCampaign.commissionPct || 0);
             winningCampaign.commissionSharePct = Number(winningCampaign.commissionSharePct || 0);
             winningCampaign.mandateType = winningCampaign.mandateType || "SIMPLE";
             
             // B) CÁLCULO DE IMPORTES (EUROS)
-            // Para pintar el dinero en los modales
             const price = p.price || 0;
-            const comm = winningCampaign.commissionPct; // Ej: 5%
+            const comm = winningCampaign.commissionPct; 
             
             const base = (price * comm) / 100;
-            const iva = base * 0.21; // 21% IVA
+            const iva = base * 0.21; 
             const total = base + iva;
             
             winningCampaign.financials = {
@@ -829,18 +839,23 @@ export async function getAgencyPortfolioAction() {
                 total: total
             };
 
-            // 🔥 C) SUPLANTACIÓN DE IDENTIDAD (EL TRUCO FINAL)
-            // Si la gestiono yo, para el frontend YO SOY EL DUEÑO VISUAL.
-            // Esto obliga a index.tsx a ver "AGENCIA" y abrir el panel PRO.
+            // 🔥 C) SUPLANTACIÓN DE IDENTIDAD VISUAL (Si gestiono yo)
+            // Si es gestión externa, muestro mis datos de agencia (UserMe)
             displayUser = {
-                ...user, // Mis datos de agencia (UserMe)
-                role: 'AGENCIA', // Forzamos el rol explícitamente
+                ...user, 
+                role: 'AGENCIA', 
                 licenseType: 'PRO',
-                // Aseguramos que la foto sea el logo
                 avatar: user.companyLogo || user.avatar,
                 companyLogo: user.companyLogo,
-                companyName: user.companyName || user.name
+                companyName: user.companyName || user.name,
+                coverImage: user.coverImage
             };
+        } else {
+            // SI ES MI PROPIEDAD CREADA DESDE CERO (SIN CAMPAÑA):
+            // Me aseguro de que el Avatar sea el Logo si soy Agencia
+            if (originalOwner.role === 'AGENCIA') {
+                displayUser.avatar = originalOwner.companyLogo || originalOwner.avatar;
+            }
         }
 
         return {
@@ -848,12 +863,10 @@ export async function getAgencyPortfolioAction() {
             id: p.id,
             refCode: p.refCode, 
             
-            // AQUÍ ESTÁ LA MAGIA:
-            // user: Es lo que ve la tarjeta y el portero (Agencia si está firmada)
-            // clientData: Es el dueño real (Particular) para tu uso interno (contactar propietario)
+            // AQUÍ VIAJA LA IDENTIDAD CORRECTA CON FOTO
             user: displayUser, 
             ownerSnapshot: displayUser, 
-            clientData: originalOwner,
+            clientData: originalOwner, // Guardamos el dueño real por si acaso
 
             activeCampaign: winningCampaign, 
             radarType: winningCampaign ? (winningCampaign.mandateType || "SIMPLE") : null,
@@ -881,6 +894,7 @@ export async function getAgencyPortfolioAction() {
     return { success: false, error: "Error de conexión" };
   }
 }
+
 // B. BORRAR DEL STOCK (✅ idempotente + borra favorito por clave compuesta)
 export async function deleteFromStockAction(propertyId: string) {
   try {
