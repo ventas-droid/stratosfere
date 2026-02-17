@@ -56,23 +56,25 @@ export default function DetailsPanel({
   onOpenInspector   
 }: any) {
     
+    // ESTADO
     const [selectedProp, setSelectedProp] = useState(initialProp);
-    // Estado local para el dueño (para permitir actualización dinámica)
-    const [dynamicOwner, setDynamicOwner] = useState<any>(null);
+    
+    // 🔥 ESTADO DE IDENTIDAD DINÁMICA (LA CLAVE DE LA VICTORIA)
+    // Inicializamos con null para obligar a la carga fresca si hay duda
+    const [freshOwner, setFreshOwner] = useState<any>(null);
 
     const [copiedRef, setCopiedRef] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-    // Sincronizar propiedad seleccionada inicial
+    // Sincronizar al abrir
     useEffect(() => { 
         setSelectedProp(initialProp); 
-        // Reset del dueño dinámico al cambiar de propiedad
-        setDynamicOwner(null);
+        setFreshOwner(null); // Reset al cambiar de propiedad
     }, [initialProp]);
 
-    // Listener para actualizaciones en vivo
+    // Listener Updates
     useEffect(() => {
         const handleLiveUpdate = (e: any) => {
             const { id, updates } = e.detail;
@@ -84,7 +86,7 @@ export default function DetailsPanel({
         return () => window.removeEventListener('update-property-signal', handleLiveUpdate);
     }, [selectedProp]);
 
-    // 🔥 SENSOR DE VISITAS
+    // 🔥 SENSOR VISITAS
     useEffect(() => {
         if (selectedProp?.id) {
             incrementStatsAction(selectedProp.id, 'view');
@@ -92,34 +94,37 @@ export default function DetailsPanel({
     }, [selectedProp?.id]);
 
     // ============================================================
-    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (VERSIÓN CLIENTE)
+    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (PURGA DE DATOS VIEJOS)
     // ============================================================
-    // Esto soluciona el problema de "Favoritos viejos". 
-    // Al abrir, descarga los datos frescos (incluyendo si ahora es Agencia).
     useEffect(() => {
-        const refreshData = async () => {
-            if (selectedProp?.id) {
-                try {
-                    const realData = await getPropertyByIdAction(selectedProp.id);
-                    if (realData) {
-                        // 1. Actualizamos datos de la casa (métricas, tipo, etc)
-                        setSelectedProp((prev: any) => ({ ...prev, ...realData }));
-                        
-                        // 2. Actualizamos datos del dueño (si cambió de particular a agencia)
-                        if (realData.user) {
-                            setDynamicOwner(realData.user);
-                        }
+        const fetchFreshData = async () => {
+            if (!selectedProp?.id) return;
+
+            try {
+                // 1. Pedimos a la base de datos la VERDAD
+                const realData = await getPropertyByIdAction(selectedProp.id);
+                
+                if (realData) {
+                    // 2. Actualizamos la propiedad (Métricas, Precio, Estado)
+                    setSelectedProp((prev: any) => ({ ...prev, ...realData }));
+
+                    // 3. CAPTURAMOS AL DUEÑO REAL (Aquí está el arreglo del "Favorito Viejo")
+                    // Si la propiedad tiene un usuario asignado en la BD, ESE es el que manda.
+                    if (realData.user) {
+                        console.log("🦅 Dueño actualizado desde BD:", realData.user.name);
+                        setFreshOwner(realData.user);
                     }
-                } catch (e) {
-                    console.error("Error refrescando datos:", e);
                 }
+            } catch (e) {
+                console.error("Error fetching fresh data:", e);
             }
         };
-        refreshData();
+
+        fetchFreshData();
     }, [selectedProp?.id]);
 
 
-    // 🔥 SENSOR DE FOTOS
+    // 🔥 SENSOR FOTOS
     const handleMainPhotoClick = () => {
         if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'photo');
         if (onOpenInspector) onOpenInspector();
@@ -145,16 +150,23 @@ export default function DetailsPanel({
       setTimeout(() => setCopiedRef(false), 2000);
     };
 
-    // --- LÓGICA DE PROPIETARIO (COMBINADA: DATA VIEJA + DATA FRESCA) ---
-    // Usamos 'dynamicOwner' si existe (fresco), si no, usamos el snapshot viejo.
-    const activeUser = dynamicOwner || selectedProp?.user || selectedProp?.ownerSnapshot || {};
+    // ============================================================
+    // 🛡️ LÓGICA DE IDENTIDAD BLINDADA
+    // ============================================================
+    // Prioridad: 1. Dueño Fresco (BD) -> 2. Propiedad actual -> 3. Snapshot viejo
+    const activeOwner = freshOwner || selectedProp?.user || selectedProp?.ownerSnapshot || {};
 
-    const ownerName = activeUser.companyName || activeUser.name || "Propietario";
-    const ownerAvatar = activeUser.companyLogo || activeUser.avatar || null;
-    const ownerCover = activeUser.coverImage || activeUser.cover || null;
-    const ownerPhone = activeUser.mobile || activeUser.phone || "Consultar";
-    const ownerEmail = activeUser.email || "---";
-    const ownerRole = String(activeUser.role || "PARTICULAR").toUpperCase();
+    const ownerName = activeOwner.companyName || activeOwner.name || "Propietario";
+    
+    // Truco para avatar: Busca en todos los rincones posibles
+    const ownerAvatar = activeOwner.companyLogo || activeOwner.avatar || activeOwner.image || null;
+    const ownerCover = activeOwner.coverImage || activeOwner.cover || null;
+    
+    const ownerPhone = activeOwner.mobile || activeOwner.phone || "Consultar";
+    const ownerEmail = activeOwner.email || "---";
+    
+    // ROL NORMALIZADO
+    const ownerRole = String(activeOwner.role || "PARTICULAR").toUpperCase();
 
     // Copiar teléfono
     const copyPhone = () => {
@@ -270,8 +282,8 @@ export default function DetailsPanel({
                             <h2 className="text-3xl font-black text-white leading-none mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                                 {ownerName}
                             </h2>
-                            <span className={`px-3 py-1 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-bold uppercase tracking-wider shadow-lg inline-flex items-center gap-2 ${ownerRole === 'AGENCIA' ? 'bg-black/80 text-emerald-400' : 'bg-black/40 text-white'}`}>
-                                {ownerRole === 'AGENCIA' ? <Building2 size={12}/> : <User size={12}/>} 
+                            <span className={`px-3 py-1 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-bold uppercase tracking-wider shadow-lg inline-flex items-center gap-2 ${ownerRole === 'AGENCIA' || ownerRole === 'AGENCY' ? 'bg-black/80 text-emerald-400' : 'bg-black/40 text-white'}`}>
+                                {(ownerRole === 'AGENCIA' || ownerRole === 'AGENCY') ? <Building2 size={12}/> : <User size={12}/>} 
                                 {ownerRole}
                             </span>
                          </div>
@@ -301,26 +313,14 @@ export default function DetailsPanel({
                         {selectedProp?.title || "Sin Título"}
                       </h1>
 
-                     {/* REF CODE + COPIAR */}
+                     {/* REF CODE */}
                     {selectedProp?.refCode && (
                       <div className="text-[12px] text-slate-500 mb-2 flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          Ref:{" "}
-                          <span className="font-mono text-slate-700 break-all">
-                            {selectedProp.refCode}
-                          </span>
+                          Ref: <span className="font-mono text-slate-700 break-all">{selectedProp.refCode}</span>
                         </div>
-
-                        <button
-                          onClick={copyRefCode}
-                          className="shrink-0 w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
-                          title="Copiar referencia"
-                        >
-                          {copiedRef ? (
-                            <Check size={18} className="text-green-500" />
-                          ) : (
-                            <Copy size={18} className="text-slate-500" />
-                          )}
+                        <button onClick={copyRefCode} className="shrink-0 w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer" title="Copiar referencia">
+                          {copiedRef ? <Check size={18} className="text-green-500" /> : <Copy size={18} className="text-slate-500" />}
                         </button>
                       </div>
                     )}
@@ -355,7 +355,6 @@ export default function DetailsPanel({
                                 {hasElevator && <ArrowUp size={14} className="text-green-500"/>}
                             </div>
                             
-                            {/* GASTOS COMUNIDAD */}
                             {selectedProp?.communityFees > 0 && (
                                 <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center">
                                     <div>
@@ -441,6 +440,7 @@ export default function DetailsPanel({
                     </div>
 
                     {/* 🔥 PANEL DE INTELIGENCIA DE MERCADO (PÚBLICO - SOCIAL PROOF) */}
+                    {/* He quitado el candado IF. Ahora SIEMPRE se renderiza */}
                     <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
                         <div className="flex items-center gap-2 mb-4">
                              <Activity size={16} className="text-blue-600"/>
@@ -521,7 +521,7 @@ export default function DetailsPanel({
                     className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs cursor-pointer"
                   >
                     <Phone size={18} /> 
-                    {/* 👇 AQUÍ DETECTA SI ES AGENCIA O DUEÑO 👇 */}
+                    {/* 👇 DETECTOR DE ROL AUTOMÁTICO (CORREGIDO) 👇 */}
                     {(ownerRole === 'AGENCIA' || ownerRole === 'AGENCY') ? "Contactar Agente" : "Contactar Propietario"}
                   </button>
 
@@ -536,7 +536,7 @@ export default function DetailsPanel({
                     <button onClick={(e) => { 
                         if (e?.stopPropagation) e.stopPropagation(); 
                         const propertyId = String( selectedProp?.id || selectedProp?.propertyId || selectedProp?._id || "" ); 
-                        const toUserId = String( selectedProp?.user?.id || selectedProp?.ownerSnapshot?.id || selectedProp?.userId || selectedProp?.ownerId || "" ); 
+                        const toUserId = String( activeOwner?.id || selectedProp?.userId || selectedProp?.ownerId || "" ); 
                         if (!toUserId || !propertyId) return; 
                         window.dispatchEvent( new CustomEvent("open-chat-signal", { detail: { propertyId, toUserId, otherUserId: toUserId }, }) ); 
                     }} className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 cursor-pointer active:scale-90" title="Mensaje">
@@ -566,7 +566,10 @@ export default function DetailsPanel({
                                 </div>
                                 <div className="relative z-10 mb-2">
                                     <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md">{ownerName}</h3>
-                                    <p className="text-blue-300 text-[10px] font-bold uppercase tracking-wider">{ownerRole}</p>
+                                    <span className={`px-3 py-1 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-bold uppercase tracking-wider shadow-lg inline-flex items-center gap-2 ${ownerRole === 'AGENCIA' || ownerRole === 'AGENCY' ? 'bg-black/80 text-emerald-400' : 'bg-black/40 text-white'}`}>
+                                        {(ownerRole === 'AGENCIA' || ownerRole === 'AGENCY') ? <Building2 size={12}/> : <User size={12}/>} 
+                                        {ownerRole}
+                                    </span>
                                 </div>
                                 <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/30 p-2 rounded-full cursor-pointer"><X size={18}/></button>
                             </div>
@@ -602,7 +605,7 @@ export default function DetailsPanel({
                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Chat</p>
                                     <p className="text-sm font-black text-slate-900 truncate">Abrir conversación</p>
                                 </div>
-                                <button onClick={() => { const ownerId = selectedProp?.user?.id || selectedProp?.ownerSnapshot?.id || selectedProp?.userId || selectedProp?.ownerId || null; if (!ownerId) return; window.dispatchEvent( new CustomEvent("open-chat-signal", { detail: { propertyId: String(selectedProp?.id || selectedProp?.propertyId || selectedProp?._id || ""), toUserId: String(ownerId || ""), refCode: selectedProp?.refCode || null, title: selectedProp?.title || null, }, }) ); setShowContactModal(false); }} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-black text-[10px] tracking-widest hover:bg-blue-700 transition-all active:scale-95">
+                                <button onClick={() => { const ownerId = activeOwner?.id || selectedProp?.userId || null; if (!ownerId) return; window.dispatchEvent( new CustomEvent("open-chat-signal", { detail: { propertyId: String(selectedProp?.id || ""), toUserId: String(ownerId), refCode: selectedProp?.refCode || null, title: selectedProp?.title || null, }, }) ); setShowContactModal(false); }} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-black text-[10px] tracking-widest hover:bg-blue-700 transition-all active:scale-95">
                                     MENSAJE
                                 </button>
                               </div>
