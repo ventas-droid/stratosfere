@@ -243,7 +243,7 @@ export async function getGlobalPropertiesAction() {
   }
 }
 
-// ✅ Obtener UNA propiedad completa (VERSION BLINDADA CON TRANSMUTACIÓN)
+// ✅ Obtener UNA propiedad completa (VERSION SINCRONIZADA CON EL PANEL B2B)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
     const id = String(propertyId || "").trim();
@@ -253,15 +253,22 @@ export async function getPropertyByIdAction(propertyId: string) {
       where: { id },
       include: {
         images: true,
-        user: { select: USER_IDENTITY_SELECT }, // Dueño Real
+        user: { select: USER_IDENTITY_SELECT }, 
         favoritedBy: { select: { userId: true } },
 
-        // 🔥 TRANSMUTACIÓN: Chequeo de Agencia Gestora
+        // 1. Asignación (Gestor)
         assignment: {
             where: { status: "ACTIVE" },
             include: {
                 agency: { select: USER_IDENTITY_SELECT }
+                // Sin campaign aquí para evitar error de relación
             }
+        },
+
+        // 2. Campaña Aceptada (Contrato)
+        campaigns: {
+            where: { status: "ACCEPTED" },
+            take: 1
         },
 
         openHouses: {
@@ -278,15 +285,43 @@ export async function getPropertyByIdAction(propertyId: string) {
     const realImg = allImages?.[0] || p.mainImage || null;
     const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-    // 🔥🔥🔥 OPERACIÓN TRANSMUTACIÓN 🔥🔥🔥
+    // 🔥 IDENTIDAD & B2B 🔥
     let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
     
-    // Si hay contrato activo -> La Agencia toma el control visual
+    // Identificamos si hay contrato activo
+    const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
+    
+    // PREPARAMOS LA CAJA "B2B" QUE ESPERA EL PANEL
+    let b2bData = null;
+
+    // Lógica de Identidad (Agencia vs Dueño)
     if (p.assignment?.agency) {
         finalIdentity = buildIdentity(p.assignment.agency, null);
         finalIdentity.role = 'AGENCIA';
+
+        // Si hay campaña aceptada, leemos de ahí
+        if (activeCampaign) {
+            b2bData = {
+                sharePct: activeCampaign.commissionSharePct || 0,
+                visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
+            };
+        }
+    } 
+    // Fallback: Si no hay assignment pero sí campaña
+    else if (activeCampaign) {
+         b2bData = {
+            sharePct: activeCampaign.commissionSharePct || 0,
+            visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
+         };
     }
-    // -------------------------------------
+    // 🔥 FALLBACK MANUAL: LEER DE LA PROPIEDAD DIRECTAMENTE
+    // Esto es lo que arreglará su problema al editar manualmente
+    else {
+         b2bData = {
+            sharePct: p.sharePct || 0,
+            visibility: p.shareVisibility || 'PRIVATE'
+         };
+    }
 
     const lng = p.longitude ?? -3.7038;
     const lat = p.latitude ?? 40.4168;
@@ -302,9 +337,10 @@ export async function getPropertyByIdAction(propertyId: string) {
       ...p,
       id: p.id,
       ownerSnapshot: p.ownerSnapshot ?? null,
+      user: finalIdentity, // Identidad visual
       
-      // ✅ Aquí enviamos la identidad ya transmutada (Agencia si aplica)
-      user: finalIdentity,
+      // ✅ LA PIEZA CLAVE: Enviamos el objeto 'b2b'
+      b2b: b2bData, 
 
       coordinates: [lng, lat],
       longitude: lng,
@@ -1114,7 +1150,7 @@ export async function getOrCreateConversationAction(a: any, b?: any) {
     const includeBase = {
       participants: {
         include: {
-          user: {
+         user: {
             select: {
               id: true,
               role: true,
@@ -1125,6 +1161,11 @@ export async function getOrCreateConversationAction(a: any, b?: any) {
               companyName: true,
               companyLogo: true,
               coverImage: true,
+              // 🔥 AÑADA ESTAS 4 LÍNEAS AQUÍ:
+              phone: true, 
+              mobile: true,
+              website: true,
+              licenseNumber: true
             },
           },
         },
@@ -1207,19 +1248,24 @@ export async function getMyConversationsAction() {
       include: {
         participants: {
           include: {
-            user: {
-              select: {
-                id: true,
-                role: true,
-                name: true,
-                surname: true,
-                email: true,
-                avatar: true,
-                companyName: true,
-                companyLogo: true,
-                coverImage: true,
-              },
+          user: {
+            select: {
+              id: true,
+              role: true,
+              name: true,
+              surname: true,
+              email: true,
+              avatar: true,
+              companyName: true,
+              companyLogo: true,
+              coverImage: true,
+              // 🔥 AÑADA ESTAS 4 LÍNEAS AQUÍ TAMBIÉN:
+              phone: true, 
+              mobile: true,
+              website: true,
+              licenseNumber: true
             },
+          },
           },
         },
         messages: { orderBy: { createdAt: "desc" }, take: 1 },

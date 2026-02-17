@@ -5,14 +5,15 @@ import React, { useState, useEffect } from "react";
 import { 
   X, MapPin, ShieldCheck, Globe, Mail, Edit2, Save, Camera, 
   Zap, Award, TrendingUp, Layers, LogOut, Image as ImageIcon,
-  Phone, Smartphone, User, Users, ChevronRight // <--- AÑADIDO Users y ChevronRight
+  Phone, Smartphone, User, Users, ChevronRight, Handshake // <--- AÑADIDO Handshake
 } from "lucide-react";
 import { getUserMeAction, updateUserAction, logoutAction } from '@/app/actions';
 import { uploadToCloudinary } from '@/app/utils/upload';
 import { getBillingGateAction } from "@/app/actions";
 
-// 🔥 IMPORTANTE: TRAEMOS EL GESTOR DE EVENTOS
+// 🔥 IMPORTANTE: GESTORES DE AGENCIA
 import AgencyEventManager from "./AgencyEventManager"; 
+import CollaborationManager from "./CollaborationManager"; // <--- NUEVO FICHAJE
 
 // --- CONSTANTES DE LICENCIA ---
 const LICENSE_LEVELS = {
@@ -29,8 +30,9 @@ export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, play
   const [isUploading, setIsUploading] = useState({ avatar: false, cover: false });
   const [userId, setUserId] = useState<string | null>(null);
 
-  // 🔥 ESTADO NUEVO: GESTOR DE EVENTOS
+  // 🔥 ESTADOS DE MODALES INTERNOS
   const [showEventManager, setShowEventManager] = useState(false);
+  const [showCollabManager, setShowCollabManager] = useState(false); // <--- NUEVO ESTADO B2B
 
   const bust = (url: string | null | undefined) => {
     if (!url) return url;
@@ -197,12 +199,38 @@ const handleLogout = async () => {
 
 if (!isOpen) return null;
 
-// 🔥 MODAL INTERNO: GESTOR DE EVENTOS
-// Si está activo, mostramos el gestor ENCIMA de todo el panel actual
+// 🔥 MODAL INTERNO 1: GESTOR DE EVENTOS
 if (showEventManager) {
     return (
         <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F5F5F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
             <AgencyEventManager onClose={() => setShowEventManager(false)} />
+        </div>
+    );
+}
+
+// 🔥 MODAL INTERNO 2: GESTOR DE COLABORACIONES (B2B)
+if (showCollabManager) {
+    return (
+        <div className="absolute inset-y-0 right-0 w-[500px] max-w-full z-[60000] bg-[#F5F5F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
+            <CollaborationManager 
+                // 1. Nueva función: Volver atrás (al perfil)
+                onBack={() => setShowCollabManager(false)}
+                
+                // 2. Función Cerrar Total (X)
+                onClose={() => {
+                    setShowCollabManager(false);
+                    onClose();
+                }}
+
+                // 3. Abrir Chat (Sin cerrar el panel bruscamente)
+                onOpenChat={(detail: any) => {
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('open-chat-signal', { detail }));
+                    }
+                    // NOTA: Si quiere que el panel se cierre al abrir chat, descomente la siguiente línea:
+                    // setShowCollabManager(false); onClose();
+                }}
+            />
         </div>
     );
 }
@@ -348,25 +376,51 @@ const creditPercentage = Math.min(
               </div>
           </section>
 
-          {/* 🔥 BOTÓN GESTOR DE EVENTOS (NUEVO) */}
-          <button 
-              onClick={() => { if(soundEnabled) playSynthSound('click'); setShowEventManager(true); }}
-              className="w-full bg-white p-5 rounded-[24px] shadow-sm border border-slate-200 flex items-center justify-between group hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
-          >
-              <div className="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="flex items-center gap-4 relative z-10">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors border border-indigo-100/50">
-                      <Users size={22} />
+          {/* 🔥 BOTONERA DE GESTIÓN (Eventos + B2B) */}
+          <div className="space-y-3">
+              
+              {/* 1. GESTOR DE EVENTOS */}
+              <button 
+                  onClick={() => { if(soundEnabled) playSynthSound('click'); setShowEventManager(true); }}
+                  className="w-full bg-white p-5 rounded-[24px] shadow-sm border border-slate-200 flex items-center justify-between group hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
+              >
+                  <div className="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors border border-indigo-100/50">
+                          <Users size={22} />
+                      </div>
+                      <div className="text-left">
+                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Gestor de Eventos</h3>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Control de Aforo & Leads</p>
+                      </div>
                   </div>
-                  <div className="text-left">
-                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Gestor de Eventos</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Control de Aforo & Leads</p>
+                  <div className="relative z-10 w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-300 group-hover:text-indigo-500 group-hover:border-indigo-100 transition-all shadow-sm">
+                     <ChevronRight size={16} />
                   </div>
-              </div>
-              <div className="relative z-10 w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-300 group-hover:text-indigo-500 group-hover:border-indigo-100 transition-all shadow-sm">
-                 <ChevronRight size={16} />
-              </div>
-          </button>
+              </button>
+
+              {/* 2. 🔥 GESTOR DE COLABORACIONES (B2B) 🔥 */}
+              <button 
+                  onClick={() => { if(soundEnabled) playSynthSound('click'); setShowCollabManager(true); }}
+                  className="w-full bg-gradient-to-r from-amber-50 to-orange-50 p-5 rounded-[24px] shadow-sm border border-amber-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
+              >
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-200/20 rounded-full blur-3xl pointer-events-none group-hover:bg-yellow-300/30 transition-colors"></div>
+                  
+                  <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-white text-amber-500 flex items-center justify-center shadow-sm border border-amber-100 group-hover:text-amber-600 transition-colors">
+                          <Handshake size={22} strokeWidth={2.5}/>
+                      </div>
+                      <div className="text-left">
+                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Colaboraciones B2B</h3>
+                          <p className="text-[10px] font-bold text-amber-700/60 uppercase tracking-wider group-hover:text-amber-700 transition-colors">Gestión de Alianzas</p>
+                      </div>
+                  </div>
+                  <div className="relative z-10 w-8 h-8 rounded-full bg-white/50 border border-amber-200/50 flex items-center justify-center text-amber-400 group-hover:text-amber-600 group-hover:bg-white transition-all shadow-sm">
+                     <ChevronRight size={16} />
+                  </div>
+              </button>
+
+          </div>
 
           {/* DATOS DE CONTACTO */}
           <section className="bg-white p-6 rounded-[32px] shadow-sm border border-black/5 space-y-5">

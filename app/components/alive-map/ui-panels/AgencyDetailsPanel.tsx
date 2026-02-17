@@ -116,17 +116,19 @@ export default function AgencyDetailsPanel({
         const verifyRealData = async () => {
             if (selectedProp?.id) {
                 try {
-                    // 1. Pedimos datos frescos
+                    // 1. Pedimos datos frescos (Incluye b2bData)
                     const realData = await getPropertyByIdAction(selectedProp.id);
-                    if (realData) {
-                        // Actualizamos propiedad (corrige "Oficina" -> "Piso")
+                    if (realData?.success && realData.data) {
+                        const data = realData.data;
+                        
+                        // Actualizamos propiedad
                         setSelectedProp((prev: any) => ({ 
                             ...prev, 
-                            ...realData,
-                            type: realData.type || prev.type 
+                            ...data,
+                            type: data.type || prev.type 
                         }));
 
-                        // 2. Buscamos contrato de gestión (B2B)
+                        // 2. Buscamos contrato de gestión (B2B) para reforzar
                         const mgmtRes = await getActiveManagementAction(selectedProp.id);
                         let finalOwner = {};
 
@@ -134,10 +136,10 @@ export default function AgencyDetailsPanel({
                             // Si hay gestión activa, la agencia manda
                             setCampaignData(mgmtRes.data);
                             finalOwner = mgmtRes.data.agency;
-                        } else if (realData.user) {
+                        } else if (data.user) {
                             // Si no, el dueño de la BD
-                            finalOwner = realData.user;
-                        } else if (currentUser && realData.userId === currentUser.id) {
+                            finalOwner = data.user;
+                        } else if (currentUser && data.userId === currentUser.id) {
                             // Si soy yo (Stock)
                             finalOwner = currentUser;
                         }
@@ -249,22 +251,34 @@ export default function AgencyDetailsPanel({
 
     const cleanDescription = selectedProp?.description ? selectedProp.description.replace(/<[^>]+>/g, '') : null;
 
-    // --- LÓGICA B2B (COMISIONES) ---
-    const sharePercent = Number(campaignData?.terms?.sharePct || selectedProp?.commissionSharePct || 0);
-    const visibilityMode = String(campaignData?.commissionShareVisibility || selectedProp?.commissionShareVisibility || "PRIVATE").toUpperCase();
+    // 🔥🔥🔥 LÓGICA B2B (COMISIONES - CORREGIDA Y BLINDADA) 🔥🔥🔥
+    // 1. Leemos el nuevo objeto blindado 'b2b' que viene del servidor
+    const b2bData = selectedProp?.b2b || {};
+    
+    // 2. Extraemos datos (con red de seguridad por si acaso)
+    const sharePercent = Number(b2bData.sharePct || selectedProp?.commissionSharePct || campaignData?.terms?.sharePct || 0);
+    const visibilityMode = String(b2bData.visibility || selectedProp?.shareVisibility || campaignData?.commissionShareVisibility || "PRIVATE").toUpperCase();
     
     let canSeeCommission = false;
-    // Si soy admin o agencia, y hay comisión pública o para agencias -> Lo veo.
+    
+    // 3. Filtro de Seguridad (¿Quién ve el botón dorado?)
     if (sharePercent > 0) {
-        const iAmAgency = String(currentUser?.role).toUpperCase().includes('AGEN') || String(currentUser?.role) === 'ADMIN';
-        if (visibilityMode === 'PUBLIC' || (visibilityMode.includes('AGEN') && iAmAgency)) {
+        const myRole = String(currentUser?.role || "").toUpperCase();
+        
+        // A) Modo PÚBLICO: Todo el mundo lo ve
+        if (visibilityMode === 'PUBLIC') {
+            canSeeCommission = true;
+        } 
+        // B) Modo AGENCIAS: Solo Agencias Verificadas y Admin
+        else if (visibilityMode.includes('AGEN') && (myRole.includes('AGEN') || myRole === 'ADMIN')) {
             canSeeCommission = true;
         }
     }
 
+    // 4. Cálculos Financieros (Estimación para el botón)
     const numericPrice = Number(String(selectedProp?.price || "0").replace(/[^0-9]/g, ""));
-    // Estimación simple: Precio * %Share (Si no hay base comm, asumimos % directo)
-    const estimatedEarnings = numericPrice * (sharePercent / 100);
+    // Estimación visual: Asumimos un 3% estándar de honorarios totales para calcular la parte
+    const estimatedEarnings = numericPrice * (3/100) * (sharePercent / 100);
     const formattedEarnings = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(estimatedEarnings);
 
 
@@ -576,14 +590,18 @@ export default function AgencyDetailsPanel({
                   
                   {/* B2B BUTTON */}
                   {canSeeCommission && (
-                      <button onClick={() => setShowB2BModal(true)} className="w-14 h-14 bg-gradient-to-br from-amber-200 to-yellow-400 text-yellow-900 rounded-[20px] border border-yellow-300 shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 animate-pulse-slow z-50 relative" title={`Colaboración disponible: ${sharePercent}%`}>
+                      <button 
+                        onClick={() => setShowB2BModal(true)} 
+                        className="w-14 h-14 bg-gradient-to-br from-amber-200 to-yellow-400 text-yellow-900 rounded-[20px] border border-yellow-300 shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 animate-pulse-slow z-50 relative cursor-pointer" 
+                        title={`Colaboración disponible: ${sharePercent}%`}
+                      >
                         <Handshake size={24} strokeWidth={2.5} />
                       </button>
                   )}
 
                   {/* CONTACT BUTTON */}
                   <button onClick={() => setShowContactModal(true)} className="flex-1 h-14 bg-[#1c1c1e] text-white rounded-[20px] font-bold shadow-xl flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-95 uppercase tracking-wider text-xs">
-                    <Phone size={18} /> {isAgency ? "Contactar Agente" : "Contactar Propietario"}
+                    <Phone size={18} /> {isAgency ? "Contact. Agente" : "Contactar Propietario"}
                   </button>
 
                   {/* PDF BUTTON */}
@@ -661,7 +679,24 @@ export default function AgencyDetailsPanel({
                                     <div className="flex items-center justify-center gap-3 mt-4"><Coins size={28} className="text-amber-400"/><span className="text-4xl font-black text-white tracking-tight">{formattedEarnings}</span></div>
                                     <p className="text-[9px] text-slate-500 mt-2 font-mono uppercase">ESTIMADO (+ IVA)</p>
                                 </div>
-                                <button onClick={() => { setShowB2BModal(false); if (typeof window !== 'undefined') { window.dispatchEvent(new CustomEvent('open-chat-signal', { detail: { propertyId: selectedProp?.id, toUserId: activeOwner?.id, message: `Hola, soy compañero. Me interesa la colaboración al ${sharePercent}% para la propiedad REF: ${selectedProp?.refCode || 'Sin Ref'}.` } })); } }} className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"><Briefcase size={16}/> Aceptar Colaboración</button>
+                                <button 
+                                    onClick={() => { 
+                                        setShowB2BModal(false); 
+                                        if (typeof window !== 'undefined') { 
+                                            window.dispatchEvent(new CustomEvent('open-chat-signal', { 
+                                                detail: { 
+                                                    propertyId: selectedProp?.id, 
+                                                    // 🔥 MEJORA DE SEGURIDAD: Fallback de identidad
+                                                    toUserId: activeOwner?.id || selectedProp?.userId, 
+                                                    message: `Hola, compañero. Me interesa la colaboración al ${sharePercent}% para la propiedad REF: ${selectedProp?.refCode || 'Sin Ref'}. ¿Hablamos?` 
+                                                } 
+                                            })); 
+                                        } 
+                                    }} 
+                                    className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <Briefcase size={16}/> Aceptar Colaboración
+                                </button>
                             </div>
                         </div>
                     </div>
