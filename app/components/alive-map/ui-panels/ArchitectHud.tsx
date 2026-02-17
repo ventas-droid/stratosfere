@@ -1669,7 +1669,7 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         baths: Number(formData.baths || 0),
         mBuilt: Number(formData.mBuilt || 0),
         price: formData.price,
-        coordinates: formData.coordinates || [-3.6883, 40.4280],
+        coordinates: formData.coordinates || undefined,
       };
 
       console.log("📡 GUARDANDO EN BASE DE DATOS (Estado:", targetStatus, ")...");

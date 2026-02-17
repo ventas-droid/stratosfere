@@ -366,73 +366,63 @@ export async function getPropertyByIdAction(propertyId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
-// C. GUARDAR PROPIEDAD (CORREGIDA: NO RESETEA A MADRID AL EDITAR)
+// C. GUARDAR PROPIEDAD (VERSIÓN FINAL: SIN DEFECTOS DE MADRID)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Debes iniciar sesión." };
 
-    // 1. LIMPIEZA DE DATOS NUMÉRICOS
+    // 1. LIMPIEZA DE DATOS
     const cleanPrice = parseFloat(String(data.price).replace(/\D/g, '') || '0');
     const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
     const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
 
-    // 2. SINCRONIZACIÓN DE SERVICIOS
+    // 2. SERVICIOS
     let servicesSet = new Set<string>(Array.isArray(data.selectedServices) ? data.selectedServices : []);
-
-    if (data.pool) servicesSet.add('pool');
-    if (data.garage) servicesSet.add('garage');
-    if (data.terrace) servicesSet.add('terrace');
-    if (data.ac) servicesSet.add('ac');
-    if (data.garden) servicesSet.add('garden');
-    if (data.storage) servicesSet.add('storage');
-    if (data.heating) servicesSet.add('heating');
-    if (data.furnished) servicesSet.add('furnished');
-    if (data.security) servicesSet.add('security');
-    if (data.balcony) servicesSet.add('balcony');
+    const booleanServices = ['pool', 'garage', 'terrace', 'ac', 'garden', 'storage', 'heating', 'furnished', 'security', 'balcony', 'elevator'];
+    booleanServices.forEach(k => { if(data[k]) servicesSet.add(k); });
 
     let finalServices = Array.from(servicesSet);
     if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
 
-    // 3. GESTIÓN DE IMÁGENES
+    // 3. IMÁGENES
     const imagesList = Array.isArray(data.images) ? data.images : [];
     if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
-    // 4. OWNER SNAPSHOT
-    const ownerSnapshot = {
-      id: user.id,
-      name: user.name || null,
-      companyName: user.companyName || null,
-      companyLogo: user.companyLogo || null,
-      avatar: user.avatar || null,
-      phone: user.phone || null,
-      mobile: user.mobile || null,
-      coverImage: user.coverImage || null,
-      tagline: user.tagline || null,
-      zone: user.zone || null,
-      role: user.role || null
-    };
+    // 4. DETECCIÓN DE COORDENADAS (SOLO SI EL USUARIO LAS TOCA)
+    let coordsPayload: any = {};
+    
+    // Si vienen datos explícitos del mapa, los usamos.
+    if (data.coordinates && Array.isArray(data.coordinates) && data.coordinates.length === 2) {
+        // Validamos que no sean 0,0 (océano)
+        if (data.coordinates[0] !== 0 || data.coordinates[1] !== 0) {
+            coordsPayload.longitude = data.coordinates[0];
+            coordsPayload.latitude = data.coordinates[1];
+        }
+    } else if (data.latitude && data.longitude) {
+        coordsPayload.longitude = parseFloat(data.longitude);
+        coordsPayload.latitude = parseFloat(data.latitude);
+    }
+    // SI NO HAY COORDENADAS, coordsPayload SE QUEDA VACÍO {}.
 
-    // 🔥 FIX DE COORDENADAS 🔥
-    // Prioridad: 1. Mapa movido (coordinates) -> 2. Valor existente (latitude) -> 3. Default Madrid
-    const finalLat = data.coordinates ? data.coordinates[1] : (data.latitude ?? data.lat ?? 40.4168);
-    const finalLng = data.coordinates ? data.coordinates[0] : (data.longitude ?? data.lng ?? -3.7038);
-
-    // 5. PAYLOAD LIMPIO
-    const payload = {
-        userId: user.id,
+    // 5. PAYLOAD BASE (BLINDADO: SI NO HAY DATO, USA undefined)
+    const basePayload = {
         type: data.type || 'Piso',
-        title: data.title || `Propiedad en ${data.city}`,
-        description: data.description || "",
+        
+        // 🔥 IMPORTANTE: Usamos 'undefined' en lugar de "" o defaults.
+        // Esto le dice a Prisma: "Si no te doy el dato, NO toques lo que ya hay en la BD".
+        title: data.title || undefined,
+        description: data.description || undefined,
+        
         price: cleanPrice,
         mBuilt: cleanM2,
-        address: data.address || "Dirección desconocida",
-        city: data.city || "Madrid",
         
-        // Usamos las coordenadas calculadas inteligentemente
-        latitude: Number(finalLat),
-        longitude: Number(finalLng),
+        address: data.address || undefined,
+        city: data.city || undefined, // SIN DEFAULT "Madrid"
+        
+        // Inyectamos coordenadas SOLO si existen nuevas en coordsPayload
+        ...coordsPayload, 
         
         rooms: Number(data.rooms || 0),
         baths: Number(data.baths || 0),
@@ -451,11 +441,10 @@ export async function savePropertyAction(data: any) {
         furnished: servicesSet.has('furnished'),
         security: servicesSet.has('security'),
 
-        state: data.state || null,         
+        state: data.state || null,          
         orientation: data.orientation || null, 
         exterior: data.exterior !== undefined ? Boolean(data.exterior) : true,
 
-        // MULTIMEDIA & B2B
         videoUrl: data.videoUrl || null,
         tourUrl: data.tourUrl || null,
         simpleNoteUrl: data.simpleNoteUrl || null,
@@ -467,90 +456,92 @@ export async function savePropertyAction(data: any) {
         shareVisibility: data.shareVisibility || "PRIVATE",
         
         selectedServices: finalServices,
-        mainImage: mainImage,
         
-        ownerSnapshot: ownerSnapshot,
+        // Si no envía imagen nueva, no borramos la anterior
+        mainImage: mainImage || undefined,
+        
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
-        energyEmissions: data.energyEmissions || null,     
+        energyEmissions: data.energyEmissions || null,      
         energyPending: Boolean(data.energyPending),        
     };
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
-
-    const includeOptions = { 
-      images: true,
-      user: { 
-        select: {
-          id: true, role: true, name: true, surname: true, email: true,
-          avatar: true, companyName: true, companyLogo: true, coverImage: true,
-          phone: true, mobile: true, website: true, tagline: true, zone: true,
-          cif: true, licenseNumber: true, licenseType: true,
-        }
-      }
-    };
+    const includeOptions = { images: true, user: true };
 
     let result;
-
-    // --- LÓGICA DE GUARDADO ---
+    
+    // ============================================================
+    // 🚦 EDICIÓN vs CREACIÓN
+    // ============================================================
+    
     if (data.id && data.id.length > 20) {
-      // ✅ EDICIÓN
+      // --- RUTA A: EDICIÓN ---
       const existing = await prisma.property.findUnique({ where: { id: data.id } });
-      const { ownerSnapshot: _dontTouch, ...payloadNoSnap } = payload as any;
+      
+      if (!existing) return { success: false, error: "Propiedad no encontrada." };
 
-      if (existing && existing.userId === user.id) {
-        await prisma.image.deleteMany({ where: { propertyId: data.id } });
-
-        result = await prisma.property.update({
-          where: { id: data.id },
-          data: {
-            ...payloadNoSnap, 
-            images: imageCreateLogic,
-          },
-          include: includeOptions,
-        });
-      } else {
-        // Fallback Crear
-        result = await prisma.property.create({
-          data: { 
-              ...payload, 
-              ownerSnapshot, 
-              images: imageCreateLogic,
-              status: user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO',
-              promotedTier: 'FREE' 
-          },
-          include: includeOptions,
-        });
+      // CHEQUEO DE AUTORIDAD
+      let isAuthorized = existing.userId === user.id;
+      
+      if (!isAuthorized && user.role === 'AGENCIA') {
+          const activeContract = await prisma.campaign.findFirst({
+              where: { propertyId: data.id, agencyId: user.id, status: 'ACCEPTED' }
+          });
+          if (activeContract) isAuthorized = true;
       }
-    } else {
-      // ✅ CREACIÓN NUEVA
-      const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
 
-      result = await prisma.$transaction(async (tx: any) => {
-        // 1) Crear
-        const created = await tx.property.create({
+      if (!isAuthorized) {
+          return { success: false, error: "⛔ No tienes permiso para editar esta propiedad." };
+      }
+
+      // Limpiamos imágenes anteriores para poner las nuevas
+      await prisma.image.deleteMany({ where: { propertyId: data.id } });
+
+      // ACTUALIZAMOS
+      // Al usar undefined en basePayload, Prisma ignora los campos vacíos.
+      result = await prisma.property.update({
+        where: { id: data.id },
+        data: {
+          ...basePayload, 
+          images: imageCreateLogic,
+        },
+        include: includeOptions,
+      });
+
+    } else {
+      // --- RUTA B: CREACIÓN ---
+      const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
+      
+      // 🔥 GENERAMOS REFERENCIA ANTES PARA EVITAR TRANSACCIONES COMPLEJAS
+      const refCode = `SF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      // Si no hay coordenadas, forzamos Madrid SOLO EN CREACIÓN NUEVA (para evitar errores de frontend)
+      // Pero usamos un check seguro: solo si ambos son undefined.
+      if (!basePayload.latitude && !basePayload.longitude) {
+           basePayload.latitude = 40.4168;
+           basePayload.longitude = -3.7038;
+           if (!basePayload.city) basePayload.city = "Madrid";
+      }
+
+      const ownerSnapshot = {
+        id: user.id, name: user.name, companyName: user.companyName,
+        companyLogo: user.companyLogo, avatar: user.avatar,
+        phone: user.phone, mobile: user.mobile, role: user.role
+      };
+
+      // CREACIÓN DIRECTA (MÁS SEGURA)
+      result = await prisma.property.create({
           data: { 
-              ...(payload as any), 
-              ownerSnapshot, 
+              ...basePayload,
+              userId: user.id, 
+              refCode: refCode, // Referencia directa
+              ownerSnapshot,
               images: imageCreateLogic,
               status: initialStatus, 
               promotedTier: "FREE" 
           } as any,
-          include: includeOptions as any,
-        });
-
-        // 2) Generar RefCode
-        const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        let out = "";
-        for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-        const refCode = `SF-${out}`;
-
-        // 3) Actualizar
-        return await tx.property.update({
-          where: { id: created.id },
-          data: { refCode } as any,
-          include: includeOptions as any,
-        });
+          include: includeOptions,
       });
     }
 
@@ -792,7 +783,7 @@ export async function getFavoritesAction() {
 }
 
 // =========================================================
-// 🏢 4. GESTIÓN DE AGENCIA (STOCK BLINDADO & CÁLCULO FINANCIERO)
+// 🏢 4. GESTIÓN DE AGENCIA (CORREGIDO Y BLINDADO)
 // =========================================================
 
 export async function getAgencyPortfolioAction() {
@@ -813,15 +804,14 @@ export async function getAgencyPortfolioAction() {
       },
       include: { 
           images: true,
-          // 🔥 AQUÍ ESTABA EL ERROR: Ahora pedimos la identidad COMPLETA
           user: {
             select: {
                 id: true, role: true, name: true, surname: true, email: true, 
                 phone: true, mobile: true,
                 avatar: true, 
                 companyName: true, 
-                companyLogo: true, // <--- VITAL PARA QUE SALGA EL LOGO EN EL PANEL
-                coverImage: true,  // <--- VITAL PARA EL FONDO
+                companyLogo: true, 
+                coverImage: true, 
                 licenseType: true,
                 licenseNumber: true,
                 website: true,
@@ -829,52 +819,35 @@ export async function getAgencyPortfolioAction() {
                 zone: true
             }
           }, 
-          // Solo traemos MI campaña aceptada (EL CONTRATO)
           campaigns: { where: { agencyId: user.id, status: "ACCEPTED" } },
           openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
       },
       orderBy: { updatedAt: 'desc' }
     });
 
-    // 4. FORMATEO SAAS CON CÁLCULO FINANCIERO
     const cleanList = myProperties.map((p: any) => {
         if (!p) return null;
 
         const originalOwner = p.user || {};
         const openHouseObj = (p.openHouses && p.openHouses.length > 0) ? { ...p.openHouses[0], enabled: true } : null;
-
-        // 🔥 LOGICA DE CONTRATO (CAMPAÑA) 🔥
         const winningCampaign = p.campaigns && p.campaigns.length > 0 ? p.campaigns[0] : null;
         
-        // IDENTIDAD POR DEFECTO: El dueño original (que ahora sí trae logo/cover si es agencia)
         let displayUser = originalOwner;
         let isManaged = false;
 
-        // Si hay campaña ganadora (Gestión externa), procesamos
         if (winningCampaign) {
             isManaged = true;
-            
-            // A) NORMALIZACIÓN DE DATOS
             winningCampaign.commissionPct = Number(winningCampaign.commissionPct || 0);
             winningCampaign.commissionSharePct = Number(winningCampaign.commissionSharePct || 0);
-            winningCampaign.mandateType = winningCampaign.mandateType || "SIMPLE";
             
-            // B) CÁLCULO DE IMPORTES (EUROS)
             const price = p.price || 0;
             const comm = winningCampaign.commissionPct; 
-            
             const base = (price * comm) / 100;
             const iva = base * 0.21; 
             const total = base + iva;
             
-            winningCampaign.financials = {
-                base: base,
-                ivaAmount: iva,
-                total: total
-            };
+            winningCampaign.financials = { base, ivaAmount: iva, total };
 
-            // 🔥 C) SUPLANTACIÓN DE IDENTIDAD VISUAL (Si gestiono yo)
-            // Si es gestión externa, muestro mis datos de agencia (UserMe)
             displayUser = {
                 ...user, 
                 role: 'AGENCIA', 
@@ -885,8 +858,6 @@ export async function getAgencyPortfolioAction() {
                 coverImage: user.coverImage
             };
         } else {
-            // SI ES MI PROPIEDAD CREADA DESDE CERO (SIN CAMPAÑA):
-            // Me aseguro de que el Avatar sea el Logo si soy Agencia
             if (originalOwner.role === 'AGENCIA') {
                 displayUser.avatar = originalOwner.companyLogo || originalOwner.avatar;
             }
@@ -897,19 +868,21 @@ export async function getAgencyPortfolioAction() {
             id: p.id,
             refCode: p.refCode, 
             
-            // AQUÍ VIAJA LA IDENTIDAD CORRECTA CON FOTO
             user: displayUser, 
             ownerSnapshot: displayUser, 
-            clientData: originalOwner, // Guardamos el dueño real por si acaso
+            clientData: originalOwner,
 
             activeCampaign: winningCampaign, 
             radarType: winningCampaign ? (winningCampaign.mandateType || "SIMPLE") : null,
             
-            // Datos B2B listos para consumir por el Botón Dorado
             b2b: winningCampaign ? {
                 sharePct: Number(winningCampaign.commissionSharePct || 0),
                 visibility: winningCampaign.commissionShareVisibility || 'PRIVATE'
             } : null,
+
+            // 🔥 FIX CRÍTICO: Si hay lat/long, creamos el array. Si no, NULL.
+            // Esto evita que el frontend reciba basura y la mande a Madrid.
+            coordinates: (p.longitude && p.latitude) ? [p.longitude, p.latitude] : null,
 
             isOwner: p.userId === user.id, 
             isCaptured: isManaged, 
@@ -928,7 +901,6 @@ export async function getAgencyPortfolioAction() {
     return { success: false, error: "Error de conexión" };
   }
 }
-
 // B. BORRAR DEL STOCK (✅ idempotente + borra favorito por clave compuesta)
 export async function deleteFromStockAction(propertyId: string) {
   try {

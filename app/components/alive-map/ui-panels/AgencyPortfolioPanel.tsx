@@ -8,7 +8,7 @@ import {
   TrendingUp, Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
   Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
   Droplets, Paintbrush, Truck, Briefcase, Sparkles, 
-  Lock, Handshake, Eye, MessageCircle, Calculator, Coins
+  Lock, Handshake, Eye, MessageCircle, Calculator, Coins, Navigation // <--- Navigation Importado
 } from "lucide-react";
 
 // --- DICCIONARIO DE ICONOS ---
@@ -52,21 +52,45 @@ export default function AgencyPortfolioPanel({
   if (!isOpen) return null;
   const safeList = Array.isArray(properties) ? properties : [];
 
-  const openFromStock = (p: any) => {
+  // 🔥🔥🔥 FUNCIÓN DE VUELO CORREGIDA (COPIADA DE LA LÓGICA DE PARTICULAR) 🔥🔥🔥
+  const handleFlyTo = (p: any) => {
     try {
+      // 1. Detectar coordenadas (ya sean sueltas o en array)
+      // Esto soluciona el problema de que unas vienen como lat/lng y otras como array
+      let lat = p.latitude;
+      let lng = p.longitude;
+
+      if ((!lat || !lng) && p.coordinates && Array.isArray(p.coordinates)) {
+          lng = p.coordinates[0];
+          lat = p.coordinates[1];
+      }
+
+      // 2. Abrir Ficha (NanoCard)
       window.dispatchEvent(new CustomEvent("open-details-signal", { detail: p }));
       window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(p?.id) } }));
-    } catch (e) { console.error(e); }
+
+      // 3. ORDENAR EL VUELO (ESTA ES LA LÍNEA QUE FALTABA EN SU CÓDIGO)
+      if (lat && lng) {
+          console.log(`🦅 Agencia volando a: ${lat}, ${lng}`); 
+          window.dispatchEvent(new CustomEvent('fly-to-location', { 
+              detail: { 
+                  center: [lng, lat], 
+                  zoom: 18.5, 
+                  pitch: 60,
+                  duration: 2000 
+              } 
+          }));
+      } else {
+          console.warn("⚠️ Propiedad sin coordenadas válidas para volar.");
+      }
+
+    } catch (e) { console.error("Error al volar:", e); }
   };
 
-  // 🔥 CHAT REAL: DISPARA EVENTO GLOBAL
+  // 🔥 CHAT REAL
   const handleChat = (p: any) => {
-      // Intentamos extraer el usuario objetivo (el dueño real)
       const targetUser = p.clientData || p.user;
-      
       if (targetUser && targetUser.id) {
-          console.log("🚀 Lanzando evento de chat con:", targetUser.name);
-          // Disparamos evento estándar que su sistema de chat debería escuchar
           window.dispatchEvent(
               new CustomEvent("open-chat-with-user", { 
                   detail: { 
@@ -93,7 +117,7 @@ export default function AgencyPortfolioPanel({
               </button>
               <h2 className="text-2xl font-black text-black tracking-tight">Mi Cartera</h2>
           </div>
-          <button onClick={onCreateNew} className="bg-black text-white px-5 py-2.5 rounded-full text-xs font-bold tracking-wider hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2">
+          <button onClick={onCreateNew} className="bg-black text-white px-5 py-2.5 rounded-full text-xs font-bold tracking-wider hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center gap-2 cursor-pointer">
              <Plus size={14}/> NUEVO
           </button>
       </div>
@@ -115,7 +139,6 @@ export default function AgencyPortfolioPanel({
               
               const isRadar = p.isCaptured && p.activeCampaign;
               const activeServices = isRadar ? (p.activeCampaign.services || []) : getServiceIds(p);
-              const hasSharedCommission = isRadar && p.b2b && p.b2b.sharePct > 0;
 
               return (
                   <div key={p.id} className={`p-4 rounded-[24px] transition-all group relative overflow-hidden ${isRadar ? 'bg-white shadow-[0_4px_20px_rgba(79,70,229,0.1)] ring-1 ring-indigo-50' : 'bg-white shadow-sm border border-gray-100'}`}>
@@ -127,7 +150,8 @@ export default function AgencyPortfolioPanel({
                       )}
 
                       <div className="flex gap-4">
-                          <div className="w-20 h-20 rounded-[20px] overflow-hidden bg-gray-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity relative shadow-inner" onClick={() => openFromStock(p)}>
+                          {/* FOTO: CLICK PARA VOLAR (Corregido: ahora llama a handleFlyTo) */}
+                          <div className="w-20 h-20 rounded-[20px] overflow-hidden bg-gray-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity relative shadow-inner" onClick={() => handleFlyTo(p)}>
                              <img src={mainImg} className="w-full h-full object-cover" alt={titleDisplay}/>
                              {isRadar && <div className="absolute inset-0 bg-indigo-900/5 mix-blend-multiply pointer-events-none"/>}
                           </div>
@@ -189,11 +213,12 @@ export default function AgencyPortfolioPanel({
 
                       {/* BOTONERA */}
                       <div className="mt-4 flex gap-2">
-                          <button onClick={() => openFromStock(p)} className="h-10 w-10 rounded-xl bg-gray-50 text-gray-400 hover:bg-black hover:text-white flex items-center justify-center transition-colors">
-                              <Home size={16} strokeWidth={2}/>
+                          {/* BOTÓN VOLAR (Ahora usa handleFlyTo correctamente) */}
+                          <button onClick={() => handleFlyTo(p)} className="h-10 w-10 rounded-xl bg-gray-50 text-gray-400 hover:bg-black hover:text-white flex items-center justify-center transition-colors" title="Volar a la propiedad">
+                              <Navigation size={16} strokeWidth={2}/>
                           </button>
 
-                          {/* 🔥 BOTÓN CHAT REAL 🔥 */}
+                          {/* BOTÓN CHAT */}
                           {isRadar && (
                               <button onClick={() => handleChat(p)} className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-colors border border-emerald-100">
                                   <MessageCircle size={16} strokeWidth={2}/>
@@ -227,12 +252,9 @@ export default function AgencyPortfolioPanel({
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* 📄 MODAL 2: EXPEDIENTE COMPLETO (ANCHO Y RICO EN DATOS)        */}
-      {/* ============================================================== */}
+      {/* MODAL EXPEDIENTE COMPLETO */}
       {contractModalProp && (
           <div className="fixed inset-0 z-[60000] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in" onClick={() => setContractModalProp(null)}>
-              {/* 🔥 ANCHO AUMENTADO A 700PX */}
               <div className="bg-white w-[700px] max-w-full rounded-[30px] overflow-hidden shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
                   
                   {/* HEADER */}
@@ -257,43 +279,28 @@ export default function AgencyPortfolioPanel({
 
                   {/* BODY: DESGLOSE FINANCIERO */}
                   <div className="p-8 space-y-8">
-                      
-                      {/* 💰 SECCIÓN 1: FINANZAS (3 TARJETAS) */}
                       <div>
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                               <Calculator size={14} /> Desglose Económico
                           </p>
                           <div className="grid grid-cols-3 gap-4">
-                              {/* 1. NETO */}
                               <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 text-center">
                                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Honorarios Netos</p>
-                                  <p className="text-xl font-bold text-gray-800">
-                                      {contractModalProp.activeCampaign.financials?.base || "---"}
-                                  </p>
-                                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">
-                                      {contractModalProp.activeCampaign.commission}%
-                                  </span>
+                                  <p className="text-xl font-bold text-gray-800">{contractModalProp.activeCampaign.financials?.base || "---"}</p>
+                                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">{contractModalProp.activeCampaign.commission}%</span>
                               </div>
-
-                              {/* 2. IVA */}
                               <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">IVA ({contractModalProp.activeCampaign.financials?.ivaPct || 21}%)</p>
-                                  <p className="text-xl font-bold text-gray-600">
-                                      {contractModalProp.activeCampaign.financials?.ivaAmount || "---"}
-                                  </p>
+                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">IVA (21%)</p>
+                                  <p className="text-xl font-bold text-gray-600">{contractModalProp.activeCampaign.financials?.ivaAmount || "---"}</p>
                               </div>
-
-                              {/* 3. TOTAL */}
                               <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 text-center shadow-inner">
-                                  <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Total a Percibir</p>
-                                  <p className="text-2xl font-black text-indigo-700">
-                                      {contractModalProp.activeCampaign.financials?.total || "---"}
-                                  </p>
+                                  <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Total a Pagar</p>
+                                  <p className="text-2xl font-black text-indigo-700">{contractModalProp.activeCampaign.financials?.total || "---"}</p>
                               </div>
                           </div>
                       </div>
 
-                      {/* 🤝 SECCIÓN 2: B2B */}
+                      {/* B2B */}
                       {contractModalProp.b2b && contractModalProp.b2b.sharePct > 0 && (
                           <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
                               <div className="flex items-center gap-3">
@@ -312,10 +319,10 @@ export default function AgencyPortfolioPanel({
                           </div>
                       )}
 
-                      {/* ✨ SECCIÓN 3: SERVICIOS */}
+                      {/* SERVICIOS */}
                       <div>
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                              <Sparkles size={14} /> Servicios Incluidos en Propuesta
+                              <Sparkles size={14} /> Servicios Incluidos
                           </p>
                           <div className="flex flex-wrap gap-2">
                               {(contractModalProp.activeCampaign.services || []).map((srv: string) => {
