@@ -9,7 +9,7 @@ import {
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown,
 } from 'lucide-react';
 
-// 🔥 IMPORTAMOS LA ACCIÓN DE ESTADÍSTICAS
+// 🔥 IMPORTAMOS LA ACCIÓN DE ESTADÍSTICAS Y DATOS
 import { toggleFavoriteAction, getPropertyByIdAction, incrementStatsAction } from "@/app/actions";
 
 // 🔥 HERRAMIENTAS PDF
@@ -57,13 +57,20 @@ export default function DetailsPanel({
 }: any) {
     
     const [selectedProp, setSelectedProp] = useState(initialProp);
+    // Estado local para el dueño (para permitir actualización dinámica)
+    const [dynamicOwner, setDynamicOwner] = useState<any>(null);
+
     const [copiedRef, setCopiedRef] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
 
-    // Sincronizar propiedad seleccionada
-    useEffect(() => { setSelectedProp(initialProp); }, [initialProp]);
+    // Sincronizar propiedad seleccionada inicial
+    useEffect(() => { 
+        setSelectedProp(initialProp); 
+        // Reset del dueño dinámico al cambiar de propiedad
+        setDynamicOwner(null);
+    }, [initialProp]);
 
     // Listener para actualizaciones en vivo
     useEffect(() => {
@@ -83,6 +90,34 @@ export default function DetailsPanel({
             incrementStatsAction(selectedProp.id, 'view');
         }
     }, [selectedProp?.id]);
+
+    // ============================================================
+    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (VERSIÓN CLIENTE)
+    // ============================================================
+    // Esto soluciona el problema de "Favoritos viejos". 
+    // Al abrir, descarga los datos frescos (incluyendo si ahora es Agencia).
+    useEffect(() => {
+        const refreshData = async () => {
+            if (selectedProp?.id) {
+                try {
+                    const realData = await getPropertyByIdAction(selectedProp.id);
+                    if (realData) {
+                        // 1. Actualizamos datos de la casa (métricas, tipo, etc)
+                        setSelectedProp((prev: any) => ({ ...prev, ...realData }));
+                        
+                        // 2. Actualizamos datos del dueño (si cambió de particular a agencia)
+                        if (realData.user) {
+                            setDynamicOwner(realData.user);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error refrescando datos:", e);
+                }
+            }
+        };
+        refreshData();
+    }, [selectedProp?.id]);
+
 
     // 🔥 SENSOR DE FOTOS
     const handleMainPhotoClick = () => {
@@ -110,6 +145,17 @@ export default function DetailsPanel({
       setTimeout(() => setCopiedRef(false), 2000);
     };
 
+    // --- LÓGICA DE PROPIETARIO (COMBINADA: DATA VIEJA + DATA FRESCA) ---
+    // Usamos 'dynamicOwner' si existe (fresco), si no, usamos el snapshot viejo.
+    const activeUser = dynamicOwner || selectedProp?.user || selectedProp?.ownerSnapshot || {};
+
+    const ownerName = activeUser.companyName || activeUser.name || "Propietario";
+    const ownerAvatar = activeUser.companyLogo || activeUser.avatar || null;
+    const ownerCover = activeUser.coverImage || activeUser.cover || null;
+    const ownerPhone = activeUser.mobile || activeUser.phone || "Consultar";
+    const ownerEmail = activeUser.email || "---";
+    const ownerRole = String(activeUser.role || "PARTICULAR").toUpperCase();
+
     // Copiar teléfono
     const copyPhone = () => {
       if(ownerPhone === "Consultar") return;
@@ -117,21 +163,6 @@ export default function DetailsPanel({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     };
-
-    // --- DATOS DEL DUEÑO (IDENTIDAD) ---
-    const ownerFromSnapshot =
-      (selectedProp?.user && typeof selectedProp.user === "object")
-        ? selectedProp.user
-        : (selectedProp?.ownerSnapshot && typeof selectedProp.ownerSnapshot === "object")
-          ? selectedProp.ownerSnapshot
-          : {};
-
-    const ownerName = (ownerFromSnapshot as any)?.companyName || (ownerFromSnapshot as any)?.name || "Propietario";
-    const ownerAvatar = (ownerFromSnapshot as any)?.companyLogo || (ownerFromSnapshot as any)?.avatar || null;
-    const ownerCover = (ownerFromSnapshot as any)?.coverImage || (ownerFromSnapshot as any)?.cover || null;
-    const ownerPhone = (ownerFromSnapshot as any)?.mobile || (ownerFromSnapshot as any)?.phone || "Consultar";
-    const ownerEmail = (ownerFromSnapshot as any)?.email || "---";
-    const ownerRole = String((ownerFromSnapshot as any)?.role || "PARTICULAR").toUpperCase();
 
     // ❤️ FAVORITOS
     const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
@@ -164,13 +195,13 @@ export default function DetailsPanel({
 
     const allTags = new Set<string>();
     
-    // 1. Array de servicios (Texto)
+    // 1. Array de servicios
     if (selectedProp?.selectedServices) {
         let s = selectedProp.selectedServices;
         (Array.isArray(s) ? s : String(s).split(',')).forEach(x => allTags.add(cleanKey(x)));
     }
 
-    // 2. Booleans de base de datos
+    // 2. Booleans
     ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac', 'heating', 'furnished', 'security', 'balcony'].forEach(k => {
         if (['true','Si','Sí',1,true].includes(selectedProp?.[k])) {
             allTags.add(cleanKey(k));
