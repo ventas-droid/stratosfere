@@ -179,6 +179,32 @@ export default function DetailsPanel({
     // ❤️ FAVORITOS
     const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
 
+    // 🔥 FUNCIÓN: COMPARTIR Y SUMAR ESTADÍSTICAS
+    const handleShareProperty = async () => {
+        if (!selectedProp?.id) return;
+
+        // Generamos el enlace
+        const url = `${window.location.origin}/property/${selectedProp.id}`;
+        
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+
+            // 1. Impactar DB
+            await incrementStatsAction(selectedProp.id, 'share');
+
+            // 2. Actualizar visualmente al instante
+            setSelectedProp((prev: any) => ({
+                ...prev,
+                shareCount: (prev.shareCount || 0) + 1
+            }));
+
+        } catch (err) {
+            console.error("Error al compartir", err);
+        }
+    };
+
     const handleHeartClick = (e: any) => {
       if (e?.stopPropagation) e.stopPropagation();
       if (!selectedProp?.id) return;
@@ -439,8 +465,7 @@ export default function DetailsPanel({
                         )}
                     </div>
 
-                    {/* 🔥 PANEL DE INTELIGENCIA DE MERCADO (PÚBLICO - SOCIAL PROOF) */}
-                    {/* He quitado el candado IF. Ahora SIEMPRE se renderiza */}
+                  {/* 🔥 PANEL DE INTELIGENCIA DE MERCADO (VERSIÓN 2.0 - ACTIVA) */}
                     <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
                         <div className="flex items-center gap-2 mb-4">
                              <Activity size={16} className="text-blue-600"/>
@@ -461,7 +486,7 @@ export default function DetailsPanel({
                                 </div>
                             </div>
 
-                            {/* Interés en Fotos */}
+                            {/* Vistas Fotos */}
                             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-slate-400">
                                     <Camera size={20}/>
@@ -474,29 +499,36 @@ export default function DetailsPanel({
                                 </div>
                             </div>
 
-                             {/* Favoritos */}
+                             {/* Favoritos (CORREGIDO: Híbrido Count/Array) */}
                              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-rose-400">
                                     <Heart size={20} className="fill-current"/>
                                 </div>
                                 <div>
+                                    {/* 🔥 AQUÍ ESTÁ EL CAMBIO CLAVE PARA QUE NO SALGA 0 */}
                                     <p className="text-2xl font-black text-slate-900 leading-none">
-                                        {selectedProp?.favoritedBy?.length || 0}
+                                        {selectedProp?.favoritedCount || selectedProp?.favoritedBy?.length || 0}
                                     </p>
                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Guardado</p>
                                 </div>
                             </div>
 
-                            {/* Compartidos */}
-                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-blue-400">
-                                    <Share2 size={20}/>
+                            {/* Compartidos (CORREGIDO: Botón Activo) */}
+                            <div 
+                                onClick={handleShareProperty}
+                                className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-95 group"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-blue-400 group-hover:text-blue-600 transition-colors">
+                                    {/* Cambio visual al copiar */}
+                                    {copied ? <Check size={20} /> : <Share2 size={20}/>}
                                 </div>
                                 <div>
                                     <p className="text-2xl font-black text-slate-900 leading-none">
                                         {selectedProp?.shareCount || 0}
                                     </p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Compartido</p>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-500 transition-colors">
+                                        {copied ? "¡Copiado!" : "Compartir"}
+                                    </p>
                                 </div>
                             </div>
                         </div>
