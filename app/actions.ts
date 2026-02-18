@@ -250,7 +250,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
-// ✅ Obtener UNA propiedad completa (CORREGIDO: Con Financieros, B2B y Coordenadas)
+// ✅ Obtener UNA propiedad completa (CORREGIDO: Con Estadísticas y Datos Financieros)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
     const id = String(propertyId || "").trim();
@@ -261,6 +261,8 @@ export async function getPropertyByIdAction(propertyId: string) {
       include: {
         images: true,
         user: { select: USER_IDENTITY_SELECT }, 
+        
+        // 🔥 AÑADIDO: Para contar likes en la ficha individual
         favoritedBy: { select: { userId: true } },
 
         // 1. Asignación (Gestor)
@@ -299,8 +301,7 @@ export async function getPropertyByIdAction(propertyId: string) {
         finalIdentity.role = 'AGENCIA';
     } 
 
-    // 🔥 FIX FINANCIERO: Calculamos los importes igual que en el Portfolio
-    // Si esto falta, el panel de detalles se rompe al recargar.
+    // 🔥 FIX FINANCIERO
     if (activeCampaign) {
         activeCampaign.commissionPct = Number(activeCampaign.commissionPct || 0);
         activeCampaign.commissionSharePct = Number(activeCampaign.commissionSharePct || 0);
@@ -328,10 +329,9 @@ export async function getPropertyByIdAction(propertyId: string) {
          };
     }
 
-    // 🔥 FIX COORDENADAS: Numéricas y Array válido (Vital para el vuelo)
+    // 🔥 FIX COORDENADAS
     const lng = Number(p.longitude);
     const lat = Number(p.latitude);
-    // Solo devolvemos array si tenemos coordenadas reales distintas de 0
     const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
 
     const rawPrice = Number(p.price || 0);
@@ -350,7 +350,7 @@ export async function getPropertyByIdAction(propertyId: string) {
       
       // ✅ DATOS COMPLETOS
       b2b: b2bData, 
-      activeCampaign: activeCampaign, // Ahora incluye .financials
+      activeCampaign: activeCampaign, 
 
       coordinates: validCoords,
       longitude: lng || null,
@@ -369,7 +369,13 @@ export async function getPropertyByIdAction(propertyId: string) {
       energyEmissions: p.energyEmissions ?? null,
       energyPending: !!p.energyPending,
       openHouse: openHouseObj, 
-      open_house_data: openHouseObj 
+      open_house_data: openHouseObj,
+
+      // 🔥 ESTADÍSTICAS (IGUAL QUE EN LAS LISTAS)
+      views: p.views || 0,
+      photoViews: p.photoViews || 0,
+      shareCount: p.shareCount || 0,
+      favoritedCount: p.favoritedBy?.length || 0 // <--- ESTO ES LO QUE FALTABA
     };
 
     return { success: true, data: mapped };
@@ -378,6 +384,7 @@ export async function getPropertyByIdAction(propertyId: string) {
     return { success: false, error: String(e?.message || e) };
   }
 }
+
 // C. GUARDAR PROPIEDAD (VERSIÓN FINAL: SIN DEFECTOS DE MADRID)
 export async function savePropertyAction(data: any) {
   try {
