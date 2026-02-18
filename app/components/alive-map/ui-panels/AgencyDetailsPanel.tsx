@@ -111,51 +111,94 @@ export default function AgencyDetailsPanel({
         }
     }, [selectedProp?.id]);
 
-   // C) Protocolo de Auto-Reparación (Silencioso y Conservador)
+   // C) Protocolo de Auto-Reparación (VERSIÓN BLINDADA B2B)
     useEffect(() => {
         const verifyRealData = async () => {
-            if (selectedProp?.id) {
-                try {
-                    // 1. Pedimos datos frescos
-                    const realData = await getPropertyByIdAction(selectedProp.id);
-                    if (realData?.success && realData.data) {
-                        const data = realData.data;
-                        
-                        // 🔥 MERGE INTELIGENTE: Mantenemos lo que ya tenemos si el servidor falla en algo
-                        setSelectedProp((prev: any) => ({ 
+            if (!selectedProp?.id) return;
+            try {
+                // 1. Pedimos datos frescos al servidor
+                const realData = await getPropertyByIdAction(selectedProp.id);
+                if (realData?.success && realData.data) {
+                    const data = realData.data;
+                    
+                    // 🔥 SMART MERGE: Solo actualizamos si el nuevo dato aporta valor.
+                    // Si el servidor manda B2B null pero nosotros ya teníamos uno, lo preservamos.
+                    setSelectedProp((prev: any) => {
+                        const nextB2B = data.b2b || prev.b2b;
+                        const nextCampaign = data.activeCampaign || prev.activeCampaign;
+                        const nextOpenHouse = data.openHouse || prev.openHouse || prev.open_house_data;
+
+                        return { 
                             ...prev, 
                             ...data,
-                            // Aseguramos que el objeto b2b no se pierda si viene null
-                            b2b: data.b2b || prev.b2b, 
-                            // Aseguramos que la campaña no se pierda
-                            activeCampaign: data.activeCampaign || prev.activeCampaign
-                        }));
+                            b2b: nextB2B, 
+                            activeCampaign: nextCampaign,
+                            openHouse: nextOpenHouse,
+                            open_house_data: nextOpenHouse
+                        };
+                    });
 
-                        // 2. Gestión de Identidad (Igual que antes)
-                        const mgmtRes = await getActiveManagementAction(selectedProp.id);
-                        let finalOwner = {};
+                    // 2. Gestión de Identidad Blindada
+                    const mgmtRes = await getActiveManagementAction(selectedProp.id);
+                    let finalOwner = data.user || {};
 
-                        if (mgmtRes?.success && mgmtRes?.data?.agency) {
-                            setCampaignData(mgmtRes.data);
-                            finalOwner = mgmtRes.data.agency;
-                        } else if (data.user) {
-                            finalOwner = data.user;
-                        }
-
-                        if (Object.keys(finalOwner).length > 0) {
-                            setActiveOwner((prev: any) => ({ ...prev, ...finalOwner }));
-                        }
+                    if (mgmtRes?.success && mgmtRes?.data?.agency) {
+                        setCampaignData(mgmtRes.data);
+                        finalOwner = mgmtRes.data.agency;
                     }
-                } catch (error) {
-                    console.error("Error reparando datos:", error);
+
+                    if (Object.keys(finalOwner).length > 0) {
+                        setActiveOwner((prev: any) => ({ ...prev, ...finalOwner }));
+                    }
                 }
+            } catch (error) {
+                console.error("❌ Error en protocolo de fusión de datos:", error);
             }
         };
-        // Solo ejecutamos si tenemos ID y NO tenemos ya los datos críticos
-        if (selectedProp?.id) {
-             verifyRealData();
-        }
+        
+        verifyRealData();
     }, [selectedProp?.id]);
+
+   // E) Listener Updates (CON SEGURO DE VIDA ANTI-UNDEFINED)
+    useEffect(() => {
+        const handleLiveUpdate = (e: any) => {
+            // 1. Extraemos con seguridad. Algunas señales vienen en e.detail.updates, otras en e.detail directamente.
+            const rawData = e.detail?.updates || e.detail;
+            const targetId = e.detail?.id || rawData?.id;
+
+            // 2. Si no hay ID o no es esta propiedad, abortamos antes de romper nada
+            if (!targetId || String(selectedProp?.id) !== String(targetId)) return;
+
+            // 3. FUSIÓN BLINDADA
+            setSelectedProp((prev: any) => {
+                // Si por algún motivo prev es nulo, devolvemos el nuevo dato
+                if (!prev) return rawData;
+
+                // Solo fusionamos si rawData existe
+                const nextB2B = rawData?.b2b || prev.b2b;
+                const nextOH = rawData?.openHouse || rawData?.open_house_data || prev.openHouse;
+                
+                return { 
+                    ...prev, 
+                    ...rawData, 
+                    b2b: nextB2B,
+                    openHouse: nextOH,
+                    open_house_data: nextOH
+                };
+            });
+        };
+
+        if (typeof window !== "undefined") {
+            window.addEventListener('update-property-signal', handleLiveUpdate);
+            window.addEventListener('sync-property-state', handleLiveUpdate);
+        }
+        return () => {
+            if (typeof window !== "undefined") {
+                window.removeEventListener('update-property-signal', handleLiveUpdate);
+                window.removeEventListener('sync-property-state', handleLiveUpdate);
+            }
+        };
+    }, [selectedProp?.id]); // Quitamos b2b de aquí para evitar bucles
 
     // D) Vuelo Automático
     useEffect(() => {
@@ -251,13 +294,13 @@ export default function AgencyDetailsPanel({
 
     const cleanDescription = selectedProp?.description ? selectedProp.description.replace(/<[^>]+>/g, '') : null;
 
-   // 🔥🔥🔥 LÓGICA B2B BLINDADA (OMNÍVORA) 🔥🔥🔥
-    // Busca el dato en el objeto b2b, en la campaña activa o en la propiedad raíz.
-    // El orden importa: lo más específico primero.
+   // 🔥🔥🔥 LÓGICA B2B OMNÍVORA (Basada en Prisma Schema) 🔥🔥🔥
+    // Buscamos el dato en cada rincón posible de la base de datos
     const sharePercent = Number(
-        selectedProp?.b2b?.sharePct ?? 
-        selectedProp?.activeCampaign?.commissionSharePct ?? 
-        selectedProp?.commissionSharePct ?? 
+        selectedProp?.b2b?.sharePct ??                       // Dialecto UI
+        selectedProp?.activeCampaign?.commissionSharePct ??  // Dialecto Campaign (Prisma)
+        selectedProp?.commissionSharePct ??                  // Dialecto Directo
+        selectedProp?.sharePct ??                            // Dialecto Property (Prisma)
         0
     );
 
@@ -268,18 +311,12 @@ export default function AgencyDetailsPanel({
         "PRIVATE"
     ).toUpperCase();
     
+    // Filtro de Seguridad Inteligente
     let canSeeCommission = false;
-    
-    // 3. Filtro de Seguridad
     if (sharePercent > 0) {
         const myRole = String(currentUser?.role || "").toUpperCase();
-        
-        // A) Modo PÚBLICO
-        if (visibilityMode === 'PUBLIC') {
-            canSeeCommission = true;
-        } 
-        // B) Modo AGENCIAS (Verificamos que el usuario que mira sea PRO o AGENCIA)
-        else if (visibilityMode.includes('AGEN') && (myRole.includes('AGEN') || myRole === 'ADMIN')) {
+        // Modo PÚBLICO o Modo AGENCIAS (Validando rol de quien mira)
+        if (visibilityMode === 'PUBLIC' || (visibilityMode.includes('AGEN') && (myRole.includes('AGEN') || myRole === 'ADMIN'))) {
             canSeeCommission = true;
         }
     }

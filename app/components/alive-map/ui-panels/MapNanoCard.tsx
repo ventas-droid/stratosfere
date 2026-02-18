@@ -92,6 +92,30 @@ export default function MapNanoCard(props: any) {
   const mBuilt = props.mBuilt || data.mBuilt || props.surface || data.surface || props.m2 || data.m2 || 0;
   const type = props.type || data.type || "Propiedad";
 
+ const b2bData = useMemo(() => {
+    // 1. Buscamos en la raíz del objeto
+    let b = data?.b2b || props?.b2b;
+    
+    if (!b) {
+      // 2. Si no está, lo fabricamos desde la campaña activa (Lógica Portfolio)
+      const ac = data?.activeCampaign || props?.activeCampaign;
+      if (ac) {
+        b = {
+          sharePct: Number(ac.commissionSharePct || 0),
+          visibility: ac.commissionShareVisibility || 'PRIVATE'
+        };
+      } else {
+        // 3. Fallback a campos sueltos
+        const share = data?.sharePct ?? props?.sharePct ?? 0;
+        b = {
+          sharePct: Number(share),
+          visibility: data?.shareVisibility ?? props?.shareVisibility ?? 'PRIVATE'
+        };
+      }
+    }
+    return b;
+  }, [data, props]);
+
   // Compatibilidad con selectedServices (vacío para no romper nada)
   const selectedServices = props.selectedServices || data.selectedServices || [];
 
@@ -150,7 +174,7 @@ export default function MapNanoCard(props: any) {
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+ useEffect(() => {
     if (!id || typeof window === "undefined") return;
     const initial = !!(props?.isFav ?? props?.isFavorited ?? data?.isFav ?? data?.isFavorited);
     lastFavRef.current = initial;
@@ -161,110 +185,154 @@ export default function MapNanoCard(props: any) {
       const next = !!e.detail.isFav;
       lastFavRef.current = next;
       setLiked(next);
+
+      // 🔥 PERSISTENCIA: Si el sistema limpia el B2B, lo re-inyectamos desde el useMemo
+      if (next && !e.detail.b2b) {
+         e.detail.b2b = b2bData;
+      }
     };
 
     window.addEventListener("sync-property-state", onSync as EventListener);
     return () => window.removeEventListener("sync-property-state", onSync as EventListener);
-  }, [id, props?.isFav, data?.isFav]);
+  }, [id, props?.isFav, data?.isFav, b2bData]);
 
-  // GESTOR DE ACCIONES (REPARADO: TRANSMISIÓN B2B + VUELO EN FAV)
-  const handleAction = (e: React.MouseEvent, action: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!id) return;
+  // GESTOR DE ACCIONES (VERSIÓN FINAL BLINDADA)
+const handleAction = (e: React.MouseEvent, action: string) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!id) return;
 
-    // 1. Coordenadas (Su lógica original, mantenida)
-    const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates ||
-      (props.lng != null && props.lat != null ? [props.lng, props.lat] : null) ||
-      (data.lng != null && data.lat != null ? [data.lng, data.lat] : null);
+  // 1. COORDINADAS: Extracción y Normalización [Lng, Lat]
+  const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates ||
+    (props.lng != null && props.lat != null ? [props.lng, props.lat] : null) ||
+    (data.lng != null && data.lat != null ? [data.lng, data.lat] : null);
 
-    let normalizedCoords = null;
-    if (Array.isArray(navCoords) && navCoords.length === 2) {
-      const a = Number(navCoords[0]), b = Number(navCoords[1]);
-      if (Number.isFinite(a) && Number.isFinite(b)) {
-         // Lógica de giro para España (Lat > 30 va segundo)
-         normalizedCoords = (a > 30 && b < 0) ? [b, a] : [a, b];
-      }
+  let normalizedCoords = null;
+  if (Array.isArray(navCoords) && navCoords.length === 2) {
+    const a = Number(navCoords[0]), b = Number(navCoords[1]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      // Lógica de giro para España (Si el primer valor > 30, es la Latitud y debe ir segundo)
+      normalizedCoords = (a > 30 && b < 0) ? [b, a] : [a, b];
     }
+  }
 
-    // 2. Imagen final
-    let finalAlbum: string[] = [];
-    if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images as any;
-    else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images as any;
-    if (finalAlbum.length === 0) {
-      if (props.mainImage) finalAlbum = [props.mainImage];
-      else if (data.mainImage) finalAlbum = [data.mainImage];
-      else if (img) finalAlbum = [img];
+  // 2. ÁLBUM DE IMÁGENES: Construcción del array final
+  let finalAlbum: string[] = [];
+  const sourceImages = Array.isArray(props.images) && props.images.length > 0 ? props.images : 
+                       Array.isArray(data.images) && data.images.length > 0 ? data.images : [];
+  
+  if (sourceImages.length > 0) {
+    finalAlbum = sourceImages.map((i: any) => (typeof i === "string" ? i : i?.url || i)).filter(Boolean);
+  } else {
+    const backupImg = props.mainImage || data.mainImage || img;
+    if (backupImg) finalAlbum = [backupImg];
+  }
+
+  // 3. RECONSTRUCCIÓN B2B: Datos críticos para la NanoCard
+  let b2bData = data?.b2b || props?.b2b;
+  if (!b2bData) {
+    const ac = data?.activeCampaign || props?.activeCampaign;
+    if (ac) {
+      b2bData = {
+        sharePct: Number(ac.commissionSharePct || 0),
+        visibility: ac.commissionShareVisibility || 'PRIVATE'
+      };
+    } else {
+      const share = data?.sharePct ?? props?.sharePct ?? 0;
+      b2bData = {
+        sharePct: Number(share),
+        visibility: data?.shareVisibility ?? props?.shareVisibility ?? 'PRIVATE'
+      };
     }
-    finalAlbum = finalAlbum.map((i: any) => (typeof i === "string" ? i : i?.url || i)).filter(Boolean);
+  }
 
-    // 3. 🔥 RECONSTRUCCIÓN DE B2B (Esto faltaba para transmitir datos)
-    let b2bData = data?.b2b || props?.b2b;
-    if (!b2bData) {
-        if (data?.activeCampaign || props?.activeCampaign) {
-            const ac = data?.activeCampaign || props?.activeCampaign;
-            b2bData = {
-                sharePct: Number(ac.commissionSharePct || 0),
-                visibility: ac.commissionShareVisibility || 'PRIVATE'
-            };
-        } else if (data?.sharePct || props?.sharePct) {
-            b2bData = {
-                sharePct: Number(data?.sharePct ?? props?.sharePct ?? 0),
-                visibility: data?.shareVisibility ?? props?.shareVisibility ?? 'PRIVATE'
-            };
-        }
-    }
-
-    // 4. Payload Rico (Datos que viajan al abrir la carta)
+  // 4. PAYLOAD RICO: El paquete de datos unificado
     const payload = {
       ...data,
+      ...props, 
       id: String(id),
       refCode: data?.refCode ?? props?.refCode ?? null,
-      title: data?.title || props?.title || "",
-      type: data?.type || props?.type || "Piso",
+      title: data?.title || props?.title || "Propiedad",
+      type: data?.type || props?.type || "Inmueble",
       address: data?.address || props?.address || "",
       coordinates: normalizedCoords,
       longitude: normalizedCoords ? normalizedCoords[0] : null,
       latitude: normalizedCoords ? normalizedCoords[1] : null,
-      selectedServices: selectedServices,
       img: finalAlbum[0] || null,
       images: finalAlbum,
       price: currentPrice,
       user: data?.user || props?.user || null,
       promotedTier: isPremium ? 'PREMIUM' : undefined,
-      
-      // 🔥 Inyectamos lo reconstruido
-      b2b: b2bData,
-      activeCampaign: data?.activeCampaign || props?.activeCampaign
+      b2b: b2bData, // <--- Ahora usa el b2bData global del paso 1
+      activeCampaign: data?.activeCampaign || props?.activeCampaign,
+      openHouse: props.openHouse || data.openHouse || data.open_house_data || null
     };
 
+  // --- EJECUCIÓN DE ACCIONES (CORREGIDO Y BLINDADO) ---
+  if (typeof window !== "undefined") {
+    
+    // 0. PREPARACIÓN DEL COMBUSTIBLE (Inyección de persistencia)
+    // Extraemos el B2B del componente para que no dependa del estado del payload
+    const b2bToTransmit = payload.b2b || b2bData;
+    const ohToTransmit = payload.openHouse || (data?.openHouses && data.openHouses[0]) || null;
+
+    // CASO A: FAVORITO (Toggle + Abrir + Volar)
     if (action === "fav") {
-      const next = !lastFavRef.current;
-      lastFavRef.current = next;
+      const next = !liked; 
       setLiked(next);
-      if (typeof window !== "undefined") {
-        // Disparamos Toggle
-        window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: { ...payload, isFav: next } }));
-        // Abrimos detalles
-        window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-        
-        // 🔥 VUELO EN FAVORITO (Agregado aquí)
-        if (normalizedCoords) {
-            window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                detail: { center: normalizedCoords, zoom: 18.5, pitch: 60, duration: 1500 } 
-            }));
-        }
+      if (lastFavRef) lastFavRef.current = next;
+
+      // 1. Sincronizar Base de Datos
+      // Enviamos copia profunda para evitar que el receptor mutara el objeto original
+      window.dispatchEvent(new CustomEvent("toggle-fav-signal", { 
+        detail: { ...payload, isFav: next, b2b: b2bToTransmit } 
+      }));
+      
+      // 2. Transmisión a Details (La ficha lateral)
+      // 🔥 REPARACIÓN: Forzamos la reinyección del B2B y OpenHouse aquí mismo
+      window.dispatchEvent(new CustomEvent("open-details-signal", { 
+        detail: { ...payload, isFav: next, b2b: b2bToTransmit, openHouse: ohToTransmit } 
+      }));
+      
+      // 3. Ejecución de Vuelo Táctico
+      if (normalizedCoords) {
+        window.dispatchEvent(new CustomEvent('fly-to-location', { 
+          detail: { 
+            center: normalizedCoords, 
+            zoom: 18.5, 
+            pitch: 60, 
+            duration: 1500 
+          } 
+        }));
       }
-      return;
     }
 
+    // CASO B: ABRIR (Click normal en Pin o NanoCard)
     if (action === "open") {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-        window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
+      // Notificamos qué ID está bajo el foco
+      window.dispatchEvent(new CustomEvent("select-property-signal", { 
+        detail: { id: String(id) } 
+      }));
+
+      // Abrimos ficha lateral con el paquete de datos blindado
+      window.dispatchEvent(new CustomEvent("open-details-signal", { 
+        detail: { ...payload, b2b: b2bToTransmit, openHouse: ohToTransmit } 
+      }));
+      
+      // 🔥 Vuelo habilitado por defecto para asegurar sincronización visual
+      if (normalizedCoords) {
+        window.dispatchEvent(new CustomEvent('fly-to-location', { 
+          detail: { 
+            center: normalizedCoords, 
+            zoom: 18.5, 
+            pitch: 60, 
+            duration: 1500 
+          } 
+        }));
       }
     }
-  };
+  }
+};
   // Z-Index Hover
   useEffect(() => {
     if (cardRef.current) {

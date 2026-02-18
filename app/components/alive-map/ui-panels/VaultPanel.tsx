@@ -59,82 +59,91 @@ export default function VaultPanel({
     return "Ubicación desconocida";
   };
 
-  // 🔥 SOLUCIÓN ESTRATÉGICA: VUELO + DATOS RICOS
-  const handleFlyTo = (prop: any) => {
-    if (soundEnabled && typeof playSynthSound === 'function') playSynthSound('click');
-    
-    try {
-        // 1. EXTRACCIÓN AGRESIVA (Rompe el bucle de los 2 toques)
-        // Buscamos el dato donde sea. Si coordinates está vacío, salta a longitude.
-        const rawLng = prop.coordinates?.[0] ?? prop.longitude ?? prop.lng;
-        const rawLat = prop.coordinates?.[1] ?? prop.latitude ?? prop.lat;
+  // 🔥 SOLUCIÓN ESTRATÉGICA FINAL (VERSIÓN INMORTAL): VUELO + DATOS RICOS
+const handleFlyTo = (prop) => {
+  if (soundEnabled && typeof playSynthSound === 'function') playSynthSound('click');
+  
+  try {
+      // 1. EXTRACCIÓN AGRESIVA (Normalización de Coordenadas)
+      const rawLng = prop.coordinates?.[0] ?? prop.longitude ?? prop.lng;
+      const rawLat = prop.coordinates?.[1] ?? prop.latitude ?? prop.lat;
 
-        // Convertimos a número matemático YA. (El mapa odia el texto)
-        const lng = parseFloat(String(rawLng));
-        const lat = parseFloat(String(rawLat));
+      const lng = parseFloat(String(rawLng));
+      const lat = parseFloat(String(rawLat));
 
-        // Validación Final
-        const areCoordsValid = Number.isFinite(lng) && Number.isFinite(lat) && (Math.abs(lng) > 0.0001);
-        
-        // Giramos si es necesario (España: Lat ~40, Lng ~-3)
-        let finalCoords = null;
-        if (areCoordsValid) {
-             finalCoords = (lng > 30 && lat < 0) ? [lat, lng] : [lng, lat];
-        }
+      const areCoordsValid = Number.isFinite(lng) && Number.isFinite(lat) && (Math.abs(lng) > 0.0001);
+      
+      let finalCoords = null;
+      if (areCoordsValid) {
+           // Si Lng > 30 es Latitud (Giro para España)
+           finalCoords = (Math.abs(lng) > 30 && Math.abs(lat) < 20) ? [lat, lng] : [lng, lat];
+      }
 
-        // 2. FABRICACIÓN DE DATOS (Arregla la NanoCard vacía)
-        let b2bData = prop.b2b;
-        if (!b2bData) {
-            if (prop.activeCampaign) {
-                b2bData = {
-                    sharePct: Number(prop.activeCampaign.commissionSharePct || 0),
-                    visibility: prop.activeCampaign.commissionShareVisibility || 'PRIVATE'
-                };
-            } else if (prop.sharePct) {
-                b2bData = {
-                    sharePct: Number(prop.sharePct || 0),
-                    visibility: prop.shareVisibility || 'PRIVATE'
-                };
-            }
-        }
+      // 2. 🔥 RESCATE PROFUNDO DE B2B (Evita que desaparezca al 2º click)
+      // Buscamos la campaña en: 1. El objeto b2b, 2. activeCampaign, 3. El primer elemento del array campaigns
+      const sourceCampaign = prop.activeCampaign || (prop.campaigns && prop.campaigns[0]);
+      
+      let b2bData = prop.b2b;
+      if (!b2bData && sourceCampaign) {
+          b2bData = {
+              sharePct: Number(sourceCampaign.commissionSharePct || 0),
+              visibility: sourceCampaign.commissionShareVisibility || 'PRIVATE'
+          };
+      } else if (!b2bData && prop.sharePct) {
+          b2bData = {
+              sharePct: Number(prop.sharePct || 0),
+              visibility: prop.shareVisibility || 'PRIVATE'
+          };
+      }
 
-        // 3. EMPAQUETADO BLINDADO
-        const richPayload = {
-            ...prop,
-            id: String(prop.id),
-            coordinates: finalCoords, 
-            b2b: b2bData, // <--- Aquí inyectamos lo que faltaba
-            
-            // Aseguramos identidad
-            user: prop.user || prop.ownerSnapshot || { name: "Propietario" },
-            isCaptured: prop.isCaptured || (prop.activeCampaign?.status === 'ACCEPTED'),
-            activeCampaign: prop.activeCampaign
-        };
+      // 3. RESCATE DE OPEN HOUSE
+      const openHouseData = prop.openHouse || prop.open_house_data || (prop.openHouses && prop.openHouses[0]) || null;
 
-        // 4. EJECUCIÓN (Con micro-pausa para que el mapa no se queje)
-        if (typeof window !== 'undefined') {
-            // A) Abrir ficha YA (con datos ricos)
-            window.dispatchEvent(new CustomEvent('open-details-signal', { detail: richPayload }));
-            
-            // B) Volar en 100ms
-            if (finalCoords) {
-                setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                        detail: { 
-                            center: finalCoords,
-                            zoom: 18.5,      
-                            pitch: 60,
-                            duration: 1500
-                        } 
-                    }));
-                }, 100);
-            } else {
-                console.warn("⚠️ Coordenadas inválidas, se abre ficha sin vuelo.");
-            }
-        }
+      // 4. EMPAQUETADO BLINDADO
+      const richPayload = {
+          ...prop,
+          id: String(prop.id),
+          coordinates: finalCoords, 
+          b2b: b2bData, // Inyectado forzosamente
+          openHouse: openHouseData, // Inyectado forzosamente
+          // Aseguramos que la identidad de agencia persista
+          user: prop.user || prop.ownerSnapshot || { name: "Agencia" },
+          isCaptured: !!(prop.isCaptured || sourceCampaign)
+      };
 
-    } catch (err) { console.error("Error táctico en vuelo:", err); }
-  };
+      // 5. EJECUCIÓN SÍNCRONA DE SEÑALES
+      if (typeof window !== 'undefined') {
+          // A) SELECCIÓN: Iluminamos el marcador en el mapa
+          window.dispatchEvent(new CustomEvent("select-property-signal", { 
+              detail: { id: String(prop.id) } 
+          }));
+
+          // B) APERTURA: Abrimos ficha con el paquete rico
+          window.dispatchEvent(new CustomEvent('open-details-signal', { 
+              detail: richPayload 
+          }));
+          
+          // C) VUELO: Con retardo táctico de 200ms para que la UI no colisione
+          if (finalCoords) {
+              setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                      detail: { 
+                          center: finalCoords,
+                          zoom: 18.5,      
+                          pitch: 60,
+                          duration: 1500
+                      } 
+                  }));
+              }, 200);
+          } else {
+              console.warn("⚠️ Coordenadas inválidas. Abriendo panel sin vuelo.");
+          }
+      }
+
+  } catch (err) { 
+      console.error("❌ Error crítico en secuencia de vuelo:", err); 
+  }
+};
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[450px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-right border-l border-white/20">
       

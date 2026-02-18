@@ -109,7 +109,7 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-// 🌍 2. PROPIEDADES GLOBALES (MAPA) - BLINDADO CON B2B
+// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN BLINDADA (PASO 1)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -128,33 +128,46 @@ export async function getGlobalPropertiesAction() {
             where: { status: "ACTIVE" },
             include: { agency: { select: USER_IDENTITY_SELECT } }
         },
-        campaigns: { where: { status: "ACCEPTED" }, take: 1 }, // <--- ESTO FALTABA
-        openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
+        // 🔥 CRÍTICO: Capturamos la campaña aceptada para inyectar B2B real
+        campaigns: { 
+            where: { status: "ACCEPTED" }, 
+            take: 1 
+        }, 
+        openHouses: { 
+            where: { status: "SCHEDULED" }, 
+            orderBy: { startTime: 'asc' }, 
+            take: 1 
+        }
       },
     });
 
    const mappedProps = (properties || []).map((p: any) => {
-      // IMÁGENES
+      // 1. GESTIÓN DE IMÁGENES
       const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
       const realImg = allImages?.[0] || p.mainImage || null;
       const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
+      // 2. ESTADO DE FAVORITO
       const isFavoritedByMe = currentUserId
         ? (p.favoritedBy || []).some((fav: any) => fav?.userId === currentUserId)
         : false;
 
-      // IDENTIDAD
+      // 3. IDENTIDAD Y TIER (Lógica de Transmutación de Agencia)
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
       let realTier = p.promotedTier || "FREE";
+      
+      // Extraemos la campaña activa si existe
       const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
+      // Si la propiedad está asignada a una agencia, la identidad cambia a la Agencia
       if (p.assignment?.agency) {
           finalIdentity = buildIdentity(p.assignment.agency, null);
           finalIdentity.role = 'AGENCIA'; 
+          // Si la agencia es PRO, la propiedad brilla como PREMIUM en el mapa
           if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
       }
 
-      // 🔥 B2B CALCULATION (CRÍTICO PARA LA NANOCARD)
+      // 4. 🔥 CÁLCULO B2B (Soluciona el problema de la NanoCard vacía)
       let b2bData = null;
       if (activeCampaign) {
            b2bData = {
@@ -162,36 +175,45 @@ export async function getGlobalPropertiesAction() {
               visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
            };
       } else {
+           // Fallback a los datos base de la propiedad
            b2bData = {
               sharePct: Number(p.sharePct || 0),
               visibility: p.shareVisibility || 'PRIVATE'
            };
       }
 
-      // COORDENADAS
+      // 5. 🦅 COORDENADAS (Blindaje anti-salto a Madrid)
       const lng = Number(p.longitude);
       const lat = Number(p.latitude);
-      const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+      // Solo validamos si no son 0 absoluto (que es donde el mapa se pierde)
+      const validCoords = (lng !== 0 && lat !== 0 && Number.isFinite(lng) && Number.isFinite(lat)) 
+          ? [lng, lat] 
+          : null;
 
-      // PRECIO
+      // 6. FORMATEO DE PRECIO VIVO
       const rawPrice = Number(p.price || 0);
-      const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
+      const priceFormatted = new Intl.NumberFormat("es-ES", {
+          style: "currency",
+          currency: "EUR",
+          maximumFractionDigits: 0
+      }).format(rawPrice);
 
-      // PREMIUM check
+      // 7. VERIFICACIÓN DE EXPIRACIÓN PREMIUM
       const now = new Date();
       const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
       if (expiryDate && expiryDate < now) realTier = "FREE";
       
-      // OPEN HOUSE
+      // 8. DATOS DE OPEN HOUSE
       let openHouseObj = null;
       if (p.openHouses && p.openHouses.length > 0) {
          openHouseObj = { ...p.openHouses[0], enabled: true };
       }
 
+      // RETORNO DEL PAQUETE RICO
       return {
         ...p,
         id: p.id,
-        // DATOS RICOS
+        // Inyectamos datos calculados para que el Frontend no tenga que pensar
         b2b: b2bData,
         activeCampaign: activeCampaign,
         isCaptured: !!activeCampaign,
@@ -209,7 +231,7 @@ export async function getGlobalPropertiesAction() {
         images: imagesFinal,
         img: realImg,
         price: priceFormatted,    
-        rawPrice,                 
+        rawPrice: rawPrice,                 
         priceValue: rawPrice,     
         isFavorited: isFavoritedByMe,
         
@@ -668,7 +690,7 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
   }
 }
 
-// H. LEER FAVORITOS (BÓVEDA) - CON TRANSMUTACIÓN Y DATOS RICOS
+// ❤️ 3. USUARIO Y FAVORITOS (PASO 2: BÓVEDA ENRIQUECIDA)
 export async function getFavoritesAction() {
   try {
     const user = await getCurrentUser();
@@ -682,16 +704,16 @@ export async function getFavoritesAction() {
             images: true,
             user: { select: USER_IDENTITY_SELECT }, // Dueño Original
             
-            // 🔥 TRANSMUTACIÓN (Identidad de Agencia)
+            // 🔥 TRANSMUTACIÓN (Identidad de Agencia asignada)
             assignment: {
-               where: { status: "ACTIVE" },
-               include: { agency: { select: USER_IDENTITY_SELECT } }
+                where: { status: "ACTIVE" },
+                include: { agency: { select: USER_IDENTITY_SELECT } }
             },
 
-            // 🔥 CRÍTICO: Traer campaña para el B2B (Botón Dorado)
+            // 🔥 CRÍTICO: Campaña para B2B y Captación
             campaigns: { where: { status: "ACCEPTED" }, take: 1 },
 
-            // 🔥 CRÍTICO: Traer eventos Open House
+            // 🔥 CRÍTICO: Eventos Open House
             openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
           },
         },
@@ -702,12 +724,12 @@ export async function getFavoritesAction() {
         const p: any = f.property;
         if (!p) return null;
 
-        // IMÁGENES
+        // 1. GESTIÓN DE IMÁGENES
         let allImages = (p.images || []).map((img: any) => img.url);
         if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
         const realImg = allImages[0] || null;
 
-        // IDENTIDAD DINÁMICA
+        // 2. IDENTIDAD DINÁMICA (Transmutación)
         let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
         const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
@@ -716,7 +738,7 @@ export async function getFavoritesAction() {
             finalIdentity.role = 'AGENCIA';
         }
 
-        // 🔥 LÓGICA B2B (Para que el botón no desaparezca)
+        // 3. 🔥 LÓGICA B2B (Mantenemos el botón dorado vivo en la Bóveda)
         let b2bData = null;
         if (activeCampaign) {
              b2bData = {
@@ -724,7 +746,7 @@ export async function getFavoritesAction() {
                 visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
              };
              
-             // Inyectamos financials básicos por si acaso
+             // Inyectamos financials básicos para el expediente rápido
              const price = Number(p.price || 0);
              const comm = Number(activeCampaign.commissionPct || 0);
              const base = (price * comm) / 100;
@@ -737,12 +759,14 @@ export async function getFavoritesAction() {
              };
         }
 
-        // COORDENADAS LIMPIAS (Para evitar saltos en el mapa)
+        // 4. 🦅 COORDENADAS LIMPIAS (Para que el vuelo desde favoritos sea instantáneo)
         const lng = Number(p.longitude);
         const lat = Number(p.latitude);
-        const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+        const validCoords = (lng !== 0 && lat !== 0 && Number.isFinite(lng) && Number.isFinite(lat)) 
+            ? [lng, lat] 
+            : null;
 
-        // OPEN HOUSE
+        // 5. OPEN HOUSE
         const openHouseObj = (p.openHouses && p.openHouses.length > 0) 
             ? { ...p.openHouses[0], enabled: true } 
             : null;
@@ -750,12 +774,12 @@ export async function getFavoritesAction() {
         return {
           ...p,
           id: p.id,
-          user: finalIdentity, // Identidad transmutada
+          user: finalIdentity, // Identidad ya procesada (Agencia o Propietario)
 
-          // Datos Ricos
+          // Inyección de Datos Ricos para la NanoCard
           b2b: b2bData,
           activeCampaign: activeCampaign,
-          isCaptured: !!activeCampaign, // Para saber si es captada
+          isCaptured: !!activeCampaign,
 
           coordinates: validCoords,
           longitude: lng, 
@@ -763,7 +787,7 @@ export async function getFavoritesAction() {
           
           images: allImages,
           img: realImg,
-          isFavorited: true,
+          isFavorited: true, // Por definición, si está aquí, es favorito
           
           price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
           rawPrice: Number(p.price || 0),
@@ -772,10 +796,6 @@ export async function getFavoritesAction() {
           m2: Number(p.mBuilt || 0),
           mBuilt: Number(p.mBuilt || 0),
           communityFees: Number(p.communityFees || 0),
-          
-          energyConsumption: p.energyConsumption,
-          energyEmissions: p.energyEmissions,
-          energyPending: p.energyPending,
           
           openHouse: openHouseObj
         };
@@ -805,6 +825,7 @@ export async function getAgencyPortfolioAction() {
       include: { 
           images: true,
           user: { select: USER_IDENTITY_SELECT }, 
+          // 🔥 Aseguramos que traemos la campaña específica de esta agencia
           campaigns: { where: { agencyId: user.id, status: "ACCEPTED" } },
           openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
       },
@@ -821,9 +842,10 @@ export async function getAgencyPortfolioAction() {
         let displayUser = originalOwner;
         let isManaged = false;
 
-        // Si hay campaña aceptada
+        // --- LÓGICA DE GESTIÓN SaaS ---
         if (winningCampaign) {
             isManaged = true;
+            // Aseguramos tipos numéricos para evitar NaN en el Front
             winningCampaign.commissionPct = Number(winningCampaign.commissionPct || 0);
             winningCampaign.commissionSharePct = Number(winningCampaign.commissionSharePct || 0);
             
@@ -833,12 +855,19 @@ export async function getAgencyPortfolioAction() {
             const iva = base * 0.21; 
             const total = base + iva;
             
-            winningCampaign.financials = { base, ivaAmount: iva, total };
+            // 🔥 CORRECCIÓN: Formateamos aquí para que el "Expediente Oficial" brille
+            winningCampaign.financials = { 
+                base: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(base),
+                ivaAmount: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(iva),
+                total: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(total),
+                rawBase: base,
+                rawTotal: total
+            };
 
             displayUser = {
                 ...user, 
                 role: 'AGENCIA', 
-                licenseType: 'PRO',
+                licenseType: user.licenseType || 'PRO',
                 avatar: user.companyLogo || user.avatar,
                 companyLogo: user.companyLogo,
                 companyName: user.companyName || user.name,
@@ -850,7 +879,7 @@ export async function getAgencyPortfolioAction() {
             }
         }
 
-        // 🔥 AQUÍ ESTÁ LA MAGIA: PREPARAMOS EL OBJETO B2B PARA QUE EL FRONTEND LO ENTIENDA
+        // --- OBJETO B2B (Mantenemos su Magia, pero blindada) ---
         let b2bData = null;
         if (winningCampaign) {
              b2bData = {
@@ -864,11 +893,11 @@ export async function getAgencyPortfolioAction() {
              };
         }
 
-        // 🔥 COORDENADAS LIMPIAS: ARRAY [LONG, LAT]
-        // Si p.longitude es nulo o 0, enviamos null para evitar saltos raros en el mapa.
+        // --- COORDENADAS (Blindaje anti-salto a Madrid) ---
         const lng = Number(p.longitude);
         const lat = Number(p.latitude);
-        const coords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+        // 🔥 FIX: Validación matemática más estricta
+        const coords = (lng !== 0 && lat !== 0 && !isNaN(lng) && !isNaN(lat)) ? [lng, lat] : null;
 
         return {
             ...p,
@@ -877,26 +906,27 @@ export async function getAgencyPortfolioAction() {
             
             user: displayUser, 
             ownerSnapshot: displayUser, 
-            clientData: originalOwner,
+            clientData: originalOwner, // Vital para el Chat con el particular
 
             activeCampaign: winningCampaign, 
             radarType: winningCampaign ? (winningCampaign.mandateType || "SIMPLE") : null,
             
-            // Enviamos el objeto B2B ya cocinado
             b2b: b2bData,
 
-            // Enviamos las coordenadas listas para Mapbox
+            // Coordenadas listas para Mapbox
             coordinates: coords, 
-            longitude: lng, // Mantenemos compatibilidad
+            longitude: lng, 
             latitude: lat,
 
             isOwner: p.userId === user.id, 
             isCaptured: isManaged, 
             
-            images: (p.images || []).map((img: any) => img.url),
-            img: p.images?.[0]?.url || p.mainImage || null,
+            images: (p.images || []).map((img: any) => (typeof img === 'string' ? img : img.url)),
+            img: (p.images && p.images.length > 0) ? (p.images[0].url || p.images[0]) : (p.mainImage || null),
             
-            price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
+            // Precio formateado para la UI de Cartera
+            price: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(p.price || 0)),
+            rawPrice: Number(p.price || 0),
             openHouse: openHouseObj
         };
     }).filter(Boolean);
@@ -904,7 +934,7 @@ export async function getAgencyPortfolioAction() {
     return { success: true, data: cleanList };
   } catch (error) {
     console.error("Error getting agency portfolio:", error);
-    return { success: false, error: "Error de conexión" };
+    return { success: false, error: "Error de conexión con la Cartera" };
   }
 }
 // B. BORRAR DEL STOCK (✅ idempotente + borra favorito por clave compuesta)
