@@ -109,7 +109,7 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN BLINDADA (PASO 1)
+// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN BLINDADA & ESTADÍSTICAS
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -120,6 +120,7 @@ export async function getGlobalPropertiesAction() {
       orderBy: { createdAt: "desc" },
       include: {
         images: true,
+        // 🔥 AÑADIDO: Necesario para contar los corazones en el mapa
         favoritedBy: { select: { userId: true } },
         user: { select: USER_IDENTITY_SELECT },
 
@@ -128,7 +129,7 @@ export async function getGlobalPropertiesAction() {
             where: { status: "ACTIVE" },
             include: { agency: { select: USER_IDENTITY_SELECT } }
         },
-        // 🔥 CRÍTICO: Capturamos la campaña aceptada para inyectar B2B real
+        // Capturamos la campaña aceptada para inyectar B2B real
         campaigns: { 
             where: { status: "ACCEPTED" }, 
             take: 1 
@@ -156,18 +157,15 @@ export async function getGlobalPropertiesAction() {
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
       let realTier = p.promotedTier || "FREE";
       
-      // Extraemos la campaña activa si existe
       const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
-      // Si la propiedad está asignada a una agencia, la identidad cambia a la Agencia
       if (p.assignment?.agency) {
           finalIdentity = buildIdentity(p.assignment.agency, null);
           finalIdentity.role = 'AGENCIA'; 
-          // Si la agencia es PRO, la propiedad brilla como PREMIUM en el mapa
           if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
       }
 
-      // 4. 🔥 CÁLCULO B2B (Soluciona el problema de la NanoCard vacía)
+      // 4. CÁLCULO B2B
       let b2bData = null;
       if (activeCampaign) {
            b2bData = {
@@ -175,17 +173,15 @@ export async function getGlobalPropertiesAction() {
               visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
            };
       } else {
-           // Fallback a los datos base de la propiedad
            b2bData = {
               sharePct: Number(p.sharePct || 0),
               visibility: p.shareVisibility || 'PRIVATE'
            };
       }
 
-      // 5. 🦅 COORDENADAS (Blindaje anti-salto a Madrid)
+      // 5. COORDENADAS
       const lng = Number(p.longitude);
       const lat = Number(p.latitude);
-      // Solo validamos si no son 0 absoluto (que es donde el mapa se pierde)
       const validCoords = (lng !== 0 && lat !== 0 && Number.isFinite(lng) && Number.isFinite(lat)) 
           ? [lng, lat] 
           : null;
@@ -209,11 +205,11 @@ export async function getGlobalPropertiesAction() {
          openHouseObj = { ...p.openHouses[0], enabled: true };
       }
 
-      // RETORNO DEL PAQUETE RICO
+      // RETORNO DEL PAQUETE RICO (ESTADÍSTICAS INCLUIDAS)
       return {
         ...p,
         id: p.id,
-        // Inyectamos datos calculados para que el Frontend no tenga que pensar
+        // Inyectamos datos calculados
         b2b: b2bData,
         activeCampaign: activeCampaign,
         isCaptured: !!activeCampaign,
@@ -231,8 +227,8 @@ export async function getGlobalPropertiesAction() {
         images: imagesFinal,
         img: realImg,
         price: priceFormatted,    
-        rawPrice: rawPrice,                 
-        priceValue: rawPrice,     
+        rawPrice: rawPrice,                  
+        priceValue: rawPrice,      
         isFavorited: isFavoritedByMe,
         
         m2: Number(p.mBuilt || 0),
@@ -240,7 +236,13 @@ export async function getGlobalPropertiesAction() {
         communityFees: Number(p.communityFees || 0),
         
         openHouse: openHouseObj,        
-        open_house_data: openHouseObj   
+        open_house_data: openHouseObj,
+
+        // 🔥 LA PIEZA FINAL: ESTADÍSTICAS EN EL MAPA
+        views: p.views || 0,
+        photoViews: p.photoViews || 0,
+        shareCount: p.shareCount || 0,
+        favoritedCount: p.favoritedBy?.length || 0  // <--- AHORA EL MAPA SABE LA VERDAD
       };
     });
 
@@ -250,6 +252,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
+
 // ✅ Obtener UNA propiedad completa (CORREGIDO: Con Estadísticas y Datos Financieros)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
