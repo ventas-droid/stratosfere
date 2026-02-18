@@ -111,34 +111,38 @@ const handleFlyTo = (prop) => {
           isCaptured: !!(prop.isCaptured || sourceCampaign)
       };
 
-      // 5. EJECUCIÓN SÍNCRONA DE SEÑALES
-      if (typeof window !== 'undefined') {
-          // A) SELECCIÓN: Iluminamos el marcador en el mapa
-          window.dispatchEvent(new CustomEvent("select-property-signal", { 
-              detail: { id: String(prop.id) } 
-          }));
+     // ... dentro de handleFlyTo en VaultPanel.tsx ...
 
-          // B) APERTURA: Abrimos ficha con el paquete rico
-          window.dispatchEvent(new CustomEvent('open-details-signal', { 
-              detail: richPayload 
-          }));
-          
-          // C) VUELO: Con retardo táctico de 200ms para que la UI no colisione
-          if (finalCoords) {
-              setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                      detail: { 
-                          center: finalCoords,
-                          zoom: 18.5,      
-                          pitch: 60,
-                          duration: 1500
-                      } 
-                  }));
-              }, 200);
-          } else {
-              console.warn("⚠️ Coordenadas inválidas. Abriendo panel sin vuelo.");
-          }
-      }
+// 5. EJECUCIÓN SÍNCRONA DE SEÑALES
+if (typeof window !== 'undefined') {
+    // A) SELECCIÓN
+    window.dispatchEvent(new CustomEvent("select-property-signal", { 
+        detail: { id: String(prop.id) } 
+    }));
+
+    // B) APERTURA
+    window.dispatchEvent(new CustomEvent('open-details-signal', { 
+        detail: richPayload 
+    }));
+    
+    // C) 🔥 VUELO TURBO (Sin Lag)
+    if (finalCoords) {
+        // Usamos requestAnimationFrame para esperar al siguiente frame de renderizado (aprox 16ms)
+        // Esto es instantáneo para el ojo, pero seguro para el motor del mapa.
+        requestAnimationFrame(() => {
+            window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                detail: { 
+                    center: finalCoords,
+                    zoom: 18.5,      
+                    pitch: 60,
+                    duration: 1500 // La duración del vuelo se mantiene suave
+                } 
+            }));
+        });
+    } else {
+        console.warn("⚠️ Coordenadas inválidas.");
+    }
+}
 
   } catch (err) { 
       console.error("❌ Error crítico en secuencia de vuelo:", err); 
