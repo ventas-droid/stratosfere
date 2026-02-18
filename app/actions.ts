@@ -690,7 +690,7 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
   }
 }
 
-// ❤️ 3. USUARIO Y FAVORITOS (PASO 2: BÓVEDA ENRIQUECIDA)
+// ❤️ 3. USUARIO Y FAVORITOS (PASO 2: BÓVEDA ENRIQUECIDA - CORREGIDO)
 export async function getFavoritesAction() {
   try {
     const user = await getCurrentUser();
@@ -704,6 +704,9 @@ export async function getFavoritesAction() {
             images: true,
             user: { select: USER_IDENTITY_SELECT }, // Dueño Original
             
+            // 🔥 AÑADIDO: Necesario para contar cuántos "likes" tiene
+            favoritedBy: { select: { userId: true } },
+
             // 🔥 TRANSMUTACIÓN (Identidad de Agencia asignada)
             assignment: {
                 where: { status: "ACTIVE" },
@@ -797,17 +800,18 @@ export async function getFavoritesAction() {
           mBuilt: Number(p.mBuilt || 0),
           communityFees: Number(p.communityFees || 0),
           
-       openHouse: openHouseObj,  // <--- ¡AQUÍ FALTABA LA COMA! 🔴
+          openHouse: openHouseObj,
 
-          // 🔥 ESTADÍSTICAS (Nuevo bloque)
+          // 🔥 ESTADÍSTICAS COMPLETAS (Corrección Final)
           views: p.views || 0,
           photoViews: p.photoViews || 0,
-          shareCount: p.shareCount || 0
+          shareCount: p.shareCount || 0,
+          favoritedCount: p.favoritedBy?.length || 0
         };
       })
       .filter(Boolean);
-  
-      return { success: true, data: cleanFavs };
+
+    return { success: true, data: cleanFavs };
   } catch (e) {
     console.error("Error getFavoritesAction:", e);
     return { success: false, data: [] };
@@ -832,7 +836,10 @@ export async function getAgencyPortfolioAction() {
           user: { select: USER_IDENTITY_SELECT }, 
           // 🔥 Aseguramos que traemos la campaña específica de esta agencia
           campaigns: { where: { agencyId: user.id, status: "ACCEPTED" } },
-          openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
+          openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 },
+          
+          // 🔥 AÑADIDO: Para contar los likes en el Stock
+          favoritedBy: { select: { userId: true } }
       },
       orderBy: { updatedAt: 'desc' }
     });
@@ -850,7 +857,6 @@ export async function getAgencyPortfolioAction() {
         // --- LÓGICA DE GESTIÓN SaaS ---
         if (winningCampaign) {
             isManaged = true;
-            // Aseguramos tipos numéricos para evitar NaN en el Front
             winningCampaign.commissionPct = Number(winningCampaign.commissionPct || 0);
             winningCampaign.commissionSharePct = Number(winningCampaign.commissionSharePct || 0);
             
@@ -860,7 +866,6 @@ export async function getAgencyPortfolioAction() {
             const iva = base * 0.21; 
             const total = base + iva;
             
-            // 🔥 CORRECCIÓN: Formateamos aquí para que el "Expediente Oficial" brille
             winningCampaign.financials = { 
                 base: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(base),
                 ivaAmount: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(iva),
@@ -901,7 +906,6 @@ export async function getAgencyPortfolioAction() {
         // --- COORDENADAS (Blindaje anti-salto a Madrid) ---
         const lng = Number(p.longitude);
         const lat = Number(p.latitude);
-        // 🔥 FIX: Validación matemática más estricta
         const coords = (lng !== 0 && lat !== 0 && !isNaN(lng) && !isNaN(lat)) ? [lng, lat] : null;
 
         return {
@@ -932,15 +936,16 @@ export async function getAgencyPortfolioAction() {
             // Precio formateado para la UI de Cartera
             price: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(p.price || 0)),
             rawPrice: Number(p.price || 0),
-          openHouse: openHouseObj,  // <--- ¡AQUÍ FALTABA LA COMA! 🔴
+            
+            openHouse: openHouseObj, // <--- COMA VITAL AQUÍ
 
-          // 🔥 ESTADÍSTICAS (Nuevo bloque)
-          views: p.views || 0,
-          photoViews: p.photoViews || 0,
-          shareCount: p.shareCount || 0
+            // 🔥 ESTADÍSTICAS REALES (Sincronizadas con Stock)
+            views: p.views || 0,
+            photoViews: p.photoViews || 0,
+            shareCount: p.shareCount || 0,
+            favoritedCount: p.favoritedBy?.length || 0
         };
-      })
-      .filter(Boolean);
+    }).filter(Boolean);
 
     return { success: true, data: cleanList };
   } catch (error) {
