@@ -26,49 +26,95 @@ export async function getAmbassadorDashboardAction() {
 }
 
 // 2. CATÁLOGO (Sin currency)
+// En app/actions-ambassador.ts
+
 export async function getPromotablePropertiesAction() {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
 
+    // 1. Buscamos propiedades PUBLICADAS
     const props = await prisma.property.findMany({
-      where: { status: "PUBLICADO", sharePct: { gt: 0 } },
+      where: { status: "PUBLICADO" },
       take: 50,
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        price: true,
-        city: true,
-        mainImage: true,
+      include: {
         images: true,
-        sharePct: true,
-        refCode: true
+        // 🔥 CLAVE: Traemos la campaña ACEPTADA (El contrato activo)
+        // Aquí es donde vive el dato "comisiónShareEur" que usted ve en la DB
+        campaigns: {
+            where: { status: "ACCEPTED" },
+            take: 1
+        }
       }
     });
 
+    console.log(`📊 DASHBOARD: Procesando ${props.length} propiedades...`);
+
     const mapped = props.map((p: any) => {
-        const price = p.price || 0;
-        const agencyFeesEstimados = price * 0.05; 
-        const potentialComm = agencyFeesEstimados * (p.sharePct / 100);
-        const img = p.mainImage || (p.images && p.images[0]?.url) || "/placeholder.jpg";
+        // A. Precio Base
+        const price = p.price ? Number(p.price) : 0;
+        
+        // B. Buscamos el contrato activo (Campaign)
+        const activeContract = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
+
+        let finalCommission = 0;
+
+        // C. LÓGICA DE PRIORIDAD (El Cerebro)
+        if (activeContract) {
+            // OPCIÓN 1: Si hay contrato, usamos sus datos (Esto es lo que usted tiene en la DB)
+            const contractSharePct = Number(activeContract.commissionSharePct || 0);
+            
+            // Si el contrato ya tiene el cálculo en Euros guardado, lo usamos directo
+            if (activeContract.commissionShareEur && Number(activeContract.commissionShareEur) > 0) {
+                finalCommission = Number(activeContract.commissionShareEur);
+            } else {
+                // Si no, lo calculamos: (Precio * %Agencia * %Share)
+                const contractFeePct = Number(activeContract.commissionPct || 3);
+                const totalFee = price * (contractFeePct / 100);
+                finalCommission = totalFee * (contractSharePct / 100);
+            }
+            
+            console.log(`> [CONTRATO] ${p.refCode}: Comisión detectada ${finalCommission}€`);
+
+        } else {
+            // OPCIÓN 2: Si no hay contrato, miramos la ficha (Fallback)
+            const propFeePct = Number(p.commissionPct || 3);
+            const propSharePct = Number(p.sharePct || 0); // Si es 0, saldrá 0 (correcto)
+            
+            const totalFee = price * (propFeePct / 100);
+            finalCommission = totalFee * (propSharePct / 100);
+            
+            console.log(`> [FICHA] ${p.refCode}: Comisión detectada ${finalCommission}€`);
+        }
+
+        // D. LIMPIEZA FINAL
+        if (isNaN(finalCommission) || finalCommission < 0) finalCommission = 0;
+
+        // Selección de imagen
+        let img = p.mainImage;
+        if (!img && p.images && p.images.length > 0) {
+             // Priorizamos url si es objeto, o string directo
+             img = p.images[0].url || p.images[0];
+        }
+        if (!img) img = "/placeholder.jpg";
 
         return {
             id: p.id,
             title: p.title || "Propiedad sin título",
-            city: p.city || "Ubicación reservada",
+            price: price,
+            commission: Math.round(finalCommission), // Redondeo limpio
             image: img,
-            stats: { visits: 0, leads: 0 },
-            commissionDisplay: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(potentialComm)
+            refCode: p.refCode
         };
     });
 
     return { success: true, data: mapped };
   } catch (e) {
-    return { success: false, data: [] };
+    console.error("❌ ERROR CRÍTICO DASHBOARD:", e);
+    return { success: false, error: "Error de sistema" };
   }
 }
-
 // 3. GENERAR LINK
 // app/actions-ambassador.ts
 
