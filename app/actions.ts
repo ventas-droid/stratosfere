@@ -797,12 +797,17 @@ export async function getFavoritesAction() {
           mBuilt: Number(p.mBuilt || 0),
           communityFees: Number(p.communityFees || 0),
           
-          openHouse: openHouseObj
+       openHouse: openHouseObj,  // <--- ¡AQUÍ FALTABA LA COMA! 🔴
+
+          // 🔥 ESTADÍSTICAS (Nuevo bloque)
+          views: p.views || 0,
+          photoViews: p.photoViews || 0,
+          shareCount: p.shareCount || 0
         };
       })
       .filter(Boolean);
-
-    return { success: true, data: cleanFavs };
+  
+      return { success: true, data: cleanFavs };
   } catch (e) {
     console.error("Error getFavoritesAction:", e);
     return { success: false, data: [] };
@@ -927,9 +932,15 @@ export async function getAgencyPortfolioAction() {
             // Precio formateado para la UI de Cartera
             price: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(p.price || 0)),
             rawPrice: Number(p.price || 0),
-            openHouse: openHouseObj
+          openHouse: openHouseObj,  // <--- ¡AQUÍ FALTABA LA COMA! 🔴
+
+          // 🔥 ESTADÍSTICAS (Nuevo bloque)
+          views: p.views || 0,
+          photoViews: p.photoViews || 0,
+          shareCount: p.shareCount || 0
         };
-    }).filter(Boolean);
+      })
+      .filter(Boolean);
 
     return { success: true, data: cleanList };
   } catch (error) {
