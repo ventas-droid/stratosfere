@@ -1048,8 +1048,9 @@ export async function getPropertiesAction() {
         openHouseAttendeesCount: activeOH?.attendees?.length || 0,
         ownerSnapshot: safeOwnerSnapshot,
         user: identity,
-        coordinates: [p.longitude || -3.7038, p.latitude || 40.4168],
-        images: allImages,
+coordinates: (p.longitude && p.latitude && p.longitude !== 0) 
+    ? [Number(p.longitude), Number(p.latitude)] 
+    : null,        images: allImages,
         img: realImg || null,
         price: new Intl.NumberFormat("es-ES").format(p.price || 0),
         rawPrice: p.price,
