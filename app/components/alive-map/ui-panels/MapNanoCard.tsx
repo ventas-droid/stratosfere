@@ -167,13 +167,13 @@ export default function MapNanoCard(props: any) {
     return () => window.removeEventListener("sync-property-state", onSync as EventListener);
   }, [id, props?.isFav, data?.isFav]);
 
-  // GESTOR DE ACCIONES
+  // GESTOR DE ACCIONES (REPARADO: TRANSMISIÓN B2B + VUELO EN FAV)
   const handleAction = (e: React.MouseEvent, action: string) => {
     e.preventDefault();
     e.stopPropagation();
     if (!id) return;
 
-    // Coordenadas
+    // 1. Coordenadas (Su lógica original, mantenida)
     const navCoords = props.coordinates || data.coordinates || data.geometry?.coordinates ||
       (props.lng != null && props.lat != null ? [props.lng, props.lat] : null) ||
       (data.lng != null && data.lat != null ? [data.lng, data.lat] : null);
@@ -182,11 +182,12 @@ export default function MapNanoCard(props: any) {
     if (Array.isArray(navCoords) && navCoords.length === 2) {
       const a = Number(navCoords[0]), b = Number(navCoords[1]);
       if (Number.isFinite(a) && Number.isFinite(b)) {
+         // Lógica de giro para España (Lat > 30 va segundo)
          normalizedCoords = (a > 30 && b < 0) ? [b, a] : [a, b];
       }
     }
 
-    // Imagen final
+    // 2. Imagen final
     let finalAlbum: string[] = [];
     if (Array.isArray(props.images) && props.images.length > 0) finalAlbum = props.images as any;
     else if (Array.isArray(data.images) && data.images.length > 0) finalAlbum = data.images as any;
@@ -197,7 +198,24 @@ export default function MapNanoCard(props: any) {
     }
     finalAlbum = finalAlbum.map((i: any) => (typeof i === "string" ? i : i?.url || i)).filter(Boolean);
 
-    // Payload (Datos que viajan al abrir la carta)
+    // 3. 🔥 RECONSTRUCCIÓN DE B2B (Esto faltaba para transmitir datos)
+    let b2bData = data?.b2b || props?.b2b;
+    if (!b2bData) {
+        if (data?.activeCampaign || props?.activeCampaign) {
+            const ac = data?.activeCampaign || props?.activeCampaign;
+            b2bData = {
+                sharePct: Number(ac.commissionSharePct || 0),
+                visibility: ac.commissionShareVisibility || 'PRIVATE'
+            };
+        } else if (data?.sharePct || props?.sharePct) {
+            b2bData = {
+                sharePct: Number(data?.sharePct ?? props?.sharePct ?? 0),
+                visibility: data?.shareVisibility ?? props?.shareVisibility ?? 'PRIVATE'
+            };
+        }
+    }
+
+    // 4. Payload Rico (Datos que viajan al abrir la carta)
     const payload = {
       ...data,
       id: String(id),
@@ -213,7 +231,11 @@ export default function MapNanoCard(props: any) {
       images: finalAlbum,
       price: currentPrice,
       user: data?.user || props?.user || null,
-      promotedTier: isPremium ? 'PREMIUM' : undefined
+      promotedTier: isPremium ? 'PREMIUM' : undefined,
+      
+      // 🔥 Inyectamos lo reconstruido
+      b2b: b2bData,
+      activeCampaign: data?.activeCampaign || props?.activeCampaign
     };
 
     if (action === "fav") {
@@ -221,9 +243,17 @@ export default function MapNanoCard(props: any) {
       lastFavRef.current = next;
       setLiked(next);
       if (typeof window !== "undefined") {
+        // Disparamos Toggle
         window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: { ...payload, isFav: next } }));
+        // Abrimos detalles
         window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-        window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
+        
+        // 🔥 VUELO EN FAVORITO (Agregado aquí)
+        if (normalizedCoords) {
+            window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                detail: { center: normalizedCoords, zoom: 18.5, pitch: 60, duration: 1500 } 
+            }));
+        }
       }
       return;
     }
@@ -235,7 +265,6 @@ export default function MapNanoCard(props: any) {
       }
     }
   };
-
   // Z-Index Hover
   useEffect(() => {
     if (cardRef.current) {

@@ -8,7 +8,7 @@ import {
   TrendingUp, Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
   Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
   Droplets, Paintbrush, Truck, Briefcase, Sparkles, 
-  Lock, Handshake, Eye, MessageCircle, Calculator, Coins, Navigation // <--- Navigation Importado
+  Lock, Handshake, Eye, MessageCircle, Calculator, Coins, Navigation 
 } from "lucide-react";
 
 // --- DICCIONARIO DE ICONOS ---
@@ -52,39 +52,66 @@ export default function AgencyPortfolioPanel({
   if (!isOpen) return null;
   const safeList = Array.isArray(properties) ? properties : [];
 
-  // 🔥🔥🔥 FUNCIÓN DE VUELO CORREGIDA (COPIADA DE LA LÓGICA DE PARTICULAR) 🔥🔥🔥
-  const handleFlyTo = (p: any) => {
+  // 🔥 VUELO TÁCTICO (SOLUCIONA EL CONFLICTO DE REDIMENSIÓN)
+  const handleFlyTo = (e: any, p: any) => {
+    e.stopPropagation();
+
     try {
-      // 1. Detectar coordenadas (ya sean sueltas o en array)
-      // Esto soluciona el problema de que unas vienen como lat/lng y otras como array
-      let lat = p.latitude;
-      let lng = p.longitude;
+      // 1. EXTRACCIÓN Y CONVERSIÓN INMEDIATA
+      // Buscamos el dato donde sea y aseguramos que sea NÚMERO
+      let lng = p.coordinates?.[0] ?? p.longitude ?? p.lng;
+      let lat = p.coordinates?.[1] ?? p.latitude ?? p.lat;
 
-      if ((!lat || !lng) && p.coordinates && Array.isArray(p.coordinates)) {
-          lng = p.coordinates[0];
-          lat = p.coordinates[1];
+      lng = parseFloat(String(lng));
+      lat = parseFloat(String(lat));
+
+      // 2. VALIDACIÓN ESTRICTA
+      // Si no es un número real o es 0 (océano), no intentamos volar
+      let target = null;
+      if (Number.isFinite(lng) && Number.isFinite(lat) && (Math.abs(lng) > 0.0001 || Math.abs(lat) > 0.0001)) {
+          target = [lng, lat];
       }
 
-      // 2. Abrir Ficha (NanoCard)
-      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: p }));
-      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(p?.id) } }));
+      // 3. DATOS B2B
+      const b2bData = p.b2b || (p.activeCampaign ? {
+          sharePct: Number(p.activeCampaign.commissionSharePct || 0),
+          visibility: p.activeCampaign.commissionShareVisibility || 'PRIVATE'
+      } : null);
 
-      // 3. ORDENAR EL VUELO (ESTA ES LA LÍNEA QUE FALTABA EN SU CÓDIGO)
-      if (lat && lng) {
-          console.log(`🦅 Agencia volando a: ${lat}, ${lng}`); 
-          window.dispatchEvent(new CustomEvent('fly-to-location', { 
-              detail: { 
-                  center: [lng, lat], 
-                  zoom: 18.5, 
-                  pitch: 60,
-                  duration: 2000 
-              } 
-          }));
+      const richPayload = {
+          ...p,
+          id: String(p.id),
+          coordinates: target, 
+          b2b: b2bData,
+          user: p.user || p.ownerSnapshot || { name: "Agencia" },
+          isCaptured: p.isCaptured || (p.activeCampaign?.status === 'ACCEPTED'),
+          activeCampaign: p.activeCampaign
+      };
+
+      console.log(`🦅 Agencia -> Secuencia de vuelo iniciada hacia:`, target);
+
+      // 4. PASO A: SELECCIÓN Y APERTURA DE PANEL (Inmediato)
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(p.id) } }));
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: richPayload }));
+
+      // 5. PASO B: VUELO RETARDADO (La clave del éxito)
+      // Esperamos 200ms a que el panel empiece a abrirse para que el mapa no cancele el vuelo.
+      if (target) {
+          setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                  detail: { 
+                      center: target, 
+                      zoom: 18.5, 
+                      pitch: 60, 
+                      duration: 1500 
+                  } 
+              }));
+          }, 200); 
       } else {
-          console.warn("⚠️ Propiedad sin coordenadas válidas para volar.");
+          console.warn("⚠️ Coordenadas inválidas, no se vuela.");
       }
 
-    } catch (e) { console.error("Error al volar:", e); }
+    } catch (err) { console.error("Error vuelo:", err); }
   };
 
   // 🔥 CHAT REAL
@@ -102,7 +129,7 @@ export default function AgencyPortfolioPanel({
               })
           );
       } else {
-          alert("Error: No se puede contactar con el propietario (ID perdido).");
+          alert("Error: No se puede contactar con el propietario.");
       }
   };
 
@@ -150,8 +177,11 @@ export default function AgencyPortfolioPanel({
                       )}
 
                       <div className="flex gap-4">
-                          {/* FOTO: CLICK PARA VOLAR (Corregido: ahora llama a handleFlyTo) */}
-                          <div className="w-20 h-20 rounded-[20px] overflow-hidden bg-gray-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity relative shadow-inner" onClick={() => handleFlyTo(p)}>
+                          {/* FOTO: CLICK PARA VOLAR */}
+                          <div 
+                              className="w-20 h-20 rounded-[20px] overflow-hidden bg-gray-100 shrink-0 cursor-pointer hover:opacity-90 transition-opacity relative shadow-inner" 
+                              onClick={(e) => handleFlyTo(e, p)}
+                          >
                              <img src={mainImg} className="w-full h-full object-cover" alt={titleDisplay}/>
                              {isRadar && <div className="absolute inset-0 bg-indigo-900/5 mix-blend-multiply pointer-events-none"/>}
                           </div>
@@ -213,8 +243,12 @@ export default function AgencyPortfolioPanel({
 
                       {/* BOTONERA */}
                       <div className="mt-4 flex gap-2">
-                          {/* BOTÓN VOLAR (Ahora usa handleFlyTo correctamente) */}
-                          <button onClick={() => handleFlyTo(p)} className="h-10 w-10 rounded-xl bg-gray-50 text-gray-400 hover:bg-black hover:text-white flex items-center justify-center transition-colors" title="Volar a la propiedad">
+                          {/* BOTÓN VOLAR */}
+                          <button 
+                              onClick={(e) => handleFlyTo(e, p)} 
+                              className="h-10 w-10 rounded-xl bg-gray-50 text-gray-400 hover:bg-black hover:text-white flex items-center justify-center transition-colors" 
+                              title="Volar a la propiedad"
+                          >
                               <Navigation size={16} strokeWidth={2}/>
                           </button>
 

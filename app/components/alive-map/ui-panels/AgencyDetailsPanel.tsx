@@ -111,40 +111,37 @@ export default function AgencyDetailsPanel({
         }
     }, [selectedProp?.id]);
 
-    // C) Protocolo de Auto-Reparación (Silencioso)
+   // C) Protocolo de Auto-Reparación (Silencioso y Conservador)
     useEffect(() => {
         const verifyRealData = async () => {
             if (selectedProp?.id) {
                 try {
-                    // 1. Pedimos datos frescos (Incluye b2bData)
+                    // 1. Pedimos datos frescos
                     const realData = await getPropertyByIdAction(selectedProp.id);
                     if (realData?.success && realData.data) {
                         const data = realData.data;
                         
-                        // Actualizamos propiedad
+                        // 🔥 MERGE INTELIGENTE: Mantenemos lo que ya tenemos si el servidor falla en algo
                         setSelectedProp((prev: any) => ({ 
                             ...prev, 
                             ...data,
-                            type: data.type || prev.type 
+                            // Aseguramos que el objeto b2b no se pierda si viene null
+                            b2b: data.b2b || prev.b2b, 
+                            // Aseguramos que la campaña no se pierda
+                            activeCampaign: data.activeCampaign || prev.activeCampaign
                         }));
 
-                        // 2. Buscamos contrato de gestión (B2B) para reforzar
+                        // 2. Gestión de Identidad (Igual que antes)
                         const mgmtRes = await getActiveManagementAction(selectedProp.id);
                         let finalOwner = {};
 
                         if (mgmtRes?.success && mgmtRes?.data?.agency) {
-                            // Si hay gestión activa, la agencia manda
                             setCampaignData(mgmtRes.data);
                             finalOwner = mgmtRes.data.agency;
                         } else if (data.user) {
-                            // Si no, el dueño de la BD
                             finalOwner = data.user;
-                        } else if (currentUser && data.userId === currentUser.id) {
-                            // Si soy yo (Stock)
-                            finalOwner = currentUser;
                         }
 
-                        // Actualizamos identidad solo si tenemos datos nuevos
                         if (Object.keys(finalOwner).length > 0) {
                             setActiveOwner((prev: any) => ({ ...prev, ...finalOwner }));
                         }
@@ -154,8 +151,11 @@ export default function AgencyDetailsPanel({
                 }
             }
         };
-        verifyRealData();
-    }, [selectedProp?.id, currentUser]);
+        // Solo ejecutamos si tenemos ID y NO tenemos ya los datos críticos
+        if (selectedProp?.id) {
+             verifyRealData();
+        }
+    }, [selectedProp?.id]);
 
     // D) Vuelo Automático
     useEffect(() => {
@@ -251,25 +251,34 @@ export default function AgencyDetailsPanel({
 
     const cleanDescription = selectedProp?.description ? selectedProp.description.replace(/<[^>]+>/g, '') : null;
 
-    // 🔥🔥🔥 LÓGICA B2B (COMISIONES - CORREGIDA Y BLINDADA) 🔥🔥🔥
-    // 1. Leemos el nuevo objeto blindado 'b2b' que viene del servidor
-    const b2bData = selectedProp?.b2b || {};
-    
-    // 2. Extraemos datos (con red de seguridad por si acaso)
-    const sharePercent = Number(b2bData.sharePct || selectedProp?.commissionSharePct || campaignData?.terms?.sharePct || 0);
-    const visibilityMode = String(b2bData.visibility || selectedProp?.shareVisibility || campaignData?.commissionShareVisibility || "PRIVATE").toUpperCase();
+   // 🔥🔥🔥 LÓGICA B2B BLINDADA (OMNÍVORA) 🔥🔥🔥
+    // Busca el dato en el objeto b2b, en la campaña activa o en la propiedad raíz.
+    // El orden importa: lo más específico primero.
+    const sharePercent = Number(
+        selectedProp?.b2b?.sharePct ?? 
+        selectedProp?.activeCampaign?.commissionSharePct ?? 
+        selectedProp?.commissionSharePct ?? 
+        0
+    );
+
+    const visibilityMode = String(
+        selectedProp?.b2b?.visibility ?? 
+        selectedProp?.activeCampaign?.commissionShareVisibility ?? 
+        selectedProp?.shareVisibility ?? 
+        "PRIVATE"
+    ).toUpperCase();
     
     let canSeeCommission = false;
     
-    // 3. Filtro de Seguridad (¿Quién ve el botón dorado?)
+    // 3. Filtro de Seguridad
     if (sharePercent > 0) {
         const myRole = String(currentUser?.role || "").toUpperCase();
         
-        // A) Modo PÚBLICO: Todo el mundo lo ve
+        // A) Modo PÚBLICO
         if (visibilityMode === 'PUBLIC') {
             canSeeCommission = true;
         } 
-        // B) Modo AGENCIAS: Solo Agencias Verificadas y Admin
+        // B) Modo AGENCIAS (Verificamos que el usuario que mira sea PRO o AGENCIA)
         else if (visibilityMode.includes('AGEN') && (myRole.includes('AGEN') || myRole === 'ADMIN')) {
             canSeeCommission = true;
         }

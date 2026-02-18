@@ -109,9 +109,7 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-// =========================================================
-// 🌍 2. PROPIEDADES (GLOBALES) - CON TRANSMUTACIÓN DE IDENTIDAD
-// =========================================================
+// 🌍 2. PROPIEDADES GLOBALES (MAPA) - BLINDADO CON B2B
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
@@ -123,70 +121,68 @@ export async function getGlobalPropertiesAction() {
       include: {
         images: true,
         favoritedBy: { select: { userId: true } },
-
-        // 1. Dueño Original (Particular)
         user: { select: USER_IDENTITY_SELECT },
 
-        // 🔥 2. TRANSMUTACIÓN: Buscamos si hay un contrato activo con Agencia
+        // Relaciones clave para el "Paquete Rico"
         assignment: {
             where: { status: "ACTIVE" },
-            include: {
-                agency: { select: USER_IDENTITY_SELECT } // Datos de la Agencia
-            }
+            include: { agency: { select: USER_IDENTITY_SELECT } }
         },
-
-        // 3. Eventos
-        openHouses: {
-            where: { status: "SCHEDULED" },
-            orderBy: { startTime: 'asc' },
-            take: 1
-        }
+        campaigns: { where: { status: "ACCEPTED" }, take: 1 }, // <--- ESTO FALTABA
+        openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
       },
     });
 
    const mappedProps = (properties || []).map((p: any) => {
-      // --- LÓGICA DE IMÁGENES ---
+      // IMÁGENES
       const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
       const realImg = allImages?.[0] || p.mainImage || null;
       const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-      // --- FAVORITOS ---
       const isFavoritedByMe = currentUserId
         ? (p.favoritedBy || []).some((fav: any) => fav?.userId === currentUserId)
         : false;
 
-      // 🔥🔥🔥 OPERACIÓN TRANSMUTACIÓN 🔥🔥🔥
-      // Por defecto, la identidad es la del dueño registral (User)
+      // IDENTIDAD
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
       let realTier = p.promotedTier || "FREE";
-      
-      // PERO, si hay un 'assignment' activo, la Agencia suplanta la identidad visual
+      const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
+
       if (p.assignment?.agency) {
-          // Construimos identidad con los datos de la Agencia
           finalIdentity = buildIdentity(p.assignment.agency, null);
-          // Forzamos el rol para que los botones digan "Contactar Agente"
           finalIdentity.role = 'AGENCIA'; 
-          // Si la agencia es PRO, la casa parece PREMIUM (opcional, táctica de venta)
           if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
       }
-      // -------------------------------------
 
-      // --- COORDENADAS ---
-      const lng = p.longitude ?? -3.7038;
-      const lat = p.latitude ?? 40.4168;
+      // 🔥 B2B CALCULATION (CRÍTICO PARA LA NANOCARD)
+      let b2bData = null;
+      if (activeCampaign) {
+           b2bData = {
+              sharePct: Number(activeCampaign.commissionSharePct || 0),
+              visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
+           };
+      } else {
+           b2bData = {
+              sharePct: Number(p.sharePct || 0),
+              visibility: p.shareVisibility || 'PRIVATE'
+           };
+      }
 
-      // --- PRECIO ---
+      // COORDENADAS
+      const lng = Number(p.longitude);
+      const lat = Number(p.latitude);
+      const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+
+      // PRECIO
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
-      // --- ESTADO PREMIUM (CENTINELA DE TIEMPO) ---
+      // PREMIUM check
       const now = new Date();
       const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
-      const isExpired = expiryDate && expiryDate < now;
-      if (isExpired) realTier = "FREE";
-      const realIsPromoted = realTier === 'PREMIUM';
-
-      // --- OPEN HOUSE ---
+      if (expiryDate && expiryDate < now) realTier = "FREE";
+      
+      // OPEN HOUSE
       let openHouseObj = null;
       if (p.openHouses && p.openHouses.length > 0) {
          openHouseObj = { ...p.openHouses[0], enabled: true };
@@ -195,24 +191,21 @@ export async function getGlobalPropertiesAction() {
       return {
         ...p,
         id: p.id,
-        // DATOS TÁCTICOS
-        views: p.views || 0,
-        photoViews: p.photoViews || 0,
-        shareCount: p.shareCount || 0,
-        
-        // DATOS PREMIUM
-        promotedTier: realTier,
-        isPromoted: realIsPromoted,
-        promotedUntil: p.promotedUntil,
+        // DATOS RICOS
+        b2b: b2bData,
+        activeCampaign: activeCampaign,
+        isCaptured: !!activeCampaign,
 
-        // IDENTIDAD FINAL (Aquí va la Agencia si transmutó)
-        // El frontend recibirá esto y pintará Agencia sin dudar.
+        promotedTier: realTier,
+        isPromoted: realTier === 'PREMIUM',
+        
         user: finalIdentity, 
         ownerSnapshot: p.ownerSnapshot ?? null,
         
-        coordinates: [lng, lat],
+        coordinates: validCoords,
         longitude: lng,
         latitude: lat,
+        
         images: imagesFinal,
         img: realImg,
         price: priceFormatted,    
@@ -220,17 +213,10 @@ export async function getGlobalPropertiesAction() {
         priceValue: rawPrice,     
         isFavorited: isFavoritedByMe,
         
-        // Físicos
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: Number(p.communityFees || 0),
         
-        // Energía
-        energyConsumption: p.energyConsumption ?? null,
-        energyEmissions: p.energyEmissions ?? null,
-        energyPending: !!p.energyPending,
-        
-        // Evento
         openHouse: openHouseObj,        
         open_house_data: openHouseObj   
       };
@@ -242,8 +228,7 @@ export async function getGlobalPropertiesAction() {
     return { success: false, data: [] };
   }
 }
-
-// ✅ Obtener UNA propiedad completa (VERSION SINCRONIZADA CON EL PANEL B2B)
+// ✅ Obtener UNA propiedad completa (CORREGIDO: Con Financieros, B2B y Coordenadas)
 export async function getPropertyByIdAction(propertyId: string) {
   try {
     const id = String(propertyId || "").trim();
@@ -259,10 +244,7 @@ export async function getPropertyByIdAction(propertyId: string) {
         // 1. Asignación (Gestor)
         assignment: {
             where: { status: "ACTIVE" },
-            include: {
-                agency: { select: USER_IDENTITY_SELECT }
-                // Sin campaign aquí para evitar error de relación
-            }
+            include: { agency: { select: USER_IDENTITY_SELECT } }
         },
 
         // 2. Campaña Aceptada (Contrato)
@@ -278,6 +260,7 @@ export async function getPropertyByIdAction(propertyId: string) {
         }
       },
     });
+
     if (!p) return { success: false, error: "NOT_FOUND" };
 
     // --- IMÁGENES ---
@@ -285,46 +268,50 @@ export async function getPropertyByIdAction(propertyId: string) {
     const realImg = allImages?.[0] || p.mainImage || null;
     const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-    // 🔥 IDENTIDAD & B2B 🔥
+    // --- IDENTIDAD ---
     let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
-    
-    // Identificamos si hay contrato activo
     const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
-    
-    // PREPARAMOS LA CAJA "B2B" QUE ESPERA EL PANEL
-    let b2bData = null;
 
-    // Lógica de Identidad (Agencia vs Dueño)
     if (p.assignment?.agency) {
         finalIdentity = buildIdentity(p.assignment.agency, null);
         finalIdentity.role = 'AGENCIA';
-
-        // Si hay campaña aceptada, leemos de ahí
-        if (activeCampaign) {
-            b2bData = {
-                sharePct: activeCampaign.commissionSharePct || 0,
-                visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
-            };
-        }
     } 
-    // Fallback: Si no hay assignment pero sí campaña
-    else if (activeCampaign) {
+
+    // 🔥 FIX FINANCIERO: Calculamos los importes igual que en el Portfolio
+    // Si esto falta, el panel de detalles se rompe al recargar.
+    if (activeCampaign) {
+        activeCampaign.commissionPct = Number(activeCampaign.commissionPct || 0);
+        activeCampaign.commissionSharePct = Number(activeCampaign.commissionSharePct || 0);
+        
+        const price = Number(p.price || 0);
+        const comm = activeCampaign.commissionPct; 
+        const base = (price * comm) / 100;
+        const iva = base * 0.21; 
+        const total = base + iva;
+        
+        activeCampaign.financials = { base, ivaAmount: iva, total };
+    }
+
+    // --- B2B DATA ---
+    let b2bData = null;
+    if (activeCampaign) {
          b2bData = {
-            sharePct: activeCampaign.commissionSharePct || 0,
+            sharePct: Number(activeCampaign.commissionSharePct || 0),
             visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
          };
-    }
-    // 🔥 FALLBACK MANUAL: LEER DE LA PROPIEDAD DIRECTAMENTE
-    // Esto es lo que arreglará su problema al editar manualmente
-    else {
+    } else {
          b2bData = {
-            sharePct: p.sharePct || 0,
+            sharePct: Number(p.sharePct || 0),
             visibility: p.shareVisibility || 'PRIVATE'
          };
     }
 
-    const lng = p.longitude ?? -3.7038;
-    const lat = p.latitude ?? 40.4168;
+    // 🔥 FIX COORDENADAS: Numéricas y Array válido (Vital para el vuelo)
+    const lng = Number(p.longitude);
+    const lat = Number(p.latitude);
+    // Solo devolvemos array si tenemos coordenadas reales distintas de 0
+    const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+
     const rawPrice = Number(p.price || 0);
     const priceFormatted = new Intl.NumberFormat("es-ES").format(rawPrice);
 
@@ -336,19 +323,22 @@ export async function getPropertyByIdAction(propertyId: string) {
     const mapped = {
       ...p,
       id: p.id,
+      user: finalIdentity, 
       ownerSnapshot: p.ownerSnapshot ?? null,
-      user: finalIdentity, // Identidad visual
       
-      // ✅ LA PIEZA CLAVE: Enviamos el objeto 'b2b'
+      // ✅ DATOS COMPLETOS
       b2b: b2bData, 
+      activeCampaign: activeCampaign, // Ahora incluye .financials
 
-      coordinates: [lng, lat],
-      longitude: lng,
-      latitude: lat,
+      coordinates: validCoords,
+      longitude: lng || null,
+      latitude: lat || null,
+      
       images: imagesFinal,
       img: realImg,
+      
       price: priceFormatted,
-      rawPrice,
+      rawPrice: rawPrice,
       priceValue: rawPrice,
       m2: Number(p.mBuilt || 0),
       mBuilt: Number(p.mBuilt || 0),
@@ -372,15 +362,15 @@ export async function savePropertyAction(data: any) {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Debes iniciar sesión." };
 
-    // 1. LIMPIEZA DE DATOS
+    // 1. LIMPIEZA
     const cleanPrice = parseFloat(String(data.price).replace(/\D/g, '') || '0');
     const rawM2 = data.mBuilt || data.m2 || data.surface || '0';
     const cleanM2 = parseFloat(String(rawM2).replace(/\D/g, '') || '0');
 
     // 2. SERVICIOS
     let servicesSet = new Set<string>(Array.isArray(data.selectedServices) ? data.selectedServices : []);
-    const booleanServices = ['pool', 'garage', 'terrace', 'ac', 'garden', 'storage', 'heating', 'furnished', 'security', 'balcony', 'elevator'];
-    booleanServices.forEach(k => { if(data[k]) servicesSet.add(k); });
+    ['pool', 'garage', 'terrace', 'ac', 'garden', 'storage', 'heating', 'furnished', 'security', 'balcony', 'elevator']
+        .forEach(k => { if(data[k]) servicesSet.add(k); });
 
     let finalServices = Array.from(servicesSet);
     if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
@@ -390,13 +380,10 @@ export async function savePropertyAction(data: any) {
     if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
-    // 4. DETECCIÓN DE COORDENADAS (SOLO SI EL USUARIO LAS TOCA)
+    // 4. COORDENADAS (Solo si vienen nuevas y válidas)
     let coordsPayload: any = {};
-    
-    // Si vienen datos explícitos del mapa, los usamos.
     if (data.coordinates && Array.isArray(data.coordinates) && data.coordinates.length === 2) {
-        // Validamos que no sean 0,0 (océano)
-        if (data.coordinates[0] !== 0 || data.coordinates[1] !== 0) {
+        if (data.coordinates[0] !== 0) {
             coordsPayload.longitude = data.coordinates[0];
             coordsPayload.latitude = data.coordinates[1];
         }
@@ -404,32 +391,25 @@ export async function savePropertyAction(data: any) {
         coordsPayload.longitude = parseFloat(data.longitude);
         coordsPayload.latitude = parseFloat(data.latitude);
     }
-    // SI NO HAY COORDENADAS, coordsPayload SE QUEDA VACÍO {}.
+    // Si no hay coordenadas nuevas, coordsPayload está vacío y Prisma NO tocará lo que ya hay.
 
-    // 5. PAYLOAD BASE (BLINDADO: SI NO HAY DATO, USA undefined)
+    // 5. PAYLOAD BASE
     const basePayload = {
         type: data.type || 'Piso',
-        
-        // 🔥 IMPORTANTE: Usamos 'undefined' en lugar de "" o defaults.
-        // Esto le dice a Prisma: "Si no te doy el dato, NO toques lo que ya hay en la BD".
         title: data.title || undefined,
         description: data.description || undefined,
-        
         price: cleanPrice,
         mBuilt: cleanM2,
-        
         address: data.address || undefined,
-        city: data.city || undefined, // SIN DEFAULT "Madrid"
+        city: data.city || undefined, 
         
-        // Inyectamos coordenadas SOLO si existen nuevas en coordsPayload
-        ...coordsPayload, 
-        
+        ...coordsPayload, // Inyectamos solo si existen
+
         rooms: Number(data.rooms || 0),
         baths: Number(data.baths || 0),
         floor: data.floor ? String(data.floor) : null,
         door: data.door ? String(data.door) : null,
         elevator: Boolean(data.elevator),
-
         pool: servicesSet.has('pool'),
         garage: servicesSet.has('garage'),
         garden: servicesSet.has('garden'),
@@ -456,8 +436,6 @@ export async function savePropertyAction(data: any) {
         shareVisibility: data.shareVisibility || "PRIVATE",
         
         selectedServices: finalServices,
-        
-        // Si no envía imagen nueva, no borramos la anterior
         mainImage: mainImage || undefined,
         
         communityFees: Number(data.communityFees || 0), 
@@ -471,58 +449,35 @@ export async function savePropertyAction(data: any) {
 
     let result;
     
-    // ============================================================
-    // 🚦 EDICIÓN vs CREACIÓN
-    // ============================================================
-    
+    // --- EDICIÓN ---
     if (data.id && data.id.length > 20) {
-      // --- RUTA A: EDICIÓN ---
       const existing = await prisma.property.findUnique({ where: { id: data.id } });
-      
-      if (!existing) return { success: false, error: "Propiedad no encontrada." };
+      if (!existing) return { success: false, error: "No encontrada." };
 
-      // CHEQUEO DE AUTORIDAD
       let isAuthorized = existing.userId === user.id;
-      
       if (!isAuthorized && user.role === 'AGENCIA') {
           const activeContract = await prisma.campaign.findFirst({
               where: { propertyId: data.id, agencyId: user.id, status: 'ACCEPTED' }
           });
           if (activeContract) isAuthorized = true;
       }
+      if (!isAuthorized) return { success: false, error: "No autorizado." };
 
-      if (!isAuthorized) {
-          return { success: false, error: "⛔ No tienes permiso para editar esta propiedad." };
-      }
-
-      // Limpiamos imágenes anteriores para poner las nuevas
       await prisma.image.deleteMany({ where: { propertyId: data.id } });
 
-      // ACTUALIZAMOS
-      // Al usar undefined en basePayload, Prisma ignora los campos vacíos.
       result = await prisma.property.update({
         where: { id: data.id },
-        data: {
-          ...basePayload, 
-          images: imageCreateLogic,
-        },
+        data: { ...basePayload, images: imageCreateLogic },
         include: includeOptions,
       });
 
     } else {
-      // --- RUTA B: CREACIÓN ---
+      // --- CREACIÓN ---
       const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
-      
-      // 🔥 GENERAMOS REFERENCIA ANTES PARA EVITAR TRANSACCIONES COMPLEJAS
       const refCode = `SF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      // Si no hay coordenadas, forzamos Madrid SOLO EN CREACIÓN NUEVA (para evitar errores de frontend)
-      // Pero usamos un check seguro: solo si ambos son undefined.
-      if (!basePayload.latitude && !basePayload.longitude) {
-           basePayload.latitude = 40.4168;
-           basePayload.longitude = -3.7038;
-           if (!basePayload.city) basePayload.city = "Madrid";
-      }
+      // 🔥 CORRECCIÓN: Si no hay coordenadas, NO forzamos Madrid. Dejamos que sea null.
+      // (Esto evita que aparezcan casas en la Puerta del Sol por error)
 
       const ownerSnapshot = {
         id: user.id, name: user.name, companyName: user.companyName,
@@ -530,12 +485,11 @@ export async function savePropertyAction(data: any) {
         phone: user.phone, mobile: user.mobile, role: user.role
       };
 
-      // CREACIÓN DIRECTA (MÁS SEGURA)
       result = await prisma.property.create({
           data: { 
               ...basePayload,
               userId: user.id, 
-              refCode: refCode, // Referencia directa
+              refCode,
               ownerSnapshot,
               images: imageCreateLogic,
               status: initialStatus, 
@@ -545,7 +499,7 @@ export async function savePropertyAction(data: any) {
       });
     }
 
-    // --- GUARDADO OPEN HOUSE ---
+    // --- OPEN HOUSE ---
     if (result && result.id && data.openHouse) {
         let ohData = data.openHouse;
         if (typeof ohData === 'string') { try { ohData = JSON.parse(ohData); } catch (e) {} }
@@ -714,77 +668,126 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
   }
 }
 
-// H. LEER FAVORITOS (BÓVEDA) - CON TRANSMUTACIÓN
+// H. LEER FAVORITOS (BÓVEDA) - CON TRANSMUTACIÓN Y DATOS RICOS
 export async function getFavoritesAction() {
-  const user = await getCurrentUser();
-  if (!user) return { success: false, data: [] };
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, data: [] };
 
-  const favs = await prisma.favorite.findMany({
-    where: { userId: user.id },
-    include: {
-      property: {
-        include: {
-          images: true,
-          user: { select: USER_IDENTITY_SELECT }, // Dueño Original
-          
-          // 🔥 TRANSMUTACIÓN
-          assignment: {
-             where: { status: "ACTIVE" },
-             include: { agency: { select: USER_IDENTITY_SELECT } }
-          }
+    const favs = await prisma.favorite.findMany({
+      where: { userId: user.id },
+      include: {
+        property: {
+          include: {
+            images: true,
+            user: { select: USER_IDENTITY_SELECT }, // Dueño Original
+            
+            // 🔥 TRANSMUTACIÓN (Identidad de Agencia)
+            assignment: {
+               where: { status: "ACTIVE" },
+               include: { agency: { select: USER_IDENTITY_SELECT } }
+            },
+
+            // 🔥 CRÍTICO: Traer campaña para el B2B (Botón Dorado)
+            campaigns: { where: { status: "ACCEPTED" }, take: 1 },
+
+            // 🔥 CRÍTICO: Traer eventos Open House
+            openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
+          },
         },
       },
-    },
-  });
+    });
 
-  const cleanFavs = favs
-    .map((f) => {
-      const p: any = f.property;
-      if (!p) return null;
+    const cleanFavs = favs.map((f) => {
+        const p: any = f.property;
+        if (!p) return null;
 
-      let allImages = (p.images || []).map((img: any) => img.url);
-      if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
-      const realImg = allImages[0] || null;
+        // IMÁGENES
+        let allImages = (p.images || []).map((img: any) => img.url);
+        if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
+        const realImg = allImages[0] || null;
 
-      // 🔥 LÓGICA DE IDENTIDAD DINÁMICA
-      let finalIdentity = p.user;
-      if (p.assignment?.agency) {
-          finalIdentity = { ...p.assignment.agency, role: 'AGENCIA' };
-      }
+        // IDENTIDAD DINÁMICA
+        let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
+        const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
-      const lng = p.longitude ?? -3.7038;
-      const lat = p.latitude ?? 40.4168;
+        if (p.assignment?.agency) {
+            finalIdentity = buildIdentity(p.assignment.agency, null);
+            finalIdentity.role = 'AGENCIA';
+        }
 
-      return {
-        ...p,
-        id: p.id,
-        // ✅ Identidad correcta
-        user: finalIdentity,
+        // 🔥 LÓGICA B2B (Para que el botón no desaparezca)
+        let b2bData = null;
+        if (activeCampaign) {
+             b2bData = {
+                sharePct: Number(activeCampaign.commissionSharePct || 0),
+                visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
+             };
+             
+             // Inyectamos financials básicos por si acaso
+             const price = Number(p.price || 0);
+             const comm = Number(activeCampaign.commissionPct || 0);
+             const base = (price * comm) / 100;
+             activeCampaign.financials = { base, ivaAmount: base * 0.21, total: base * 1.21 };
 
-        coordinates: [lng, lat],
-        lng, lat,
-        images: allImages,
-        img: realImg,
-        isFavorited: true,
-        price: new Intl.NumberFormat("es-ES").format(p.price || 0),
-        rawPrice: p.price,
-        priceValue: p.price,
-        m2: Number(p.mBuilt || 0),
-        mBuilt: Number(p.mBuilt || 0),
-        communityFees: p.communityFees || 0,
-        energyConsumption: p.energyConsumption,
-        energyEmissions: p.energyEmissions,
-        energyPending: p.energyPending,
-      };
-    })
-    .filter(Boolean);
+        } else {
+             b2bData = {
+                sharePct: Number(p.sharePct || 0),
+                visibility: p.shareVisibility || 'PRIVATE'
+             };
+        }
 
-  return { success: true, data: cleanFavs };
+        // COORDENADAS LIMPIAS (Para evitar saltos en el mapa)
+        const lng = Number(p.longitude);
+        const lat = Number(p.latitude);
+        const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+
+        // OPEN HOUSE
+        const openHouseObj = (p.openHouses && p.openHouses.length > 0) 
+            ? { ...p.openHouses[0], enabled: true } 
+            : null;
+
+        return {
+          ...p,
+          id: p.id,
+          user: finalIdentity, // Identidad transmutada
+
+          // Datos Ricos
+          b2b: b2bData,
+          activeCampaign: activeCampaign,
+          isCaptured: !!activeCampaign, // Para saber si es captada
+
+          coordinates: validCoords,
+          longitude: lng, 
+          latitude: lat,
+          
+          images: allImages,
+          img: realImg,
+          isFavorited: true,
+          
+          price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
+          rawPrice: Number(p.price || 0),
+          priceValue: Number(p.price || 0),
+          
+          m2: Number(p.mBuilt || 0),
+          mBuilt: Number(p.mBuilt || 0),
+          communityFees: Number(p.communityFees || 0),
+          
+          energyConsumption: p.energyConsumption,
+          energyEmissions: p.energyEmissions,
+          energyPending: p.energyPending,
+          
+          openHouse: openHouseObj
+        };
+      })
+      .filter(Boolean);
+
+    return { success: true, data: cleanFavs };
+  } catch (e) {
+    console.error("Error getFavoritesAction:", e);
+    return { success: false, data: [] };
+  }
 }
-
-// =========================================================
-// 🏢 4. GESTIÓN DE AGENCIA (CORREGIDO Y BLINDADO)
-// =========================================================
 
 export async function getAgencyPortfolioAction() {
   try {
@@ -792,9 +795,6 @@ export async function getAgencyPortfolioAction() {
     if (!userRes.success || !userRes.data) return { success: false, data: [] };
     const user = userRes.data;
 
-    // Solo traemos propiedades donde:
-    // 1. SOY EL DUEÑO ORIGINAL (userId = yo)
-    // 2. O TENGO UN CONTRATO FIRMADO (campaign = ACCEPTED)
     const myProperties = await prisma.property.findMany({
       where: { 
           OR: [
@@ -804,21 +804,7 @@ export async function getAgencyPortfolioAction() {
       },
       include: { 
           images: true,
-          user: {
-            select: {
-                id: true, role: true, name: true, surname: true, email: true, 
-                phone: true, mobile: true,
-                avatar: true, 
-                companyName: true, 
-                companyLogo: true, 
-                coverImage: true, 
-                licenseType: true,
-                licenseNumber: true,
-                website: true,
-                tagline: true,
-                zone: true
-            }
-          }, 
+          user: { select: USER_IDENTITY_SELECT }, 
           campaigns: { where: { agencyId: user.id, status: "ACCEPTED" } },
           openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
       },
@@ -835,12 +821,13 @@ export async function getAgencyPortfolioAction() {
         let displayUser = originalOwner;
         let isManaged = false;
 
+        // Si hay campaña aceptada
         if (winningCampaign) {
             isManaged = true;
             winningCampaign.commissionPct = Number(winningCampaign.commissionPct || 0);
             winningCampaign.commissionSharePct = Number(winningCampaign.commissionSharePct || 0);
             
-            const price = p.price || 0;
+            const price = Number(p.price || 0);
             const comm = winningCampaign.commissionPct; 
             const base = (price * comm) / 100;
             const iva = base * 0.21; 
@@ -863,6 +850,26 @@ export async function getAgencyPortfolioAction() {
             }
         }
 
+        // 🔥 AQUÍ ESTÁ LA MAGIA: PREPARAMOS EL OBJETO B2B PARA QUE EL FRONTEND LO ENTIENDA
+        let b2bData = null;
+        if (winningCampaign) {
+             b2bData = {
+                sharePct: Number(winningCampaign.commissionSharePct || 0),
+                visibility: winningCampaign.commissionShareVisibility || 'PRIVATE'
+             };
+        } else {
+             b2bData = {
+                sharePct: Number(p.sharePct || 0),
+                visibility: p.shareVisibility || 'PRIVATE'
+             };
+        }
+
+        // 🔥 COORDENADAS LIMPIAS: ARRAY [LONG, LAT]
+        // Si p.longitude es nulo o 0, enviamos null para evitar saltos raros en el mapa.
+        const lng = Number(p.longitude);
+        const lat = Number(p.latitude);
+        const coords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+
         return {
             ...p,
             id: p.id,
@@ -875,14 +882,13 @@ export async function getAgencyPortfolioAction() {
             activeCampaign: winningCampaign, 
             radarType: winningCampaign ? (winningCampaign.mandateType || "SIMPLE") : null,
             
-            b2b: winningCampaign ? {
-                sharePct: Number(winningCampaign.commissionSharePct || 0),
-                visibility: winningCampaign.commissionShareVisibility || 'PRIVATE'
-            } : null,
+            // Enviamos el objeto B2B ya cocinado
+            b2b: b2bData,
 
-            // 🔥 FIX CRÍTICO: Si hay lat/long, creamos el array. Si no, NULL.
-            // Esto evita que el frontend reciba basura y la mande a Madrid.
-            coordinates: (p.longitude && p.latitude) ? [p.longitude, p.latitude] : null,
+            // Enviamos las coordenadas listas para Mapbox
+            coordinates: coords, 
+            longitude: lng, // Mantenemos compatibilidad
+            latitude: lat,
 
             isOwner: p.userId === user.id, 
             isCaptured: isManaged, 
@@ -890,7 +896,7 @@ export async function getAgencyPortfolioAction() {
             images: (p.images || []).map((img: any) => img.url),
             img: p.images?.[0]?.url || p.mainImage || null,
             
-            price: new Intl.NumberFormat("es-ES").format(p.price || 0),
+            price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
             openHouse: openHouseObj
         };
     }).filter(Boolean);

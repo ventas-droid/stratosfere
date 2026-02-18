@@ -1669,7 +1669,11 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         baths: Number(formData.baths || 0),
         mBuilt: Number(formData.mBuilt || 0),
         price: formData.price,
-        coordinates: formData.coordinates || undefined,
+        
+        // 🔥 CORRECCIÓN CRÍTICA:
+        // Si formData.coordinates es null, enviamos undefined.
+        // El servidor ignora undefined y MANTIENE la ubicación original (Manilva).
+        coordinates: formData.coordinates || undefined, 
       };
 
       console.log("📡 GUARDANDO EN BASE DE DATOS (Estado:", targetStatus, ")...");
