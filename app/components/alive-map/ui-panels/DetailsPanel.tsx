@@ -15,6 +15,9 @@ import { toggleFavoriteAction, getPropertyByIdAction, incrementStatsAction } fro
 // 🔥 HERRAMIENTAS PDF
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
+// 🔥 EL ESPÍA TÁCTICO (RASTREADOR)
+// Nota: Ajuste los "../" si le sale rojo. Debería ser:
+import ReferralListener from '../../ReferralListener';
 
 // --- 1. DICCIONARIO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
@@ -271,6 +274,9 @@ export default function DetailsPanel({
 
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
+            
+            {selectedProp?.id && <ReferralListener propertyId={selectedProp.id} />}
+
             <div className="absolute inset-0 bg-[#E5E5EA]/95 backdrop-blur-3xl shadow-2xl border-r border-white/20"></div>
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">

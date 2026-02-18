@@ -245,7 +245,60 @@ const isImageUrl = (u: string) =>
 export default function UIPanels({ 
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
-  
+ 
+ // 🔥 DETECTOR DE ENLACES MEJORADO (CON VIP PASS)
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+      const checkUrl = async () => {
+          const propId = searchParams.get('selectedProp'); 
+          
+          if (propId) {
+               console.log("🎯 Link detectado. Ejecutando VIP PASS para:", propId);
+               try {
+                   const res = await getPropertyByIdAction(propId);
+                   
+                   if (res?.success && res.data) {
+                       const cleanProp = sanitizePropertyData(res.data);
+
+                       if (cleanProp) {
+                           // 1. Abrimos el panel de la casa
+                           setSelectedProp(cleanProp);
+                           setActivePanel('DETAILS');
+
+                           // 🔥 2. ORDEN CRÍTICA: SALTAR LA GATEWAY
+                           // Forzamos al sistema a entrar en modo EXPLORER inmediatamente
+                           if (typeof setSystemMode === 'function') {
+                               setSystemMode('EXPLORER');
+                           }
+                           
+                           // 🔥 3. SALTAR LA INTRO/LANDING
+                           setLandingComplete(true); 
+                           setShowAdvancedConsole(false);
+                           
+                           // 4. Volamos hacia la casa
+                           if (cleanProp.coordinates && map?.current) {
+                               // Pequeño delay para dar tiempo a que el mapa se pinte tras quitar la Gateway
+                               setTimeout(() => {
+                                   map.current.flyTo({ 
+                                       center: cleanProp.coordinates, 
+                                       zoom: 18, 
+                                       pitch: 60,
+                                       duration: 3000 
+                                   });
+                               }, 500);
+                           }
+                       }
+                   }
+               } catch (e) {
+                   console.error("Error abriendo link:", e);
+               }
+          }
+      };
+      
+      checkUrl();
+  }, [searchParams, map]);
+
   // --- 1. MEMORIA DE UBICACIÓN ---
   const [homeBase, setHomeBase] = useState<any>(null);
   useEffect(() => {
@@ -267,7 +320,6 @@ export default function UIPanels({
   const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
 
   // --- 2. CREDENCIALES (SaaS Puro) ---
-  const searchParams = useSearchParams();
   const [gateUnlocked, setGateUnlocked] = useState(false);
 
   // Efecto reactivo: Si tenemos usuario confirmado, abrimos la puerta.

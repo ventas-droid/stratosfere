@@ -6,138 +6,143 @@ datasource db {
   provider = "postgresql"
   url      = env("POSTGRES_URL")
 }
+
 model User {
-  id                     String                    @id @default(cuid()) @map("_id")
-  email                  String                    @unique
-  name                   String?
-  phone                  String?
-  avatar                 String?
-  role                   UserRole                  @default(PARTICULAR)
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @updatedAt
-  cif                    String?
-  companyName            String?
-  licenseNumber          String?
-  password               String?
-  surname                String?
-  website                String?
-  companyLogo            String?
-  coverImage             String?
-  licenseType            String?                   @default("STARTER")
-  mobile                 String?
-  tagline                String?
-  zone                   String?
-  
+  id            String   @id @default(cuid()) @map("_id")
+  email         String   @unique
+  name          String?
+  phone         String?
+  avatar        String?
+  role          UserRole @default(PARTICULAR)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  cif           String?
+  companyName   String?
+  licenseNumber String?
+  password      String?
+  surname       String?
+  website       String?
+  companyLogo   String?
+  coverImage    String?
+  licenseType   String?  @default("STARTER")
+  mobile        String?
+  tagline       String?
+  zone          String?
+
   // Relaciones Básicas
-  favorites              Favorite[]
-  properties             Property[]
+  favorites                Favorite[]
+  properties               Property[]
   conversationParticipants ConversationParticipant[]
-  messagesSent           Message[]
-  blocksOut              UserBlock[]               @relation("UserBlocksOut")
-  blocksIn               UserBlock[]               @relation("UserBlocksIn")
+  messagesSent             Message[]
+  blocksOut                UserBlock[]             @relation("UserBlocksOut")
+  blocksIn                 UserBlock[]             @relation("UserBlocksIn")
 
   // Inteligencia Táctica
-  lastLoginAt            DateTime? @default(now())  
-  loginCount             Int       @default(0)      
-  lastActiveAt           DateTime? @default(now())  
+  lastLoginAt  DateTime? @default(now())
+  loginCount   Int       @default(0)
+  lastActiveAt DateTime? @default(now())
 
   // 🔥 EL PUENTE SAAS (Agencia) - UNIFICADO
-  // Esta línea conecta con PropertyAssignment.agency
-  assignments            PropertyAssignment[]
+  assignments PropertyAssignment[]
 
   // ✅ Datos de Agencia
-  agencyTrialStartedAt   DateTime?
-  agencyTrialEndsAt      DateTime?
-  agencyGraceEndsAt      DateTime?
+  agencyTrialStartedAt DateTime?
+  agencyTrialEndsAt    DateTime?
+  agencyGraceEndsAt    DateTime?
 
   // ✅ Relaciones Inversas
-  subscription           Subscription?
-  agencyContacts         AgencyContact[]
-  agencyCampaigns        Campaign[]
-  agencyTasks            Task[]
-  
+  subscription    Subscription?
+  agencyContacts  AgencyContact[]
+  agencyCampaigns Campaign[]
+  agencyTasks     Task[]
+
   // 🔥 OPEN HOUSE
-  openHouseAttendances   OpenHouseAttendee[]
+  openHouseAttendances OpenHouseAttendee[]
+
+  // --- 🚀 STRATOSFERE AMBASSADOR ENGINE (NUEVO) ---
+  ambassadorStats AmbassadorStats?
+  affiliateClicks AffiliateClick[]
+  commissions     Commission[]
 }
 model Property {
-  id             String   @id @default(cuid())
-  refCode        String?  @unique
-  userId         String?
-  
+  id      String  @id @default(cuid())
+  refCode String? @unique
+  userId  String?
+
   // Datos Físicos
-  address        String
-  city           String?
-  region         String?
-  postcode       String?
-  latitude       Float?
-  longitude      Float?
-  type           String   @default("Piso")
-  floor          String?
-  door           String?
-  elevator       Boolean  @default(false)
-  mBuilt         Float
-  rooms          Int
-  baths          Int
+  address   String
+  city      String?
+  region    String?
+  postcode  String?
+  latitude  Float?
+  longitude Float?
+  type      String  @default("Piso")
+  floor     String?
+  door      String?
+  elevator  Boolean @default(false)
+  mBuilt    Float
+  rooms     Int
+  baths     Int
 
   // Extras
-  pool           Boolean  @default(false)
-  garage         Boolean  @default(false)
-  garden         Boolean  @default(false)
-  security       Boolean  @default(false)
-  terrace        Boolean  @default(false)
-  balcony        Boolean  @default(false)
-  storage        Boolean  @default(false)
-  ac             Boolean  @default(false)
-  heating        Boolean  @default(false)
-  furnished      Boolean  @default(false)
-  
-  // Detalles
-  state          String?
-  orientation    String?
-  exterior       Boolean? @default(true)
+  pool      Boolean @default(false)
+  garage    Boolean @default(false)
+  garden    Boolean @default(false)
+  security  Boolean @default(false)
+  terrace   Boolean @default(false)
+  balcony   Boolean @default(false)
+  storage   Boolean @default(false)
+  ac        Boolean @default(false)
+  heating   Boolean @default(false)
+  furnished Boolean @default(false)
 
-  // Marketing
-  title          String?
-  description    String?
-  mainImage      String?
-  price          Float?
-  communityFees  Float?
+  // Detalles
+  state       String?
+  orientation String?
+  exterior    Boolean? @default(true)
+
+  // Marketing & Estadísticas
+  title            String?
+  description      String?
+  mainImage        String?
+  price            Float?
+  communityFees    Float?
   selectedServices String[]
-  status         String   @default("BORRADOR")
- views           Int       @default(0)          // ESTA YA LA TIENE
-  photoViews      Int       @default(0)          // <--- AÑADIR ESTA
-  shareCount      Int       @default(0)          // <--- AÑADIR ESTA
-createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  ownerSnapshot  Json?
+  status           String   @default("BORRADOR")
+  views            Int      @default(0)
+  photoViews       Int      @default(0) // ✅ Confirmado
+  shareCount       Int      @default(0) // ✅ Confirmado
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  ownerSnapshot    Json?
 
   // Energía
   energyConsumption String?
   energyEmissions   String?
-  energyPending     Boolean  @default(false)
+  energyPending     Boolean @default(false)
 
   // 🔥 SAAS: Multimedia & Legal
-  videoUrl          String?
-  tourUrl           String?
-  simpleNoteUrl     String?
-  energyCertUrl     String?
+  videoUrl      String?
+  tourUrl       String?
+  simpleNoteUrl String?
+  energyCertUrl String?
 
- // 🔥 SAAS: Pay to Win
-  promotedTier      String    @default("FREE") 
-  isPromoted        Boolean   @default(false)  // <--- AÑADIR ESTA
-  promotedUntil     DateTime?                  // <--- AÑADIR ESTA
+  // 🔥 SAAS: Pay to Win
+  promotedTier  String    @default("FREE")
+  isPromoted    Boolean   @default(false) // ✅ Confirmado
+  promotedUntil DateTime?                 // ✅ Confirmado
 
   // 🔥 SAAS: B2B (Comisiones)
-  mandateType       String?  @default("ABIERTO")
-  commissionPct     Float    @default(0)
-  sharePct          Float    @default(0)
-  shareVisibility   String   @default("PRIVATE")
+  mandateType     String? @default("ABIERTO")
+  commissionPct   Float   @default(0)
+  sharePct        Float   @default(0)
+  shareVisibility String  @default("PRIVATE")
 
   // RELACIONES
-  user              User?    @relation(fields: [userId], references: [id])
-  
+  user User? @relation(fields: [userId], references: [id])
+
   // 🔥 CONEXIÓN CON AGENCIA
-  assignment        PropertyAssignment?
+  assignment PropertyAssignment?
 
   images            Image[]
   favoritedBy       Favorite[]
@@ -145,7 +150,13 @@ createdAt      DateTime @default(now())
   campaigns         Campaign[]
   tasks             Task[]
   openHouses        OpenHouse[]
+
+  // --- 🚀 STRATOSFERE AMBASSADOR ENGINE (NUEVO) ---
+  // Estas dos líneas son OBLIGATORIAS para que no falle el schema
+  affiliateClicks AffiliateClick[]
+  commissions     Commission[]
 }
+
 model Image {
   id         String   @id @default(cuid())
   url        String
@@ -165,10 +176,10 @@ model ServiceOrder {
   providerPayId String?
 
   // 🔥 AQUÍ ESTÁ LA CLAVE
-  payStatus     String @default("OPEN") @map("estado de pago")
+  payStatus String @default("OPEN") @map("estado de pago")
 
-  paidAt        DateTime?
-  metadata      Json?
+  paidAt   DateTime?
+  metadata Json?
 
   propertyId String
   createdAt  DateTime @default(now())
@@ -178,7 +189,6 @@ model ServiceOrder {
   @@index([providerPayId])
   @@index([payStatus])
 }
-
 
 model Favorite {
   id         String   @id @default(cuid())
@@ -340,11 +350,11 @@ model Campaign {
 
   // 🔥 CAMPOS NUEVOS PARA EL CONTRATO DETALLADO (VITALES PARA EL STOCK)
   mandateType String? @default("SIMPLE") // "EXCLUSIVE" | "SIMPLE" | "OPEN"
-  valuation   Float?  @default(0)        // Precio de valoración acordado
+  valuation   Float?  @default(0) // Precio de valoración acordado
   duration    String? @default("6 Meses") // Texto libre: "6 Meses", "1 Año", etc.
 
-  commissionSharePct            Float                     @default(0)
-  commissionShareVisibility     CommissionShareVisibility @default(AGENCIES)
+  commissionSharePct        Float                     @default(0)
+  commissionShareVisibility CommissionShareVisibility @default(AGENCIES)
 
   exclusiveMandate Boolean @default(true)
   exclusiveMonths  Int     @default(6)
@@ -370,23 +380,23 @@ enum CampaignStatus {
 }
 
 model PropertyAssignment {
-  id          String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Conexiones (El puente)
-  propertyId  String   @unique  // @unique es vital: 1 casa = 1 agencia asignada
-  agencyId    String
-  campaignId  String?
-  
+  propertyId String  @unique // @unique es vital: 1 casa = 1 agencia asignada
+  agencyId   String
+  campaignId String?
+
   // Estado
-  status      String   @default("ACTIVE") // ACTIVE | ENDED
-  
+  status String @default("ACTIVE") // ACTIVE | ENDED
+
   // Auditoría
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones (Los cables del puente)
-  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  agency      User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agency   User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   // Índices de Velocidad
   @@index([agencyId])
@@ -417,50 +427,105 @@ enum PlanCode {
   PRO
   AGENCY
 }
+
 // =========================================================
 // 🎉 OPEN HOUSE / EVENTOS DE AGENCIA
 // =========================================================
 
 model OpenHouse {
-  id          String   @id @default(cuid())
-  propertyId  String
-  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  startTime   DateTime // Ej: 2024-10-20 10:00
-  endTime     DateTime // Ej: 2024-10-20 14:00
-  
-  title       String?  
-  description String?  
+  startTime DateTime // Ej: 2024-10-20 10:00
+  endTime   DateTime // Ej: 2024-10-20 14:00
+
+  title       String?
+  description String?
   amenities   String[] // ["DJ", "Catering", "Welcome Pack"]
-  capacity    Int      @default(50) 
-  
-  status      String   @default("SCHEDULED") 
+  capacity    Int      @default(50)
 
-  attendees   OpenHouseAttendee[]
+  status String @default("SCHEDULED")
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  attendees OpenHouseAttendee[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([propertyId])
 }
 
 model OpenHouseAttendee {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   openHouseId String
   openHouse   OpenHouse @relation(fields: [openHouseId], references: [id], onDelete: Cascade)
 
-  userId      String?
-  user        User?     @relation(fields: [userId], references: [id])
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
 
-  name        String?
-  email       String?
-  phone       String?
-  
-  status      String   @default("CONFIRMED") 
+  name  String?
+  email String?
+  phone String?
 
-  createdAt   DateTime @default(now())
+  status String @default("CONFIRMED")
 
-  @@unique([openHouseId, userId]) 
+  createdAt DateTime @default(now())
+
+  @@unique([openHouseId, userId])
   @@index([openHouseId])
   @@index([email])
+}
+
+// --- 🚀 STRATOSFERE AMBASSADOR ENGINE ---
+
+model AmbassadorStats {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Métricas
+  totalClicks   Int      @default(0)
+  totalLeads    Int      @default(0)
+  totalSales    Int      @default(0)
+  
+  // Dinero
+  totalRevenue  Float    @default(0) // Histórico generado
+  pendingPayout Float    @default(0) // Bloqueado (Arras)
+  availablePayout Float  @default(0) // Listo para retirar
+  
+  // Calidad
+  score         Float    @default(5.0) 
+  rank          String   @default("PARTNER") 
+  
+  updatedAt     DateTime @updatedAt
+}
+
+model AffiliateClick {
+  id            String   @id @default(cuid())
+  ambassadorId  String
+  propertyId    String
+  ipHash        String?  
+  createdAt     DateTime @default(now())
+
+  // Relaciones
+  ambassador    User     @relation(fields: [ambassadorId], references: [id])
+  property      Property @relation(fields: [propertyId], references: [id])
+  
+  @@index([ambassadorId])
+  @@index([propertyId])
+}
+
+model Commission {
+  id            String   @id @default(cuid())
+  ambassadorId  String
+  propertyId    String
+  amount        Float
+  status        String   @default("PENDING") // PENDING, LOCKED, AVAILABLE, PAID
+  
+  leadId        String?  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  user          User     @relation(fields: [ambassadorId], references: [id])
+  property      Property @relation(fields: [propertyId], references: [id])
 }

@@ -74,7 +74,7 @@ const buildRefCode = () => {
 // 🔐 1. IDENTIFICACIÓN Y SESIÓN (CON RADAR ACTIVADO)
 // =========================================================
 
-async function getCurrentUser() {
+export async function getCurrentUser() {
   const cookieStore = await cookies();
   const sessionEmail = cookieStore.get('stratos_session_email')?.value;
 
