@@ -2,13 +2,17 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 
-// 🔥 IMPORTAMOS ACCIONES CLAVE
+// 🔥 IMPORTAMOS ACCIONES CLAVE (AÑADIDO submitLeadAction)
 import { 
     getCampaignByPropertyAction, 
     getPropertyByIdAction,
     getActiveManagementAction,
-    incrementStatsAction 
+    incrementStatsAction,
+    submitLeadAction // ✅ NUEVO: La orden de captura
 } from "@/app/actions";
+
+// 🔔 NOTIFICACIONES (NUEVO)
+import { Toaster, toast } from 'sonner';
 
 import { 
     X, Heart, Phone, Sparkles, User, ShieldCheck, Briefcase,
@@ -17,7 +21,8 @@ import {
     Camera, Globe, Plane, Hammer, Ruler, Handshake, Coins,
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
     Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye, ChevronDown,
-    FileDown, PlayCircle
+    FileDown, PlayCircle,
+    Loader2, Send // ✅ ICONOS NUEVOS AÑADIDOS AQUÍ
 } from 'lucide-react';
 
 import { PDFDownloadLink } from '@react-pdf/renderer';
@@ -27,6 +32,7 @@ import OpenHouseOverlay from "./OpenHouseOverlay";
 import GuestList from "./GuestList";
 // 🔥 EL ESPÍA TÁCTICO
 import ReferralListener from '../../ReferralListener';
+
 
 // --- DICCIONARIO MAESTRO DE ICONOS ---
 const ICON_MAP: Record<string, any> = {
@@ -90,6 +96,35 @@ export default function AgencyDetailsPanel({
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
+
+// --- 🔫 SISTEMA DE CAPTURA DE LEADS (TRAMPA) ---
+    const [sendingLead, setSendingLead] = useState(false);
+    const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', message: '' });
+    // Usaremos el estado 'showContactModal' que ya tienes para mostrar el formulario
+
+    const handleSendLead = async (e: any) => {
+        e.preventDefault();
+        setSendingLead(true);
+
+        // Disparamos la acción que lee la Cookie del Embajador
+        const res = await submitLeadAction({
+            propertyId: selectedProp.id,
+            name: leadForm.name,
+            email: leadForm.email,
+            phone: leadForm.phone,
+            message: leadForm.message || "Hola, me interesa esta propiedad."
+        });
+
+        setSendingLead(false);
+
+        if (res.success) {
+            toast.success("Solicitud Enviada", { description: "La agencia ha recibido tu contacto." });
+            setShowContactModal(false); // Cerramos el modal
+            setLeadForm({ name: '', email: '', phone: '', message: '' }); // Limpiamos
+        } else {
+            toast.error("Error", { description: "No se pudo entregar el mensaje." });
+        }
+    };
 
     // ============================================================
     // 2. EFECTOS TÁCTICOS
@@ -334,6 +369,9 @@ export default function AgencyDetailsPanel({
 
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
+            
+            {/* 🔥 PEGUE ESTA LÍNEA AQUÍ MISMO, LA PRIMERA DE TODAS 👇 */}
+            <Toaster position="bottom-center" richColors />
             
             {/* 🕵️ EL ESPÍA ACTIVADO: Rastrea visitas en el panel de Agencia */}
             {selectedProp?.id && <ReferralListener propertyId={selectedProp.id} />}
@@ -679,37 +717,118 @@ export default function AgencyDetailsPanel({
                   </button>
                 </div>
 
-                {/* MODAL CONTACTO */}
+         {/* MODAL CONTACTO (DISEÑO CORPORATIVO REFINADO) */}
                 {showContactModal && (
                     <div className="absolute inset-0 z-50 flex flex-col justify-end animate-fade-in bg-black/60 backdrop-blur-sm">
                         <div onClick={() => setShowContactModal(false)} className="absolute inset-0 cursor-pointer"></div>
                         <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6 ring-1 ring-white/20">
-                            <div className="relative h-36 bg-gray-100 flex items-end p-6 gap-4">
+                            
+                            {/* ✅ CABECERA MÁS ALTA (h-44) PARA MÁS IMPACTO */}
+                            <div className="relative h-44 bg-gray-900 flex items-end p-6 gap-5">
                                 <div className="absolute inset-0">
-                                    {cover ? ( <img src={cover} className="w-full h-full object-cover opacity-90" alt="Fondo Agente" /> ) : ( <div className="w-full h-full bg-slate-200" /> )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                                    {cover ? ( <img src={cover} className="w-full h-full object-cover opacity-80" alt="Fondo Corporativo" /> ) : ( <div className="w-full h-full bg-gradient-to-br from-slate-800 to-black" /> )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
                                 </div>
-                                <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">
-                                    {avatar ? ( <img src={avatar} className="w-full h-full rounded-xl object-cover" alt="Avatar" /> ) : ( <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center"><User className="text-slate-300" size={32}/></div> )}
-                                    <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full border-[3px] border-[#F5F5F7] shadow-sm"><ShieldCheck size={12} strokeWidth={4} /></div>
+                                
+                                {/* ✅ AVATAR MÁS GRANDE (w-24 h-24) */}
+                                <div className="relative z-10 w-24 h-24 rounded-2xl bg-white p-1.5 shadow-2xl shrink-0 border border-white/20 mb-1 rotate-2 hover:rotate-0 transition-transform">
+                                    {avatar ? ( <img src={avatar} className="w-full h-full rounded-xl object-cover" alt="Logo Agencia" /> ) : ( <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center"><User className="text-slate-300" size={40}/></div> )}
+                                    <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white p-1.5 rounded-full border-2 border-white shadow-sm"><ShieldCheck size={14} strokeWidth={3}/></div>
                                 </div>
+                                
                                 <div className="relative z-10 mb-2 flex-1 min-w-0">
-                                    <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md truncate">{name || "Agente"}</h3>
-                                    <p className="text-emerald-400 text-[10px] font-bold uppercase tracking-[0.15em] flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded-full w-fit border border-emerald-500/30 backdrop-blur-md"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> En línea</p>
+                                    <h3 className="text-white font-black text-2xl leading-none mb-2 drop-shadow-md truncate">{name || "Agencia Certificada"}</h3>
+                                    <div className="flex items-center gap-2 bg-black/30 w-fit px-2 py-1 rounded-lg backdrop-blur-md border border-white/10">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        <p className="text-emerald-300 text-[10px] font-bold uppercase tracking-widest">Respuesta Inmediata</p>
+                                    </div>
                                 </div>
-                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/20 hover:bg-black/50 p-2 rounded-full backdrop-blur-md transition-all"><X size={18}/></button>
+                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/30 hover:bg-black/60 p-2 rounded-full backdrop-blur-md transition-all border border-white/10"><X size={20}/></button>
                             </div>
-                            <div className="px-6 pt-6 space-y-3">
-                                <div onClick={typeof copyPhone === 'function' ? copyPhone : undefined} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95 group">
-                                    <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] text-[#2E7D32] flex items-center justify-center border border-[#C8E6C9] group-hover:scale-110 transition-transform"><Phone size={22} strokeWidth={2.5} /></div>
-                                    <div className="flex-1"><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Teléfono / WhatsApp</p><p className="text-xl font-black text-slate-900 tracking-tight">{phone || "No disponible"}</p></div>
-                                    <div className="text-slate-300 group-hover:text-emerald-500 transition-colors">{copied ? <span className="text-[10px] font-bold text-emerald-600 uppercase">Copiado!</span> : <Copy size={20}/>}</div>
+
+                            {/* FORMULARIO PRINCIPAL */}
+                            <div className="px-6 pt-5 space-y-4">
+                                <div className="text-center">
+                                    <h4 className="text-slate-900 font-black text-lg leading-tight">Solicitar Visita / Información</h4>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Complete sus datos para ser atendido por un agente.</p>
                                 </div>
-                                <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group">
-                                    <div className="w-12 h-12 rounded-2xl bg-[#E3F2FD] text-[#1565C0] flex items-center justify-center border border-[#BBDEFB] group-hover:scale-110 transition-transform"><Mail size={22} strokeWidth={2.5} /></div>
-                                    <div className="flex-1 overflow-hidden"><p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email Corporativo</p><p className="text-sm font-black text-slate-900 truncate">{email || "No disponible"}</p></div>
+                                
+                                <form onSubmit={handleSendLead} className="space-y-3">
+                                    <input 
+                                        className="w-full p-4 bg-white rounded-2xl text-sm font-bold text-slate-900 border border-slate-200 focus:border-blue-500 outline-none shadow-sm"
+                                        placeholder="Nombre Completo"
+                                        value={leadForm.name}
+                                        onChange={e => setLeadForm({...leadForm, name: e.target.value})}
+                                        required
+                                    />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input 
+                                            type="email"
+                                            className="w-full p-4 bg-white rounded-2xl text-sm font-bold text-slate-900 border border-slate-200 focus:border-blue-500 outline-none shadow-sm"
+                                            placeholder="Email"
+                                            value={leadForm.email}
+                                            onChange={e => setLeadForm({...leadForm, email: e.target.value})}
+                                            required
+                                        />
+                                        <input 
+                                            type="tel"
+                                            className="w-full p-4 bg-white rounded-2xl text-sm font-bold text-slate-900 border border-slate-200 focus:border-blue-500 outline-none shadow-sm"
+                                            placeholder="Teléfono"
+                                            value={leadForm.phone}
+                                            onChange={e => setLeadForm({...leadForm, phone: e.target.value})}
+                                            required
+                                        />
+                                    </div>
+                                    <textarea 
+                                        className="w-full p-4 bg-white rounded-2xl text-sm font-medium text-slate-900 border border-slate-200 focus:border-blue-500 outline-none min-h-[100px] resize-none shadow-sm"
+                                        placeholder={`Hola, me interesa la propiedad REF: ${selectedProp.refCode || '...'} y me gustaría recibir más información.`}
+                                        value={leadForm.message}
+                                        onChange={e => setLeadForm({...leadForm, message: e.target.value})}
+                                    />
+
+                                    <button 
+                                        type="submit" 
+                                        disabled={sendingLead}
+                                        className="w-full py-4 bg-[#1c1c1e] hover:bg-black text-white font-black rounded-2xl uppercase tracking-widest text-sm shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95"
+                                    >
+                                        {sendingLead ? <Loader2 className="animate-spin" size={18}/> : <Send size={18} className="text-blue-400"/>}
+                                        {sendingLead ? "PROCESANDO..." : "ENVIAR SOLICITUD AHORA"}
+                                    </button>
+                                </form>
+
+                             {/* ✅ RED DE SEGURIDAD: BOTÓN DE LLAMADA INTELIGENTE */}
+                                <div className="pt-2 border-t border-slate-200/50 text-center">
+                                    <p className="text-[10px] text-slate-400 mb-2 font-medium">¿Prefiere hablar directamente?</p>
+                                    
+                                    {!copied ? (
+                                        // ESTADO 1: Botón para revelar y llamar
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (typeof copyPhone === 'function') copyPhone(); 
+                                                // Intento de llamada real para móviles
+                                                window.location.href = `tel:${phone.replace(/\s/g, '')}`;
+                                            }} 
+                                            className="inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-full text-slate-700 font-bold text-xs uppercase tracking-wider hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95 shadow-sm"
+                                        >
+                                            <Phone size={14} className="text-emerald-500"/>
+                                            Llamar a la Agencia
+                                        </button>
+                                    ) : (
+                                        // ESTADO 2: Número visible y confirmación
+                                        <div className="animate-in fade-in zoom-in duration-300 flex flex-col items-center">
+                                            <a 
+                                                href={`tel:${phone.replace(/\s/g, '')}`} 
+                                                className="text-xl font-black text-slate-900 tracking-tight hover:underline mb-1"
+                                            >
+                                                {phone}
+                                            </a>
+                                            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1">
+                                                <Check size={12} /> Copiado al portapapeles
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
-                                <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95">Cerrar Ficha</button>
                             </div>
                         </div>
                     </div>

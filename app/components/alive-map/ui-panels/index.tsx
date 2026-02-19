@@ -35,6 +35,7 @@ import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
 import AgencyProfilePanel from "./AgencyProfilePanel";
 import AgencyMarketPanel from "./AgencyMarketPanel";
 import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
+import AgencyAmbassadorPanel from "./AgencyAmbassadorPanel";
 import PremiumUpgradePanel from "./PremiumUpgradePanel";
 import PlanOverlay from "@/app/components/billing/PlanOverlay";
 import { useMyPlan } from "@/app/components/billing/useMyPlan";
@@ -2206,7 +2207,12 @@ window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
 // ✅ CHAT
 window.addEventListener("open-chat-signal", handleOpenChatSignal as any);
 window.addEventListener("open-chat-with-user", handleOpenChatSignal as any); 
-
+// 🔥 NUEVO: ESCUCHA PARA ABRIR MESA DE GUERRA (EMBAJADORES)
+const handleOpenAmbassadors = () => {
+    setRightPanel('AMBASSADORS'); // Abre el panel derecho
+    if (soundEnabled) playSynthSound('click');
+};
+window.addEventListener("open-ambassadors-signal", handleOpenAmbassadors);
 
 // --- FASE DE LIMPIEZA (RETURN) ---
 return () => {
@@ -2218,8 +2224,11 @@ return () => {
   // ✅ CHAT STANDARD
   window.removeEventListener("open-chat-signal", handleOpenChatSignal as any);
   
-  // 🔥🔥 LIMPIEZA NUEVO EVENTO 🔥🔥
+// 🔥🔥 LIMPIEZA NUEVO EVENTO 🔥🔥
   window.removeEventListener("open-chat-with-user", handleOpenChatSignal as any);
+
+  // ✅ NUEVO: Limpieza de la señal de Embajadores
+  window.removeEventListener("open-ambassadors-signal", handleOpenAmbassadors);
 };
 
 // ✅ deps mínimos para no re-enganchar listeners por cambios de listas
@@ -2900,49 +2909,45 @@ if (!gateUnlocked) {
            <AgencyProfilePanel isOpen={rightPanel === 'AGENCY_PROFILE'} onClose={() => toggleRightPanel('NONE')} />
            <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
            
-         <AgencyPortfolioPanel 
+       {/* 4. PORTFOLIO DE AGENCIA (STOCK) */}
+           <AgencyPortfolioPanel 
                isOpen={rightPanel === 'AGENCY_PORTFOLIO'} 
                onClose={() => setRightPanel('NONE')} 
                properties={agencyFavs}
                onCreateNew={() => handleEditAsset(null)} 
-               onEditProperty={(p:any) => handleEditAsset(p)} 
+               onEditProperty={(p:any) => handleEditAsset(p)}
                
-               // 1. BORRADO (Ya lo teníamos)
+               // Funciones de gestión (Borrar y Favoritos)
                onDelete={(p:any) => handleDeleteAgencyAsset(p)}
-               
-               // 2. TOGGLE (Ya lo teníamos)
                onToggleFavorite={(p:any) => handleToggleFavorite(p)}
 
-               // 3. 🔥 VUELO CINEMÁTICO (ESTO ES LO QUE FALTA)
+               // Vuelo Cinemático al seleccionar propiedad
                onSelect={(p:any) => {
-                   // A. Buscamos las coordenadas exactas
                    const coords = p.coordinates || (p.latitude && p.longitude ? [p.longitude, p.latitude] : null);
-                   
                    if (coords) {
-                       // B. Ejecutamos la maniobra de vuelo
                        map?.current?.flyTo({ 
                            center: coords, 
-                           zoom: 19,        // Zoom muy cerca para ver la Nano Card
-                           pitch: 60,       // Inclinación 3D
-                           bearing: -20,    // Un poco de rotación para estilo
-                           duration: 3000,  // 3 segundos de viaje suave
-                           essential: true
+                           zoom: 19, 
+                           pitch: 60, 
+                           bearing: -20, 
+                           duration: 3000, 
+                           essential: true 
                        });
-                       
-                       // C. Efectos de sonido y visuales
                        if(soundEnabled) playSynthSound('warp');
                        addNotification(`📍 Localizando: ${p.title || 'Propiedad'}`);
-                       
-                       // D. (Opcional) Si quiere que el panel se aparte para ver el mapa, descomente esto:
-                       // setRightPanel('NONE'); 
-
                    } else {
                        addNotification("⚠️ Propiedad sin coordenadas GPS");
-                       console.warn("Fallo de vuelo: Sin coordenadas", p);
                    }
                }}
            />
 
+           {/* 5. 🎖️ MESA DE GUERRA (EMBAJADORES) - Ancho Especial 700px */}
+           {rightPanel === 'AMBASSADORS' && (
+               <div className="absolute inset-y-0 right-0 w-[700px] shadow-2xl animate-slide-in-right bg-white pointer-events-auto z-[90] border-l border-slate-200">
+                   <AgencyAmbassadorPanel onClose={() => setRightPanel('NONE')} />
+               </div>
+           )}
+           
        {/* 5. INSPECTOR Y DETALLES (DUAL: MODO AGENCIA vs USUARIO) */}
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
            

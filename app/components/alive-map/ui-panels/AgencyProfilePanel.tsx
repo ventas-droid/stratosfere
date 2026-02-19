@@ -420,6 +420,30 @@ const creditPercentage = Math.min(
                   </div>
               </button>
 
+{/* 3. 🎖️ RED DE EMBAJADORES (NUEVO - GATILLO DEL PANEL ANCHO) */}
+              <button 
+                  onClick={() => { 
+                      if(onClose) onClose(); // Cerramos el perfil para dejar sitio
+                      if(typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-ambassadors-signal'));
+                  }}
+                  className="w-full bg-[#0F172A] p-5 rounded-[24px] shadow-lg shadow-slate-900/20 border border-slate-800 flex items-center justify-between group hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden"
+              >
+                  {/* Fondo animado oscuro */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-black opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  
+                  <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-white/5 text-blue-400 flex items-center justify-center border border-white/10 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-colors">
+                          <ShieldCheck size={22} strokeWidth={2.5}/>
+                      </div>
+                      <div className="text-left">
+                          <h3 className="text-sm font-black text-white uppercase tracking-wide">Red de Embajadores</h3>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-200 transition-colors">Gestión de Embajadores & Leads</p>
+                      </div>
+                  </div>
+                  <div className="relative z-10 w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-slate-500 group-hover:text-white group-hover:bg-white/20 transition-all">
+                     <ChevronRight size={16} />
+                  </div>
+              </button>
           </div>
 
           {/* DATOS DE CONTACTO */}

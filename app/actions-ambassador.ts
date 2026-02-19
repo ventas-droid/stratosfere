@@ -1,134 +1,143 @@
 "use server";
 
-import { prisma } from './lib/prisma'; 
-import { getCurrentUser } from './actions'; 
-import { cookies } from 'next/headers'; // <--- 🔥 IMPORTANTE: NUEVO IMPORT
+import { prisma } from './lib/prisma';
+import { getCurrentUser } from './actions';
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 
-// ... (Las funciones getAmbassadorDashboardAction y getPromotablePropertiesAction déjelas igual, no cambian) ...
-// Si prefiere borrar todo y pegar esto limpio para asegurar, aquí va todo el archivo:
 
-// 1. DASHBOARD
+
+
+// =========================================================
+// 1. EL CUARTEL GENERAL (ESTADÍSTICAS DASHBOARD)
+// =========================================================
 export async function getAmbassadorDashboardAction() {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
 
     let stats = await prisma.ambassadorStats.findUnique({ where: { userId: user.id } });
+    
     if (!stats) {
       stats = await prisma.ambassadorStats.create({
-        data: { userId: user.id, score: 5.0, rank: "PARTNER" }
+        data: { 
+            userId: user.id, 
+            score: 5.0, 
+            rank: "PARTNER",
+            totalClicks: 0, totalLeads: 0, totalSales: 0,
+            availablePayout: 0, pendingPayout: 0
+        }
       });
     }
+    
+    // 🔥 Limpieza extra por si acaso
+    revalidatePath('/ambassador'); 
     return { success: true, data: stats };
   } catch (e) {
     return { success: false, error: "Error del servidor" };
   }
 }
 
-// 2. CATÁLOGO (Sin currency)
-// En app/actions-ambassador.ts
-
+// =========================================================
+// 2. EL ARSENAL (CATÁLOGO DE PROPIEDADES)
+// =========================================================
 export async function getPromotablePropertiesAction() {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
 
-    // 1. Buscamos propiedades PUBLICADAS
     const props = await prisma.property.findMany({
-      where: { status: "PUBLICADO" },
-      take: 50,
+      where: {
+          status: "PUBLICADO",
+          OR: [
+              { campaigns: { some: { status: "ACCEPTED" } } },
+              { sharePct: { gt: 0 } }
+          ]
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         images: true,
-        // 🔥 CLAVE: Traemos la campaña ACEPTADA (El contrato activo)
-        // Aquí es donde vive el dato "comisiónShareEur" que usted ve en la DB
-        campaigns: {
-            where: { status: "ACCEPTED" },
-            take: 1
+        user: { select: { name: true, companyName: true, avatar: true, companyLogo: true } },
+        campaigns: { 
+            where: { status: "ACCEPTED" }, 
+            take: 1,
+            include: { 
+                agency: { select: { name: true, companyName: true, avatar: true, companyLogo: true } }
+            }
         }
       }
     });
 
-    console.log(`📊 DASHBOARD: Procesando ${props.length} propiedades...`);
-
     const mapped = props.map((p: any) => {
-        // A. Precio Base
         const price = p.price ? Number(p.price) : 0;
-        
-        // B. Buscamos el contrato activo (Campaign)
-        const activeContract = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
-
         let finalCommission = 0;
+        let agencyName = "Particular";
+        let agencyLogo = null;
 
-        // C. LÓGICA DE PRIORIDAD (El Cerebro)
-        if (activeContract) {
-            // OPCIÓN 1: Si hay contrato, usamos sus datos (Esto es lo que usted tiene en la DB)
-            const contractSharePct = Number(activeContract.commissionSharePct || 0);
-            
-            // Si el contrato ya tiene el cálculo en Euros guardado, lo usamos directo
-            if (activeContract.commissionShareEur && Number(activeContract.commissionShareEur) > 0) {
-                finalCommission = Number(activeContract.commissionShareEur);
+        const contract = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
+
+        if (contract) {
+            if (contract.commissionShareEur && Number(contract.commissionShareEur) > 0) {
+                finalCommission = Number(contract.commissionShareEur);
             } else {
-                // Si no, lo calculamos: (Precio * %Agencia * %Share)
-                const contractFeePct = Number(activeContract.commissionPct || 3);
-                const totalFee = price * (contractFeePct / 100);
-                finalCommission = totalFee * (contractSharePct / 100);
+                const feePct = Number(contract.commissionPct || 0);
+                const sharePct = Number(contract.commissionSharePct || 0);
+                finalCommission = (price * (feePct / 100)) * (sharePct / 100);
             }
-            
-            console.log(`> [CONTRATO] ${p.refCode}: Comisión detectada ${finalCommission}€`);
-
+            const ag = contract.agency;
+            agencyName = ag?.companyName || ag?.name || "Agencia Partner";
+            agencyLogo = ag?.companyLogo || ag?.avatar || null;
         } else {
-            // OPCIÓN 2: Si no hay contrato, miramos la ficha (Fallback)
-            const propFeePct = Number(p.commissionPct || 3);
-            const propSharePct = Number(p.sharePct || 0); // Si es 0, saldrá 0 (correcto)
-            
+            const propFeePct = Number(p.commissionPct || 0);
+            const propSharePct = Number(p.sharePct || 0);
             const totalFee = price * (propFeePct / 100);
             finalCommission = totalFee * (propSharePct / 100);
-            
-            console.log(`> [FICHA] ${p.refCode}: Comisión detectada ${finalCommission}€`);
+
+            agencyName = p.user?.companyName || p.user?.name || "Propietario";
+            agencyLogo = p.user?.companyLogo || p.user?.avatar || null;
         }
 
-        // D. LIMPIEZA FINAL
         if (isNaN(finalCommission) || finalCommission < 0) finalCommission = 0;
-
-        // Selección de imagen
         let img = p.mainImage;
-        if (!img && p.images && p.images.length > 0) {
-             // Priorizamos url si es objeto, o string directo
-             img = p.images[0].url || p.images[0];
-        }
+        if (!img && p.images && p.images.length > 0) img = p.images[0].url || p.images[0];
         if (!img) img = "/placeholder.jpg";
 
         return {
             id: p.id,
-            title: p.title || "Propiedad sin título",
+            title: p.title || "Oportunidad",
             price: price,
-            commission: Math.round(finalCommission), // Redondeo limpio
+            commission: Math.round(finalCommission),
             image: img,
-            refCode: p.refCode
+            refCode: p.refCode || "S/R",
+            city: p.city || "Ubicación General",
+            agencyName: agencyName,
+            agencyLogo: agencyLogo
         };
     });
 
+    // 🔥 LA LIMPIEZA DEFINITIVA
+    revalidatePath('/ambassador', 'page');
+    revalidatePath('/', 'layout');
+
     return { success: true, data: mapped };
   } catch (e) {
-    console.error("❌ ERROR CRÍTICO DASHBOARD:", e);
+    console.error("ERROR ACCIONES:", e);
     return { success: false, error: "Error de sistema" };
   }
 }
-// 3. GENERAR LINK
-// app/actions-ambassador.ts
 
+// =========================================================
+// 3. LA MUNICIÓN (GENERAR LINK) - VERSIÓN ESCAPARATE PÚBLICO
+// =========================================================
 export async function generateAffiliateLinkAction(propertyId: string) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Debes iniciar sesión" };
 
-    // 1. Definimos la base (Local o Producción según el entorno)
     const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
     
-    // 2. 🔥 ESTRATEGIA SPA: Usamos parámetros en la URL raíz
-    // En lugar de ir a /p/ID (que da 404), vamos a la home / con instrucciones.
-    const link = `${baseUrl}/?selectedProp=${propertyId}&ref=${user.id}`;
+    // 🔥 CAMBIO VITAL: Ahora la URL apunta a /p/ (la nueva revista pública)
+    const link = `${baseUrl}/p/${propertyId}?ref=${user.id}`;
     
     return { success: true, link };
   } catch (e) {
@@ -136,38 +145,80 @@ export async function generateAffiliateLinkAction(propertyId: string) {
   }
 }
 
-// 4. TRACKING + COOKIE (EL ESPÍA) 🔥 VERSIÓN CORREGIDA PARA NEXT.JS RECIENTE
+// =========================================================
+// 4. EL RADAR (TRACKING DE CLICKS)
+// =========================================================
 export async function trackAffiliateClickAction(propertyId: string, ambassadorId: string) {
   try {
     if (!ambassadorId || !propertyId) return { success: false };
 
-    // A) Grabamos en DB (Estadística pura)
-    await prisma.affiliateClick.create({
-      data: { ambassadorId, propertyId }
-    });
+    try {
+        await prisma.affiliateClick.create({
+            data: { ambassadorId, propertyId }
+        });
+        await prisma.ambassadorStats.upsert({
+            where: { userId: ambassadorId },
+            update: { totalClicks: { increment: 1 } },
+            create: { userId: ambassadorId, totalClicks: 1 }
+        });
+    } catch(dbError) {
+        console.error("Error DB click:", dbError);
+    }
 
-    await prisma.ambassadorStats.update({
-      where: { userId: ambassadorId },
-      data: { totalClicks: { increment: 1 } }
-    });
-
-    // B) Ponemos la COOKIE (Persistencia de 30 días)
-    // ⚠️ CORRECCIÓN AQUÍ: Añadimos 'await' antes de cookies()
     const cookieStore = await cookies(); 
-    
     cookieStore.set('stratos_ref', ambassadorId, { 
-        maxAge: 60 * 60 * 24 * 30, // 30 días
+        maxAge: 60 * 60 * 24 * 30,
         path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
     });
     
-    cookieStore.set('stratos_ref_prop', propertyId, { 
-        maxAge: 60 * 60 * 24 * 30, 
-        path: '/',
-    });
-
+    revalidatePath('/ambassador'); // Actualizar contadores
     return { success: true };
   } catch (e) {
-    console.error("Error tracking click:", e);
     return { success: false };
   }
+}
+
+// =========================================================
+// 5. PERFIL (GUARDAR)
+// =========================================================
+export async function updateAmbassadorProfileAction(data: any) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "No autorizado" };
+
+    if (!data.fullName || !data.dni) {
+      return { success: false, error: "Faltan datos obligatorios." };
+    }
+
+    await prisma.ambassadorProfile.upsert({
+      where: { userId: user.id },
+      update: { ...data },
+      create: { userId: user.id, ...data }
+    });
+
+    revalidatePath('/ambassador');
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: "Error de base de datos" };
+  }
+}
+
+// =========================================================
+// 6. PERFIL (LEER)
+// =========================================================
+export async function getAmbassadorProfileAction() {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false };
+
+        const profile = await prisma.ambassadorProfile.findUnique({
+            where: { userId: user.id }
+        });
+        
+        return { success: true, data: profile };
+    } catch (e) {
+        return { success: false };
+    }
 }

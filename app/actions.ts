@@ -407,9 +407,14 @@ export async function savePropertyAction(data: any) {
     let finalServices = Array.from(servicesSet);
     if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
 
-    // 3. IMÁGENES
-    const imagesList = Array.isArray(data.images) ? data.images : [];
-    if (data.mainImage && !imagesList.includes(data.mainImage)) imagesList.unshift(data.mainImage);
+   // 3. IMÁGENES (VERSIÓN ANTI-ZOMBIES)
+    // Solo confiamos en la lista visual que el usuario ha dejado
+    let imagesList = Array.isArray(data.images) ? data.images : [];
+    
+    // Extraemos las URLs limpias por si acaso vienen como objetos
+    imagesList = imagesList.map((img: any) => typeof img === 'string' ? img : img.url).filter(Boolean);
+
+    // La foto principal SIEMPRE será la primera de la lista real actual
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
     // 4. COORDENADAS (Solo si vienen nuevas y válidas)
@@ -3227,4 +3232,325 @@ export async function incrementStatsAction(propertyId: string, metric: 'view' | 
   } catch (error) {
     console.error("Error incrementando estadísticas:", error);
   }
+}
+// =========================================================
+// 📩 ENVIAR LEAD (FORMULARIO + EMAIL + RASTREO) - PATRÓN LOCAL SEGURO
+// =========================================================
+export async function submitLeadAction(data: {
+    propertyId: string;
+    name: string;
+    email: string;
+    phone: string;
+    message: string;
+}) {
+    try {
+        // 1. RASTREO TÁCTICO
+        const cookieStore = await cookies();
+        const ambassadorId = cookieStore.get('stratos_ref')?.value;
+        const currentUser = await getCurrentUser(); 
+
+        console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO");
+
+        // 2. GUARDAR EN LA BASE DE DATOS
+        const newLead = await prisma.lead.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: data.phone,
+                message: data.message,
+                propertyId: data.propertyId,
+                status: "NEW",
+                ambassadorId: ambassadorId ? ambassadorId : undefined
+            },
+            include: { 
+                property: { include: { user: true } } // Traemos al dueño para saber su email
+            } 
+        });
+
+        // 3. 🔥 ENVIAR EMAIL AL AGENTE (USANDO SU PATRÓN LOCAL)
+        const agentEmail = newLead.property.user?.email;
+        const resendApiKey = process.env.RESEND_API_KEY;
+        
+        if (agentEmail && resendApiKey) {
+            try {
+                // 🛡️ Carga Dinámica Segura (Igual que en Open House)
+                const { Resend } = require('resend');
+                const resend = new Resend(resendApiKey);
+
+                await resend.emails.send({
+                    from: 'Stratosfere <info@stratosfere.com>',
+                    to: [agentEmail],
+                    reply_to: data.email, // Para responder directo al cliente
+                    subject: `🔥 Nuevo Lead: ${newLead.property.title}`,
+                    html: `
+                        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                            <h2 style="color: #111;">¡Tienes un nuevo interesado!</h2>
+                            <p style="color: #666;">Han contactado a través del formulario de Stratosfere.</p>
+                            
+                            <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                                <p style="margin: 5px 0;">🏠 <strong>Ref:</strong> ${newLead.property.refCode}</p>
+                                <p style="margin: 5px 0;">👤 <strong>Nombre:</strong> ${data.name}</p>
+                                <p style="margin: 5px 0;">📞 <strong>Teléfono:</strong> <a href="tel:${data.phone}">${data.phone}</a></p>
+                                <p style="margin: 5px 0;">✉️ <strong>Email:</strong> ${data.email}</p>
+                            </div>
+
+                            <p><strong>Mensaje:</strong></p>
+                            <blockquote style="border-left: 4px solid #000; padding-left: 15px; font-style: italic; color: #555;">
+                                "${data.message}"
+                            </blockquote>
+
+                            ${ambassadorId ? `<p style="color: blue; font-size: 12px; margin-top: 20px;">🎖️ Lead traído por Embajador ID: ${ambassadorId}</p>` : ''}
+                            
+                            <div style="margin-top: 30px;">
+                                <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Ir al Panel</a>
+                            </div>
+                        </div>
+                    `
+                });
+            } catch (mailError) {
+                console.error("⚠️ Error enviando email lead (pero se guardó en DB):", mailError);
+            }
+        }
+
+        // 4. PUNTOS AL EMBAJADOR
+        if (ambassadorId) {
+            try {
+                await prisma.ambassadorStats.upsert({
+                    where: { userId: ambassadorId },
+                    update: { totalLeads: { increment: 1 } },
+                    create: { userId: ambassadorId, totalLeads: 1 }
+                });
+            } catch (e) { console.error("Error stats:", e); }
+        }
+
+        return { success: true, data: newLead };
+
+    } catch (e) {
+        console.error("Error submitLeadAction:", e);
+        return { success: false, error: "Error al enviar solicitud." };
+    }
+}
+
+// =========================================================
+// 📞 CHIVATO DE TELÉFONO (CLICK TO CALL) - PATRÓN LOCAL SEGURO
+// =========================================================
+export async function registerPhoneRevealAction(propertyId: string) {
+    try {
+        const user = await getCurrentUser();
+        // Solo funciona si el usuario está registrado
+        if (!user) return { success: false, error: "No identificado" };
+
+        const property = await prisma.property.findUnique({
+            where: { id: propertyId },
+            include: { user: true }
+        });
+
+        if (!property || !property.user?.email) return { success: false };
+
+        // 1. ENVIAR AVISO AL AGENTE
+        const resendApiKey = process.env.RESEND_API_KEY;
+
+        if (resendApiKey) {
+            try {
+                // 🛡️ Carga Dinámica Segura
+                const { Resend } = require('resend');
+                const resend = new Resend(resendApiKey);
+
+                await resend.emails.send({
+                    from: 'Stratosfere <info@stratosfere.com>',
+                    to: [property.user.email],
+                    subject: `📞 Llamada entrante para REF: ${property.refCode}`,
+                    html: `
+                        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                            <h2 style="color: #059669;">¡Alguien está llamando!</h2>
+                            <p>El usuario registrado <strong>${user.name}</strong> ha hecho clic en "Ver Teléfono".</p>
+                            
+                            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                                <p style="margin: 5px 0;">👤 <strong>Interesado:</strong> ${user.name} ${user.surname || ''}</p>
+                                <p style="margin: 5px 0;">📞 <strong>Su Teléfono:</strong> <a href="tel:${user.mobile || user.phone}">${user.mobile || user.phone || 'No disponible'}</a></p>
+                                <p style="margin: 5px 0;">✉️ <strong>Email:</strong> ${user.email}</p>
+                            </div>
+
+                            <p style="font-size: 13px; color: #666;">Es probable que recibas la llamada en unos segundos. Si no, ¡llámale tú!</p>
+                        </div>
+                    `
+                });
+            } catch (mailError) {
+                console.error("⚠️ Error enviando aviso de llamada:", mailError);
+            }
+        }
+
+        // 2. GUARDAR EL INTENTO EN DB
+        await prisma.lead.create({
+            data: {
+                name: user.name || "Usuario Registrado",
+                email: user.email,
+                phone: user.mobile || user.phone,
+                message: "CLICK EN VER TELÉFONO (Intención de llamada)",
+                propertyId: propertyId,
+                status: "CALL_INTENT"
+            }
+        });
+
+        return { success: true };
+
+    } catch (e) {
+        console.error("Error registerPhoneRevealAction:", e);
+        return { success: false };
+    }
+}
+
+// =========================================================
+// 📬 BUZÓN DE ENTRADA (LEADS - VERSIÓN "FULL DATA" CORREGIDA)
+// =========================================================
+export async function getMyReceivedLeadsAction() {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, error: "No autorizado" };
+
+        const leads = await prisma.lead.findMany({
+            where: {
+                property: {
+                    OR: [
+                        { userId: user.id }, // Soy dueño
+                        { assignment: { agencyId: user.id, status: 'ACTIVE' } } // Soy agencia gestora
+                    ]
+                }
+            },
+            include: {
+                // 🔥 TRAEMOS TODO: Imágenes, Usuario, Campañas
+                property: {
+                    include: {
+                        images: true,
+                        user: { 
+                            select: { 
+                                id: true, name: true, email: true, avatar: true, 
+                                companyName: true, companyLogo: true, phone: true 
+                            } 
+                        },
+                        campaigns: { 
+                            where: { status: 'ACCEPTED' },
+                            select: { commissionSharePct: true, commissionShareVisibility: true }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Limpiamos los datos para el frontend
+        const cleanLeads = leads.map(l => {
+            // 🔥 TRUCO: Convertimos a 'any' para que TypeScript no se queje de 'm2'
+            const p: any = l.property;
+            
+            // Lógica de coordenadas segura
+            const lng = Number(p.longitude);
+            const lat = Number(p.latitude);
+            const hasCoords = (lng && lat && lng !== 0);
+
+            return {
+                id: l.id,
+                name: l.name,
+                email: l.email,
+                phone: l.phone,
+                message: l.message,
+                date: l.createdAt,
+                status: l.status,
+                
+                // 📦 EMPAQUETADO BLINDADO
+                property: {
+                    ...p, 
+                    id: p.id,
+                    title: p.title || "Sin Título",
+                    refCode: p.refCode,
+                    ref: p.refCode, 
+                    
+                    // Imágenes
+                    img: (p.images && p.images.length > 0) ? p.images[0].url : (p.mainImage || "/placeholder.jpg"),
+                    images: (p.images || []).map((i: any) => i.url),
+                    
+                    // Datos Físicos (Aquí ya no dará error porque p es 'any')
+                    price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
+                    rawPrice: Number(p.price || 0),
+                    rooms: Number(p.rooms || 0),
+                    baths: Number(p.baths || 0),
+                    mBuilt: Number(p.mBuilt || p.m2 || 0), // <--- ¡Arreglado!
+
+                    // Coordenadas
+                    coordinates: hasCoords ? [lng, lat] : null,
+                    longitude: lng,
+                    latitude: lat,
+
+                    // Identidad
+                    user: p.user || { name: "Agencia" },
+                    
+                    // B2B
+                    b2b: (p.campaigns && p.campaigns[0]) ? {
+                        sharePct: Number(p.campaigns[0].commissionSharePct || 0),
+                        visibility: p.campaigns[0].commissionShareVisibility
+                    } : null
+                }
+            };
+        });
+
+        return { success: true, data: cleanLeads };
+
+    } catch (e) {
+        console.error("Error getMyReceivedLeadsAction:", e);
+        return { success: false, error: "Error cargando mensajes" };
+    }
+}
+
+// =========================================================
+// 👁️ MARCAR MENSAJES COMO LEÍDOS
+// =========================================================
+export async function markLeadsAsReadAction(leadIds: string[]) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false };
+
+        // Actualizamos solo los mensajes que son del usuario y están en la lista
+        await prisma.lead.updateMany({
+            where: {
+                id: { in: leadIds },
+                property: { userId: user.id } 
+            },
+            data: { status: 'READ' }
+        });
+
+        return { success: true };
+    } catch (e) {
+        console.error("Error marking leads as read:", e);
+        return { success: false };
+    }
+}
+// =========================================================
+// 📡 RADAR DE ALERTA TEMPRANA (SOLO CONTEO - VERSIÓN AGENCIA)
+// =========================================================
+export async function getUnreadCountAction() {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { count: 0 };
+
+        const count = await prisma.lead.count({
+            where: {
+                status: 'NEW', // Solo contamos los nuevos
+                property: {
+                    OR: [
+                        { userId: user.id }, // Propiedades mías (Dueño)
+                        { 
+                            assignment: { 
+                                agencyId: user.id, // Propiedades que gestiono (Agencia)
+                                status: 'ACTIVE' 
+                            } 
+                        }
+                    ]
+                }
+            }
+        });
+
+        return { count };
+    } catch (e) {
+        return { count: 0 };
+    }
 }

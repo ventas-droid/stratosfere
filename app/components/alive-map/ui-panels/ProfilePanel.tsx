@@ -2,29 +2,36 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-    // Iconos de Interfaz
+    // 🛠️ Iconos de Interfaz
     X, Plus, ArrowLeft, User, Heart, ChevronRight, Store, LogOut,
     MapPin, Zap, Building2, Edit3, Trash2, Camera, Image as ImageIcon,
+    Loader2, MessageSquare, Phone, // ✅ AÑADIDOS: Para el Buzón de Mensajes
     
-    // Iconos de Servicios
+    // 🏠 Iconos de Servicios y Propiedades
     Waves, Car, Trees, ShieldCheck, ArrowUp, Sun, Box, Star, Award, Crown, 
     TrendingUp, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
     Droplets, Paintbrush, Truck, Briefcase, Sparkles, Lock, Eye, Calculator,
     
-    // Iconos de Tickets
+    // 🎟️ Iconos de Tickets y Eventos
     Ticket, Calendar, Navigation, Clock
 } from 'lucide-react';
 
 import { 
-    // 🔥 IMPORTANTE: Usamos getMyPropertiesAction para traer datos financieros
+    // 👤 Usuario y Propiedades
     getMyPropertiesAction, 
     deletePropertyAction, 
     getUserMeAction, 
     updateUserAction, 
     logoutAction,
+    
+    // 🎟️ Tickets
     getUserTicketsAction, 
-    cancelTicketAction 
+    cancelTicketAction,
+
+    // 📬 Buzón de Entrada (NUEVO)
+    getMyReceivedLeadsAction, 
+    markLeadsAsReadAction
 } from '@/app/actions';
 
 import { useRouter } from 'next/navigation';
@@ -67,8 +74,7 @@ export default function ProfilePanel({
   const router = useRouter();
 
   // --- ESTADOS ---
-  const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKETS'>('MAIN');
-  const [myProperties, setMyProperties] = useState<any[]>([]);
+const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKETS' | 'LEADS'>('MAIN');  const [myProperties, setMyProperties] = useState<any[]>([]);
   const [myTickets, setMyTickets] = useState<any[]>([]);
   
   // Modales
@@ -76,6 +82,35 @@ export default function ProfilePanel({
   const [contractModalProp, setContractModalProp] = useState<any | null>(null); // Modal Expediente (Propiedad)
   const [selectedTicket, setSelectedTicket] = useState<any>(null); // Modal Detalle Evento (Ticket)
 
+  // 📨 ESTADOS DE MENSAJERÍA (BUZÓN)
+  const [myLeads, setMyLeads] = useState<any[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+
+  // 🧠 CÁLCULO INTELIGENTE: Solo contamos los que están en estado 'NEW'
+  // Esto es lo que controla si aparece el punto rojo o no.
+  const unreadCount = myLeads.filter((l: any) => l.status === 'NEW').length;
+
+  // 👁️ EFECTO VISUAL: Al entrar al buzón, marcamos todo como leído automáticamente
+  useEffect(() => {
+      // Si estamos viendo el buzón Y hay mensajes nuevos...
+      if (internalView === 'LEADS' && unreadCount > 0) {
+          
+          // 1. Recopilar IDs de los mensajes nuevos
+          const unreadIds = myLeads.filter((l: any) => l.status === 'NEW').map((l: any) => l.id);
+          
+          // 2. Avisar a la base de datos (se ejecuta en segundo plano)
+          markLeadsAsReadAction(unreadIds);
+
+          // 3. Actualizar visualmente tras 2 segundos (para que el usuario vea que eran nuevos y luego se limpien)
+          const timeout = setTimeout(() => {
+              setMyLeads(prev => prev.map(l => ({ ...l, status: 'READ' })));
+          }, 2000); 
+
+          return () => clearTimeout(timeout);
+      }
+  }, [internalView, myLeads]); // Se ejecuta cuando cambia la vista o llegan mensajes
+
+  // ESTADO DEL USUARIO
   const [user, setUser] = useState({ 
       name: "Cargando...", role: "...", email: "", avatar: "", cover: "",     
       companyName: "", licenseNumber: "", phone: "", mobile: "", website: ""
@@ -139,6 +174,9 @@ export default function ProfilePanel({
       if (ticketsRes.success && ticketsRes.data) {
           setMyTickets(ticketsRes.data);
       }
+// 4. 🔥 CARGAR MENSAJES (PEGAR ESTO AQUÍ)
+      const leadsRes = await getMyReceivedLeadsAction();
+      if (leadsRes.success) setMyLeads(leadsRes.data);
 
     } catch (e) {
       console.error("Error cargando perfil:", e);
@@ -373,8 +411,31 @@ export default function ProfilePanel({
                     <ChevronRight size={16} className="text-white/30 group-hover:text-white relative z-10 transition-colors"/>
                   </button>
                 )}
+{/* 📬 BOTÓN BUZÓN DE ENTRADA (CON LÓGICA DE NOTIFICACIONES) */}
+                <button onClick={() => setInternalView('LEADS')} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-100 cursor-pointer relative overflow-hidden mt-2">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors relative">
+                            <MessageSquare size={18}/>
+                            {/* 🔥 SOLO SALE SI HAY MENSAJES NO LEÍDOS */}
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-[10px] font-black text-white flex items-center justify-center border-2 border-white animate-pulse">
+                                    {unreadCount}
+                                </span>
+                            )}
+                        </div>
+                        <div className="text-left">
+                            <span className="font-bold text-slate-900 text-sm block">Buzón de Entrada</span>
+                            {/* 🔥 TEXTO QUE CAMBIA DE COLOR */}
+                            <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${unreadCount > 0 ? 'text-rose-500' : 'text-slate-400 group-hover:text-indigo-500'}`}>
+                                {unreadCount > 0 ? `${unreadCount} MENSAJES NUEVOS` : "Buzón al día"}
+                            </span>
+                        </div>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-500"/>
+                </button>
 
-                <button onClick={() => setInternalView('PROPERTIES')} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-100 cursor-pointer">
+                {/* 🏠 BOTÓN MIS PROPIEDADES */}
+                <button onClick={() => setInternalView('PROPERTIES')} className="w-full bg-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-sm border border-transparent hover:border-blue-100 cursor-pointer mt-3">
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors"><Building2 size={18}/></div>
                         <span className="font-bold text-slate-900 text-sm">Mis Propiedades</span>
@@ -614,34 +675,158 @@ export default function ProfilePanel({
                               }
                           };
 
-                          return (
-                              <div key={ticket.id} onClick={handleOpenDetail} className="bg-white p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer">
-                                  <div className="flex gap-4 items-start mb-3">
-                                      <div className="w-20 h-20 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
-                                          <img src={prop.mainImage || "https://images.unsplash.com/photo-1513159446162-54eb8bdaa79b"} className="w-full h-full object-cover" alt="" />
-                                          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
-                                              <span className="text-xl font-black leading-none drop-shadow-md">{dateObj.getDate()}</span>
-                                              <span className="text-[9px] uppercase font-bold drop-shadow-md">{dateObj.toLocaleDateString('es-ES', {month:'short'})}</span>
+                    return (
+                                  <div key={ticket.id} onClick={handleOpenDetail} className="bg-white p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer">
+                                      <div className="flex gap-4 items-start mb-3">
+                                          <div className="w-20 h-20 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
+                                              <img src={prop.mainImage || "https://images.unsplash.com/photo-1513159446162-54eb8bdaa79b"} className="w-full h-full object-cover" alt="" />
+                                              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
+                                                  <span className="text-xl font-black leading-none drop-shadow-md">{dateObj.getDate()}</span>
+                                                  <span className="text-[9px] uppercase font-bold drop-shadow-md">{dateObj.toLocaleDateString('es-ES', {month:'short'})}</span>
+                                              </div>
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                              <div className="flex justify-between items-start mb-1">
+                                                  <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate border border-indigo-100">OPEN HOUSE</span>
+                                              </div>
+                                              <h4 className="font-bold text-[#1c1c1e] text-base leading-tight truncate mt-1">{event.title || "Evento"}</h4>
+                                              <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase mt-0.5 flex items-center gap-1"><MapPin size={10}/> {prop.address || "Ubicación Privada"}</p>
                                           </div>
                                       </div>
-                                      <div className="flex-1 min-w-0">
-                                          <div className="flex justify-between items-start mb-1">
-                                              <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate border border-indigo-100">OPEN HOUSE</span>
-                                          </div>
-                                          <h4 className="font-bold text-[#1c1c1e] text-base leading-tight truncate mt-1">{event.title || "Evento"}</h4>
-                                          <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase mt-0.5 flex items-center gap-1"><MapPin size={10}/> {prop.address || "Ubicación Privada"}</p>
+                                      <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                                          <button onClick={handleOpenDetail} className="flex-1 bg-[#1c1c1e] text-white h-9 rounded-xl text-[10px] font-bold uppercase tracking-wide flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-md active:scale-95 cursor-pointer">
+                                              <Navigation size={12} /> VER DETALLES
+                                          </button>
                                       </div>
                                   </div>
-                                  <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
-                                      <button onClick={handleOpenDetail} className="flex-1 bg-[#1c1c1e] text-white h-9 rounded-xl text-[10px] font-bold uppercase tracking-wide flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-md active:scale-95 cursor-pointer">
-                                          <Navigation size={12} /> VER DETALLES
-                                      </button>
+                              );
+                          })}
+                      </div>
+                  )}
+               </div>
+            )}
+
+       {/* --- VISTA: BUZÓN DE MENSAJES (DISEÑO PREMIUM + DATOS VISIBLES) --- */}
+        {internalView === 'LEADS' && (
+           <div className="animate-fade-in-right h-full flex flex-col bg-[#E5E5EA]"> 
+              
+              {/* 1. CABECERA CON NAVEGACIÓN */}
+              <div className="flex items-center gap-4 p-8 pb-4 shrink-0">
+                 <button 
+                    onClick={() => setInternalView('MAIN')} 
+                    className="w-10 h-10 rounded-full bg-white flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm cursor-pointer border border-white/50 group active:scale-95"
+                 >
+                    <ArrowLeft size={18} className="text-slate-700 group-hover:-translate-x-0.5 transition-transform"/>
+                 </button>
+                 <div>
+                     <h3 className="text-2xl font-black text-slate-900 leading-none flex items-center gap-2">
+                        Buzón de Entrada
+                     </h3>
+                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Gestión de Interesados</p>
+                 </div>
+              </div>
+              
+              {/* 2. ÁREA DE CONTENIDO */}
+              <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
+                  {loadingLeads ? (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 opacity-60">
+                          <Loader2 className="animate-spin" size={32}/>
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Sincronizando...</span>
+                      </div>
+                  ) : myLeads.length === 0 ? (
+                      /* ESTADO VACÍO PREMIUM */
+                      <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in-up">
+                          <div className="w-32 h-32 bg-white rounded-[40px] flex items-center justify-center mb-6 shadow-xl shadow-slate-200/50 border border-white relative overflow-hidden group">
+                              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-50 to-transparent opacity-50"/>
+                              <MessageSquare size={48} className="text-slate-300 group-hover:text-indigo-400 transition-colors relative z-10" />
+                              <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-indigo-500 rounded-full blur-2xl opacity-20"></div>
+                          </div>
+                          
+                          <h4 className="text-xl font-black text-slate-900 mb-2">Todo tranquilo por aquí</h4>
+                          <p className="text-sm text-slate-500 max-w-[280px] leading-relaxed mb-8 font-medium">
+                              Aún no has recibido solicitudes. Comparte tus propiedades para atraer interesados.
+                          </p>
+    
+                          <button
+                              onClick={() => setInternalView('PROPERTIES')}
+                              className="px-6 py-3 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:shadow-md hover:border-indigo-200 transition-all text-slate-600 flex items-center gap-2 group cursor-pointer"
+                          >
+                              <Share2 size={14} className="text-indigo-500 group-hover:scale-110 transition-transform"/>
+                              Ir a mis Propiedades
+                          </button>
+                      </div>
+                  ) : (
+                      /* LISTA DE MENSAJES */
+                      <div className="space-y-4">
+                          {myLeads.map((lead: any) => (
+                              <div key={lead.id} className="bg-white p-5 rounded-[24px] shadow-sm border border-white hover:border-indigo-100 hover:shadow-md transition-all group relative overflow-hidden">
+                                  
+                                  {/* Cabecera del Mensaje */}
+                                  <div className="flex justify-between items-start mb-3 border-b border-slate-50 pb-3 relative z-10">
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 shrink-0">
+                                              <img src={lead.property.img} className="w-full h-full object-cover" alt="Propiedad"/>
+                                          </div>
+                                          <div className="min-w-0">
+                                              <p className="text-xs font-black text-slate-900 truncate">{lead.name}</p>
+                                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Ref: {lead.property.ref}</p>
+                                          </div>
+                                      </div>
+                                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider bg-slate-50 px-2 py-1 rounded-lg shrink-0">
+                                          {new Date(lead.date).toLocaleDateString()}
+                                      </span>
                                   </div>
+
+                                  {/* Cuerpo del Texto */}
+                                  <div className="bg-indigo-50/30 p-4 rounded-2xl mb-4 border border-indigo-50/50 relative">
+                                      <p className="text-xs text-slate-600 font-medium italic leading-relaxed">"{lead.message || 'Sin mensaje escrito...'}"</p>
+                                  </div>
+
+                                  {/* Fichas de Datos (VISIBLES Y COPIABLES) */}
+                                  <div className="space-y-2">
+                                      
+                                      {/* 1. Ficha Teléfono */}
+                                      {lead.phone && (
+                                          <div className="group flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl hover:bg-emerald-50 transition-colors">
+                                              <div className="flex items-center gap-3">
+                                                  <div className="w-8 h-8 rounded-lg bg-white text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-sm shrink-0">
+                                                      <Phone size={14}/>
+                                                  </div>
+                                                  <div>
+                                                      <p className="text-[9px] font-bold text-emerald-600/70 uppercase tracking-wider mb-0.5">Teléfono</p>
+                                                      {/* 'select-all' permite copiar el número */}
+                                                      <p className="text-xs font-black text-slate-900 select-all font-mono tracking-tight">{lead.phone}</p>
+                                                  </div>
+                                              </div>
+                                              <a href={`tel:${lead.phone}`} className="w-8 h-8 rounded-full bg-white border border-emerald-200 text-emerald-600 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-sm shrink-0 ml-2 cursor-pointer" title="Llamar">
+                                                  <ChevronRight size={14}/>
+                                              </a>
+                                          </div>
+                                      )}
+
+                                      {/* 2. Ficha Email */}
+                                      <div className="group flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors">
+                                          <div className="flex items-center gap-3 min-w-0">
+                                              <div className="w-8 h-8 rounded-lg bg-white text-blue-600 flex items-center justify-center border border-blue-100 shadow-sm shrink-0">
+                                                  <Mail size={14}/>
+                                              </div>
+                                              <div className="min-w-0">
+                                                  <p className="text-[9px] font-bold text-blue-600/70 uppercase tracking-wider mb-0.5">Email</p>
+                                                  {/* 'select-all' permite copiar el email */}
+                                                  <p className="text-xs font-black text-slate-900 truncate select-all font-mono tracking-tight">{lead.email}</p>
+                                              </div>
+                                          </div>
+                                          <a href={`mailto:${lead.email}`} className="w-8 h-8 rounded-full bg-white border border-blue-200 text-blue-600 flex items-center justify-center hover:bg-blue-500 hover:text-white transition-all shadow-sm shrink-0 ml-2 cursor-pointer" title="Enviar Email">
+                                              <ChevronRight size={14}/>
+                                          </a>
+                                      </div>
+                                  </div>
+                                  
                               </div>
-                          );
-                      })}
-                  </div>
-              )}
+                          ))}
+                      </div>
+                  )}
+              </div>
            </div>
         )}
       </div>

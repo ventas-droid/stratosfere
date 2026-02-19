@@ -28,7 +28,7 @@ model User {
   mobile        String?
   tagline       String?
   zone          String?
-
+ambassadorProfile AmbassadorProfile?
   // Relaciones Básicas
   favorites                Favorite[]
   properties               Property[]
@@ -49,6 +49,18 @@ model User {
   agencyTrialStartedAt DateTime?
   agencyTrialEndsAt    DateTime?
   agencyGraceEndsAt    DateTime?
+
+// --- 🎖️ SECCIÓN EMBAJADORES (NUEVO) ---
+  
+  // 1. Jerarquía (¿Quién es mi Comandante?)
+  recruitedById String?
+  recruitedBy   User?   @relation("AgencyRecruits", fields: [recruitedById], references: [id])
+  
+  // 2. Mi Tropa (Si soy Agencia, ¿a quién he reclutado?)
+  recruits      User[]  @relation("AgencyRecruits")
+
+  // 3. Mis Victorias (Leads que yo he generado como embajador)
+  generatedLeads Lead[] @relation("AmbassadorLeads")
 
   // ✅ Relaciones Inversas
   subscription    Subscription?
@@ -150,7 +162,8 @@ model Property {
   campaigns         Campaign[]
   tasks             Task[]
   openHouses        OpenHouse[]
-
+// Añadir dentro de model Property:
+  leads Lead[]
   // --- 🚀 STRATOSFERE AMBASSADOR ENGINE (NUEVO) ---
   // Estas dos líneas son OBLIGATORIAS para que no falle el schema
   affiliateClicks AffiliateClick[]
@@ -528,4 +541,51 @@ model Commission {
   
   user          User     @relation(fields: [ambassadorId], references: [id])
   property      Property @relation(fields: [propertyId], references: [id])
+}
+
+// EN: prisma/schema.prisma
+
+// --- EXPEDIENTE DEL EMBAJADOR (DATOS FISCALES Y CONTACTO) ---
+model AmbassadorProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  
+  fullName  String?  // Nombre Fiscal / Razón Social
+  dni       String?  // DNI / CIF
+  phone     String?  // Teléfono Operativo
+  city      String?  // Ciudad Base
+  address   String?  // Dirección Fiscal
+  iban      String?  // Para pagos
+  
+  updatedAt DateTime @updatedAt
+}
+
+// 📩 BUZÓN DE LEADS (INTERESADOS EXTERNOS)
+model Lead {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Datos del Interesado
+  name    String
+  email   String
+  phone   String?
+  message String?
+  
+  // ¿Qué le interesa?
+  propertyId String
+  // 🔥 AÑADIDO: onDelete: Cascade (Si borra la casa, se borran sus mensajes para no dejar basura)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  // ¿Quién gestiona este lead? 
+  managerId  String? 
+
+  // --- RASTREO (OPCIONAL) ---
+  // Si es un cliente "puro", esto se quedará vacío (null), y no pasa nada.
+  ambassadorId String?
+  ambassador   User?   @relation("AmbassadorLeads", fields: [ambassadorId], references: [id])
+  
+  // Estado del Lead
+  status    String   @default("NEW") 
 }

@@ -7,16 +7,25 @@ import {
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, Eye, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, ChevronDown,
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown,
+    Loader2, Send // ✅ AÑADIDOS: Para el formulario de contacto
 } from 'lucide-react';
 
-// 🔥 IMPORTAMOS LA ACCIÓN DE ESTADÍSTICAS Y DATOS
-import { toggleFavoriteAction, getPropertyByIdAction, incrementStatsAction } from "@/app/actions";
+// 🔥 IMPORTAMOS ACCIONES CLAVE (INCLUIDO EL ENVÍO DE LEADS)
+import { 
+    toggleFavoriteAction, 
+    getPropertyByIdAction, 
+    incrementStatsAction,
+    submitLeadAction // ✅ AÑADIDO: La pieza clave para el búnker
+} from "@/app/actions";
+
+// 🔔 NOTIFICACIONES (VITAL PARA EL FEEDBACK DEL USUARIO)
+import { Toaster, toast } from 'sonner';
 
 // 🔥 HERRAMIENTAS PDF
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { PropertyFlyer } from '../../pdf/PropertyFlyer';
+
 // 🔥 EL ESPÍA TÁCTICO (RASTREADOR)
-// Nota: Ajuste los "../" si le sale rojo. Debería ser:
 import ReferralListener from '../../ReferralListener';
 
 // --- 1. DICCIONARIO DE ICONOS ---
@@ -70,7 +79,32 @@ export default function DetailsPanel({
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
+// --- 🛡️ SISTEMA DE CONTACTO BLINDADO (BÚNKER) ---
+    const [sending, setSending] = useState(false);
+    const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', message: '' });
 
+    const handleSendLead = async (e: any) => {
+        e.preventDefault();
+        setSending(true);
+
+        const res = await submitLeadAction({
+            propertyId: selectedProp.id,
+            name: leadForm.name,
+            email: leadForm.email,
+            phone: leadForm.phone,
+            message: leadForm.message || "Hola, me interesa tu propiedad."
+        });
+
+        setSending(false);
+
+        if (res.success) {
+            toast.success("Mensaje Enviado", { description: "El propietario recibirá tu solicitud." });
+            setShowContactModal(false); // Cerramos el modal tras el disparo
+            setLeadForm({ name: '', email: '', phone: '', message: '' }); // Recargamos munición
+        } else {
+            toast.error("Error", { description: "No se pudo entregar el mensaje." });
+        }
+    };
     // Sincronizar al abrir
     useEffect(() => { 
         setSelectedProp(initialProp); 
@@ -272,11 +306,16 @@ export default function DetailsPanel({
         return 'bg-red-500'; 
     };
 
-    return (
+   return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             
+            {/* ✅ SISTEMA DE ALERTAS (NUEVO) */}
+            <Toaster position="bottom-center" richColors />
+
+            {/* RASTREADOR (YA ESTABA) */}
             {selectedProp?.id && <ReferralListener propertyId={selectedProp.id} />}
 
+            {/* FONDO (YA ESTABA) */}
             <div className="absolute inset-0 bg-[#E5E5EA]/95 backdrop-blur-3xl shadow-2xl border-r border-white/20"></div>
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
@@ -587,70 +626,120 @@ export default function DetailsPanel({
                     </button>
                 </div>
 
-                {/* 4. POPUP CONTACTO */}
+            {/* 🛡️ MODAL CONTACTO BLINDADO (SOLO FORMULARIO - SIN TELÉFONO) */}
                 {showContactModal && (
                     <div className="absolute inset-0 z-50 flex flex-col justify-end animate-fade-in bg-black/60 backdrop-blur-sm">
-                        <div onClick={() => setShowContactModal(false)} className="absolute inset-0"></div>
-                        <div className="relative bg-[#F5F5F7] rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-2 mb-2 pb-6">
+                        <div onClick={() => setShowContactModal(false)} className="absolute inset-0 cursor-pointer"></div>
+                        
+                        {/* CONTENEDOR AJUSTABLE (Evita el monolito vacío) */}
+                        <div className="relative bg-white rounded-t-[32px] overflow-hidden shadow-2xl animate-slide-up mx-0 pb-6 ring-1 ring-white/20 w-full h-auto max-h-[90vh] flex flex-col">
                             
-                            {/* Cabecera Popup */}
-                            <div className="relative h-36 bg-gray-900 flex items-end p-6 gap-4">
+                            {/* CABECERA INTEGRADA (FONDO OSCURO) */}
+                            <div className="relative h-32 bg-slate-900 shrink-0">
                                 <div className="absolute inset-0">
-                                    {ownerCover ? <img src={ownerCover} className="w-full h-full object-cover opacity-60"/> : <div className="w-full h-full bg-slate-800"/>}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+                                    <img 
+                                        src={img} 
+                                        className="w-full h-full object-cover opacity-40 blur-sm" 
+                                        alt="Background" 
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
                                 </div>
-                                <div className="relative z-10 w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20 mb-1">
-                                    {ownerAvatar ? <img src={ownerAvatar} className="w-full h-full rounded-xl object-cover" /> : <User className="text-slate-300 w-full h-full p-4" />}
+                                
+                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/20 hover:bg-black/40 p-2 rounded-full backdrop-blur-md transition-all border border-white/10 cursor-pointer"><X size={20}/></button>
+
+                                {/* INFO PROPIETARIO (SUPERPUESTA) */}
+                                <div className="absolute -bottom-10 left-6 right-6 flex items-end gap-4 z-20">
+                                    {/* Avatar superpuesto */}
+                                    <div className="w-20 h-20 rounded-2xl bg-white p-1 shadow-xl shrink-0 border border-white/20">
+                                         {ownerAvatar ? ( 
+                                            <img src={ownerAvatar} className="w-full h-full rounded-xl object-cover" alt="Avatar" /> 
+                                        ) : ( 
+                                            <div className="w-full h-full rounded-xl bg-slate-100 flex items-center justify-center"><User className="text-slate-300" size={32}/></div> 
+                                        )}
+                                        <div className="absolute -bottom-1 -right-1 bg-green-500 text-white p-1 rounded-full border-2 border-white shadow-sm">
+                                            <ShieldCheck size={12} strokeWidth={3}/>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mb-11 flex-1 min-w-0 text-white">
+                                         <h3 className="font-black text-2xl leading-none drop-shadow-md truncate mb-1">{ownerName}</h3>
+                                         <div className="inline-flex items-center gap-1.5 bg-green-500/20 border border-green-400/30 px-2 py-0.5 rounded-md backdrop-blur-md">
+                                            <Check size={10} className="text-green-300" />
+                                            <span className="text-[10px] font-bold text-green-100 uppercase tracking-wider">Particular Verificado</span>
+                                         </div>
+                                    </div>
                                 </div>
-                                <div className="relative z-10 mb-2">
-                                    <h3 className="text-white font-black text-2xl leading-none mb-1 drop-shadow-md">{ownerName}</h3>
-                                    <span className={`px-3 py-1 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-bold uppercase tracking-wider shadow-lg inline-flex items-center gap-2 ${ownerRole === 'AGENCIA' || ownerRole === 'AGENCY' ? 'bg-black/80 text-emerald-400' : 'bg-black/40 text-white'}`}>
-                                        {(ownerRole === 'AGENCIA' || ownerRole === 'AGENCY') ? <Building2 size={12}/> : <User size={12}/>} 
-                                        {ownerRole}
-                                    </span>
-                                </div>
-                                <button onClick={() => setShowContactModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white z-20 bg-black/30 p-2 rounded-full cursor-pointer"><X size={18}/></button>
                             </div>
 
-                            {/* Datos Contacto */}
-                            <div className="px-6 pt-6 space-y-4">
-                                <div onClick={copyPhone} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:bg-slate-50 transition-colors active:scale-95">
-                                    <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100">
-                                        <Phone size={22} />
+                            {/* CUERPO DEL FORMULARIO (COMPACTO) */}
+                            <div className="px-6 pt-14 pb-4 flex-1 overflow-y-auto">
+                                <div className="mb-5 text-center sm:text-left">
+                                    <h4 className="text-slate-900 font-black text-lg leading-tight">Contactar con el dueño</h4>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Complete sus datos para ser atendido directamente.</p>
+                                </div>
+                                
+                                <form onSubmit={handleSendLead} className="space-y-3">
+                                    {/* Input Nombre con Icono */}
+                                    <div className="relative group">
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18}/>
+                                        <input 
+                                            className="w-full pl-12 pr-4 py-3.5 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl text-sm font-bold text-slate-900 border border-transparent focus:border-blue-200 focus:ring-4 focus:ring-blue-50 outline-none transition-all"
+                                            placeholder="Tu Nombre"
+                                            value={leadForm.name}
+                                            onChange={e => setLeadForm({...leadForm, name: e.target.value})}
+                                            required
+                                        />
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Teléfono</p>
-                                        <p className="text-xl font-black text-slate-900 tracking-tight">{ownerPhone}</p>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="relative group">
+                                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18}/>
+                                             <input 
+                                                type="email"
+                                                className="w-full pl-10 pr-4 py-3.5 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl text-sm font-bold text-slate-900 border border-transparent focus:border-blue-200 focus:ring-4 focus:ring-blue-50 outline-none transition-all"
+                                                placeholder="Email"
+                                                value={leadForm.email}
+                                                onChange={e => setLeadForm({...leadForm, email: e.target.value})}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="relative group">
+                                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18}/>
+                                            <input 
+                                                type="tel"
+                                                className="w-full pl-10 pr-4 py-3.5 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl text-sm font-bold text-slate-900 border border-transparent focus:border-blue-200 focus:ring-4 focus:ring-blue-50 outline-none transition-all"
+                                                placeholder="Teléfono"
+                                                value={leadForm.phone}
+                                                onChange={e => setLeadForm({...leadForm, phone: e.target.value})}
+                                                required
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="text-slate-300">{copied ? <Check size={20} className="text-green-500"/> : <Copy size={20}/>}</div>
-                                </div>
 
-                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                                    <Mail size={22} />
-                                </div>
-                                <div className="flex-1 overflow-hidden">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Email</p>
-                                    <p className="text-sm font-black text-slate-900 truncate">{ownerEmail}</p>
-                                </div>
-                              </div>
+                                    <div className="relative group">
+                                        <textarea 
+                                            className="w-full p-4 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl text-sm font-medium text-slate-900 border border-transparent focus:border-blue-200 focus:ring-4 focus:ring-blue-50 outline-none min-h-[100px] resize-none transition-all"
+                                            placeholder={`Hola, me interesa la referencia ${selectedProp.refCode || '...'}...`}
+                                            value={leadForm.message}
+                                            onChange={e => setLeadForm({...leadForm, message: e.target.value})}
+                                        />
+                                    </div>
 
-                              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                                    <MessageCircle size={22} />
+                                    <button 
+                                        type="submit" 
+                                        disabled={sending}
+                                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl uppercase tracking-widest text-xs shadow-lg shadow-blue-200 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-95 mt-2 cursor-pointer"
+                                    >
+                                        {sending ? <Loader2 className="animate-spin" size={16}/> : <Send size={16} className="text-blue-100"/>}
+                                        {sending ? "ENVIANDO..." : "ENVIAR MENSAJE AL DUEÑO"}
+                                    </button>
+                                </form>
+                                
+                                {/* PIE DE SEGURIDAD (ESTILO DE LA IMAGEN) */}
+                                <div className="mt-4 bg-green-50 border border-green-100 rounded-xl p-3 flex items-center justify-center gap-2 text-green-700">
+                                    <ShieldCheck size={14} className="fill-green-200"/>
+                                    <span className="text-[10px] font-bold uppercase tracking-wide">Protección Anti-Spam Activa</span>
                                 </div>
-                                <div className="flex-1 overflow-hidden">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Chat</p>
-                                    <p className="text-sm font-black text-slate-900 truncate">Abrir conversación</p>
-                                </div>
-                                <button onClick={() => { const ownerId = activeOwner?.id || selectedProp?.userId || null; if (!ownerId) return; window.dispatchEvent( new CustomEvent("open-chat-signal", { detail: { propertyId: String(selectedProp?.id || ""), toUserId: String(ownerId), refCode: selectedProp?.refCode || null, title: selectedProp?.title || null, }, }) ); setShowContactModal(false); }} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-black text-[10px] tracking-widest hover:bg-blue-700 transition-all active:scale-95">
-                                    MENSAJE
-                                </button>
-                              </div>
-
-                              <button onClick={() => setShowContactModal(false)} className="w-full py-4 bg-[#1c1c1e] text-white font-bold rounded-2xl uppercase tracking-[0.2em] text-xs mt-2 shadow-xl hover:bg-black transition-all active:scale-95 cursor-pointer">
-                                Cerrar Ficha
-                              </button>
                             </div>
                         </div>
                     </div>
