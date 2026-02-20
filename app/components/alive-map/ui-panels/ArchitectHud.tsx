@@ -246,52 +246,64 @@ openHouse: initialData?.openHouse || initialData?.open_house_data || { enabled: 
     isAgencyContext: false 
   });
 
- // EDICIÓN BLINDADA V4 (CORREGIDA: INICIO INTELIGENTE)
+ // EDICIÓN BLINDADA V5: RECUPERACIÓN TOTAL DE DATOS DE AGENCIA
   useEffect(() => {
     if (initialData) {
       console.log("🔍 MODO ARQUITECTO ACTIVO:", initialData);
 
-
-// ✅ SOLUCIÓN: Si no hay set, usamos el array directo o vacío
-const normalizedServices = initialData.selectedServices || [];
-      // --- 2. OPERACIÓN RESCATE DE ASCENSOR ---
+      const normalizedServices = initialData.selectedServices || [];
+      
+      // Rescate de Ascensor
       let rawElevator = initialData.elevator;
       if (rawElevator === undefined && initialData.specs) {
           rawElevator = initialData.specs.elevator;
       }
       const normalizedElevator = rawElevator === true || String(rawElevator) === "true" || rawElevator === 1;
 
-      // --- 3. NORMALIZACIÓN DE PRECIO ---
+      // Normalización de Precio
       const normalizedPrice = initialData.rawPrice 
           ? String(initialData.rawPrice) 
           : (initialData.price ? String(initialData.price).replace(/\D/g, "") : "");
 
-     
+      // 🔥 RESCATE DE DATOS B2B DE LA CAMPAÑA
+      // Si la propiedad tiene una activeCampaign, la leemos para rellenar los inputs
+      const camp = initialData.activeCampaign || null;
 
       setFormData((prev: any) => ({
         ...prev,
         ...initialData,
         mBuilt: initialData.mBuilt || initialData.m2 || "",
-        elevator: normalizedElevator,     
+        elevator: normalizedElevator,      
         selectedServices: normalizedServices,
         price: normalizedPrice,
         
-        // 🔥 RECUPERACIÓN DE MEMORIA (AQUÍ ESTABA EL FALLO)
-        // Forzamos a leer estos campos de la base de datos:
         communityFees: (initialData.communityFees ?? ""),
-   
         energyConsumption: initialData.energyConsumption || "", 
-        energyEmissions: initialData.energyEmissions || "",     
+        energyEmissions: initialData.energyEmissions || "",      
         energyPending: initialData.energyPending === true,      
         
-        // ⚡️ CORRECCIÓN: Solo es modo edición si tiene ID real
+        // ⚡️ Recuperar Extras Pro
+        videoUrl: initialData.videoUrl || "",
+        tourUrl: initialData.tourUrl || "",
+        simpleNoteUrl: initialData.simpleNoteUrl || "",
+        energyCertUrl: initialData.energyCertUrl || "",
+
+        // ⚡️ Recuperar Open House
+        openHouse: initialData.openHouse || initialData.open_house_data || { enabled: false, amenities: [] },
+
+        // ⚡️ Recuperar Datos B2B (Vital para que no se borren)
+        mandateType: camp ? camp.mandateType : (initialData.mandateType || "ABIERTO"),
+       exclusiveMonths: camp ? camp.exclusiveMonths : (initialData.exclusiveMonths || 6),
+        commissionPct: camp ? camp.commissionPct : (initialData.commissionPct || 0),
+        sharePct: camp ? camp.commissionSharePct : (initialData.sharePct || initialData.b2b?.sharePct || 0),
+        shareVisibility: camp ? camp.commissionShareVisibility : (initialData.shareVisibility || initialData.b2b?.visibility || "PRIVATE"),
+
         isEditMode: !!initialData.id, 
-        // ⚡️ CORRECCIÓN: Capturamos la credencial de agencia
         isAgencyContext: initialData.isAgencyContext || false,
         coordinates: initialData.coordinates || prev.coordinates || null,
       }));
 
-      // 🔥 LÓGICA DE SALTO: ¿NUEVO O EXISTENTE?
+      // Salto inteligente
       if (initialData.address || initialData.id) {
           setStep("BASICS");
       } else {
@@ -1708,22 +1720,34 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         if (isDirectSave) {
             // === CAMINO A: AGENCIA/EDICIÓN (Misión Cumplida) ===
             
-            // Preparamos datos para el mapa
+            // Preparamos datos para el mapa con MEMORIA TOTAL
             let secureImage = null;
             if (serverProp.mainImage) secureImage = serverProp.mainImage;
             else if (serverProp.images && serverProp.images.length > 0) secureImage = serverProp.images[0].url;
             else if (formData.images && formData.images.length > 0) secureImage = formData.images[0];
 
+            // Inyectamos todo lo que nos devolvió la base de datos (Open House, B2B, etc.)
+            const activeCampaign = (serverProp.campaigns && serverProp.campaigns.length > 0) ? serverProp.campaigns[0] : null;
+            const openHouseObj = (serverProp.openHouses && serverProp.openHouses.length > 0) ? { ...serverProp.openHouses[0], enabled: true } : null;
+
             const mapFormat = {
                 ...serverProp,
                 coordinates: [serverProp.longitude, serverProp.latitude],
-                user: serverProp.user,
+                user: serverProp.user || formData.user,
                 img: secureImage,
                 images: serverProp.images?.map((i: any) => i.url) || (secureImage ? [secureImage] : []),
                 price: new Intl.NumberFormat("es-ES").format(serverProp.price || 0),
                 selectedServices: serverProp.selectedServices,
+                
+                // 🔥 RECUPERACIÓN DE LA MEMORIA:
+                openHouse: openHouseObj,
+                open_house_data: openHouseObj,
+                activeCampaign: activeCampaign,
+                b2b: {
+                    sharePct: activeCampaign ? activeCampaign.commissionSharePct : serverProp.sharePct,
+                    visibility: activeCampaign ? activeCampaign.commissionShareVisibility : serverProp.shareVisibility
+                }
             };
-
             // Actualizamos la pantalla del usuario
             if (typeof window !== "undefined") {
                 const eventName = isEditMode ? "update-property-signal" : "add-property-signal";

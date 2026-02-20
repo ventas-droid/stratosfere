@@ -7,7 +7,7 @@ import {
   Waves, Car, Trees, ShieldCheck, ArrowUp, Sun, Box, Star, Award, Crown, 
   TrendingUp, Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
   Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
-  Droplets, Paintbrush, Truck, Briefcase, Sparkles, 
+  Droplets, Paintbrush, Truck, Briefcase, Sparkles, Clock, Check, 
   Lock, Handshake, Eye, MessageCircle, Calculator, Coins, Navigation 
 } from "lucide-react";
 
@@ -202,45 +202,40 @@ export default function AgencyPortfolioPanel({
                           </div>
                       </div>
 
-                      {/* ZONA SAAS */}
-                      {isRadar ? (
-                        <div className="mt-4 pt-3 border-t border-indigo-50">
-                            <div className="bg-indigo-50/40 rounded-xl p-3 border border-indigo-100/50">
-                                <div className="flex justify-between items-center mb-3">
-                                    <div className="flex items-center gap-2">
-                                        {p.radarType === "EXCLUSIVE" ? (
-                                            <div className="flex items-center gap-1 px-2 py-1 bg-white border border-indigo-100 text-indigo-700 rounded-lg shadow-sm">
-                                                <Lock size={10} />
-                                                <span className="text-[9px] font-black tracking-wider uppercase">EXCLUSIVA</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg">
-                                                <FileText size={10} />
-                                                <span className="text-[9px] font-black tracking-wider uppercase">MANDATO</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider block">Honorarios</span>
-                                        <span className="text-sm font-black text-indigo-800">{p.activeCampaign.commission}%</span>
-                                    </div>
-                                </div>
-                                <button onClick={() => setContractModalProp(p)} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-200">
-                                    <Eye size={12} /> Ver Expediente Oficial
-                                </button>
-                            </div>
-                        </div>
-                      ) : (
-                        <div className="mt-4 pt-3 border-t border-gray-100">
-                            <div className="flex flex-wrap gap-2">
-                                {activeServices.slice(0, 3).map((srv: string, i: number) => (
-                                    <span key={i} className="px-2 py-1 bg-gray-50 text-gray-500 rounded-md text-[9px] font-bold uppercase">{srv}</span>
-                                ))}
-                                {activeServices.length > 3 && <span className="px-2 py-1 bg-gray-100 text-gray-400 rounded-md text-[9px] font-bold">+{activeServices.length - 3}</span>}
-                            </div>
-                        </div>
-                      )}
-
+                     {/* ========================================== */}
+                      {/* 🌟 ZONA SAAS UNIFICADA (PARA TODAS LAS PROPIEDADES) 🌟 */}
+                      {/* ========================================== */}
+                      <div className="mt-4 pt-3 border-t border-indigo-50">
+                          <div className="bg-indigo-50/40 rounded-xl p-3 border border-indigo-100/50">
+                              <div className="flex justify-between items-center mb-3">
+                                  <div className="flex items-center gap-2">
+                                      {/* Leemos si es EXCLUSIVA desde cualquier origen (creada o heredada) */}
+                                      {p.mandateType === "EXCLUSIVE" || p.activeCampaign?.mandateType === "EXCLUSIVE" || p.radarType === "EXCLUSIVE" ? (
+                                          <div className="flex items-center gap-1 px-2 py-1 bg-white border border-indigo-100 text-indigo-700 rounded-lg shadow-sm">
+                                              <Lock size={10} />
+                                              <span className="text-[9px] font-black tracking-wider uppercase">EXCLUSIVA</span>
+                                          </div>
+                                      ) : (
+                                          <div className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg">
+                                              <FileText size={10} />
+                                              <span className="text-[9px] font-black tracking-wider uppercase">MANDATO SIMPLE</span>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                              
+                              <button 
+                                  onClick={(e) => {
+                                      e.stopPropagation(); // Evita clics fantasma
+                                      setContractModalProp(p);
+                                  }} 
+                                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-200"
+                              >
+                                  <Eye size={12} /> Ver Expediente Oficial
+                              </button>
+                          </div>
+                      </div>
+                      {/* ========================================== */}
                       {/* BOTONERA */}
                       <div className="mt-4 flex gap-2">
                           {/* BOTÓN VOLAR */}
@@ -273,7 +268,7 @@ export default function AgencyPortfolioPanel({
           <div className="h-24"></div> 
       </div>
 
-      {/* MODAL SERVICIOS */}
+     {/* MODAL SERVICIOS */}
       {servicesModalProp && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in" onClick={() => setServicesModalProp(null)}>
             <div className="w-[400px] bg-white rounded-[2rem] p-6 shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
@@ -286,98 +281,152 @@ export default function AgencyPortfolioPanel({
         </div>
       )}
 
-      {/* MODAL EXPEDIENTE COMPLETO */}
+     {/* ================================================================================== */}
+      {/* 🌟 MODAL EXPEDIENTE COMPLETO (MOTOR FINANCIERO PREMIUM) 🌟 */}
+      {/* ================================================================================== */}
       {contractModalProp && (
           <div className="fixed inset-0 z-[60000] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in" onClick={() => setContractModalProp(null)}>
-              <div className="bg-white w-[700px] max-w-full rounded-[30px] overflow-hidden shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
+              {/* Modal más ancho (850px) para acomodar los datos financieros */}
+              <div className="bg-white w-[850px] max-w-full rounded-[30px] overflow-hidden shadow-2xl animate-scale-in flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                   
-                  {/* HEADER */}
-                  <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 p-8 text-white relative overflow-hidden">
-                      <div className="absolute -right-20 -top-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"/>
-                      <div className="flex justify-between items-start relative z-10">
-                          <div>
-                              <p className="text-[10px] font-black tracking-[0.3em] opacity-70 uppercase mb-2">Expediente Oficial</p>
-                              <h3 className="text-3xl font-black">{contractModalProp.title}</h3>
-                              <p className="text-indigo-200 text-xs font-medium mt-1 uppercase tracking-wide">REF: {contractModalProp.refCode || "---"}</p>
-                          </div>
-                          <div className="flex gap-2">
-                             <div className="px-4 py-1.5 bg-white/20 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                                <Lock size={12} /> {contractModalProp.radarType === "EXCLUSIVE" ? "EXCLUSIVA" : "MANDATO SIMPLE"}
-                             </div>
-                             <div className="px-4 py-1.5 bg-emerald-500/20 text-emerald-100 border border-emerald-500/30 rounded-full text-[10px] font-bold flex items-center gap-1.5">
-                                <Zap size={12} /> {contractModalProp.activeCampaign.duration || "6 Meses"}
-                             </div>
-                          </div>
-                      </div>
-                  </div>
+                  {(() => {
+                      // 1. EXTRACCIÓN DE DATOS
+                      const price = Number(contractModalProp.rawPrice || String(contractModalProp.price || "0").replace(/[^0-9]/g, ""));
+                      const commissionPct = Number(contractModalProp.activeCampaign?.commissionPct ?? contractModalProp.commissionPct ?? 0);
+                      const vatPct = 21; 
+                      const sharePct = Number(contractModalProp.activeCampaign?.commissionSharePct ?? contractModalProp.sharePct ?? contractModalProp.b2b?.sharePct ?? 0);
+                      const isB2bActive = sharePct > 0;
+                      
+// Lógica limpia para el Mandato y los Meses
+const mandateType = contractModalProp.mandateType || contractModalProp.activeCampaign?.mandateType || "MANDATO SIMPLE";
 
-                  {/* BODY: DESGLOSE FINANCIERO */}
-                  <div className="p-8 space-y-8">
-                      <div>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                              <Calculator size={14} /> Desglose Económico
-                          </p>
-                          <div className="grid grid-cols-3 gap-4">
-                              <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Honorarios Netos</p>
-                                  <p className="text-xl font-bold text-gray-800">{contractModalProp.activeCampaign.financials?.base || "---"}</p>
-                                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">{contractModalProp.activeCampaign.commission}%</span>
-                              </div>
-                              <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">IVA (21%)</p>
-                                  <p className="text-xl font-bold text-gray-600">{contractModalProp.activeCampaign.financials?.ivaAmount || "---"}</p>
-                              </div>
-                              <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 text-center shadow-inner">
-                                  <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Total a Pagar</p>
-                                  <p className="text-2xl font-black text-indigo-700">{contractModalProp.activeCampaign.financials?.total || "---"}</p>
-                              </div>
-                          </div>
-                      </div>
+// 🔥 EL CABLE DE LOS MESES CONECTADO AL PANEL 🔥
+// Leemos directamente el número. Si por algún motivo no hay nada guardado, ponemos 6 por defecto.
+const rawMonths = contractModalProp.activeCampaign?.exclusiveMonths || contractModalProp.exclusiveMonths || 6;
+const duration = `${rawMonths} MESES`;
+                      // 2. MATEMÁTICAS - AGENCIA CAPTADORA
+                      const commissionAmount = price * (commissionPct / 100);
+                      const vatAmount = commissionAmount * (vatPct / 100);
+                      const totalCommission = commissionAmount + vatAmount;
 
-                      {/* B2B */}
-                      {contractModalProp.b2b && contractModalProp.b2b.sharePct > 0 && (
-                          <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                                      <Handshake size={20}/>
+                      // 3. MATEMÁTICAS - AGENCIA COLABORADORA
+                      const collabAmount = commissionAmount * (sharePct / 100);
+                      const collabVat = collabAmount * (vatPct / 100);
+                      const collabTotal = collabAmount + collabVat;
+
+                      const formatCurrency = (amount: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+
+                      return (
+                          <>
+                              {/* HEADER OSCURO PREMIUM */}
+                              <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-white relative overflow-hidden shrink-0">
+                                  <div className="absolute -right-20 -top-20 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none"/>
+                                  
+                                  <div className="flex justify-between items-start relative z-10">
+                                      <div className="flex-1 pr-4">
+                                          <p className="text-[10px] font-black tracking-[0.3em] opacity-70 uppercase mb-2 text-blue-300">Expediente Oficial</p>
+                                          <h3 className="text-3xl font-black truncate">{contractModalProp.title || "Propiedad sin título"}</h3>
+                                          <p className="text-slate-400 text-xs font-bold mt-1.5 uppercase tracking-wider">REF: {contractModalProp.refCode || "---"}</p>
+                                      </div>
+                                      
+                                      {/* PRECIO DE VENTA A LA DERECHA */}
+                                      <div className="flex flex-col items-end text-right shrink-0 bg-white/10 p-4 rounded-2xl backdrop-blur-md border border-white/10">
+                                          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mb-1">Precio Venta Actual</p>
+                                          <p className="text-3xl font-black text-emerald-400 tracking-tight">{formatCurrency(price)}</p>
+                                      </div>
                                   </div>
+                                  
+                              {/* BADGES */}
+                                  <div className="flex gap-2 mt-6 relative z-10">
+                                     <div className="px-4 py-1.5 bg-white/10 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/20 flex items-center gap-1.5 uppercase shadow-sm">
+                                        <Lock size={12} className="text-blue-300" /> {mandateType}
+                                     </div>
+                                     <div className="px-4 py-1.5 bg-white/10 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/20 flex items-center gap-1.5 uppercase shadow-sm">
+                                        <Clock size={12} className="text-amber-300" /> {duration}
+                                     </div>
+                                  </div>
+                              </div>
+
+                              {/* BODY: DESGLOSES FINANCIEROS */}
+                              <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar bg-slate-50">
+                                  
+                                  {/* BLOQUE 1: TUS HONORARIOS (AGENCIA CAPTADORA) */}
                                   <div>
-                                      <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Colaboración Activa</p>
-                                      <p className="text-xs text-emerald-600 font-medium">Visible para la red de agencias.</p>
+                                      <div className="flex items-center justify-between mb-4 px-1">
+                                          <p className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                                              <Calculator size={16} className="text-blue-600"/> Honorarios Agencia Captadora
+                                          </p>
+                                          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md text-[10px] font-bold border border-blue-200 shadow-sm">
+                                              TU COMISIÓN: {commissionPct}%
+                                          </span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-4">
+                                          <div className="p-5 bg-white rounded-2xl border border-slate-200 text-center shadow-sm">
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Base Imponible</p>
+                                              <p className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(commissionAmount)}</p>
+                                          </div>
+                                          <div className="p-5 bg-white rounded-2xl border border-slate-200 text-center shadow-sm">
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">IVA ({vatPct}%)</p>
+                                              <p className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(vatAmount)}</p>
+                                          </div>
+                                          <div className="p-5 bg-blue-600 rounded-2xl border border-blue-700 text-center shadow-md text-white">
+                                              <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">Total a Facturar</p>
+                                              <p className="text-2xl font-black tracking-tight">{formatCurrency(totalCommission)}</p>
+                                          </div>
+                                      </div>
                                   </div>
-                              </div>
-                              <div className="text-right">
-                                  <p className="text-[10px] font-bold text-emerald-500 uppercase">Compartes</p>
-                                  <p className="text-2xl font-black text-emerald-700">{contractModalProp.b2b.sharePct}%</p>
-                              </div>
-                          </div>
-                      )}
 
-                      {/* SERVICIOS */}
-                      <div>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                              <Sparkles size={14} /> Servicios Incluidos
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                              {(contractModalProp.activeCampaign.services || []).map((srv: string) => {
-                                  const key = normalizeKey(srv);
-                                  const Icon = ICON_MAP[key] || Sparkles;
-                                  return (
-                                    <div key={srv} className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-[10px] font-bold uppercase shadow-sm flex items-center gap-2 hover:border-indigo-300 transition-colors">
-                                        <Icon size={12} className="text-indigo-500"/> {srv.replace(/_/g, " ")}
-                                    </div>
-                                  );
-                              })}
-                          </div>
-                      </div>
-                  </div>
-                  
-                  {/* FOOTER */}
-                  <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
-                      <button onClick={() => setContractModalProp(null)} className="px-8 py-3 bg-black text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-gray-800 hover:scale-105 transition-all shadow-lg">
-                          Cerrar Expediente
-                      </button>
-                  </div>
+                                  {/* BLOQUE 2: COLABORACIÓN B2B */}
+                                  {isB2bActive ? (
+                                      <div className="relative pt-8 border-t border-slate-200 border-dashed">
+                                          <div className="flex items-center justify-between mb-4 px-1">
+                                              <p className="text-xs font-black text-emerald-800 uppercase tracking-widest flex items-center gap-2">
+                                                  <Handshake size={16} className="text-emerald-600"/> Reparto Colaborador (B2B)
+                                              </p>
+                                              <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-md text-[10px] font-bold border border-emerald-200 shadow-sm">
+                                                  COMPARTES: {sharePct}%
+                                              </span>
+                                          </div>
+                                          <div className="grid grid-cols-3 gap-4">
+                                              <div className="p-5 bg-white rounded-2xl border border-emerald-100 text-center shadow-sm">
+                                                  <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Base Cedida</p>
+                                                  <p className="text-lg font-black text-emerald-900 tracking-tight">{formatCurrency(collabAmount)}</p>
+                                              </div>
+                                              <div className="p-5 bg-white rounded-2xl border border-emerald-100 text-center shadow-sm">
+                                                  <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">IVA ({vatPct}%)</p>
+                                                  <p className="text-lg font-black text-emerald-900 tracking-tight">{formatCurrency(collabVat)}</p>
+                                              </div>
+                                              <div className="p-5 bg-emerald-500 rounded-2xl border border-emerald-600 text-center shadow-md text-white">
+                                                  <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest mb-1">Total Colaborador</p>
+                                                  <p className="text-2xl font-black tracking-tight">{formatCurrency(collabTotal)}</p>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  ) : (
+                                      <div className="pt-6 border-t border-slate-200 border-dashed">
+                                          <div className="p-6 rounded-2xl border border-slate-200 bg-slate-100/50 flex items-center gap-4">
+                                              <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+                                                  <Handshake size={24}/>
+                                              </div>
+                                              <div>
+                                                  <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-0.5">Sin Colaboración Activa</p>
+                                                  <p className="text-xs font-medium text-slate-400">Esta propiedad no comparte honorarios con otras agencias.</p>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  )}
+
+                              </div>
+                              
+                              {/* FOOTER */}
+                              <div className="p-6 bg-white border-t border-slate-100 flex justify-end shrink-0">
+                                  <button onClick={() => setContractModalProp(null)} className="px-10 py-4 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-black hover:scale-[1.02] active:scale-95 transition-all shadow-lg hover:shadow-xl flex items-center gap-2">
+                                      <Check size={16} /> Cerrar Expediente
+                                  </button>
+                              </div>
+                          </>
+                      );
+                  })()}
               </div>
           </div>
       )}

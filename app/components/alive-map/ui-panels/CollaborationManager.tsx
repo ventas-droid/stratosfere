@@ -60,8 +60,30 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
     const [collabs, setCollabs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
+   // 🔥 EL RECEPTOR DE BENGALAS TÁCTICAS 🔥
     useEffect(() => {
+        // 1. Carga inicial al abrir el panel
         loadData();
+
+        // 2. Escuchador: Cuando el botón amarillo grita "¡Actualiza!", recargamos
+        const handleRefresh = () => {
+            console.log("⚡ Señal recibida: Recargando lista B2B...");
+            loadData();
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('refresh-b2b-list', handleRefresh);
+            // Por si el sistema usa directamente el evento de abrir chat para recargar
+            window.addEventListener('open-chat-signal', handleRefresh); 
+        }
+
+        // 3. Limpieza táctica al cerrar
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('refresh-b2b-list', handleRefresh);
+                window.removeEventListener('open-chat-signal', handleRefresh);
+            }
+        };
     }, []);
 
     const loadData = async () => {
@@ -154,23 +176,28 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
                         <h3 className="text-sm font-bold text-slate-600">Sin negociaciones activas</h3>
                     </div>
                 ) : (
-                    collabs.map((collab) => {
+                 collabs.map((collab) => {
                         const other = collab.otherUser || {};
                         const prop = collab.property || {};
-                        const isAgency = other.role === 'AGENCIA' || !!other.companyName;
                         
+                        // 🔥 RADIOGRAFÍA DE ROL BLINDADA (Como en el Radar) 🔥
+                        const rawRole = String(other.role || other.userRole || "").toUpperCase();
+                        const isAgency = rawRole.includes("AGENC") || rawRole.includes("PRO") || !!other.companyName || !!other.agencyId;
+                        
+                        // 🔥 ADIÓS A "USUARIO" 🔥
+                        const displayName = other.companyName || other.name || (isAgency ? "Agencia Inmobiliaria" : "Propietario");
+
                         const price = prop.rawPrice || prop.priceValue || 0;
                         const sharePct = prop.b2b?.sharePct || prop.sharePct || prop.commissionSharePct || 0; 
                         const potentialEarnings = sharePct > 0 ? (price * 0.03 * (sharePct / 100)) : 0;
 
-                        // 🔥 DETECCIÓN INTELIGENTE DE TELÉFONO 🔥
-                        // Prioridad: Móvil > Fijo > "Sin teléfono"
+                        // DETECCIÓN INTELIGENTE DE TELÉFONO
                         const realPhone = other.mobile || other.phone;
 
                         return (
                             <div key={collab.id} className="bg-white rounded-[20px] shadow-sm border border-slate-200/60 hover:shadow-md hover:border-indigo-200 transition-all overflow-hidden group">
                                 
-                                {/* 1. HEADER: DATOS DEL AGENTE (REALES Y COPIABLES) */}
+                                {/* 1. HEADER: DATOS DEL AGENTE */}
                                 <div className="p-4 border-b border-slate-100 flex items-start gap-4 bg-slate-50/30">
                                     {/* Avatar */}
                                     <div className="relative shrink-0">
@@ -188,18 +215,19 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
                                         )}
                                     </div>
                                     
-                                    {/* Info Textual */}
+                                   {/* Info Textual */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between mb-2">
+                                            {/* APLICAMOS EL NUEVO NOMBRE ELEGANTE */}
                                             <h4 className="font-bold text-slate-900 text-sm truncate pr-2">
-                                                {other.companyName || other.name || "Usuario"}
+                                                {displayName}
                                             </h4>
-                                            {/* Etiqueta Rol */}
-                                            <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                            {/* Etiqueta Rol Dinámica */}
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${isAgency ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
                                                 {isAgency ? "Agencia" : "Particular"}
                                             </span>
                                         </div>
-
+                                        
                                         {/* 🔥 BOTONERA DE CONTACTO (CLICK TO COPY) 🔥 */}
                                         <div className="flex flex-wrap gap-2">
                                             {realPhone ? (
@@ -268,18 +296,27 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
                                         <Trash2 size={16}/>
                                     </button>
                                     
-                                    <button 
+                                  <button 
                                         onClick={() => {
                                             if (typeof window !== 'undefined') {
+                                                // 1. Damos la orden de abrir la ficha
                                                 window.dispatchEvent(new CustomEvent('open-details-signal', { detail: prop }));
-                                                if (prop.latitude && prop.longitude) {
-                                                    window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                                                        detail: { center: [prop.longitude, prop.latitude], zoom: 18 } 
-                                                    }));
+                                                
+                                                // 2. Extracción blindada de coordenadas (caza lat/lng, latitude/longitude o arrays)
+                                                const lng = prop?.lng ?? prop?.longitude ?? (Array.isArray(prop?.coordinates) ? prop.coordinates[0] : null);
+                                                const lat = prop?.lat ?? prop?.latitude ?? (Array.isArray(prop?.coordinates) ? prop.coordinates[1] : null);
+
+                                                // 3. Retraso táctico (150ms) para que la UI respire, el panel se abra y el vuelo sea ultra fluido
+                                                if (lng != null && lat != null) {
+                                                    setTimeout(() => {
+                                                        window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                                                            detail: { center: [lng, lat], zoom: 18.5, pitch: 60 } 
+                                                        }));
+                                                    }, 150);
                                                 }
                                             }
                                         }}
-                                        className="flex-1 bg-white hover:bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-colors"
+                                        className="flex-1 bg-white hover:bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-colors border-r border-slate-100"
                                     >
                                         Ver Ficha
                                     </button>

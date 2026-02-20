@@ -631,7 +631,7 @@ if (src) {
     window.addEventListener('add-property-signal', handleNewProperty);
     return () => window.removeEventListener('add-property-signal', handleNewProperty);
   }, [map]);
-  // --------------------------------------------------------------------
+ // --------------------------------------------------------------------
   // G. SISTEMA DE ACTUALIZACIÓN EN TIEMPO REAL (UPDATE PROPERTY)
   // --------------------------------------------------------------------
   useEffect(() => {
@@ -641,61 +641,50 @@ if (src) {
 
       console.log(`🔄 COMANDO ACTUALIZAR RECIBIDO para ID: ${id}`, updates);
 
-      // 1. ACTUALIZAR EN LOCALSTORAGE
-      try {
-        const saved = localStorage.getItem('stratos_my_properties');
-        if (saved) {
-          let properties = JSON.parse(saved);
-          const index = properties.findIndex((p: any) => String(p.id) === String(id));
-          
-          if (index !== -1) {
-            properties[index] = { ...properties[index], ...updates };
-            // Aseguramos que el precio sea numérico para el cálculo de TIER/COLOR
-            if (updates.price) {
-               properties[index].priceValue = Number(updates.price);
-               properties[index].rawPrice = Number(updates.price);
-            }
-            localStorage.setItem('stratos_my_properties', JSON.stringify(properties));
+      // 🗑️ LOCALSTORAGE ELIMINADO TOTALMENTE - SOLO USAMOS MEMORIA DEL MAPA 🗑️
+
+      // 1. ACTUALIZAR EN EL MAPA (BLINDADO CONTRA '[object Object]')
+      const updateSource: any = map.current.getSource('properties');
+
+      if (updateSource && (updateSource as any)._data) {
+        const currentFeatures = (updateSource as any)._data.features || [];
+
+        const updatedFeatures = currentFeatures.map((f: any) => {
+          if (String(f.properties.id) === String(id)) {
+            const newPriceValue = updates.price ? Number(updates.price) : f.properties.priceValue;
+
+            // 🔥 SALVAVIDAS MAPBOX: Serializamos todo lo complejo antes de dárselo a Mapbox
+            // Mapbox rompe los arrays y objetos anidados si se los das directamente
+            const safeUpdates = { ...updates };
+            ['images', 'b2b', 'openHouse', 'open_house_data', 'activeCampaign', 'user', 'ownerSnapshot', 'specs'].forEach(key => {
+                if (safeUpdates[key] && typeof safeUpdates[key] === 'object') {
+                    safeUpdates[key] = JSON.stringify(safeUpdates[key]); // Convertimos a string seguro
+                }
+            });
+
+            return {
+              ...f,
+              properties: {
+                ...f.properties,
+                ...safeUpdates, // Inyectamos la data segura
+                price: updates.price ? `${updates.price}€` : f.properties.price,
+                priceValue: newPriceValue,
+              },
+            };
           }
-        }
-      } catch (e) { console.error(e); }
+          return f;
+        });
 
-    // 2. ACTUALIZAR EN EL MAPA
-const updateSource: any = map.current.getSource('properties');
+        updateSource.setData({ type: 'FeatureCollection', features: updatedFeatures });
 
-if (updateSource && (updateSource as any)._data) {
-  const currentFeatures = (updateSource as any)._data.features || [];
-
-  const updatedFeatures = currentFeatures.map((f: any) => {
-    if (String(f.properties.id) === String(id)) {
-      const newPriceValue = updates.price ? Number(updates.price) : f.properties.priceValue;
-
-      return {
-        ...f,
-        properties: {
-          ...f.properties,
-          ...updates,
-          price: updates.price ? `${updates.price}€` : f.properties.price,
-          priceValue: newPriceValue,
-        },
-      };
-    }
-    return f;
-  });
-
-  updateSource.setData({ type: 'FeatureCollection', features: updatedFeatures });
-
-  // Forzamos repintado visual inmediato
-  map.current.once('idle', () => updateMarkers());
-}
-
+        // Forzamos repintado visual inmediato para que la NanoCard lea los cambios
+        map.current.once('idle', () => updateMarkers());
+      }
     };
 
    window.addEventListener('update-property-signal', handleUpdateProperty);
     return () => window.removeEventListener('update-property-signal', handleUpdateProperty);
   }, [map]);
-
-  // 👇👇👇 AQUI COMIENZA LA NUEVA INTEGRACIÓN DEL RADAR 👇👇👇
 
   // --------------------------------------------------------------------
   // H. ESCANER TÁCTICO (RADAR) - INTEGRADO

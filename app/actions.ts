@@ -388,7 +388,7 @@ export async function getPropertyByIdAction(propertyId: string) {
   }
 }
 
-// C. GUARDAR PROPIEDAD (VERSIÓN FINAL: SIN DEFECTOS DE MADRID)
+// C. GUARDAR PROPIEDAD (VERSIÓN DEFINITIVA Y BLINDADA)
 export async function savePropertyAction(data: any) {
   try {
     const user = await getCurrentUser();
@@ -403,34 +403,28 @@ export async function savePropertyAction(data: any) {
     let servicesSet = new Set<string>(Array.isArray(data.selectedServices) ? data.selectedServices : []);
     ['pool', 'garage', 'terrace', 'ac', 'garden', 'storage', 'heating', 'furnished', 'security', 'balcony', 'elevator']
         .forEach(k => { if(data[k]) servicesSet.add(k); });
-
     let finalServices = Array.from(servicesSet);
     if (!finalServices.some((s: string) => s && String(s).startsWith('pack_'))) finalServices.push('pack_basic');
 
-   // 3. IMÁGENES (VERSIÓN ANTI-ZOMBIES)
-    // Solo confiamos en la lista visual que el usuario ha dejado
+    // 3. IMÁGENES
     let imagesList = Array.isArray(data.images) ? data.images : [];
-    
-    // Extraemos las URLs limpias por si acaso vienen como objetos
     imagesList = imagesList.map((img: any) => typeof img === 'string' ? img : img.url).filter(Boolean);
-
-    // La foto principal SIEMPRE será la primera de la lista real actual
     const mainImage = imagesList.length > 0 ? imagesList[0] : null;
 
-    // 4. COORDENADAS (Solo si vienen nuevas y válidas)
+    // 4. COORDENADAS
     let coordsPayload: any = {};
-    if (data.coordinates && Array.isArray(data.coordinates) && data.coordinates.length === 2) {
-        if (data.coordinates[0] !== 0) {
-            coordsPayload.longitude = data.coordinates[0];
-            coordsPayload.latitude = data.coordinates[1];
-        }
-    } else if (data.latitude && data.longitude) {
-        coordsPayload.longitude = parseFloat(data.longitude);
-        coordsPayload.latitude = parseFloat(data.latitude);
+    if (data.coordinates && Array.isArray(data.coordinates) && data.coordinates.length === 2 && data.coordinates[0] !== 0) {
+        coordsPayload.longitude = data.coordinates[0];
+        coordsPayload.latitude = data.coordinates[1];
     }
-    // Si no hay coordenadas nuevas, coordsPayload está vacío y Prisma NO tocará lo que ya hay.
 
-    // 5. PAYLOAD BASE
+    // 🔥 5. EXTRACCIÓN DE B2B SEGURO (Da igual si viene en data o data.b2b)
+    const b2bSharePct = Number(data.sharePct ?? data.b2b?.sharePct ?? 0);
+    const b2bCommissionPct = Number(data.commissionPct ?? data.b2b?.commissionPct ?? 0);
+    const b2bVisibility = String(data.shareVisibility ?? data.b2b?.visibility ?? data.b2b?.shareVisibility ?? "PRIVATE");
+    const b2bMandate = String(data.mandateType ?? data.b2b?.mandateType ?? "ABIERTO");
+const b2bMonths = Number(data.exclusiveMonths || 6);
+    // 6. PAYLOAD BASE
     const basePayload = {
         type: data.type || 'Piso',
         title: data.title || undefined,
@@ -439,9 +433,7 @@ export async function savePropertyAction(data: any) {
         mBuilt: cleanM2,
         address: data.address || undefined,
         city: data.city || undefined, 
-        
-        ...coordsPayload, // Inyectamos solo si existen
-
+        ...coordsPayload,
         rooms: Number(data.rooms || 0),
         baths: Number(data.baths || 0),
         floor: data.floor ? String(data.floor) : null,
@@ -457,24 +449,21 @@ export async function savePropertyAction(data: any) {
         heating: servicesSet.has('heating'),
         furnished: servicesSet.has('furnished'),
         security: servicesSet.has('security'),
-
         state: data.state || null,          
         orientation: data.orientation || null, 
         exterior: data.exterior !== undefined ? Boolean(data.exterior) : true,
-
         videoUrl: data.videoUrl || null,
         tourUrl: data.tourUrl || null,
         simpleNoteUrl: data.simpleNoteUrl || null,
         energyCertUrl: data.energyCertUrl || null,
-
-        mandateType: data.mandateType || "ABIERTO",
-        commissionPct: data.commissionPct ? Number(data.commissionPct) : 0,
-        sharePct: data.sharePct ? Number(data.sharePct) : 0,
-        shareVisibility: data.shareVisibility || "PRIVATE",
         
+        // 🔥 Guardamos los datos B2B limpios en la propiedad
+        mandateType: b2bMandate,
+        commissionPct: b2bCommissionPct,
+        sharePct: b2bSharePct,
+        shareVisibility: b2bVisibility,
         selectedServices: finalServices,
         mainImage: mainImage || undefined,
-        
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
         energyEmissions: data.energyEmissions || null,      
@@ -482,78 +471,123 @@ export async function savePropertyAction(data: any) {
     };
 
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
-    const includeOptions = { images: true, user: true };
+    let propertyId = data.id;
 
-    let result;
-    
     // --- EDICIÓN ---
-    if (data.id && data.id.length > 20) {
-      const existing = await prisma.property.findUnique({ where: { id: data.id } });
-      if (!existing) return { success: false, error: "No encontrada." };
+    if (propertyId && propertyId.length > 20) {
+        const existing = await prisma.property.findUnique({ where: { id: propertyId } });
+        if (!existing) return { success: false, error: "No encontrada." };
 
-      let isAuthorized = existing.userId === user.id;
-      if (!isAuthorized && user.role === 'AGENCIA') {
-          const activeContract = await prisma.campaign.findFirst({
-              where: { propertyId: data.id, agencyId: user.id, status: 'ACCEPTED' }
-          });
-          if (activeContract) isAuthorized = true;
-      }
-      if (!isAuthorized) return { success: false, error: "No autorizado." };
+        let isAuthorized = existing.userId === user.id;
+        let activeContract = null;
 
-      await prisma.image.deleteMany({ where: { propertyId: data.id } });
+        if (!isAuthorized && user.role === 'AGENCIA') {
+            activeContract = await prisma.campaign.findFirst({
+                where: { propertyId: propertyId, agencyId: user.id, status: 'ACCEPTED' }
+            });
+            if (activeContract) isAuthorized = true;
+        }
+        if (!isAuthorized) return { success: false, error: "No autorizado." };
 
-      result = await prisma.property.update({
-        where: { id: data.id },
-        data: { ...basePayload, images: imageCreateLogic },
-        include: includeOptions,
-      });
+        await prisma.image.deleteMany({ where: { propertyId: propertyId } });
 
+        await prisma.property.update({
+            where: { id: propertyId },
+            data: { ...basePayload, images: imageCreateLogic, status: data.status || existing.status },
+        });
+
+       // 🔥 Si la agencia la HEREDÓ, actualizamos también su contrato B2B
+        if (activeContract) {
+            await prisma.campaign.update({
+                where: { id: activeContract.id },
+                data: {
+                    mandateType: b2bMandate,
+                    exclusiveMonths: b2bMonths, // <--- AQUÍ ESTÁ EL NUEVO CABLE CONECTADO
+                    commissionPct: b2bCommissionPct,
+                    commissionSharePct: b2bSharePct,
+                    commissionShareVisibility: b2bVisibility,
+                } as any // <--- ESTA ES LA LLAVE MAESTRA ('as any')
+            });
+        }
     } else {
-      // --- CREACIÓN ---
-      const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
-      const refCode = `SF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        // --- CREACIÓN ---
+        const initialStatus = user.role === 'AGENCIA' ? 'PUBLICADO' : 'PENDIENTE_PAGO';
+        const refCode = `SF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      // 🔥 CORRECCIÓN: Si no hay coordenadas, NO forzamos Madrid. Dejamos que sea null.
-      // (Esto evita que aparezcan casas en la Puerta del Sol por error)
+        const ownerSnapshot = {
+            id: user.id, name: user.name, companyName: user.companyName,
+            companyLogo: user.companyLogo, avatar: user.avatar,
+            phone: user.phone, mobile: user.mobile, role: user.role
+        };
 
-      const ownerSnapshot = {
-        id: user.id, name: user.name, companyName: user.companyName,
-        companyLogo: user.companyLogo, avatar: user.avatar,
-        phone: user.phone, mobile: user.mobile, role: user.role
-      };
-
-      result = await prisma.property.create({
-          data: { 
-              ...basePayload,
-              userId: user.id, 
-              refCode,
-              ownerSnapshot,
-              images: imageCreateLogic,
-              status: initialStatus, 
-              promotedTier: "FREE" 
-          } as any,
-          include: includeOptions,
-      });
+        const newProp = await prisma.property.create({
+            data: { 
+                ...basePayload,
+                userId: user.id, 
+                refCode,
+                ownerSnapshot,
+                images: imageCreateLogic,
+                status: data.status || initialStatus, 
+                promotedTier: "FREE" 
+            } as any,
+        });
+        propertyId = newProp.id;
     }
 
     // --- OPEN HOUSE ---
-    if (result && result.id && data.openHouse) {
+    if (propertyId && data.openHouse) {
         let ohData = data.openHouse;
         if (typeof ohData === 'string') { try { ohData = JSON.parse(ohData); } catch (e) {} }
+        
         if (ohData && (ohData.enabled === true || String(ohData.enabled) === "true")) {
-            await saveOpenHouseAction({
-                propertyId: result.id,
-                title: ohData.title,
-                startTime: ohData.startTime,
-                endTime: ohData.endTime,
-                capacity: ohData.capacity,
-                amenities: ohData.amenities
-            });
+            const existingOH = await prisma.openHouse.findFirst({ where: { propertyId } });
+            
+            const ohPayload = {
+                propertyId,
+                startTime: new Date(ohData.startTime),
+                endTime: new Date(ohData.endTime),
+                title: ohData.title || "Open House",
+                capacity: Number(ohData.capacity || 50),
+                status: "SCHEDULED",
+                // 🔥 AQUÍ ESTÁ EL ARREGLO: Faltaba esta línea para guardar los botones
+                amenities: Array.isArray(ohData.amenities) ? ohData.amenities : [] 
+            };
+
+            if (existingOH) await prisma.openHouse.update({ where: { id: existingOH.id }, data: ohPayload });
+            else await prisma.openHouse.create({ data: ohPayload });
+        } else {
+             // Si lo han apagado, lo borramos de la BD
+             await prisma.openHouse.deleteMany({ where: { propertyId } });
         }
     }
 
+   // 🔥 EL GOLPE MAESTRO: Recuperar la propiedad FINAL con todos sus agregados
+    const finalProperty: any = await prisma.property.findUnique({
+        where: { id: propertyId },
+        include: {
+            images: true,
+            user: { select: USER_IDENTITY_SELECT }, 
+            campaigns: { where: { status: "ACCEPTED" }, take: 1 },
+            openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 },
+            // 👇 LA CLAVE: Preguntamos si hay un contrato de agencia vigente
+            assignment: {
+                where: { status: "ACTIVE" },
+                include: { agency: { select: USER_IDENTITY_SELECT } }
+            }
+        }
+    });
+
+    // 🌟 LA MAGIA DE LA TRANSMUTACIÓN: 
+    // Si la agencia gestiona la casa, sobreescribimos al "user" para que el mapa crea que es de la Agencia.
+    if (finalProperty && finalProperty.assignment && finalProperty.assignment.agency) {
+        finalProperty.user = {
+            ...finalProperty.assignment.agency,
+            role: 'AGENCIA' // Forzamos el rol para que el modal se pinte de negro
+        };
+    }
+
     revalidatePath("/");
-    return { success: true, property: result };
+    return { success: true, property: finalProperty };
 
   } catch (error) {
     console.error("savePropertyAction error:", error);

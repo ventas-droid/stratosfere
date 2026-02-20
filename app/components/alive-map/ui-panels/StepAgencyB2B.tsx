@@ -50,6 +50,23 @@ export default function StepAgencyB2B({ formData, updateData, setStep }: any) {
                     </div>
                 </div>
 
+{/* --- INICIO BLOQUE MESES --- */}
+        <div className="mt-6">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                Tiempo (Meses)
+            </label>
+            <input 
+                type="number"
+                min="1"
+                max="60"
+                className="w-full p-4 bg-white rounded-xl border border-gray-200 text-gray-900 font-bold text-lg focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all shadow-sm"
+                placeholder="Ej: 6"
+                value={formData.exclusiveMonths || ""}
+                onChange={(e) => updateData("exclusiveMonths", e.target.value === "" ? "" : Number(e.target.value))}
+            />
+        </div>
+        {/* --- FIN BLOQUE MESES --- */}
+
                 {/* 2. HONORARIOS AGENCIA */}
                 <div className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
