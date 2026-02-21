@@ -39,6 +39,7 @@ import AgencyAmbassadorPanel from "./AgencyAmbassadorPanel";
 import PremiumUpgradePanel from "./PremiumUpgradePanel";
 import PlanOverlay from "@/app/components/billing/PlanOverlay";
 import { useMyPlan } from "@/app/components/billing/useMyPlan";
+import SmartSidebar from '@/app/components/alive-map/ui-panels/SmartSidebar';
 
 // 🔥 IMPORTS ACTIONS (chat + favoritos + agency)
 import {
@@ -2203,7 +2204,8 @@ window.addEventListener("toggle-fav-signal", handleToggleFavSignal);
 // ESTAS YA LAS TENÍA
 window.addEventListener("reload-profile-assets", handleReload);
 window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
-
+// 📡 ANTENA DEL NUEVO RADAR LATERAL
+window.addEventListener("stratos-property-selected", handleOpenDetails);
 // ✅ CHAT
 window.addEventListener("open-chat-signal", handleOpenChatSignal as any);
 window.addEventListener("open-chat-with-user", handleOpenChatSignal as any); 
@@ -2710,18 +2712,32 @@ if (!gateUnlocked) {
                {/* Ahora el sistema usará obligatoriamente los que están definidos al final del archivo, que sí funcionan bien. */}
            </>
        )}
-    {/* MODO EXPLORADOR (BARRA USUARIO) */}
+   {/* MODO EXPLORADOR (BARRA USUARIO) */}
        {systemMode === 'EXPLORER' && (
            <>
-               {(showAdvancedConsole || !landingComplete) && <StratosConsole isInitial={!landingComplete} onClose={() => setShowAdvancedConsole(false)} onLaunch={handleStratosLaunch} />}
+               {/* 🚀 NUEVO CEREBRO: COLUMNA DERECHA INTELIGENTE (Ahora sí obedece a la orden de abrir/cerrar) */}
+               {showAdvancedConsole && (
+                   <SmartSidebar onClose={() => setShowAdvancedConsole(false)} />
+               )}
                
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
                       <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
-                        {/* BOTONES IZQUIERDA (Menu + Ajustes) */}
+                          
+                          {/* ⚠️ GENERAL: Busque el botón de las rayitas (Filtros) que tiene usted aquí dentro 
+                                y asegúrese de que su onClick sea EXACTAMENTE este: */}
+                          
+                          <button 
+                              onClick={() => setShowAdvancedConsole(!showAdvancedConsole)}
+                              className={`p-2 rounded-full transition-all ${showAdvancedConsole ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+                              title="Radar Táctico"
+                          >
+                              <SlidersHorizontal size={20} /> 
+                          </button>
+                      {/* BOTONES IZQUIERDA (Menu + Ajustes) */}
                         <div className="flex items-center gap-1">
                             <button onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
-                            <button onClick={() => { playSynthSound('click'); setShowAdvancedConsole(true); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${showAdvancedConsole ? 'text-white bg-white/10 shadow-[0_0_10px_rgba(255,255,255,0.2)]' : 'text-white/50 hover:text-white'}`}><SlidersHorizontal size={18}/></button>
+                            {/* 🔥 INTRUSO ELIMINADO: Aquí estaba el botón malo antiguo */}
                         </div>
                         
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>

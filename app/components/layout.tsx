@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Stratosfere os",
-  description: "Search Better.", // O el lema que elijas
+  description: "Search Better.", 
 };
 
 export default function RootLayout({
@@ -14,11 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="bg-black text-zinc-100">
+      {/* 🔥 ESCUDOS ACTIVADOS: antialiased y optimizeLegibility inyectados */}
+      <body className="bg-black text-zinc-100 antialiased [text-rendering:optimizeLegibility]">
         {children}
       </body>
     </html>
   );
 }
-
-

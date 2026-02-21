@@ -40,6 +40,56 @@ import {
 import { useRouter } from 'next/navigation';
 import { uploadToCloudinary } from '@/app/utils/upload';
 
+// ==========================================
+// ⏳ MINI-COMPONENTE: RELOJ PREMIUM (CON SEGUNDOS SIEMPRE)
+// ==========================================
+function PremiumClock({ expiresAt }: { expiresAt: any }) {
+  const [timeLeft, setTimeLeft] = React.useState("");
+
+  React.useEffect(() => {
+      if (!expiresAt) return;
+      const calculateTimeLeft = () => {
+          const now = new Date().getTime();
+          const expiry = new Date(expiresAt).getTime();
+          const distance = expiry - now;
+
+          if (distance < 0) return "FUEGO EXTINGUIDO";
+
+          const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+          // Formateamos los números para que siempre tengan 2 dígitos (ej: 05, 09)
+          const h = hours.toString().padStart(2, '0');
+          const m = minutes.toString().padStart(2, '0');
+          const s = seconds.toString().padStart(2, '0');
+
+          // 🔥 AHORA LOS SEGUNDOS SE VEN SIEMPRE, HAYA DÍAS O NO
+          if (days > 0) {
+              return `${days}d ${h}h ${m}m ${s}s`;
+          } else {
+              return `${h}:${m}:${s}`; // Formato pánico (00:15:30)
+          }
+      };
+
+      setTimeLeft(calculateTimeLeft());
+      const timer = setInterval(() => setTimeLeft(calculateTimeLeft()), 1000);
+      return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  return (
+      <div className="flex items-center gap-1.5 bg-white/60 px-2.5 py-1 rounded-md border border-amber-100 shadow-sm min-w-[120px] justify-center">
+          <Clock size={12} className="text-amber-600 animate-pulse" />
+          <span className="text-[11px] font-mono font-black text-amber-800 tracking-tight whitespace-nowrap">
+              {timeLeft || "Calculando..."}
+          </span>
+      </div>
+  );
+}
+// ==========================================
+
+// ==========================================
 // --- DICCIONARIO MAESTRO ---
 const normalizeKey = (v: any) => String(v || '').toLowerCase().trim();
 
@@ -645,29 +695,48 @@ const handleFlyTo = (e: any, property: any) => {
                                     </button>
                                 </div>
                             ) : (
-                                // CASO B: PARTICULAR (Tarjeta Gris O PREMIUM)
-                                <div className={`mb-4 p-4 rounded-[20px] border shadow-sm ${isPremium ? 'bg-white border-amber-200' : 'bg-slate-50 border-slate-100/80'}`}>
-                                    <div className="flex items-center gap-2 mb-2 opacity-70">
-                                        {isPremium ? <Zap size={10} className="text-amber-500"/> : <User size={10} className="text-slate-500" />}
-                                        <span className={`text-[9px] font-black uppercase tracking-widest ${isPremium ? 'text-amber-600' : 'text-slate-500'}`}>
+                               // CASO B: PARTICULAR (Tarjeta Gris O PREMIUM CON RELOJ)
+                            <div className={`mb-4 p-4 rounded-[20px] border shadow-sm ${isPremium ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 shadow-inner' : 'bg-slate-50 border-slate-100/80'}`}>
+                                
+                                {/* 1. CABECERA CON RELOJ */}
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2 opacity-90">
+                                        {isPremium ? (
+                                            <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center shadow-md">
+                                                <Zap size={10} className="text-white fill-current" />
+                                            </div>
+                                        ) : (
+                                            <User size={10} className="text-slate-500" />
+                                        )}
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${isPremium ? 'text-amber-700' : 'text-slate-500'}`}>
                                             {isPremium ? 'POTENCIADO CON FUEGO' : 'GESTIÓN PARTICULAR'}
                                         </span>
                                     </div>
                                     
-                                    {/* USAMOS serviceIds (filtrado) EN LUGAR DE prop.selectedServices */}
-                                    {serviceIds && serviceIds.length > 0 ? (
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            {serviceIds.slice(0, 4).map((srvId: string) => (
-                                                <div key={srvId} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase bg-white border-slate-200 text-slate-500">
-                                                    <span>{srvId}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-[10px] text-slate-400 font-medium italic mt-1">Venta directa sin intermediarios.</p>
+                                    {/* ⏳ EL RELOJ */}
+                                    {isPremium && prop.promotedUntil && (
+                                        <PremiumClock expiresAt={prop.promotedUntil} />
                                     )}
                                 </div>
-                            )}
+                                
+                                {/* 2. TAGS (Solo si NO es premium, para dejar limpia la tarjeta de fuego) */}
+                                {!isPremium && (
+                                    <>
+                                        {serviceIds && serviceIds.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {serviceIds.slice(0, 4).map((srvId: string) => (
+                                                    <div key={srvId} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase bg-white border-slate-200 text-slate-500">
+                                                        <span>{srvId}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[10px] text-slate-400 font-medium italic mt-1">Venta directa sin intermediarios.</p>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
 
                           <div className="pt-3 border-t border-slate-100 flex gap-2">
                                 

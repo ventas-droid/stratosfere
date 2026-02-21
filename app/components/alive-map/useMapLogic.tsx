@@ -168,108 +168,112 @@ export const useMapLogic = () => {
       
     }); // <--- CIERRE DEL .on('load')
   }, []); // <--- CIERRE DEL useEffect (ESTO ES LO QUE FALTABA)
-  // ----------------------------------------------------------------------
+ 
+ // ----------------------------------------------------------------------
   // 3. LÓGICA DE FILTRADO INTELIGENTE V2
   // ----------------------------------------------------------------------
   useEffect(() => {
     const handleFilterSignal = (e: any) => {
       if (!map.current || !map.current.getSource('properties')) return;
 
-      const { priceRange, surfaceRange, context, specs, specificType } = e.detail;
-
-      const LIMITS: any = { 'VIVIENDA': 1000, 'NEGOCIO': 2000, 'TERRENO': 10000 };
-
-      console.log(`🔍 FILTRANDO AVANZADO:`, { priceRange, context, specs, specificType });
-
+      // 🔥 AHORA LEEMOS LOS NUEVOS PARÁMETROS DE LA CONSOLA VIP
+      const { priceMax, surfaceRange, type, specs, premiumOnly } = e.detail;
+      const priceRange = { min: 0, max: priceMax || 999999999 }; // Adaptamos el precio
+      console.log(`🔍 FILTRANDO AVANZADO:`, { priceRange, type, specs, premiumOnly });
+   
       // 1. RECONSTRUIR EJÉRCITO (MAPA + LOCAL) PARA FILTRAR
-// ✅ FIX: ya NO usamos STRATOS_PROPERTIES (está vacío). Usamos la fuente real del mapa.
-const source: any = map.current.getSource('properties');
+      // ✅ FIX: ya NO usamos STRATOS_PROPERTIES (está vacío). Usamos la fuente real del mapa.
+      const source: any = map.current.getSource('properties');
 
-// Features actuales reales (server + local ya inyectado por RADAR)
-const sourceFeaturesRaw = (source as any)?._data?.features;
-let masterFeatures: any[] = Array.isArray(sourceFeaturesRaw) ? sourceFeaturesRaw : [];
+      // Features actuales reales (server + local ya inyectado por RADAR)
+      const sourceFeaturesRaw = (source as any)?._data?.features;
+      let masterFeatures: any[] = Array.isArray(sourceFeaturesRaw) ? sourceFeaturesRaw : [];
 
+      // Normalizamos (sin perder elevator/specs/selectedServices ni la memoria de Agencia)
+      masterFeatures = masterFeatures.map((f: any) => {
+        const p = f.properties || {};
+        const idStr = String(p.id ?? p._id ?? f.id ?? Date.now());
 
-// Normalizamos (sin perder elevator/specs/selectedServices ni la memoria de Agencia)
-masterFeatures = masterFeatures.map((f: any) => {
-  const p = f.properties || {};
-  const idStr = String(p.id ?? p._id ?? f.id ?? Date.now());
+        const priceValue = Number(
+          p.priceValue ??
+          p.rawPrice ??
+          (typeof p.price === 'string' ? String(p.price).replace(/\D/g, '') : p.price) ??
+          0
+        );
 
-  const priceValue = Number(
-    p.priceValue ??
-    p.rawPrice ??
-    (typeof p.price === 'string' ? String(p.price).replace(/\D/g, '') : p.price) ??
-    0
-  );
+        const m2 = Number(p.m2 ?? p.mBuilt ?? 0);
+        const mBuilt = Number(p.mBuilt ?? p.m2 ?? 0);
 
-  const m2 = Number(p.m2 ?? p.mBuilt ?? 0);
-  const mBuilt = Number(p.mBuilt ?? p.m2 ?? 0);
+        // 🔥 SALVAVIDAS DE ARRAYS (Por si Mapbox los convirtió en texto)
+        let safeServices = [];
+        if (Array.isArray(p.selectedServices)) {
+            safeServices = p.selectedServices;
+        } else if (typeof p.selectedServices === 'string') {
+            try { safeServices = JSON.parse(p.selectedServices); } catch(e) { safeServices = []; }
+        }
 
-  // 🔥 SALVAVIDAS DE ARRAYS (Por si Mapbox los convirtió en texto)
-  let safeServices = [];
-  if (Array.isArray(p.selectedServices)) {
-      safeServices = p.selectedServices;
-  } else if (typeof p.selectedServices === 'string') {
-      try { safeServices = JSON.parse(p.selectedServices); } catch(e) { safeServices = []; }
-  }
+        // 🔥 SALVAVIDAS DE OBJETOS (Por si Mapbox los convirtió en texto)
+        let safeSpecs = {};
+        if (typeof p.specs === 'object' && p.specs !== null) {
+            safeSpecs = p.specs;
+        } else if (typeof p.specs === 'string') {
+            try { safeSpecs = JSON.parse(p.specs); } catch(e) { safeSpecs = {}; }
+        }
 
-  // 🔥 SALVAVIDAS DE OBJETOS (Por si Mapbox los convirtió en texto)
-  let safeSpecs = {};
-  if (typeof p.specs === 'object' && p.specs !== null) {
-      safeSpecs = p.specs;
-  } else if (typeof p.specs === 'string') {
-      try { safeSpecs = JSON.parse(p.specs); } catch(e) { safeSpecs = {}; }
-  }
+        return {
+          ...f,
+          properties: {
+            ...p, // <--- Esto garantiza que el Open House y el Fuego Premium NO se borren
+            id: idStr,
+            priceValue,
+            m2,
+            mBuilt,
+            selectedServices: safeServices,
+            specs: safeSpecs,
+            elevator: (
+              isYes(p.elevator) ||
+              isYes(p.ascensor) ||
+              isYes(p.hasElevator) ||
+              isYes(p?.specs?.elevator) ||
+              isYes(safeSpecs?.elevator)
+            )
+          }
+        };
+      });
 
-  return {
-    ...f,
-    properties: {
-      ...p, // <--- Esto garantiza que el Open House y el Fuego Premium NO se borren
-      id: idStr,
-      priceValue,
-      m2,
-      mBuilt,
-      selectedServices: safeServices,
-      specs: safeSpecs,
-      elevator: (
-        isYes(p.elevator) ||
-        isYes(p.ascensor) ||
-        isYes(p.hasElevator) ||
-        isYes(p?.specs?.elevator) ||
-        isYes(safeSpecs?.elevator)
-      )
-    }
-  };
-});
+      // =====================================================================
+      // ☁️ 100% SAAS CLOUD: PURGA DE TROPAS FANTASMA (LOCALSTORAGE ELIMINADO)
+      // =====================================================================
+      // Usamos exclusivamente los datos reales validados por el servidor (masterFeatures).
 
-// =====================================================================
-// ☁️ 100% SAAS CLOUD: PURGA DE TROPAS FANTASMA (LOCALSTORAGE ELIMINADO)
-// =====================================================================
-// Usamos exclusivamente los datos reales validados por el servidor (masterFeatures).
+      const allData = masterFeatures.filter((f: any) => {
+        const pid = f?.properties?.id ?? f?.properties?._id ?? f?.id;
+        return pid !== undefined && pid !== null && String(pid).trim() !== "";
+      });
 
-const allData = masterFeatures.filter((f: any) => {
-  const pid = f?.properties?.id ?? f?.properties?._id ?? f?.id;
-  return pid !== undefined && pid !== null && String(pid).trim() !== "";
-});
+      // ✅ CORTAFUEGOS ANTI-BORRADO: Si por lo que sea aún no hay datos, NO tocar el source
+      if (allData.length === 0) {
+        console.warn("⏳ Filtro recibido pero no hay features válidas aún. No aplico para no borrar NanoCards.");
+        return;
+      }
 
-// ✅ CORTAFUEGOS ANTI-BORRADO: Si por lo que sea aún no hay datos, NO tocar el source
-if (allData.length === 0) {
-  console.warn("⏳ Filtro recibido pero no hay features válidas aún. No aplico para no borrar NanoCards.");
-  return;
-}
-
-
-
-     // 2. APLICAR LÓGICA DE FILTRADO
+      // 2. APLICAR LÓGICA DE FILTRADO
       const filteredFeatures = allData.filter(f => {
         const p = f.properties;
+
+        // 🔥 FILTRO VIP (MODO FUEGO BLINDADO): Tolerancia a mayúsculas
+        if (premiumOnly === true || String(premiumOnly) === "true") {
+           const tier = String(p.promotedTier || "").toUpperCase();
+           const isPremium = tier === 'PREMIUM' || p.isPromoted === true || p.premium === true;
+           if (!isPremium) return false;
+        }
 
         // A. Precio
         if (p.priceValue < priceRange.min || p.priceValue > priceRange.max) return false;
 
-        // B. Superficie
+        // B. Superficie (🚨 LÍMITE INFINITO PARA NO BORRAR LA VILLA DE 15.000m2)
         const m2 = p.m2 || Math.floor(p.priceValue / 4000);
-        if (m2 < (surfaceRange?.min || 0) || m2 > (surfaceRange?.max || 10000)) return false;
+        if (m2 < (surfaceRange?.min || 0) || m2 > (surfaceRange?.max || 99999999)) return false;
 
         // C. Especificaciones (Habitaciones / Baños)
         if (specs) {
@@ -303,28 +307,16 @@ if (allData.length === 0) {
             if (!hasAllFeatures) return false;
           }
         }
-
+       // -------------------------------------------------------------
+        // E. FILTRO DE TIPO (QUIRÚRGICO) 🔪 
         // -------------------------------------------------------------
-        // E. FILTRO DE TIPO (QUIRÚRGICO) 🔪 - ACTUALIZADO CON NUEVAS TIPOLOGÍAS
-        // -------------------------------------------------------------
-        const pType = (p.type || "").toUpperCase();
-        const targetType = (specificType || "").toUpperCase();
+        const pType = String(p.type || "").toLowerCase().trim();
+        const targetType = String(type || "all").toLowerCase().trim();
 
-        if (targetType && targetType !== 'ALL' && targetType !== 'TODOS') {
-          if (!pType.includes(targetType)) return false;
-        } else {
-          let typeOK = true;
-          if (context === 'NEGOCIO') {
-            typeOK = ['LOCAL', 'OFICINA', 'NAVE', 'EDIFICIO', 'GARAGE', 'TRASTERO', 'INDUSTRIAL'].some(t => pType.includes(t));
-          } else if (context === 'TERRENO') {
-            typeOK = ['SOLAR', 'TERRENO', 'FINCA', 'PARCELA', 'LAND'].some(t => pType.includes(t));
-          } else {
-            // Contexto VIVIENDA: Excluimos lo que claramente NO es vivienda.
-            // (Así Dúplex, Loft, Bungalow entran automáticamente en Vivienda)
-            const esNoVivienda = ['LOCAL', 'GARAGE', 'TRASTERO', 'NAVE', 'OFICINA', 'SOLAR', 'TERRENO', 'INDUSTRIAL', 'LAND'].some(t => pType.includes(t));
-            typeOK = !esNoVivienda;
-          }
-          if (!typeOK) return false;
+        // Si en la consola no está seleccionado "all" (Todos), exigimos coincidencia
+        if (targetType !== "all" && targetType !== "") {
+            // El usuario ha pulsado "Villa" -> Buscamos que diga "villa"
+            if (!pType.includes(targetType)) return false; 
         }
 
         return true;
@@ -335,9 +327,9 @@ if (allData.length === 0) {
       markersRef.current = {};
 
      const src: any = map.current.getSource('properties');
-if (src) {
-  src.setData({ type: 'FeatureCollection', features: filteredFeatures });
-}
+      if (src) {
+        src.setData({ type: 'FeatureCollection', features: filteredFeatures });
+      }
 
       map.current.once('idle', () => {
         console.log(`✅ Filtro aplicado: ${filteredFeatures.length} activos encontrados.`);
@@ -826,8 +818,18 @@ if (src) {
         });
 
         const unifiedList = Array.from(uniqueMap.values());
-
-        // --- FASE 3: GEOMETRÍA (Espirales para evitar superposición) ---
+// 🔥 CABLE DE COMUNICACIÓN AL RADAR LATERAL 🔥
+        if (typeof window !== 'undefined') {
+            // 1. Disparo inmediato por si el radar ya está abierto
+            window.dispatchEvent(new CustomEvent('stratos-inventory-ready', { detail: unifiedList }));
+            
+            // 2. Contestador automático (Si el radar se abre más tarde, gritará pidiendo las casas. Esto le responde).
+            window.addEventListener('request-stratos-inventory', () => {
+                window.dispatchEvent(new CustomEvent('stratos-inventory-ready', { detail: unifiedList }));
+            });
+        }
+       
+// --- FASE 3: GEOMETRÍA (Espirales para evitar superposición) ---
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
