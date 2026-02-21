@@ -130,7 +130,7 @@ export default function DetailsPanel({
         }
     }, [selectedProp?.id]);
 
-    // ============================================================
+   // ============================================================
     // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (PURGA DE DATOS VIEJOS)
     // ============================================================
     useEffect(() => {
@@ -143,10 +143,14 @@ export default function DetailsPanel({
                 
                 if (realData) {
                     // 2. Actualizamos la propiedad (Métricas, Precio, Estado)
-                    setSelectedProp((prev: any) => ({ ...prev, ...realData }));
+                    // 🔥 LA CLAVE: Respetamos a toda costa el usuario de la mochila (initialProp)
+                    setSelectedProp((prev: any) => ({ 
+                        ...prev, 
+                        ...realData,
+                        user: initialProp?.user || prev?.user || realData.user
+                    }));
 
-                    // 3. CAPTURAMOS AL DUEÑO REAL (Aquí está el arreglo del "Favorito Viejo")
-                    // Si la propiedad tiene un usuario asignado en la BD, ESE es el que manda.
+                    // 3. CAPTURAMOS AL DUEÑO REAL
                     if (realData.user) {
                         console.log("🦅 Dueño actualizado desde BD:", realData.user.name);
                         setFreshOwner(realData.user);
@@ -158,7 +162,7 @@ export default function DetailsPanel({
         };
 
         fetchFreshData();
-    }, [selectedProp?.id]);
+    }, [selectedProp?.id, initialProp]); // Añadimos initialProp a la vigilancia
 
 
     // 🔥 SENSOR FOTOS
@@ -188,10 +192,17 @@ export default function DetailsPanel({
     };
 
     // ============================================================
-    // 🛡️ LÓGICA DE IDENTIDAD BLINDADA
+    // 🛡️ LÓGICA DE IDENTIDAD BLINDADA (EL ARREGLO DEL AVATAR)
     // ============================================================
-    // Prioridad: 1. Dueño Fresco (BD) -> 2. Propiedad actual -> 3. Snapshot viejo
-    const activeOwner = freshOwner || selectedProp?.user || selectedProp?.ownerSnapshot || {};
+    
+    // Detectamos si es tu propia casa
+    const isViewingMyOwnProperty = currentUser?.id && String(currentUser.id) === String(selectedProp?.userId);
+    
+    // Prioridad INQUEBRANTABLE: 
+    // 1. Tu mochila o perfil (Si es tu casa) -> 2. Dueño Fresco (BD) -> 3. Snapshot viejo
+    const activeOwner = isViewingMyOwnProperty 
+        ? (initialProp?.user || currentUser) 
+        : (freshOwner || selectedProp?.user || initialProp?.user || selectedProp?.ownerSnapshot || {});
 
     const ownerName = activeOwner.companyName || activeOwner.name || "Propietario";
     
@@ -202,8 +213,8 @@ export default function DetailsPanel({
     const ownerPhone = activeOwner.mobile || activeOwner.phone || "Consultar";
     const ownerEmail = activeOwner.email || "---";
     
-    // ROL NORMALIZADO
-    const ownerRole = String(activeOwner.role || "PARTICULAR").toUpperCase();
+    // ROL NORMALIZADO (Respeta si le pasamos "Particular Verificado" desde la mochila)
+    const ownerRole = String(activeOwner.badge || activeOwner.role || "PARTICULAR").toUpperCase();
 
     // Copiar teléfono
     const copyPhone = () => {

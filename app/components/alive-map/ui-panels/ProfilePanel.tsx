@@ -284,58 +284,78 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
       if (onEdit) onEdit(property);
   };
   
-// 🔥 HANDLER DE VUELO SÚPER TÁCTICO (Respeta la Herencia del Fuego y evita Madrid)
+// 🔥 HANDLER DE VUELO FINAL (Fuego Inmortal para Particulares)
 const handleFlyTo = (e: any, property: any) => {
   if (e?.stopPropagation) e.stopPropagation();
   if (typeof soundEnabled !== "undefined" && playSynthSound) playSynthSound("click");
   if (typeof window === "undefined" || !property?.id) return;
 
+  // 1️⃣ CLONAMOS LA PROPIEDAD PARA NO MUTAR LA ORIGINAL
   let targetProp = { ...property };
 
-  // 1) 🛡️ RESPETAMOS LA HERENCIA DEL FUEGO
-  if (targetProp.rawPrice) {
-    targetProp.priceValue = targetProp.rawPrice;
-    targetProp.price = targetProp.rawPrice;
-  }
-  // Si la propiedad YA ES PREMIUM (porque el particular lo pagó), lo blindamos
-  if (targetProp.promotedTier === 'PREMIUM' || targetProp.isPromoted === true || targetProp.isPromoted === "true") {
+  // 2️⃣ 🔥 DETECTAMOS Y FORZAMOS EL ESTADO PREMIUM
+  // Comprobamos todas las posibles señales de que es una propiedad con fuego
+  const isPremium = 
+      targetProp.promotedTier === 'PREMIUM' || 
+      targetProp.isPromoted === true || 
+      targetProp.isPromoted === "true" || 
+      targetProp.premium === true;
+
+  if (isPremium) {
+    // ¡FORZAMOS TODAS LAS BANDERAS A TRUE!
     targetProp.promotedTier = 'PREMIUM';
     targetProp.isPromoted = true;
+    targetProp.premium = true;
+    targetProp.promoted = true;
+    console.log("🔥 FUEGO DETECTADO: Forzando banderas Premium para el mapa.");
   }
 
-  // 2) 🕵️‍♂️ TRADUCTOR SEGURO DE CAMPAÑAS
+  // 3️⃣ 🕵️‍♂️ TRADUCTOR DE CAMPAÑAS (Limpieza de datos)
   const parseJsonSafe = (val: any) => {
       if (typeof val === "string") { try { return JSON.parse(val); } catch { return null; } }
       return val;
   };
-
   const safeCampaign = parseJsonSafe(targetProp.activeCampaign) || parseJsonSafe(targetProp.campaigns)?.[0];
   targetProp.activeCampaign = safeCampaign;
 
-  // 3) 👔 VESTIMOS AL PANEL DE AGENCIA (Pero respetando a la Nano Card)
+  // 4️⃣ 👔 INYECCIÓN DE DATOS DE USUARIO (El pase VIP)
   const isManaged = targetProp.isManaged === true || targetProp.isManaged === "true" || (safeCampaign && safeCampaign.status === "ACCEPTED");
 
   if (isManaged && safeCampaign?.agency) {
-      // La agencia hereda el control visual del Panel (Se pondrá en modo oscuro)
+      // ✅ CASO AGENCIA: Usamos los datos de la agencia gestora
       targetProp.user = {
           ...targetProp.user,
           ...safeCampaign.agency,
           role: "AGENCIA" 
       };
-      // ❌ Ya no inventamos fuegos falsos aquí. La herencia manda.
   } else {
+      // ✅ CASO PARTICULAR: Aquí está la clave
       targetProp.user = {
-          ...targetProp.user,
-          role: targetProp.user?.role || "PARTICULAR",
-          isOwner: true
+          ...(targetProp.user || {}),
+          // Inyectamos tus datos frescos del perfil
+          name: user.name || targetProp.user?.name,
+          avatar: user.avatar || targetProp.user?.avatar,
+          cover: user.cover || targetProp.user?.cover,
+          email: user.email || targetProp.user?.email,
+          phone: user.phone || targetProp.user?.phone,
+          role: "PARTICULAR",
+          badge: "PARTICULAR VERIFICADO", // Aseguramos la insignia
+          isOwner: true,
+
+       // 🚨 EL ENGAÑO TÁCTICO AL MAPA 🚨
+          isPro: isPremium ? true : ((user as any).isPro || false),
+          licenseType: isPremium ? 'PRO' : ((user as any).licenseType || null)
       };
+      
+      if (isPremium) {
+          console.log("🎫 PASE VIP INYECTADO: Usuario Particular elevado a PRO para el mapa.");
+      }
   }
 
-  // 4) ✅ APERTURA INTELIGENTE (Manda el dardo al Panel sin desmontar nada)
+  // 5️⃣ ✅ APERTURA INTELIGENTE (Envía la mochila "trucada" al mapa)
   openDetailsSmart(targetProp);
 
-  // 5) 🚁 SALTO RETARDADO ANTI-MADRID (150ms después de abrir el panel)
-  // Al darle tiempo, el mapa no se asusta con el cambio de tamaño y vuela perfecto a Manilva.
+  // 6️⃣ 🚁 SALTO RETARDADO ANTI-MADRID (150ms)
   setTimeout(() => {
       let lng = Number(targetProp.longitude || targetProp.lng || (targetProp.coordinates && targetProp.coordinates[0]));
       let lat = Number(targetProp.latitude || targetProp.lat || (targetProp.coordinates && targetProp.coordinates[1]));
@@ -349,7 +369,6 @@ const handleFlyTo = (e: any, property: any) => {
       }
   }, 150);
 };
-
   const handleCancelTicket = async (ticketId: string) => {
       if(!confirm("¿Cancelar asistencia?")) return;
       const backup = [...myTickets];
