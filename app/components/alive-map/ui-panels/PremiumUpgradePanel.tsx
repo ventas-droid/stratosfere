@@ -148,8 +148,12 @@ export default function PremiumUpgradePanel({ onClose, property }: any) {
               <div className="bg-slate-900 rounded-xl p-4 h-full relative overflow-hidden flex items-center gap-4">
                    <div className="h-20 w-24 bg-slate-800 rounded-lg relative overflow-hidden shrink-0 group">
                        {/* Si no hay imagen real, mostramos demo */}
-                       <img src={isRealProperty && property.img ? property.img : "https://images.unsplash.com/photo-1600596542815-2495db98dada?q=80&w=2088&auto=format&fit=crop"} className="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-700" alt="Demo"/>
-                       <div className="absolute top-1 right-1 bg-red-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-lg flex items-center gap-1">
+{/* Si no hay imagen real, mostramos una demo blindada de alta calidad */}
+                       <img 
+                           src={isRealProperty && property.img ? property.img : "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"} 
+                           className="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-700" 
+                           alt="Demo Premium"
+                       />                       <div className="absolute top-1 right-1 bg-red-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-lg flex items-center gap-1">
                            <Flame size={6} fill="currentColor"/> HOT
                        </div>
                    </div>

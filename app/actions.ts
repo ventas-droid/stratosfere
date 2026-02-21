@@ -115,8 +115,13 @@ export async function getGlobalPropertiesAction() {
     const user = await getCurrentUser();
     const currentUserId = user?.id || null;
 
-    const properties = await prisma.property.findMany({
-      where: { status: "PUBLICADO" },
+  const properties = await prisma.property.findMany({
+      // 🔥 EL MURO SE ABRE PARA LAS PREMIUM Y GESTIONADAS 🔥
+      where: { 
+        status: {
+          in: ["PUBLICADO", "MANAGED", "ACCEPTED"]
+        }
+      },
       orderBy: { createdAt: "desc" },
       include: {
         images: true,
@@ -1050,7 +1055,7 @@ export async function deleteFromStockAction(propertyId: string) {
 }
 // --- AÑADIR AL FINAL DE actions.ts ---
 
-// B. MIS PROPIEDADES (PERFIL) - Recuperada + FIX PLURAL
+// B. MIS PROPIEDADES (PERFIL) - Recuperada + FIX PLURAL + BLINDAJE AGENCIA
 export async function getPropertiesAction() {
   try {
     const user = await getCurrentUser(); // O la función que use para el usuario actual
@@ -1061,9 +1066,19 @@ export async function getPropertiesAction() {
       orderBy: { createdAt: "desc" },
       include: {
         images: true,
-        user: { select: USER_IDENTITY_SELECT }, // Asegúrese que USER_IDENTITY_SELECT está definido arriba
+        user: { select: USER_IDENTITY_SELECT }, 
         
-        // 🔥 CORRECCIÓN FINAL: USAMOS EL PLURAL 'openHouses'
+        // 🔥 AÑADIDO: Memoria de Agencia para que la Nano Card Premium no parpadee ni se rompa
+        assignment: {
+            where: { status: "ACTIVE" },
+            include: { agency: { select: USER_IDENTITY_SELECT } }
+        },
+        campaigns: { 
+            where: { status: "ACCEPTED" }, 
+            take: 1 
+        },
+
+        // 🔥 CORRECCIÓN FINAL: USAMOS EL PLURAL 'openHouses' (Intacto)
         openHouses: {
            include: {
              attendees: true 
@@ -3120,7 +3135,7 @@ export async function getMyPropertiesAction() {
       where: { userId: user.id },
       include: {
         images: true,
-        // 🔥 AQUÍ ESTABA EL CORTE: AHORA TRAEMOS TODOS LOS DATOS DE LA AGENCIA
+        // 🔥 EL CORTE REPARADO: AHORA TRAEMOS *TODO* PARA QUE EL FRONTEND NO SALTE
         campaigns: { 
             where: { OR: [{ status: "SENT" }, { status: "ACCEPTED" }] },
             include: { 
@@ -3133,16 +3148,19 @@ export async function getMyPropertiesAction() {
                         phone: true,
                         mobile: true,
                         avatar: true,
-                        companyLogo: true, // Importante para el logo
-                        coverImage: true,  // Importante para el fondo
+                        companyLogo: true, 
+                        coverImage: true,  
                         licenseNumber: true,
                         website: true,
-                        role: true
+                        role: true,
+                        // 🎯 ESTAS DOS LÍNEAS MATAN EL EFECTO FRANKENSTEIN:
+                        tagline: true, 
+                        zone: true
                     } 
                 } 
             } 
         },
-        openHouses: true
+        openHouses: true // El evento ya viaja en la maleta de serie
       },
       orderBy: { updatedAt: 'desc' }
     });

@@ -76,9 +76,10 @@ export default function AgencyDetailsPanel({
     });
 
     const [campaignData, setCampaignData] = useState<any>(null);
-    const [showContactModal, setShowContactModal] = useState(false);
-    const [showOpenHouse, setShowOpenHouse] = useState(true); 
-    const [showB2BModal, setShowB2BModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+const [showOpenHouse, setShowOpenHouse] = useState(false);
+const [openHouseSnap, setOpenHouseSnap] = useState<any>(null); // 🥶 NUEVO: Snapshot de memoria
+const [showB2BModal, setShowB2BModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
@@ -107,25 +108,48 @@ export default function AgencyDetailsPanel({
         }
     };
 
-    useEffect(() => { 
-        setSelectedProp(initialProp);
-        if (initialAgencyData) setActiveOwner(initialAgencyData);
-        else if (currentUser && initialProp?.userId === currentUser.id) setActiveOwner(currentUser);
-        else if (initialProp?.user) setActiveOwner(initialProp.user);
-        setCampaignData(null);
-    }, [initialProp, initialAgencyData]);
+ // 🧠 CEREBRO 1: Recepción inicial (CON MERGE ANTI-DESTRUCCIÓN)
+ useEffect(() => {
+    if (!initialProp?.id) return;
 
-    useEffect(() => {
-        if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'view');
-    }, [selectedProp?.id]);
+    setSelectedProp((prev: any) => {
+      if (!prev) return initialProp;
+      if (String(prev.id) !== String(initialProp.id)) return initialProp;
 
+      // 🔥 BLINDAJE: Usamos "||" para que si viene un "null" malicioso, lo rechace y se quede con lo nuestro.
+      const nextOpenHouse = initialProp?.openHouse || initialProp?.open_house_data || prev?.openHouse || prev?.open_house_data;
+      const nextB2B = initialProp?.b2b || prev?.b2b;
+      const nextCampaign = initialProp?.activeCampaign || prev?.activeCampaign;
+
+      return {
+        ...prev,
+        ...initialProp,
+        b2b: nextB2B,
+        activeCampaign: nextCampaign,
+        openHouse: nextOpenHouse,
+        open_house_data: nextOpenHouse,
+      };
+    });
+
+    if (initialAgencyData) setActiveOwner(initialAgencyData);
+    else if (currentUser && initialProp?.userId === currentUser.id) setActiveOwner(currentUser);
+    else if (initialProp?.user) setActiveOwner(initialProp.user);
+
+    setCampaignData(null);
+  }, [initialProp?.id]);
+
+ // 🔥 CEREBRO NUEVO ACTUALIZADO: Recupera la Propiedad Y RECONSTRUYE a la Agencia
     useEffect(() => {
         const verifyRealData = async () => {
             if (!selectedProp?.id) return;
             try {
+                // 1. Pedimos el expediente completo al servidor
                 const realData = await getPropertyByIdAction(selectedProp.id);
+                
                 if (realData?.success && realData.data) {
                     const data = realData.data;
+                    
+                    // 2. Actualizamos la propiedad con los datos frescos
                     setSelectedProp((prev: any) => {
                         const nextB2B = data.b2b || prev.b2b;
                         const nextCampaign = data.activeCampaign || prev.activeCampaign;
@@ -140,12 +164,20 @@ export default function AgencyDetailsPanel({
                         };
                     });
 
+                    // 3. 🔥 LA MAGIA: RECONSTRUIR AL DUEÑO / AGENCIA
                     const mgmtRes = await getActiveManagementAction(selectedProp.id);
-                    let finalOwner = data.user || {};
+                    let finalOwner = data.user || {}; // Por defecto el creador
+                    
+                    // Si tiene gestión activa (Campaña), el dueño de la ficha pasa a ser la AGENCIA
                     if (mgmtRes?.success && mgmtRes?.data?.agency) {
                         setCampaignData(mgmtRes.data);
                         finalOwner = mgmtRes.data.agency;
+                    } else if (data.activeCampaign?.status === 'ACCEPTED' && data.activeCampaign?.agency) {
+                        // Backup por si viene dentro de la propiedad
+                        finalOwner = data.activeCampaign.agency;
                     }
+
+                    // Actualizamos el estado visual con el Avatar, Portada, Teléfono, etc. de la Agencia
                     if (Object.keys(finalOwner).length > 0) {
                         setActiveOwner((prev: any) => ({ ...prev, ...finalOwner }));
                     }
@@ -154,48 +186,48 @@ export default function AgencyDetailsPanel({
                 console.error("Error en protocolo de fusión:", error); 
             }
         };
+        
         verifyRealData();
     }, [selectedProp?.id]);
 
     useEffect(() => {
-        const handleLiveUpdate = (e: any) => {
-            const rawData = e.detail?.updates || e.detail;
-            const targetId = e.detail?.id || rawData?.id;
-            if (!targetId || String(selectedProp?.id) !== String(targetId)) return;
-            setSelectedProp((prev: any) => {
-                if (!prev) return rawData;
-                const nextB2B = rawData?.b2b || prev.b2b;
-                const nextOH = rawData?.openHouse || rawData?.open_house_data || prev.openHouse;
-                return { 
-                    ...prev, 
-                    ...rawData, 
-                    b2b: nextB2B, 
-                    openHouse: nextOH, 
-                    open_house_data: nextOH 
-                };
-            });
-        };
-        if (typeof window !== "undefined") {
-            window.addEventListener('update-property-signal', handleLiveUpdate);
-            window.addEventListener('sync-property-state', handleLiveUpdate);
-        }
-        return () => {
-            if (typeof window !== "undefined") {
-                window.removeEventListener('update-property-signal', handleLiveUpdate);
-                window.removeEventListener('sync-property-state', handleLiveUpdate);
-            }
-        };
-    }, [selectedProp?.id]); 
+    const handleLiveUpdate = (e: any) => {
+      const rawData = e.detail?.updates || e.detail;
+      const targetId = e.detail?.id || rawData?.id;
 
-    useEffect(() => {
-        const lat = Number(selectedProp?.location?.lat || selectedProp?.lat);
-        const lng = Number(selectedProp?.location?.lng || selectedProp?.lng);
-        if (lat && lng && !isNaN(lat) && lat !== 0) {
-            window.dispatchEvent(new CustomEvent("fly-to-location", { 
-                detail: { latitude: lat, longitude: lng, duration: 1.5 } 
-            }));
-        }
-    }, [selectedProp?.id, selectedProp?.lat]);
+      if (!targetId || String(selectedProp?.id) !== String(targetId)) return;
+
+      setSelectedProp((prev: any) => {
+        if (!prev) return rawData;
+
+        // 🔥 BLINDAJE: Usamos "||" para rechazar los null destructivos
+        const nextB2B = rawData?.b2b || prev?.b2b;
+        const incomingOH = rawData?.openHouse || rawData?.open_house_data;
+        const nextOH = incomingOH || prev?.openHouse || prev?.open_house_data;
+
+        return {
+          ...prev,
+          ...rawData,
+          b2b: nextB2B,
+          openHouse: nextOH,
+          open_house_data: nextOH,
+        };
+      });
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("update-property-signal", handleLiveUpdate);
+      window.addEventListener("sync-property-state", handleLiveUpdate);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("update-property-signal", handleLiveUpdate);
+        window.removeEventListener("sync-property-state", handleLiveUpdate);
+      }
+    };
+  }, [selectedProp?.id]);
+  
 
     const handleMainPhotoClick = () => {
         if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'photo');
@@ -254,7 +286,20 @@ export default function AgencyDetailsPanel({
     const img = selectedProp?.img || (selectedProp?.images && selectedProp.images[0]) || "/placeholder.jpg";
     const m2 = Number(selectedProp?.mBuilt || selectedProp?.m2 || 0);
     const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
-    const isOwner = selectedProp?.isOwner || (currentUser?.id && selectedProp?.userId && currentUser.id === selectedProp.userId);
+
+    // 🛡️ LÓGICA DE PRIVACIDAD: ¿Quién manda en este evento?
+    const isOwner = (() => {
+        if (!currentUser?.id) return false;
+        
+        // 1. Si la casa está cedida a una Agencia (Campaña), SOLO la Agencia es dueña del evento.
+        if (selectedProp?.activeCampaign?.status === 'ACCEPTED') {
+            const idAgenciaGestora = selectedProp.activeCampaign.agencyId || selectedProp.activeCampaign.agency?.id;
+            return String(currentUser.id) === String(idAgenciaGestora);
+        }
+        
+        // 2. Si no hay campaña, el dueño del evento es el creador original.
+        return String(currentUser.id) === String(selectedProp?.userId);
+    })();
 
     const getEnergyColor = (rating: string) => {
         const map: any = { A: "bg-green-600", B: "bg-green-500", C: "bg-green-400", D: "bg-yellow-400", E: "bg-yellow-500", F: "bg-orange-500", G: "bg-red-600" };
@@ -513,48 +558,55 @@ export default function AgencyDetailsPanel({
                         )}
                    </div>
 
-                   <div className="mt-4">
-                       <AgencyExtrasViewer property={selectedProp} />
+               <div className="mt-4">
+                      
+                    <AgencyExtrasViewer
+  property={selectedProp}
+  onOpenHouseClick={() => {
+    setOpenHouseSnap(selectedProp?.openHouse || selectedProp?.open_house_data || openHouseSnap);
+    setShowOpenHouse(true);
+  }}
+/>
                    </div>
-
-                    {selectedProp?.openHouse?.enabled && selectedProp?.openHouse?.id && (
+               
+                {/* 🔥 LA LISTA PRIVADA (SOLO LA VE EL DUEÑO DE LA AGENCIA) 🔥 */}
+                    {selectedProp?.openHouse?.enabled && selectedProp?.openHouse?.id && isOwner && (
                         <div className="mt-6 mb-6 animate-in fade-in slide-in-from-bottom-4">
-                            {isOwner ? (
-                                <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-                                    <div className="bg-slate-900 p-3 flex justify-between items-center text-white">
-                                        <div className="flex items-center gap-2">
-                                            <ShieldCheck size={14} className="text-yellow-400" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">MI EVENTO</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 bg-white/10 px-2 py-1 rounded-full">
-                                            <span className="relative flex h-2 w-2">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                            </span>
-                                            <span className="text-[9px] font-bold text-white">EN VIVO</span>
-                                        </div>
+                            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                                <div className="bg-slate-900 p-3 flex justify-between items-center text-white">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck size={14} className="text-yellow-400" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">MI EVENTO</span>
                                     </div>
-                                    <div className="max-h-[300px] overflow-hidden">
-                                        <GuestList openHouseId={selectedProp.openHouse.id} />
-                                    </div>
-                                    <div className="bg-gray-50 p-2 text-center border-t border-gray-100">
-                                        <p className="text-[9px] text-gray-400 font-medium">Esta lista es privada. Solo tú puedes verla.</p>
+                                    <div className="flex items-center gap-2 bg-white/10 px-2 py-1 rounded-full">
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                        </span>
+                                        <span className="text-[9px] font-bold text-white">EN VIVO</span>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="bg-[#111] rounded-2xl p-6 text-white text-center shadow-xl relative overflow-hidden group cursor-pointer transition-all hover:scale-[1.02]" onClick={() => setShowOpenHouse(true)}>
-                                    <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"/>
-                                    <div className="relative z-10">
-                                        <span className="inline-block px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[9px] font-black uppercase tracking-widest mb-3 border border-white/10">Open House</span>
-                                        <h3 className="text-xl font-black mb-1 leading-tight">{selectedProp.openHouse.title || "Evento Exclusivo"}</h3>
-                                        <p className="text-xs text-gray-400 mb-4 line-clamp-1">{new Date(selectedProp.openHouse.startTime).toLocaleDateString()} • Aforo limitado</p>
-                                        <button className="w-full py-3 bg-white text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-gray-200 transition-colors shadow-lg">Solicitar Invitación</button>
-                                    </div>
+                                <div className="max-h-[300px] overflow-hidden">
+                                    <GuestList openHouseId={selectedProp.openHouse.id} />
                                 </div>
-                            )}
+                                <div className="bg-gray-50 p-2 text-center border-t border-gray-100">
+                                    <p className="text-[9px] text-gray-400 font-medium">Esta lista es privada. Solo tú puedes verla.</p>
+                                </div>
+                            </div>
                         </div>
                     )}
 
+                 {showOpenHouse && (
+  <OpenHouseOverlay
+    property={{
+      ...selectedProp,
+      openHouse: selectedProp?.openHouse || selectedProp?.open_house_data || openHouseSnap,
+    }}
+    onClose={() => setShowOpenHouse(false)}
+    isOrganizer={isOwner}
+  />
+)}
+                   
                     <div className="bg-white p-4 rounded-[24px] shadow-sm border border-white flex justify-between items-center">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-tight">Certificación<br/>Energética</span>
                         {selectedProp?.energyPending ? (

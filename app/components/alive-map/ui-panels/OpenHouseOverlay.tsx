@@ -5,11 +5,14 @@ import { X, Calendar, Clock, Ticket, MapPin, Check, Star, Users, LogOut, AlertCi
 import { joinOpenHouseAction, leaveOpenHouseAction, checkOpenHouseStatusAction, getUserMeAction } from "@/app/actions";
 import GuestList from "./GuestList"; 
 
-export default function OpenHouseOverlay({ property, onClose }: any) {
+// Añadimos isOrganizer a los parámetros recibidos
+export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any) {
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
   const [parsedOH, setParsedOH] = useState<any>(null);
-  const [isOwner, setIsOwner] = useState(false);
+  
+  // 🔥 AHORA OBEDECE A LO QUE LE DICTA EL PANEL PRINCIPAL
+  const [isOwner, setIsOwner] = useState(isOrganizer || false);
   
   // ESTADOS NUEVOS PARA INTELIGENCIA DE AFORO
   const [occupancy, setOccupancy] = useState(0);
@@ -27,13 +30,7 @@ export default function OpenHouseOverlay({ property, onClose }: any) {
     setParsedOH(rawData);
 
     if (rawData?.id) {
-        // 2. CHECK: ¿SOY EL DUEÑO?
-        getUserMeAction().then(res => {
-            if (res.success && res.data && res.data.id === property.userId) {
-                setIsOwner(true);
-            }
-        });
-
+       
         // 3. CHECK: ¿YA ESTOY DENTRO?
         checkOpenHouseStatusAction(rawData.id).then(res => {
             setIsRegistered(res.isJoined);
@@ -60,29 +57,33 @@ export default function OpenHouseOverlay({ property, onClose }: any) {
   const weekDay = start ? start.toLocaleDateString('es-ES', { weekday: 'long' }) : "";
   const timeStr = start ? start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : "--:--";
 
-  // --- MANIOBRA DE RESERVA ---
+// --- MANIOBRA DE RESERVA (VERSIÓN PRODUCCIÓN) ---
   const handleRegister = async () => {
+    // Capturamos el ID de forma segura sin dejar logs en la consola
+    const targetId = oh.id || oh._id || property.id;
+
     setLoading(true);
     setErrorMsg("");
+    
     try {
-        const res = await joinOpenHouseAction(oh.id);
-        
+        const res = await joinOpenHouseAction(targetId);
+
         if (!res.success) {
             if (res.error === "SOLD_OUT") {
                 setIsSoldOut(true);
                 setErrorMsg("⛔ Vaya... Se acaban de agotar las plazas.");
             } else if (res.message === "ALREADY_JOINED") {
                 setIsRegistered(true);
-            } else if (res.error === "NEED_EMAIL") {
+            } else if (res.error === "NEED_EMAIL" || res.message?.includes("iniciar sesión")) {
                 setErrorMsg("Debes iniciar sesión para apuntarte.");
             } else {
-                setErrorMsg("Error: " + res.error);
+                setErrorMsg(res.error || res.message || "Error al intentar registrarse.");
             }
         } else {
             setIsRegistered(true);
         }
     } catch (e) {
-        setErrorMsg("Error de conexión");
+        setErrorMsg("Error de conexión con el servidor.");
     } finally {
         setLoading(false);
     }

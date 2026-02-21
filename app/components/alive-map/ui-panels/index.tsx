@@ -2952,24 +2952,34 @@ if (!gateUnlocked) {
            <HoloInspector prop={selectedProp} isOpen={activePanel === 'INSPECTOR'} onClose={() => setActivePanel('DETAILS')} soundEnabled={soundEnabled} playSynthSound={playSynthSound} />
            
   {/* =========================================================
-               EL PORTERO CON CHIVATOS (DEBUG)
-               ========================================================= */}
+                EL PORTERO CON CHIVATOS (DEBUG) - SAAS MULTIUSUARIO V2
+                ========================================================= */}
            {activePanel === 'DETAILS' && (
                (() => {
-                   const owner = selectedProp?.user || null;
+                   const owner = selectedProp?.user || selectedProp?.ownerSnapshot || null;
 
-                   // 1. ANÁLISIS DEL DUEÑO (LA CASA)
+                   // 1. ANÁLISIS DEL DUEÑO (LA CASA Y SU GESTIÓN)
                    const ownerRole = String(owner?.role || selectedProp?.role || "").toUpperCase();
+                   
+                   // 🔥 MAGIA TÁCTICA: ¿Tiene la casa una campaña B2B o Agencia aceptada?
+                   const hasActiveCampaign = !!selectedProp?.activeCampaign && selectedProp?.activeCampaign?.status === 'ACCEPTED';
+                   const hasB2B = !!selectedProp?.b2b;
+
+                 // Es Agencia SI el rol es Agencia, O SI ha sido cedida, O SI TIENE UN EVENTO
                    const isOwnerAgency =
                       ownerRole === "AGENCIA" ||
                       ownerRole === "AGENCY" ||
                       !!owner?.companyName ||
-                      !!selectedProp?.companyName;
+                      !!selectedProp?.companyName ||
+                      hasActiveCampaign || 
+                      hasB2B ||
+                      !!selectedProp?.openHouse ||       // 🔥 REGLA CEO: Si hay evento, abre panel PRO
+                      !!selectedProp?.open_house_data;   // 🔥 REGLA CEO: Si hay evento, abre panel PRO
 
                    // 2. ANÁLISIS DEL VISITANTE (USTED)
                    const roleVisitante = String(agencyProfileData?.role || "").toUpperCase();
                    
-                   // Logica de ser agencia: Miramos ROL, MODO o si tiene DATOS DE EMPRESA
+                   // Lógica de ser agencia (Solo para los chivatos, YA NO fuerza la apertura del panel)
                    const soyAgencia = 
                         systemMode === 'AGENCY' || 
                         roleVisitante === 'AGENCIA' || 
@@ -2978,15 +2988,17 @@ if (!gateUnlocked) {
                         !!agencyProfileData?.licenseNumber;
 
                    // 🕵️ CHIVATO: ¿QUÉ ESTÁ VIENDO EL SISTEMA?
-                   console.log("🕵️ PORTERO DICE:");
+                   console.log("🕵️ PORTERO DICE (V2 MULTIUSUARIO):");
                    console.log("   - Casa ID:", selectedProp?.id);
-                   console.log("   - Dueño Casa:", ownerRole, "(¿Es Agencia?:", isOwnerAgency, ")");
+                   console.log("   - Dueño Casa (Original):", ownerRole);
+                   console.log("   - ¿Casa Gestionada por Agencia (Campaña/B2B)?:", hasActiveCampaign || hasB2B);
+                   console.log("   - ¿Se mostrará como Agencia?:", isOwnerAgency);
                    console.log("   - Visitante (Usted):", roleVisitante);
-                   console.log("   - Modo Sistema:", systemMode);
                    console.log("   - ¿Usted es Agencia?:", soyAgencia);
 
-                   // 3. DECISIÓN FINAL
-                   const usarPanelPro = isOwnerAgency || soyAgencia;
+                   // 3. DECISIÓN FINAL (REGLAS UNIVERSALES SAAS)
+                   // LA CASA MANDA. Si la casa la lleva una Agencia, abre PRO. Si no, CIVIL.
+                   const usarPanelPro = isOwnerAgency;
                    
                    console.log("   - 🚪 PUERTA ELEGIDA:", usarPanelPro ? "PANEL PRO (Agencia)" : "PANEL CIVIL (Particular)");
 

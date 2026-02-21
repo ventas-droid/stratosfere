@@ -31,7 +31,10 @@ import {
 
     // 📬 Buzón de Entrada (NUEVO)
     getMyReceivedLeadsAction, 
-    markLeadsAsReadAction
+    markLeadsAsReadAction,
+
+    // 🔥 AÑADIMOS ESTO PARA TRAER EL EXPEDIENTE COMPLETO
+    getPropertyByIdAction 
 } from '@/app/actions';
 
 import { useRouter } from 'next/navigation';
@@ -73,10 +76,56 @@ export default function ProfilePanel({
   
   const router = useRouter();
 
+  // ✅ OPEN SMART: abre o refresca sin destruir modales
+const openDetailsSmart = (prop: any) => {
+  if (typeof window === "undefined" || !prop?.id) return;
+
+  const id = String(prop.id);
+  const current = (window as any).__currentOpenPropertyId;
+
+  // Selección visual siempre
+  window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id } }));
+
+  // MISMA propiedad -> refresco silencioso (no desmonta overlays)
+  if (current === id) {
+    window.dispatchEvent(
+      new CustomEvent("sync-property-state", { detail: { id, updates: prop } })
+    );
+    return;
+  }
+
+  // ✅ Distinta propiedad -> apertura total
+  (window as any).__currentOpenPropertyId = id;
+  window.dispatchEvent(new CustomEvent("open-details-signal", { detail: prop }));
+};
+
   // --- ESTADOS ---
 const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKETS' | 'LEADS'>('MAIN');  const [myProperties, setMyProperties] = useState<any[]>([]);
-  const [myTickets, setMyTickets] = useState<any[]>([]);
   
+const [myTickets, setMyTickets] = useState<any[]>([]);
+  
+// 📡 RADAR TÁCTICO: Atrapa el eslogan y el B2B completo desde el mapa en silencio
+  useEffect(() => {
+      const handleInstantUpdate = (e: any) => {
+          const { id, updates } = e.detail;
+          setMyProperties((prevList: any[]) => prevList.map((item: any) => {
+              if (String(item.id) === String(id)) {
+                  return { ...item, ...updates }; // Se traga el eslogan y todo lo demás
+              }
+              return item;
+          }));
+      };
+      
+      if (typeof window !== 'undefined') {
+          window.addEventListener('update-property-signal', handleInstantUpdate);
+      }
+      return () => {
+          if (typeof window !== 'undefined') {
+              window.removeEventListener('update-property-signal', handleInstantUpdate);
+          }
+      };
+  }, []);
+
   // Modales
   const [servicesModalProp, setServicesModalProp] = useState<any | null>(null);
   const [contractModalProp, setContractModalProp] = useState<any | null>(null); // Modal Expediente (Propiedad)
@@ -235,69 +284,72 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKET
       if (onEdit) onEdit(property);
   };
   
-// 🔥 HANDLER DE VUELO CON IDENTIDAD SAAS (Multiusuario Real)
-  const handleFlyTo = (e: any, property: any) => {
-      if (e && e.stopPropagation) e.stopPropagation();
-      
-      if (typeof window !== 'undefined') {
-          // 1. Clonamos la propiedad para no alterar la original
-          let targetProp = { ...property };
+// 🔥 HANDLER DE VUELO SÚPER TÁCTICO (Respeta la Herencia del Fuego y evita Madrid)
+const handleFlyTo = (e: any, property: any) => {
+  if (e?.stopPropagation) e.stopPropagation();
+  if (typeof soundEnabled !== "undefined" && playSynthSound) playSynthSound("click");
+  if (typeof window === "undefined" || !property?.id) return;
 
-          // 2. LÓGICA DE IDENTIDAD (¿QUIÉN ES EL DUEÑO?)
-          const activeCampaign = property.activeCampaign;
-          
-          if (activeCampaign && activeCampaign.status === 'ACCEPTED' && activeCampaign.agency) {
-              // A) CASO AGENCIA: Inyectamos identidad corporativa
-              const agency = activeCampaign.agency;
-              targetProp.user = {
-                  id: agency.id,
-                  name: agency.companyName || agency.name || "Agencia Asociada",
-                  avatar: agency.companyLogo || agency.avatar || null, 
-                  role: "AGENCIA",
-                  email: agency.email,
-                  phone: agency.mobile || agency.phone,
-                  mobile: agency.mobile,
-                  coverImage: agency.coverImage || null,
-                  companyName: agency.companyName,
-                  licenseNumber: agency.licenseNumber,
-                  website: agency.website
-              };
-              targetProp.realOwner = property.user; // Backup del dueño
-          } else {
-              // B) CASO PARTICULAR (SAAS PURO):
-              // Inyectamos SU perfil actual (el que está cargado en la variable 'user' del componente).
-              // Esto asegura que se envíe su Foto, Email y Teléfono ACTUALIZADOS.
-              targetProp.user = {
-                  ...targetProp.user, // Mantenemos ID original
-                  
-                  // Sobreescribimos con los datos frescos del panel
-                  name: user.name,
-                  email: user.email,
-                  avatar: user.avatar,  // <--- Aquí va su foto
-                  coverImage: user.cover,
-                  phone: user.phone,    // <--- Aquí va su fijo
-                  mobile: user.mobile,  // <--- Aquí va su móvil
-                  role: user.role,
-                  companyName: user.companyName,
-                  
-                  // Flags de rol
-                  isPro: user.role === 'AGENCIA',
-                  isOwner: true
-              };
-          }
+  let targetProp = { ...property };
 
-          // 3. ENVIAMOS LA SEÑAL AL SISTEMA (Details Panel / HoloInspector)
-          // Ahora 'targetProp' lleva la foto y el contacto correctos.
-          window.dispatchEvent(new CustomEvent('open-details-signal', { detail: targetProp }));
+  // 1) 🛡️ RESPETAMOS LA HERENCIA DEL FUEGO
+  if (targetProp.rawPrice) {
+    targetProp.priceValue = targetProp.rawPrice;
+    targetProp.price = targetProp.rawPrice;
+  }
+  // Si la propiedad YA ES PREMIUM (porque el particular lo pagó), lo blindamos
+  if (targetProp.promotedTier === 'PREMIUM' || targetProp.isPromoted === true || targetProp.isPromoted === "true") {
+    targetProp.promotedTier = 'PREMIUM';
+    targetProp.isPromoted = true;
+  }
 
-          // 4. MOVIMIENTO DE CÁMARA
-          if (property.coordinates) {
-              window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                  detail: { center: property.coordinates, zoom: 18.5, pitch: 60 } 
-              }));
-          }
-      }
+  // 2) 🕵️‍♂️ TRADUCTOR SEGURO DE CAMPAÑAS
+  const parseJsonSafe = (val: any) => {
+      if (typeof val === "string") { try { return JSON.parse(val); } catch { return null; } }
+      return val;
   };
+
+  const safeCampaign = parseJsonSafe(targetProp.activeCampaign) || parseJsonSafe(targetProp.campaigns)?.[0];
+  targetProp.activeCampaign = safeCampaign;
+
+  // 3) 👔 VESTIMOS AL PANEL DE AGENCIA (Pero respetando a la Nano Card)
+  const isManaged = targetProp.isManaged === true || targetProp.isManaged === "true" || (safeCampaign && safeCampaign.status === "ACCEPTED");
+
+  if (isManaged && safeCampaign?.agency) {
+      // La agencia hereda el control visual del Panel (Se pondrá en modo oscuro)
+      targetProp.user = {
+          ...targetProp.user,
+          ...safeCampaign.agency,
+          role: "AGENCIA" 
+      };
+      // ❌ Ya no inventamos fuegos falsos aquí. La herencia manda.
+  } else {
+      targetProp.user = {
+          ...targetProp.user,
+          role: targetProp.user?.role || "PARTICULAR",
+          isOwner: true
+      };
+  }
+
+  // 4) ✅ APERTURA INTELIGENTE (Manda el dardo al Panel sin desmontar nada)
+  openDetailsSmart(targetProp);
+
+  // 5) 🚁 SALTO RETARDADO ANTI-MADRID (150ms después de abrir el panel)
+  // Al darle tiempo, el mapa no se asusta con el cambio de tamaño y vuela perfecto a Manilva.
+  setTimeout(() => {
+      let lng = Number(targetProp.longitude || targetProp.lng || (targetProp.coordinates && targetProp.coordinates[0]));
+      let lat = Number(targetProp.latitude || targetProp.lat || (targetProp.coordinates && targetProp.coordinates[1]));
+
+      if (!isNaN(lng) && !isNaN(lat) && lng !== 0 && lat !== 0) {
+          window.dispatchEvent(
+            new CustomEvent("fly-to-location", {
+              detail: { center: [lng, lat], latitude: lat, longitude: lng, zoom: 18.5, pitch: 60, duration: 1500 },
+            })
+          );
+      }
+  }, 150);
+};
+
   const handleCancelTicket = async (ticketId: string) => {
       if(!confirm("¿Cancelar asistencia?")) return;
       const backup = [...myTickets];
@@ -497,7 +549,8 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKET
                       const st = String((prop as any)?.status || "").toUpperCase();
                       const isPendingPayment = st === "PENDIENTE_PAGO";
                       const isPublished = st === "PUBLICADO";
-// 🔥 DETECTOR DE PREMIUM (FUEGO)
+
+                      // 🔥 DETECTOR DE PREMIUM (FUEGO)
                       const isPremium = prop.promotedTier === 'PREMIUM' || prop.isPromoted === true;
 
                       // 🔥 LOGICA SAAS
@@ -661,47 +714,91 @@ const [internalView, setInternalView] = useState<'MAIN' | 'PROPERTIES' | 'TICKET
                           const prop = ticket.openHouse.property;
                           const dateObj = new Date(event.startTime);
                           
-                          // Función para abrir modal y volar SIN cerrar panel
-                          const handleOpenDetail = (e?: any) => {
-                              if(e) e.stopPropagation();
-                              setSelectedTicket(ticket);
-                              if (typeof window !== 'undefined') {
-                                  window.dispatchEvent(new CustomEvent('open-details-signal', { detail: prop }));
-                                  if (prop.latitude && prop.longitude) {
-                                      window.dispatchEvent(new CustomEvent('fly-to-location', { 
-                                          detail: { center: [prop.longitude, prop.latitude], zoom: 19, pitch: 60, duration: 1500 } 
-                                      }));
-                                  }
-                              }
-                          };
+                       // 🔥 Función INTELIGENTE para abrir modal y volar (BLINDADA)
+const handleOpenDetail = async (e?: any) => {
+  if (e) e.stopPropagation();
 
-                    return (
-                                  <div key={ticket.id} onClick={handleOpenDetail} className="bg-white p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer">
-                                      <div className="flex gap-4 items-start mb-3">
-                                          <div className="w-20 h-20 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
-                                              <img src={prop.mainImage || "https://images.unsplash.com/photo-1513159446162-54eb8bdaa79b"} className="w-full h-full object-cover" alt="" />
-                                              <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
-                                                  <span className="text-xl font-black leading-none drop-shadow-md">{dateObj.getDate()}</span>
-                                                  <span className="text-[9px] uppercase font-bold drop-shadow-md">{dateObj.toLocaleDateString('es-ES', {month:'short'})}</span>
-                                              </div>
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                              <div className="flex justify-between items-start mb-1">
-                                                  <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate border border-indigo-100">OPEN HOUSE</span>
-                                              </div>
-                                              <h4 className="font-bold text-[#1c1c1e] text-base leading-tight truncate mt-1">{event.title || "Evento"}</h4>
-                                              <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase mt-0.5 flex items-center gap-1"><MapPin size={10}/> {prop.address || "Ubicación Privada"}</p>
+  // 1. Abrimos el modal del ticket al instante
+  setSelectedTicket(ticket);
+
+  try {
+    // 2. Pedimos el expediente COMPLETO al servidor
+    const res = await getPropertyByIdAction(prop.id);
+    let fullProp = prop;
+
+    if (res?.success && res.data) {
+      fullProp = res.data;
+
+      // 3. Actualizamos el ticket con los datos completos (para que el modal lea la Agencia)
+      const updatedTicket = { ...ticket };
+      updatedTicket.openHouse = { ...ticket.openHouse, property: fullProp };
+      setSelectedTicket(updatedTicket);
+    }
+
+    // 4. 🚁 Volar siempre (esto NO desmonta nada)
+    if (typeof window !== "undefined") {
+      if (fullProp?.longitude && fullProp?.latitude) {
+        window.dispatchEvent(
+          new CustomEvent("fly-to-location", {
+            detail: {
+              center: [fullProp.longitude, fullProp.latitude],
+              zoom: 19,
+              pitch: 60,
+              duration: 1500,
+            },
+          })
+        );
+      }
+
+      // 5. 🛑 ADUANA: si ya está abierta, refrescamos sin destruir overlays
+      const id = String(fullProp?.id || prop?.id);
+      const currentOpenId = String((window as any).__currentOpenPropertyId || "");
+      const isSameProp = currentOpenId === id;
+
+      // Selección visual siempre
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id } }));
+
+      if (isSameProp) {
+        // ✅ refresco silencioso
+        window.dispatchEvent(
+          new CustomEvent("sync-property-state", { detail: { id, updates: fullProp } })
+        );
+        return;
+      }
+
+      // ✅ apertura total solo si es otra propiedad
+      (window as any).__currentOpenPropertyId = id;
+openDetailsSmart(fullProp);    }
+  } catch (err) {
+    console.error("Error al hidratar el ticket:", err);
+  }
+};
+                          return (
+                              <div key={ticket.id} onClick={handleOpenDetail} className="bg-white p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer">
+                                  <div className="flex gap-4 items-start mb-3">
+                                      <div className="w-20 h-20 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
+                                          <img src={prop.mainImage || "https://images.unsplash.com/photo-1513159446162-54eb8bdaa79b"} className="w-full h-full object-cover" alt="" />
+                                          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
+                                              <span className="text-xl font-black leading-none drop-shadow-md">{dateObj.getDate()}</span>
+                                              <span className="text-[9px] uppercase font-bold drop-shadow-md">{dateObj.toLocaleDateString('es-ES', {month:'short'})}</span>
                                           </div>
                                       </div>
-                                      <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
-                                          <button onClick={handleOpenDetail} className="flex-1 bg-[#1c1c1e] text-white h-9 rounded-xl text-[10px] font-bold uppercase tracking-wide flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-md active:scale-95 cursor-pointer">
-                                              <Navigation size={12} /> VER DETALLES
-                                          </button>
+                                      <div className="flex-1 min-w-0">
+                                          <div className="flex justify-between items-start mb-1">
+                                              <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate border border-indigo-100">OPEN HOUSE</span>
+                                          </div>
+                                          <h4 className="font-bold text-[#1c1c1e] text-base leading-tight truncate mt-1">{event.title || "Evento"}</h4>
+                                          <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase mt-0.5 flex items-center gap-1"><MapPin size={10}/> {prop.address || "Ubicación Privada"}</p>
                                       </div>
                                   </div>
-                              );
-                          })}
-                      </div>
+                                  <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                                      <button onClick={handleOpenDetail} className="flex-1 bg-[#1c1c1e] text-white h-9 rounded-xl text-[10px] font-bold uppercase tracking-wide flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all shadow-md active:scale-95 cursor-pointer">
+                                          <Navigation size={12} /> VER DETALLES
+                                      </button>
+                                  </div>
+                              </div>
+                          );
+                      })}        </div>
                   )}
                </div>
             )}

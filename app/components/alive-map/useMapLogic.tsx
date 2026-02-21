@@ -190,7 +190,7 @@ const sourceFeaturesRaw = (source as any)?._data?.features;
 let masterFeatures: any[] = Array.isArray(sourceFeaturesRaw) ? sourceFeaturesRaw : [];
 
 
-// Normalizamos (sin perder elevator/specs/selectedServices)
+// Normalizamos (sin perder elevator/specs/selectedServices ni la memoria de Agencia)
 masterFeatures = masterFeatures.map((f: any) => {
   const p = f.properties || {};
   const idStr = String(p.id ?? p._id ?? f.id ?? Date.now());
@@ -205,66 +205,54 @@ masterFeatures = masterFeatures.map((f: any) => {
   const m2 = Number(p.m2 ?? p.mBuilt ?? 0);
   const mBuilt = Number(p.mBuilt ?? p.m2 ?? 0);
 
+  // 🔥 SALVAVIDAS DE ARRAYS (Por si Mapbox los convirtió en texto)
+  let safeServices = [];
+  if (Array.isArray(p.selectedServices)) {
+      safeServices = p.selectedServices;
+  } else if (typeof p.selectedServices === 'string') {
+      try { safeServices = JSON.parse(p.selectedServices); } catch(e) { safeServices = []; }
+  }
+
+  // 🔥 SALVAVIDAS DE OBJETOS (Por si Mapbox los convirtió en texto)
+  let safeSpecs = {};
+  if (typeof p.specs === 'object' && p.specs !== null) {
+      safeSpecs = p.specs;
+  } else if (typeof p.specs === 'string') {
+      try { safeSpecs = JSON.parse(p.specs); } catch(e) { safeSpecs = {}; }
+  }
+
   return {
     ...f,
     properties: {
-      ...p,
+      ...p, // <--- Esto garantiza que el Open House y el Fuego Premium NO se borren
       id: idStr,
       priceValue,
       m2,
       mBuilt,
-      selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
-      specs: p.specs || {},
+      selectedServices: safeServices,
+      specs: safeSpecs,
       elevator: (
         isYes(p.elevator) ||
         isYes(p.ascensor) ||
         isYes(p.hasElevator) ||
-        isYes(p?.specs?.elevator)
+        isYes(p?.specs?.elevator) ||
+        isYes(safeSpecs?.elevator)
       )
     }
   };
 });
 
-// LocalStorage (mis activos) como refuerzo
-let userFeatures: any[] = [];
-try {
-  const saved = localStorage.getItem('stratos_my_properties');
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    if (Array.isArray(parsed)) {
-      userFeatures = parsed.map((p: any) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: p.coordinates || [-3.6883, 40.4280] },
-        properties: {
-          ...p,
-          id: String(p.id || Date.now()),
-          role: p.role || 'PROPIETARIO',
-          type: p.type || 'Propiedad',
-          priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
-          m2: Number(p.mBuilt || p.m2 || 0),
-          mBuilt: Number(p.mBuilt || p.m2 || 0),
-          img: (p.images && p.images.length > 0) ? p.images[0] : (p.img || null),
-          selectedServices: Array.isArray(p.selectedServices) ? p.selectedServices : [],
-          specs: p.specs || {},
-          elevator: (
-            isYes(p.elevator) ||
-            isYes(p.ascensor) ||
-            isYes(p.hasElevator) ||
-            isYes(p?.specs?.elevator)
-          )
-        }
-      }));
-    }
-  }
-} catch (err) { console.error(err); }
+// =====================================================================
+// ☁️ 100% SAAS CLOUD: PURGA DE TROPAS FANTASMA (LOCALSTORAGE ELIMINADO)
+// =====================================================================
+// Usamos exclusivamente los datos reales validados por el servidor (masterFeatures).
 
-// ✅ Merge SIN dedupe por id (evita colapso a 1 card si algún id viene vacío)
-const allData = [...masterFeatures, ...userFeatures].filter((f: any) => {
+const allData = masterFeatures.filter((f: any) => {
   const pid = f?.properties?.id ?? f?.properties?._id ?? f?.id;
   return pid !== undefined && pid !== null && String(pid).trim() !== "";
 });
 
-// ✅ Si por lo que sea aún no hay datos, NO tocar el source (evita borrado)
+// ✅ CORTAFUEGOS ANTI-BORRADO: Si por lo que sea aún no hay datos, NO tocar el source
 if (allData.length === 0) {
   console.warn("⏳ Filtro recibido pero no hay features válidas aún. No aplico para no borrar NanoCards.");
   return;
@@ -272,7 +260,7 @@ if (allData.length === 0) {
 
 
 
-      // 2. APLICAR LÓGICA DE FILTRADO
+     // 2. APLICAR LÓGICA DE FILTRADO
       const filteredFeatures = allData.filter(f => {
         const p = f.properties;
 
@@ -288,22 +276,36 @@ if (allData.length === 0) {
           if (specs.beds > 0 && (p.rooms || 0) < specs.beds) return false;
           if (specs.baths > 0 && (p.baths || 0) < specs.baths) return false;
 
-          // D. Extras (Piscina, Garaje...)
+          // D. Extras (Piscina, Garaje...) - 🔥 FILTRO DE PRECISIÓN LÁSER 🔥
           if (specs.features && specs.features.length > 0) {
-            const searchText = JSON.stringify(p).toUpperCase();
-            const hasAllFeatures = specs.features.every((feat: string) => {
-              if (feat === 'pool') return searchText.includes('PISCINA') || searchText.includes('POOL');
-              if (feat === 'garage') return searchText.includes('GARAJE') || searchText.includes('PARKING');
-              if (feat === 'garden') return searchText.includes('JARDÍN') || searchText.includes('GARDEN');
-              if (feat === 'security') return searchText.includes('SEGURIDAD') || searchText.includes('VIGILANCIA');
-              return true;
+            // 1. Array de servicios seguro
+            const safeServices = Array.isArray(p.selectedServices) ? p.selectedServices : [];
+            // 2. Texto de búsqueda seguro (SOLO miramos en título y descripción)
+            const safeText = ` ${(p.title || '')} ${(p.description || '')} `.toUpperCase();
+
+            const hasAllFeatures = specs.features.every((feat) => {
+              // Comprobamos la variable booleana, el array de servicios y el texto seguro
+              if (feat === 'pool') return p.pool === true || safeServices.includes('pool') || safeText.includes('PISCINA');
+              if (feat === 'garage') return p.garage === true || safeServices.includes('garage') || safeText.includes('GARAJE') || safeText.includes('PARKING');
+              if (feat === 'garden') return p.garden === true || safeServices.includes('garden') || safeText.includes('JARDÍN') || safeText.includes('GARDEN');
+              if (feat === 'security') return p.security === true || safeServices.includes('security') || safeText.includes('SEGURIDAD') || safeText.includes('VIGILANCIA');
+              
+              // 🔥 Nuevos extras del ArchitectHud (Listos para el futuro)
+              if (feat === 'terrace') return p.terrace === true || safeServices.includes('terrace') || safeText.includes('TERRAZA');
+              if (feat === 'balcony') return p.balcony === true || safeServices.includes('balcony') || safeText.includes('BALCÓN');
+              if (feat === 'storage') return p.storage === true || safeServices.includes('storage') || safeText.includes('TRASTERO');
+              if (feat === 'ac') return p.ac === true || safeServices.includes('ac') || safeText.includes('AIRE');
+              if (feat === 'heating') return p.heating === true || safeServices.includes('heating') || safeText.includes('CALEFACCIÓN');
+              if (feat === 'furnished') return p.furnished === true || safeServices.includes('furnished') || safeText.includes('AMUEBLADO');
+              
+              return true; 
             });
             if (!hasAllFeatures) return false;
           }
         }
 
         // -------------------------------------------------------------
-        // E. FILTRO DE TIPO (QUIRÚRGICO) 🔪
+        // E. FILTRO DE TIPO (QUIRÚRGICO) 🔪 - ACTUALIZADO CON NUEVAS TIPOLOGÍAS
         // -------------------------------------------------------------
         const pType = (p.type || "").toUpperCase();
         const targetType = (specificType || "").toUpperCase();
@@ -313,11 +315,13 @@ if (allData.length === 0) {
         } else {
           let typeOK = true;
           if (context === 'NEGOCIO') {
-            typeOK = ['LOCAL', 'OFICINA', 'NAVE', 'EDIFICIO', 'GARAGE', 'TRASTERO'].some(t => pType.includes(t));
+            typeOK = ['LOCAL', 'OFICINA', 'NAVE', 'EDIFICIO', 'GARAGE', 'TRASTERO', 'INDUSTRIAL'].some(t => pType.includes(t));
           } else if (context === 'TERRENO') {
-            typeOK = ['SOLAR', 'TERRENO', 'FINCA', 'PARCELA'].some(t => pType.includes(t));
+            typeOK = ['SOLAR', 'TERRENO', 'FINCA', 'PARCELA', 'LAND'].some(t => pType.includes(t));
           } else {
-            const esNoVivienda = ['LOCAL', 'GARAGE', 'TRASTERO', 'NAVE', 'OFICINA', 'SOLAR', 'TERRENO'].some(t => pType.includes(t));
+            // Contexto VIVIENDA: Excluimos lo que claramente NO es vivienda.
+            // (Así Dúplex, Loft, Bungalow entran automáticamente en Vivienda)
+            const esNoVivienda = ['LOCAL', 'GARAGE', 'TRASTERO', 'NAVE', 'OFICINA', 'SOLAR', 'TERRENO', 'INDUSTRIAL', 'LAND'].some(t => pType.includes(t));
             typeOK = !esNoVivienda;
           }
           if (!typeOK) return false;
@@ -418,7 +422,7 @@ if (src) {
       // 2. METROS
       const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
-      // 3. PARSEO DE USUARIO/SNAPSHOT
+     // 3. PARSEO DE USUARIO/SNAPSHOT Y DESCOMPRESIÓN BLINDADA 🔥
       const parseMaybeJSON = (v: any) => {
         if (!v) return null;
         if (typeof v === "object") return v;
@@ -433,9 +437,19 @@ if (src) {
 
       const snapObj = parseMaybeJSON(p.ownerSnapshot);
       const userObj = parseMaybeJSON(p.user) || snapObj;
-
       if (snapObj) p.ownerSnapshot = snapObj;
       if (userObj) p.user = userObj;
+
+      // 🔥 RESCATE DE LA AMNESIA: Desenvasamos Agencia, Open House y Extras
+      const openHouseObj = parseMaybeJSON(p.openHouse) || parseMaybeJSON(p.open_house_data);
+      const activeCampaignObj = parseMaybeJSON(p.activeCampaign);
+      const b2bObj = parseMaybeJSON(p.b2b);
+      const servicesArray = typeof p.selectedServices === 'string' ? parseMaybeJSON(p.selectedServices) : p.selectedServices;
+
+      if (openHouseObj) { p.openHouse = openHouseObj; p.open_house_data = openHouseObj; }
+      if (activeCampaignObj) p.activeCampaign = activeCampaignObj;
+      if (b2bObj) p.b2b = b2bObj;
+      p.selectedServices = Array.isArray(servicesArray) ? servicesArray : [];
 
       p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
       p.description = p.description || p.desc || "";
@@ -447,10 +461,8 @@ if (src) {
           <MapNanoCard
             id={id}
             data={p}
-            // Pasamos los flags Premium explícitamente por si acaso
             promotedTier={p.promotedTier}
             isPromoted={p.isPromoted}
-            
             price={p.price}
             priceValue={p.priceValue}
             rawPrice={p.priceValue}
@@ -476,6 +488,11 @@ if (src) {
             energyConsumption={p.energyConsumption}
             energyEmissions={p.energyEmissions}
             energyPending={p.energyPending}
+            
+            // 🔥 INYECCIÓN DE LOS OBJETOS DESEMPAQUETADOS
+            openHouse={p.openHouse}
+            activeCampaign={p.activeCampaign}
+            b2b={p.b2b}
           />
       );
 
@@ -557,17 +574,33 @@ if (src) {
 
       console.log("📦 MAPA: Inyectando nueva propiedad...", formData);
 
-      // 1. GEO (Si no viene, lo buscamos)
-      let baseCoords = [-3.6883, 40.4280];
-      if (formData.coordinates) {
+     // 1. GEO BLINDADO (Sin falsos Madriles)
+      let baseCoords = null; 
+
+      // A. Buscamos en todas las formas posibles que tiene la base de datos de mandarlo
+      if (formData.coordinates && Array.isArray(formData.coordinates) && formData.coordinates.length === 2) {
           baseCoords = formData.coordinates;
-      } else {
+      } else if (formData.lng && formData.lat) {
+          baseCoords = [Number(formData.lng), Number(formData.lat)];
+      } else if (formData.longitude && formData.latitude) {
+          baseCoords = [Number(formData.longitude), Number(formData.latitude)];
+      } else if (formData.address) {
+          // B. Último recurso táctico: Radar de emergencia (Geocoding)
           try {
             const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${mapboxgl.accessToken}&country=es`;
             const res = await fetch(url);
             const data = await res.json();
-            if (data.features?.[0]) baseCoords = data.features[0].center;
+            if (data.features?.[0]) {
+                baseCoords = data.features[0].center;
+            }
           } catch (e) { console.error("Geo Error:", e); }
+      }
+
+      // 🚫 PROTOCOLO DE EXTERMINIO: Si después de todo NO hay coordenadas, ABORTAMOS.
+      // (Es mejor no dibujar nada, que dibujarlo en una ciudad equivocada).
+      if (!baseCoords || isNaN(baseCoords[0]) || isNaN(baseCoords[1])) {
+          console.warn("🚫 Fallo crítico de Coordenadas en la nueva propiedad. Abortando inserción visual.");
+          return;
       }
       
       // Pequeña variación para evitar superposición exacta
@@ -583,10 +616,21 @@ if (src) {
       }
       else if (formData.img) finalImage = formData.img;
 
-      // 3. CONSTRUIR FEATURE GEOJSON
+   // 3. CONSTRUIR FEATURE GEOJSON (ENVASE AL VACÍO ANTI-AMNESIA) 🔥
+      
+      // Serializamos los objetos complejos para que Mapbox no los destruya
+      const openHouseJson = formData.openHouse ? JSON.stringify(formData.openHouse) : (formData.open_house_data ? JSON.stringify(formData.open_house_data) : null);
+      const activeCampaignJson = formData.activeCampaign ? JSON.stringify(formData.activeCampaign) : null;
+      const b2bJson = formData.b2b ? JSON.stringify(formData.b2b) : null;
+      
+      const userObj = formData.user && typeof formData.user === 'object' ? formData.user : null;
+      const ownerSnapObj = formData.ownerSnapshot && typeof formData.ownerSnapshot === 'object' ? formData.ownerSnapshot : null;
+      const userJson = userObj ? JSON.stringify(userObj) : null;
+      const ownerSnapJson = ownerSnapObj ? JSON.stringify(ownerSnapObj) : userJson;
+
       const newFeature = {
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: finalCoords },
+        geometry: { type: 'Point', coordinates: baseCoords }, // Asegúrese de que aquí dice baseCoords o finalCoords (como lo tenga arriba)
         properties: {
           ...formData,
           id: String(formData.id), // ID siempre string para comparar
@@ -602,12 +646,18 @@ if (src) {
           elevator: isYes(formData.elevator),
           selectedServices: Array.isArray(formData.selectedServices) ? formData.selectedServices : [],
           
-          img: finalImage,
-          // Si no hay imágenes, array vacío (nada falso)
-          images: finalImage ? [finalImage] : [], 
+          img: formData.img || (formData.images && formData.images.length > 0 ? formData.images[0] : null),
+          images: formData.images || [], 
+
+          // 🔥 INYECCIÓN BLINDADA (Mapbox guardará los textos sin romperlos)
+          user: userJson,
+          ownerSnapshot: ownerSnapJson,
+          openHouse: openHouseJson,
+          open_house_data: openHouseJson,
+          activeCampaign: activeCampaignJson,
+          b2b: b2bJson
         }
       };
-
       // 4. INYECCIÓN ANTI-DUPLICADOS (LA CLAVE)
       const src: any = map.current.getSource('properties');
       if (src && (src as any)._data) {
@@ -655,8 +705,8 @@ if (src) {
 
             // 🔥 SALVAVIDAS MAPBOX: Serializamos todo lo complejo antes de dárselo a Mapbox
             // Mapbox rompe los arrays y objetos anidados si se los das directamente
-            const safeUpdates = { ...updates };
-            ['images', 'b2b', 'openHouse', 'open_house_data', 'activeCampaign', 'user', 'ownerSnapshot', 'specs'].forEach(key => {
+          const safeUpdates = { ...updates };
+            ['images', 'b2b', 'openHouse', 'open_house_data', 'activeCampaign', 'user', 'ownerSnapshot', 'specs', 'selectedServices'].forEach(key => {
                 if (safeUpdates[key] && typeof safeUpdates[key] === 'object') {
                     safeUpdates[key] = JSON.stringify(safeUpdates[key]); // Convertimos a string seguro
                 }
@@ -686,38 +736,51 @@ if (src) {
     return () => window.removeEventListener('update-property-signal', handleUpdateProperty);
   }, [map]);
 
-  // --------------------------------------------------------------------
-  // H. ESCANER TÁCTICO (RADAR) - INTEGRADO
+ // --------------------------------------------------------------------
+  // H. ESCANER TÁCTICO (RADAR) - INTEGRADO Y BLINDADO 🔥
   // --------------------------------------------------------------------
   const scanVisibleProperties = () => {
     if (!map.current) return [];
 
-    // 1. Obtener límites visuales actuales
+    // 1. Obtener límites visuales actuales (El perímetro)
     const bounds = map.current.getBounds();
+    const radarSource: any = map.current.getSource('properties');
 
-   const radarSource: any = map.current.getSource('properties');
+    // 2. Si el mapa aún no ha cargado datos, abortamos misión
+    if (!radarSource || !(radarSource as any)._data || !(radarSource as any)._data.features) return [];
 
-// Si el mapa aún no ha cargado datos, abortamos misión
-if (!radarSource || !(radarSource as any)._data || !(radarSource as any)._data.features) return [];
+    // 3. Filtrar y Formatear para el HUD
+    const visibleProps = (radarSource as any)._data.features
+      .filter((f: any) => {
+        // Solo objetivos dentro del perímetro visual
+        const [lng, lat] = f.geometry.coordinates;
+        return bounds.contains([lng, lat]);
+      })
+      .map((f: any) => {
+        const p = f.properties;
 
-// 3. Filtrar y Formatear para la Consola
-const visibleProps = (radarSource as any)._data.features
-  .filter((f: any) => {
-    const [lng, lat] = f.geometry.coordinates;
-    return bounds.contains([lng, lat]);
-  })
-  .map((f: any) => ({
-    id: f.properties.id,
-    address: f.properties.address || f.properties.location || "Ubicación Privada",
-    price: f.properties.price || "Consultar",
-    type: f.properties.type || "Propiedad",
-    lat: f.geometry.coordinates[1],
-    lng: f.geometry.coordinates[0],
-    gap: (f.properties.selectedServices && f.properties.selectedServices.length > 0) ? [] : ["Foto Pro", "Plano 3D"],
-  }));
+        // 🔥 DESEMPAQUETADO SEGURO: Leemos el array real de servicios
+        let safeServices = [];
+        if (typeof p.selectedServices === 'string') {
+            try { safeServices = JSON.parse(p.selectedServices); } catch(e) {}
+        } else if (Array.isArray(p.selectedServices)) {
+            safeServices = p.selectedServices;
+        }
 
-return visibleProps;
+        return {
+          id: p.id,
+          address: p.address || p.location || "Ubicación Privada",
+          price: p.price || "Consultar",
+          type: p.type || "Propiedad",
+          lat: f.geometry.coordinates[1],
+          lng: f.geometry.coordinates[0],
+          
+          // Ahora sí cuenta los elementos reales del array, no las letras del texto
+          gap: safeServices.length > 0 ? [] : ["Foto Pro", "Plano 3D"],
+        };
+      });
 
+    return visibleProps;
   };
 
 // --------------------------------------------------------------------
@@ -735,16 +798,15 @@ return visibleProps;
         const response = await getGlobalPropertiesAction();
         const rawData = response.success ? response.data : [];
 
-        // 🔥🔥🔥 CORTAFUEGOS TÁCTICO: SOLO PASAN LOS PAGADOS 🔥🔥🔥
+     // 🔥🔥🔥 CORTAFUEGOS TÁCTICO BLINDADO (FRONTEND) 🔥🔥🔥
         const serverData = rawData.filter((p: any) => {
-            // Normalizamos el estado a mayúsculas para evitar errores
             const status = String(p.status || "").toUpperCase();
+            const isPremium = p.promotedTier === 'PREMIUM' || p.isPromoted === true;
+            const isManaged = p.assignment && p.assignment.status === 'ACTIVE';
             
-            // REGLA DE ORO: Solo entra si es "PUBLICADO"
-            // (Las agencias nacen como PUBLICADO, los particulares pagan para ser PUBLICADO)
-            return status === "PUBLICADO";
+            // REGLA DE ORO: Pasan Publicadas, Gestionadas, y Premium
+            return status === "PUBLICADO" || status === "MANAGED" || status === "ACCEPTED" || isPremium || isManaged;
         });
-
         // 🗑️ REMOVIDO: Ya no leemos localStorage. Solo existe la verdad del servidor.
 
         // --- FASE 2: NORMALIZACIÓN Y ANTI-DUPLICADOS ---
@@ -769,12 +831,13 @@ return visibleProps;
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
-            // Coordenadas: Prioridad al array [lng, lat], luego a las props sueltas
-            let lng = Number(p.coordinates ? p.coordinates[0] : p.longitude);
-            let lat = Number(p.coordinates ? p.coordinates[1] : p.latitude);
+            // 🔥 CAZA DE COORDENADAS BLINDADA
+            let lng = Number(p.coordinates ? p.coordinates[0] : (p.lng ?? p.longitude));
+            let lat = Number(p.coordinates ? p.coordinates[1] : (p.lat ?? p.latitude));
             
-            // Fallback de seguridad (Madrid) si las coordenadas están rotas
-            if (!lng || !lat || isNaN(lng) || isNaN(lat)) { lng = -3.6883; lat = 40.4280; }
+            // 🚫 PROTOCOLO DE EXTERMINIO: Sin coordenadas, NO HAY CHINCHETA. 
+            // Adiós al falso Madrid. Devolvemos 'null' y lo ignoramos.
+            if (!lng || !lat || isNaN(lng) || isNaN(lat)) return null;
 
             // Clave de posición para detectar colisiones
             const coordKey = `${lng.toFixed(4)},${lat.toFixed(4)}`;
@@ -791,26 +854,19 @@ return visibleProps;
             coordTracker.set(coordKey, count + 1);
 
             // Preparación de Imagen Real
-            const safeImage = p.mainImage || 
-                              (p.images && p.images.length > 0 ? (p.images[0].url || p.images[0]) : null);
-
-            // Unificación de Metros
+            const safeImage = p.mainImage || (p.images && p.images.length > 0 ? (p.images[0].url || p.images[0]) : null);
             const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
             // ✅ Mapbox no preserva objetos anidados -> serializamos identidad
-const identityObj =
-  (p?.user && typeof p.user === "object" ? p.user : null) ||
-  (p?.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null);
+            const identityObj = (p?.user && typeof p.user === "object" ? p.user : null) || (p?.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null);
+            const identityJson = identityObj ? JSON.stringify(identityObj) : null;
+            const ownerSnapJson = (p?.ownerSnapshot && typeof p.ownerSnapshot === "object") ? JSON.stringify(p.ownerSnapshot) : identityJson;
 
-const identityJson = identityObj ? JSON.stringify(identityObj) : null;
+            // 🔥 SALVAVIDAS ANTI-AMNESIA
+            const openHouseJson = p.openHouse ? JSON.stringify(p.openHouse) : (p.openHouses && p.openHouses[0] ? JSON.stringify(p.openHouses[0]) : null);
+            const activeCampaignJson = p.activeCampaign ? JSON.stringify(p.activeCampaign) : (p.campaigns && p.campaigns[0] ? JSON.stringify(p.campaigns[0]) : null);
+            const b2bJson = p.b2b ? JSON.stringify(p.b2b) : null;
 
-// ownerSnapshot histórico (si existe) también serializado
-const ownerSnapJson =
-  (p?.ownerSnapshot && typeof p.ownerSnapshot === "object")
-    ? JSON.stringify(p.ownerSnapshot)
-    : identityJson;
-
-          
             return {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
@@ -818,28 +874,25 @@ const ownerSnapJson =
                     ...p,
                     id: String(p.id),
                     priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
-                    
-                    // Imagen: Solo la real o null (nada de placeholders falsos)
                     img: safeImage,
-                    
-                    // 🔥 DATOS COMPLETOS Y NORMALIZADOS
                     m2: finalM2,       
                     mBuilt: finalM2,   
-                    
                     elevator: isYes(p.elevator),
                     communityFees: p.communityFees,
                     energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions,
                     energyPending: p.energyPending,
-               user: identityJson,
-ownerSnapshot: ownerSnapJson,
-role: p?.role ?? identityObj?.role ?? null,
-
-               
-                  }
+                    user: identityJson,
+                    ownerSnapshot: ownerSnapJson,
+                    role: p?.role ?? identityObj?.role ?? null,
+                    openHouse: openHouseJson,
+                    open_house_data: openHouseJson,
+                    activeCampaign: activeCampaignJson,
+                    b2b: b2bJson
+                }
             };
-        });
-
+        }).filter(Boolean); // 🧹 ESTA ES LA MAGIA: El '.filter(Boolean)' borra del mapa todos los 'null' generados arriba.
+       
         // --- FASE 4: INYECCIÓN SEGURA (Bucle de reintento) ---
         const injectSafely = (attempts = 0) => {
             if (!map.current) return;

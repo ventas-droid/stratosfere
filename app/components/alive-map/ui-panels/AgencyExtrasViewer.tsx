@@ -1,9 +1,26 @@
 "use client";
-import React from "react";
-import { FileText, Video, Globe, Calendar, Clock, MapPin, ShieldCheck, Download, ExternalLink } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { FileText, Video, Globe, Calendar, Clock, MapPin, ShieldCheck, Download, ExternalLink, CheckCircle2 } from "lucide-react";
+import { checkOpenHouseStatusAction } from "@/app/actions";
 
-export default function AgencyExtrasViewer({ property }: { property: any }) {
-  // Si no hay propiedad o no tiene extras, nos replegamos
+export default function AgencyExtrasViewer({ property, onOpenHouseClick }: any) {  
+  // 1. ESTADO DE MEMORIA (Debe ir antes de cualquier 'return')
+  const [isRegistered, setIsRegistered] = useState(false);
+
+  // 2. DETECTAMOS EL EVENTO 
+  const openHouse = property?.openHouse || property?.open_house_data;
+  const hasOpenHouse = openHouse && (openHouse.enabled === true || openHouse.enabled === "true");
+
+  // 3. EL CEREBRO SILENCIOSO: Pregunta a la base de datos si ya tenemos entrada
+  useEffect(() => {
+      if (hasOpenHouse && openHouse?.id) {
+          checkOpenHouseStatusAction(openHouse.id)
+              .then(res => { if (res?.isJoined) setIsRegistered(true); })
+              .catch(e => console.log("Silencio...", e));
+      }
+  }, [hasOpenHouse, openHouse?.id]);
+
+  // 4. REGLAS DE REPLIEGUE ORIGINALES
   if (!property) return null;
 
   const hasVideo = property.videoUrl && property.videoUrl.length > 5;
@@ -11,12 +28,7 @@ export default function AgencyExtrasViewer({ property }: { property: any }) {
   const hasNote = property.simpleNoteUrl && property.simpleNoteUrl.length > 5;
   const hasCert = property.energyCertUrl && property.energyCertUrl.length > 5;
   
-  // Detectar Open House activo
-  const openHouse = property.openHouse || property.open_house_data; // A veces viene con snake_case de la DB
-  const hasOpenHouse = openHouse && (openHouse.enabled === true || openHouse.enabled === "true");
-
   if (!hasVideo && !hasTour && !hasNote && !hasCert && !hasOpenHouse) return null;
-
   return (
     <div className="mt-6 space-y-6 animate-in slide-in-from-bottom-4 duration-700">
       
@@ -58,10 +70,21 @@ export default function AgencyExtrasViewer({ property }: { property: any }) {
                         ))}
                     </div>
                 )}
-
-                <button className="mt-6 w-full py-3 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors">
-                    Solicitar Invitación
-                </button>
+{/* 🔥 EL BOTÓN MUTANTE 🔥 */}
+                {isRegistered ? (
+                    <div className="mt-6 w-full py-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex flex-col items-center justify-center text-emerald-400 cursor-default select-none shadow-inner">
+                        <span className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                            <CheckCircle2 size={14} /> ¡Ya estás apuntado!
+                        </span>
+                        <span className="text-[9px] font-medium mt-1 text-emerald-500/60 uppercase tracking-wider">
+                            Para cancelar, ve a MIS ENTRADAS
+                        </span>
+                    </div>
+                ) : (
+                    <button onClick={onOpenHouseClick} className="mt-6 w-full py-3 bg-white text-black font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-gray-200 transition-colors shadow-lg cursor-pointer">
+                        Solicitar Invitación
+                    </button>
+                )}
             </div>
         </div>
       )}
