@@ -168,6 +168,10 @@ model Property {
   // Estas dos líneas son OBLIGATORIAS para que no falle el schema
   affiliateClicks AffiliateClick[]
   commissions     Commission[]
+isPremium  Boolean  @default(false)
+  isFire     Boolean  @default(false)
+
+
 }
 
 model Image {

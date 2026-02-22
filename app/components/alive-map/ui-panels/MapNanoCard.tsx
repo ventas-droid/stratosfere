@@ -60,8 +60,12 @@ export default function MapNanoCard(props: any) {
       return val;
   };
 
+  // 🔥 RESTAURAMOS EL PRECIO (Que se había borrado por accidente)
   const [currentPrice, setCurrentPrice] = useState(() => safeParsePrice(liveData.rawPrice ?? liveData.priceValue, liveData.price));
-  const [isPremium, setIsPremium] = useState(() => liveData.promotedTier === 'PREMIUM' || liveData.isPromoted === true);
+  
+  // 🔥 ESTADOS PREMIUM Y FUEGO
+  const [isPremium, setIsPremium] = useState(() => liveData.isPremium === true || liveData.promotedTier === 'PREMIUM' || liveData.isPromoted === true);
+  const [isFire, setIsFire] = useState(() => liveData.isFire === true);
   
   const rooms = Number(liveData.rooms ?? 0);
   const baths = Number(liveData.baths ?? 0);
@@ -91,18 +95,44 @@ export default function MapNanoCard(props: any) {
   }
   const img = finalAlbum[0] || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
 
-  // Antena
+  // 📡 Antena de Comunicaciones (BLINDADA)
   useEffect(() => {
     const handleUpdate = (e: any) => {
+      // 🛡️ Blindaje anti-crashes: si la señal llega vacía, la ignoramos
+      if (!e || !e.detail) return;
+
       if (String(e.detail.id) === String(id) && e.detail.updates) {
         const u = e.detail.updates;
+        
+        // 1. Actualizamos los datos generales
         setLiveData((prev: any) => ({ ...prev, ...u }));
-        if (u.price || u.rawPrice || u.priceValue) setCurrentPrice(safeParsePrice(u.rawPrice ?? u.priceValue, u.price));
-        if (u.promotedTier !== undefined || u.isPromoted !== undefined) setIsPremium(u.promotedTier === 'PREMIUM' || u.isPromoted === true);
+        
+        // 2. Actualizamos el precio si ha cambiado
+        if (u.price !== undefined || u.rawPrice !== undefined || u.priceValue !== undefined) {
+            setCurrentPrice(safeParsePrice(u.rawPrice ?? u.priceValue, u.price));
+        }
+        
+        // 🔥 3. Actualizamos los nuevos estados de Premium y Fuego
+        if (u.isPremium !== undefined || u.promotedTier !== undefined || u.isPromoted !== undefined) {
+            setIsPremium(u.isPremium === true || u.promotedTier === 'PREMIUM' || u.isPromoted === true);
+        }
+        if (u.isFire !== undefined) {
+            setIsFire(u.isFire === true);
+        }
       }
     };
-    if (typeof window !== "undefined") window.addEventListener("update-property-signal", handleUpdate);
-    return () => { if (typeof window !== "undefined") window.removeEventListener("update-property-signal", handleUpdate); };
+
+    // Conectamos la antena usando "as EventListener" para que TypeScript no se queje
+    if (typeof window !== "undefined") {
+        window.addEventListener("update-property-signal", handleUpdate as EventListener);
+    }
+    
+    // Apagamos la antena al desmontar
+    return () => { 
+        if (typeof window !== "undefined") {
+            window.removeEventListener("update-property-signal", handleUpdate as EventListener); 
+        }
+    };
   }, [id]);
 
   const style = getPriceStyle(currentPrice);
@@ -260,8 +290,12 @@ export default function MapNanoCard(props: any) {
               </div>
           </div>
       </div>
-      <div className={`relative rounded-full shadow-lg transition-all duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[3px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-2xl' : 'scale-100'} ${isPremium ? 'bg-amber-500 border-amber-200 scale-[1.75] z-[200] px-5 py-2.5' : 'px-3 py-1.5'}`} style={{ backgroundColor: isPremium ? '#F59E0B' : style.hex }} onClick={(e) => handleAction(e, 'open')}>
-         {isPremium && ( <><span className="absolute inset-0 rounded-full border-4 border-amber-500 opacity-60 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></span><span className="absolute inset-0 rounded-full border-2 border-amber-300 opacity-80 animate-pulse"></span></> )}
+   {/* 🔥 NUEVO: Lógica visual para Premium (Ámbar) y Fuego (Rojo Naranja) */}
+      <div className={`relative rounded-full shadow-lg transition-all duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[3px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-2xl' : 'scale-100'} ${isFire ? 'bg-[#FF3B30] border-[#FF9500] scale-[2] z-[300] px-6 py-3' : isPremium ? 'bg-amber-500 border-amber-200 scale-[1.75] z-[200] px-5 py-2.5' : 'px-3 py-1.5'}`} style={{ backgroundColor: isFire ? '#FF3B30' : isPremium ? '#F59E0B' : style.hex }} onClick={(e) => handleAction(e, 'open')}>
+         
+         {/* Ondas expansivas según el nivel */}
+         {isFire && ( <><span className="absolute inset-0 rounded-full border-4 border-[#FF3B30] opacity-80 animate-[ping_1s_cubic-bezier(0,0,0.2,1)_infinite]"></span><span className="absolute inset-0 rounded-full border-2 border-[#FF9500] opacity-90 animate-pulse"></span></> )}
+         {!isFire && isPremium && ( <><span className="absolute inset-0 rounded-full border-4 border-amber-500 opacity-60 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></span><span className="absolute inset-0 rounded-full border-2 border-amber-300 opacity-80 animate-pulse"></span></> )}
          <span className={`${isPremium ? 'text-sm' : 'text-xs'} font-black font-sans tracking-tight whitespace-nowrap text-white`}>{displayLabel}</span>
          <div className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-transparent border-r-transparent ${isPremium ? '-bottom-2.5 border-l-[10px] border-r-[10px] border-t-[12px]' : '-bottom-1.5 border-l-[6px] border-r-[6px] border-t-[8px]'}`} style={{ borderTopColor: isPremium ? '#F59E0B' : style.hex }}></div>
       </div>

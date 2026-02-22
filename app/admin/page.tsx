@@ -1,24 +1,39 @@
-import { prisma } from "@/app/lib/prisma"; // Ajuste la ruta si su prisma está en otro lado
-import AdminDashboard from "@/app/components/admin/AdminDashboard"; // El componente nuevo
-import { getUserMeAction } from "@/app/actions"; 
+import { PrismaClient } from '@prisma/client';
+import AdminDashboard from "@/app/components/admin/AdminDashboard";
+
+const prisma = new PrismaClient();
+export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  // 1. OBTENER AL COMANDANTE (Opcional, para logs o seguridad extra)
-  await getUserMeAction();
+  try {
+    // 1. Extraemos Usuarios con TODOS sus datos (incluyendo Subscripciones)
+    const users = await prisma.user.findMany({
+      include: {
+        subscription: true,
+        _count: { select: { properties: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
-  // 2. OBTENER TODA LA INTELIGENCIA
-  // Aquí está la clave: pedimos 'subscription' Y el conteo de 'properties'
-  const allUsers = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { 
-        subscription: true, // Para saber si pagó
-        _count: {           // 👈 MAGIA: Esto cuenta las propiedades automáticamente
-            select: { properties: true } 
+    // 2. Extraemos Propiedades con TODOS los contratos y dueños
+    const properties = await prisma.property.findMany({
+      include: {
+        user: true, // Trae email, phone, mobile del creador
+        assignment: {
+            where: { status: "ACTIVE" },
+            include: { agency: true } // Trae email, phone, mobile de la Agencia Gestora
+        },
+        campaigns: {
+            where: { status: "ACCEPTED" },
+            include: { agency: true }
         }
-    }, 
-    take: 100 // Límite de seguridad
-  });
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
-  // 3. DESPLEGAR EL COMPONENTE
-  return <AdminDashboard users={allUsers} />;
+    return <AdminDashboard users={users} properties={properties} />;
+  } catch (error) {
+    console.error("❌ ERROR CARGANDO DATOS EN ADMIN:", error);
+    return <div className="p-10 text-red-500 font-bold">Error cargando el radar.</div>;
+  }
 }
