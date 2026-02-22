@@ -593,3 +593,37 @@ model Lead {
   // Estado del Lead
   status    String   @default("NEW") 
 }
+
+// =========================================================
+// 🎯 CRM TÁCTICO: BASE DE DATOS DE CAPTACIÓN (OUTBOUND)
+// =========================================================
+
+model AgencyProspect {
+  id          String   @id @default(cuid())
+  
+  // Datos de la Agencia Objetivo
+  companyName String
+  contactName String?  // Nombre del gerente (si lo sabemos)
+  email       String   @unique
+  phone       String?
+  
+  // Localización
+  address     String?
+  city        String?
+  region      String?
+  zipCode     String?
+  
+  // Estado Comercial
+  status      String   @default("NEW") // NEW (Sin tocar), CONTACTED (Email enviado), REGISTERED (Ya se unió), DEAD (No interesa)
+  notes       String?  // Para que usted ponga: "Llamar el martes"
+  
+  // Rastro
+  emailsSent  Int      @default(0)
+  lastContact DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([city])
+}

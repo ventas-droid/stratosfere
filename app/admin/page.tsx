@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   try {
-    // 1. Extraemos Usuarios con TODOS sus datos (incluyendo Subscripciones)
     const users = await prisma.user.findMany({
       include: {
         subscription: true,
@@ -15,13 +14,12 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' }
     });
 
-    // 2. Extraemos Propiedades con TODOS los contratos y dueños
     const properties = await prisma.property.findMany({
       include: {
-        user: true, // Trae email, phone, mobile del creador
+        user: true,
         assignment: {
             where: { status: "ACTIVE" },
-            include: { agency: true } // Trae email, phone, mobile de la Agencia Gestora
+            include: { agency: true }
         },
         campaigns: {
             where: { status: "ACCEPTED" },
@@ -31,9 +29,15 @@ export default async function AdminPage() {
       orderBy: { createdAt: 'desc' }
     });
 
-    return <AdminDashboard users={users} properties={properties} />;
+    // 🔥 NUEVO: CARGAMOS LA LISTA DEL CRM DE CAPTACIÓN
+    const prospects = await prisma.agencyProspect.findMany({
+        orderBy: { createdAt: 'desc' }
+    });
+
+    // Se lo pasamos todo al panel
+    return <AdminDashboard users={users} properties={properties} prospects={prospects} />;
   } catch (error) {
     console.error("❌ ERROR CARGANDO DATOS EN ADMIN:", error);
-    return <div className="p-10 text-red-500 font-bold">Error cargando el radar.</div>;
+    return <div className="p-10 text-red-500 font-bold">Error cargando el radar del God Mode. Revise la consola.</div>;
   }
 }
