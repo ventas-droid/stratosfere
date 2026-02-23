@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction } from "@/app/components/admin/actions"; 
+import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction } from "@/app/components/admin/actions";
 import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, 
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2,
@@ -98,6 +98,19 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
     }
   };
 
+ // ÓRDEN DE ATAQUE: IMPORTACIÓN MASIVA
+  const handleCargarTropas = async () => {
+    if (window.confirm("🔥 ¿Autoriza la importación masiva de tropas desde la base de datos?")) {
+        const resultado = await importarBaseDeDatosAction();
+        if (resultado.success) {
+            alert(`¡MISIÓN CUMPLIDA! Se han desplegado ${resultado.count} agencias nuevas en el radar.`);
+            window.location.reload(); 
+        } else {
+            alert("⚠️ Error en el despliegue de tropas.");
+        }
+    }
+  };
+ 
   if (!isMounted) return null;
 
 if (!isAuthenticated) {
@@ -173,10 +186,16 @@ if (!isAuthenticated) {
                         <input type="text" placeholder="Nombre de la Agencia *" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.companyName} onChange={e=>setNewProspect({...newProspect, companyName: e.target.value})} required/>
                         <input type="email" placeholder="Email de contacto *" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.email} onChange={e=>setNewProspect({...newProspect, email: e.target.value})} required/>
                         <input type="tel" placeholder="Teléfono" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.phone} onChange={e=>setNewProspect({...newProspect, phone: e.target.value})}/>
-                        <input type="text" placeholder="Ciudad / Zona" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.city} onChange={e=>setNewProspect({...newProspect, city: e.target.value})}/>
-                        <button type="submit" disabled={isSending} className="bg-indigo-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-50">
-                            {isSending ? 'Añadiendo...' : '+ Guardar Agencia'}
-                        </button>
+                       <input type="text" placeholder="Ciudad / Zona" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.city} onChange={e=>setNewProspect({...newProspect, city: e.target.value})}/>
+                        
+                        <div className="flex gap-2">
+                            <button type="submit" disabled={isSending} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-50">
+                                {isSending ? 'Añadiendo...' : '+ Guardar Agencia'}
+                            </button>
+                            <button type="button" onClick={handleCargarTropas} className="w-full bg-black text-white font-bold py-3 rounded-lg text-sm hover:bg-gray-800 transition-colors shadow-md border border-gray-900">
+                                🔥 Importar (BD)
+                            </button>
+                        </div>
                     </form>
                  </div>
 

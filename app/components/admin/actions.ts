@@ -225,3 +225,35 @@ const invLink = `https://stratosfere.com/vip?inv=${prospect.id}&src=em`;
     return { success: false };
   }
 }
+import { agenciasObjetivo } from './base-de-datos';
+
+// 3. CARGAR TROPAS DESDE EL ARCHIVO BASE DE DATOS
+export async function importarBaseDeDatosAction() {
+    try {
+        let importadas = 0;
+
+        for (const agencia of agenciasObjetivo) {
+            // Comprobamos que no esté ya metida para no repetir
+            const existe = await prisma.agencyProspect.findFirst({
+                where: { email: agencia.email }
+            });
+
+            if (!existe) {
+                await prisma.agencyProspect.create({
+                    data: {
+                        companyName: agencia.companyName,
+                        email: agencia.email,
+                        phone: agencia.phone,
+                        city: agencia.city,
+                        status: 'PENDING'
+                    }
+                });
+                importadas++;
+            }
+        }
+        return { success: true, count: importadas };
+    } catch (error) {
+        console.error("Error importando base de datos:", error);
+        return { success: false };
+    }
+}
