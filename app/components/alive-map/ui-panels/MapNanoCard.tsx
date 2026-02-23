@@ -225,12 +225,18 @@ export default function MapNanoCard(props: any) {
     }
   };
 
+ // 🔥 Z-INDEX TÁCTICO: El Fuego está encima, pero el ratón siempre manda.
   useEffect(() => {
     if (cardRef.current) {
         const marker = cardRef.current.closest('.mapboxgl-marker') as HTMLElement;
-        if (marker) marker.style.zIndex = isHovered || isPremium ? "99999" : "auto";
+        if (marker) {
+            // Si tiene el ratón encima: MÁXIMA PRIORIDAD (99999)
+            // Si es Fuego: ALTA PRIORIDAD (9999)
+            // Si es normal: PRIORIDAD BASE (1)
+            marker.style.zIndex = isHovered ? "99999" : (isFire ? "9999" : "1");
+        }
     }
-  }, [isHovered, isPremium]);
+  }, [isHovered, isFire]);
 
   const locationText = String(liveData.city || liveData.location || liveData.address || "MADRID").toUpperCase().replace("PROVINCIA DE ", "").substring(0, 20);
   
@@ -241,35 +247,36 @@ export default function MapNanoCard(props: any) {
   const showOnlyM2 = isLandOrIndustrial && !hasRoomsOrBaths;
 
   return (
-    <div ref={cardRef} className={`pointer-events-auto flex flex-col items-center group relative ${isPremium ? 'z-[200]' : 'z-[50]'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-      <div className={`absolute bottom-[100%] pb-5 origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isPremium ? 'w-[500px] z-[250]' : 'w-[280px] z-[100]'} ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} onClick={(e) => handleAction(e, 'open')}>
-          <div className={`flex flex-col rounded-[24px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isPremium ? 'shadow-[0_0_60px_rgba(251,191,36,0.7)] border-4 border-amber-400' : 'shadow-2xl border border-white/80'}`}>
+    <div ref={cardRef} className={`pointer-events-auto flex flex-col items-center group relative ${isFire ? 'z-[200]' : 'z-[50]'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+      
+      {/* 🚀 1. EL POPUP (TARJETA FLOTANTE) - AHORA CONECTADA CORRECTAMENTE A 'isFire' */}
+<div className={`absolute bottom-[100%] origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isFire ? 'w-[500px] z-[250] pb-14' : 'w-[280px] z-[100] pb-5'} ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} onClick={(e) => handleAction(e, 'open')}>          <div className={`flex flex-col rounded-[24px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isFire ? 'shadow-[0_0_60px_rgba(239,68,68,0.5)] border-4 border-red-500' : 'shadow-2xl border border-white/80'}`}>
               <div className="relative">
-                  <div className={`relative overflow-hidden group/img ${isPremium ? 'h-80' : 'h-44'}`}>
+                  <div className={`relative overflow-hidden group/img ${isFire ? 'h-80' : 'h-44'}`}>
                       <img src={img} className="w-full h-full object-cover transition-transform duration-1000 group-hover/img:scale-105" alt="Propiedad"/>
-                      {isPremium && <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/30 via-transparent to-white/40 pointer-events-none mix-blend-overlay"></div>}
+                      {isFire && <div className="absolute inset-0 bg-gradient-to-tr from-red-500/30 via-transparent to-white/40 pointer-events-none mix-blend-overlay"></div>}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80"></div>
                       <div className="absolute top-4 left-4 px-3 py-2 rounded-full backdrop-blur-xl bg-white/95 shadow-lg flex items-center gap-2 border-2 border-white/50">
-                          {isPremium ? ( <><Crown size={14} className="text-amber-600 fill-amber-500 animate-pulse"/><span className="text-[11px] font-black uppercase tracking-widest text-amber-700">PREMIUM</span></> ) : ( <>{getPropertyIcon(type)}<span className="text-[10px] font-bold uppercase tracking-wide text-gray-800">{type}</span></> )}
+                          {isFire ? ( <><Crown size={14} className="text-red-600 fill-red-500 animate-pulse"/><span className="text-[11px] font-black uppercase tracking-widest text-red-700">FUEGO</span></> ) : ( <>{getPropertyIcon(type)}<span className="text-[10px] font-bold uppercase tracking-wide text-gray-800">{type}</span></> )}
                       </div>
-                      {!isPremium && <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md shadow-sm border border-white/20" style={{ backgroundColor: style.hex }}><span className="text-[9px] font-bold uppercase tracking-wider text-white">{style.label}</span></div>}
+                      {!isFire && <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-md shadow-sm border border-white/20" style={{ backgroundColor: style.hex }}><span className="text-[9px] font-bold uppercase tracking-wider text-white">{style.label}</span></div>}
                       <div className="absolute top-4 right-4 z-20">
                           <button onClick={(e) => handleAction(e, 'fav')} className={`w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-xl border-2 transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg ${liked ? 'bg-red-500 text-white border-red-400' : 'bg-black/30 text-white border-white/30 hover:bg-black/50'}`}>
                               <Heart size={18} className={`transition-transform duration-300 ${liked ? "fill-current scale-105" : "scale-100"}`} />
                           </button>
                       </div>
                   </div>
-                  <div className={`p-6 pt-5 ${isPremium ? 'bg-gradient-to-b from-[#FFFBEB] to-white' : 'bg-white'}`}>
+                  <div className={`p-6 pt-5 ${isFire ? 'bg-gradient-to-b from-[#FEF2F2] to-white' : 'bg-white'}`}>
                       <div className="mb-2">
-                          {isPremium && liveData?.title && <h3 className="text-xl font-black text-gray-900 truncate mb-1">{liveData.title}</h3>}
+                          {isFire && liveData?.title && <h3 className="text-xl font-black text-gray-900 truncate mb-1">{liveData.title}</h3>}
                           <div className="flex justify-between items-start items-center">
-                              <span className={`font-black tracking-tight leading-none ${isPremium ? 'text-4xl text-amber-600 drop-shadow-sm' : 'text-xl text-gray-900'}`}>{displayLabel}</span>
+                              <span className={`font-black tracking-tight leading-none ${isFire ? 'text-4xl text-red-600 drop-shadow-sm' : 'text-xl text-gray-900'}`}>{displayLabel}</span>
                               {floor && <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-wide"><ArrowUp size={12}/> <span>P.{floor}</span></div>}
                           </div>
                       </div>
                       <div className="flex items-center gap-1.5 text-gray-500 mb-5"><Navigation size={12} style={{ color: style.hex }}/><span className="text-xs font-bold uppercase tracking-wider truncate text-gray-500">{locationText}</span></div>
                       
-                      {/* 🔥 BLOQUE DE HABITACIONES CORREGIDO */}
+                      {/* Habitación y Baños */}
                       <div className="flex justify-between items-center py-3 px-4 bg-white rounded-xl border-2 border-gray-100 shadow-sm">
                           {showOnlyM2 ? ( 
                               <div className="flex items-center gap-2 w-full justify-center text-gray-700">
@@ -290,14 +297,37 @@ export default function MapNanoCard(props: any) {
               </div>
           </div>
       </div>
-   {/* 🔥 NUEVO: Lógica visual para Premium (Ámbar) y Fuego (Rojo Naranja) */}
-      <div className={`relative rounded-full shadow-lg transition-all duration-300 ease-out flex flex-col items-center justify-center z-20 cursor-pointer border-[3px] border-white ${isHovered ? 'scale-110 -translate-y-1 shadow-2xl' : 'scale-100'} ${isFire ? 'bg-[#FF3B30] border-[#FF9500] scale-[2] z-[300] px-6 py-3' : isPremium ? 'bg-amber-500 border-amber-200 scale-[1.75] z-[200] px-5 py-2.5' : 'px-3 py-1.5'}`} style={{ backgroundColor: isFire ? '#FF3B30' : isPremium ? '#F59E0B' : style.hex }} onClick={(e) => handleAction(e, 'open')}>
+
+     {/* 🎯 2. EL MARCADOR (PASTILLA) - TOTALMENTE ESTÁTICO Y SÓLIDO PARA TODOS */}
+      <div 
+        // Eliminado el "transition-all" y el hover. Ahora son inamovibles.
+        className={`relative rounded-full shadow-lg flex flex-col items-center justify-center z-20 cursor-pointer border-[3px] border-white origin-bottom
+        ${isFire 
+            ? 'scale-[1.35] z-[300] px-5 py-2 border-orange-200 shadow-2xl' 
+            : 'scale-100 z-[100] px-3 py-1.5'
+        }`} 
+        style={{ background: isFire ? 'linear-gradient(to bottom right, #fbbf24, #ef4444)' : style.hex }} 
+        onClick={(e) => handleAction(e, 'open')}
+      >
+         {/* Ondas expansivas SOLO PARA FUEGO - pointer-events-none para no bloquear clics */}
+         {isFire && ( 
+            <>
+              <span className="absolute inset-0 rounded-full border-4 border-[#f97316] opacity-80 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite] pointer-events-none"></span>
+              <span className="absolute inset-0 rounded-full border-2 border-white opacity-90 animate-pulse pointer-events-none"></span>
+            </> 
+         )}
          
-         {/* Ondas expansivas según el nivel */}
-         {isFire && ( <><span className="absolute inset-0 rounded-full border-4 border-[#FF3B30] opacity-80 animate-[ping_1s_cubic-bezier(0,0,0.2,1)_infinite]"></span><span className="absolute inset-0 rounded-full border-2 border-[#FF9500] opacity-90 animate-pulse"></span></> )}
-         {!isFire && isPremium && ( <><span className="absolute inset-0 rounded-full border-4 border-amber-500 opacity-60 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></span><span className="absolute inset-0 rounded-full border-2 border-amber-300 opacity-80 animate-pulse"></span></> )}
-         <span className={`${isPremium ? 'text-sm' : 'text-xs'} font-black font-sans tracking-tight whitespace-nowrap text-white`}>{displayLabel}</span>
-         <div className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-transparent border-r-transparent ${isPremium ? '-bottom-2.5 border-l-[10px] border-r-[10px] border-t-[12px]' : '-bottom-1.5 border-l-[6px] border-r-[6px] border-t-[8px]'}`} style={{ borderTopColor: isPremium ? '#F59E0B' : style.hex }}></div>
+         {/* Texto siempre sólido y estático */}
+         <span className={`${isFire ? 'text-sm' : 'text-xs'} font-black font-sans tracking-tight whitespace-nowrap text-white`}>
+            {displayLabel}
+         </span>
+         
+         {/* Piquito inferior estático */}
+         <div 
+            className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-transparent border-r-transparent 
+            ${isFire ? '-bottom-[7px] border-l-[8px] border-r-[8px] border-t-[9px]' : '-bottom-1.5 border-l-[6px] border-r-[6px] border-t-[8px]'}`} 
+            style={{ borderTopColor: isFire ? '#ef4444' : style.hex }}
+         ></div>
       </div>
     </div>
   );

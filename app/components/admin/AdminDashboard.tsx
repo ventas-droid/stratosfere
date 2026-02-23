@@ -4,7 +4,7 @@ import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertySt
 import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, 
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2,
-    Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send
+    Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle
 } from "lucide-react";
 
 const MASTER_PASSWORD = "GENERAL_ISIDRO"; 
@@ -16,7 +16,9 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM'>('USERS'); 
   const [now, setNow] = useState<Date | null>(null);
-
+// 🔥 MEMORIA RAM TÁCTICA PARA VELOCIDAD ZAS ZAS
+  const [localProperties, setLocalProperties] = useState(properties);
+ 
   // ESTADO DEL FORMULARIO DEL CRM
   const [newProspect, setNewProspect] = useState({ companyName: '', email: '', phone: '', city: '' });
   const [isSending, setIsSending] = useState(false);
@@ -38,9 +40,10 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
     const totalUsers = users.length;
     const activeSubs = users.filter(u => u.subscription?.status === "ACTIVE").length;
     const activeTrials = users.filter(u => (u.role === 'AGENCIA' || u.role === 'AGENCY') && u.subscription?.status !== "ACTIVE" && u.subscription?.status !== "BLOCKED").length;
-    const indecisos = properties.filter(p => p.status === 'BORRADOR' || p.status === 'PENDIENTE_PAGO').length;
+    // 👇 CAMBIADO A localProperties
+    const indecisos = localProperties.filter(p => p.status === 'BORRADOR' || p.status === 'PENDIENTE_PAGO').length;
     return { totalUsers, activeSubs, activeTrials, indecisos };
-  }, [users, properties]);
+  }, [users, localProperties]); // 👇 CAMBIADO A localProperties
 
   const search = searchTerm.toLowerCase().trim();
 
@@ -49,12 +52,17 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
     return (u.name || "").toLowerCase().includes(search) || (u.companyName || "").toLowerCase().includes(search) || (u.email || "").toLowerCase().includes(search) || (u.phone || "").toLowerCase().includes(search) || (u.mobile || "").toLowerCase().includes(search);
   });
 
-  const filteredProperties = properties.filter(p => {
+  // 🎯 BÚSQUEDA TÁCTICA: Ahora el God Mode detecta Precios y Ciudades
+  const filteredProperties = localProperties.filter(p => { // 👇 CAMBIADO A localProperties
     if (!search) return true;
     const agency = p.assignment?.agency || p.campaigns?.[0]?.agency || {};
+    const city = (p.city || p.address || "").toLowerCase();
+    const priceStr = String(p.price || "");
+    
     return (p.title || "").toLowerCase().includes(search) || (p.refCode || p.id || "").toLowerCase().includes(search) || 
            (p.user?.name || "").toLowerCase().includes(search) || (p.user?.email || "").toLowerCase().includes(search) || 
-           (agency.name || "").toLowerCase().includes(search) || (agency.companyName || "").toLowerCase().includes(search);
+           (agency.name || "").toLowerCase().includes(search) || (agency.companyName || "").toLowerCase().includes(search) ||
+           city.includes(search) || priceStr.includes(search);
   });
 
   const filteredProspects = prospects.filter(p => {
@@ -213,21 +221,45 @@ if (!isAuthenticated) {
                                                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 font-bold text-[10px] uppercase tracking-wider rounded-full border border-gray-200">VIRGEN (Sin Tocar)</span>
                                             )}
                                         </td>
-                                        <td className="p-5 text-center">
-                                             <button 
-                                                onClick={async () => {
-                                                    if(window.confirm(`¿Disparar email de invitación con 15 días gratis a ${prospect.companyName}?`)) {
-                                                        const res = await sendProspectEmailAction(prospect.id);
-                                                        if(res.success) {
-                                                            alert("¡Misil enviado con éxito!");
-                                                            window.location.reload();
-                                                        } else { alert("Error al enviar el correo."); }
-                                                    }
-                                                }} 
-                                                className="w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm bg-black text-white hover:bg-gray-800"
-                                            >
-                                                <Send size={14}/> Disparar Email
-                                            </button>
+                                       <td className="p-5 text-center">
+                                            <div className="flex flex-col gap-2">
+                                             {/* 📱 BOTÓN WHATSAPP (Con Aviso de Ordenador - Desktop First) */}
+                                                <button 
+                                                    onClick={() => {
+                                                        if(!prospect.phone) return alert("Esta agencia no tiene teléfono registrado.");
+                                                        
+                                                        // Limpiamos el teléfono y le ponemos el +34 de España si es necesario
+                                                        let cleanPhone = prospect.phone.replace(/\D/g, '');
+                                                        if(cleanPhone.length === 9) cleanPhone = '34' + cleanPhone;
+
+                                                        // EL MISIL DE TEXTO EXACTO (CON ADVERTENCIA DESKTOP)
+                                                        const message = `Hola, equipo de ${prospect.companyName}. Soy Alex, del Growth & Partnerships Team de Stratosfere.\n\nEstamos seleccionando e invitando en esta fase de lanzamiento a agencias con un sólido bagaje en el sector y producto en gestión en ${prospect.city || 'su zona'}. El objetivo es que sean de nuestros primeros colaboradores desde el 'Día 0', lo que a futuro les otorgará ventajas y extras exclusivos.\n\nConocemos que ya usan portales tradicionales para la promoción y conexión con el mercado. Por eso, hemos lanzado un modelo completamente distinto: un portal inmobiliario impulsado por un Sistema Operativo B2B (SaaS) en tiempo real, conectado a un mapa vía satélite en 3D. Aquí geolocalizarán su producto con una exposición que rompe las barreras tecnológicas y genera un atractivo visual innegable.\n\nLa tecnología está diseñada para multiplicar sus cierres: venta cruzada, captación de exclusivas sin levantar el teléfono, organización de eventos online, red de embajadores (leads) y una bolsa segura para compartir comisiones con otros profesionales... entre otras funciones que esperamos descubran ustedes mismos al testearla.\n\nLes dejo un breve vídeo operando el radar por dentro:\n🎥 [ENLACE-AL-VIDEO-AQUI]\n\nLo mejor es que lo comprueben ustedes mismos. Para ello, les hemos habilitado una invitación de 15 días de acceso total, 100% operativo. Si tras la prueba deciden quedarse en esta fase de lanzamiento, disfrutarán de una operatividad del 100% sin restricciones ni permanencia por una suscripción de mantenimiento de 49,90 €/mes.\n\n⚠️ IMPORTANTE: Stratosfere es una herramienta de alto rendimiento. Para desplegar todo el potencial del mapa 3D y de la edicion, es imprescindible abrir este enlace desde un ORDENADOR. Una vez registrados, les facilitaremos las instrucciones para descargar la App complementaria (iOS/Android) y mantener el control 24/7 desde el móvil.\n\nPueden activar su acceso VIP aquí:\n👉 https://stratosfere.com/vip?inv=${prospect.id}&src=wa\n\nCualquier duda, pueden escribirme por aquí o a info@stratosfere.com. Un saludo y bienvenidos.`;
+                                                        
+const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;                                                       
+ window.open(waUrl, '_blank'); 
+                                                    }} 
+                                                    className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm ${prospect.phone ? 'bg-[#25D366] text-white hover:bg-[#128C7E]' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                                    title={prospect.phone ? "Abrir en WhatsApp Web" : "Falta Teléfono"}
+                                                >
+                                                    <MessageCircle size={14}/> WhatsApp
+                                                </button>
+
+                                                {/* 📩 BOTÓN EMAIL (Bombardeo Formal y Controlado) */}
+                                                <button 
+                                                    onClick={async () => {
+                                                        if(window.confirm(`¿Disparar email de invitación con 15 días gratis a ${prospect.companyName}?`)) {
+                                                            const res = await sendProspectEmailAction(prospect.id);
+                                                            if(res.success) {
+                                                                alert("¡Misil enviado con éxito!");
+                                                                window.location.reload();
+                                                            } else { alert("Error al enviar el correo."); }
+                                                        }
+                                                    }} 
+                                                    className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm ${isContacted ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}`}
+                                                >
+                                                    <Send size={14}/> {isContacted ? 'Reenviar Email' : 'Disparar Email'}
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -400,11 +432,10 @@ if (!isAuthenticated) {
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
                             <tr>
-                                <th className="p-5 font-medium">Propiedad</th>
+                               <th className="p-5 font-medium">Propiedad</th>
                                 <th className="p-5 font-medium">Contactos (Creador / Gestor)</th>
-                                <th className="p-5 text-center font-bold text-blue-600">1. Alta Radar (Visible)</th>
-                                <th className="p-5 text-center font-bold text-amber-600">2. Premium Normal</th>
-                                <th className="p-5 text-center font-bold text-orange-600">3. Nano Card FUEGO</th>
+                                <th className="p-5 text-center font-bold text-blue-600">1. Alta en Mapa (Visible)</th>
+                                <th className="p-5 text-center font-bold text-red-600">2. Nano Card FUEGO</th>
                                 <th className="p-5 text-center font-medium">Acciones</th>
                             </tr>
                         </thead>
@@ -438,12 +469,24 @@ const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
 
                                 return (
                                     <tr key={prop.id} className={`transition-colors ${!isPublished ? 'bg-red-50/30 hover:bg-red-50/60' : 'hover:bg-gray-50'}`}>
+                                      {/* 1. INFO DE LA PROPIEDAD ENRIQUECIDA */}
                                         <td className="p-5 w-1/5">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${!isPublished ? 'bg-red-100 text-red-500 border-red-200' : 'bg-gray-100 text-gray-400 border-gray-200'}`}><Home size={16}/></div>
-                                                <div>
-                                                    <p className="font-bold text-gray-900 text-sm">{prop.title || "Sin título"}</p>
-                                                    <p className="text-xs text-gray-500 font-mono mt-0.5">{prop.refCode || prop.id}</p>
+                                                <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border ${!isPublished ? 'bg-red-100 text-red-500 border-red-200' : 'bg-gray-100 text-gray-400 border-gray-200'}`}><Home size={16}/></div>
+                                                <div className="min-w-0">
+                                                    <p className="font-bold text-gray-900 text-sm truncate">{prop.title || "Sin título"}</p>
+                                                    
+                                                    {/* El Precio y la Ciudad (NUEVO) */}
+                                                    <div className="flex items-center gap-2 mt-1.5 mb-1">
+                                                         <span className="text-[11px] font-black text-gray-900 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded shadow-sm">
+                                                             {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(prop.price || 0)}
+                                                         </span>
+                                                         <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide flex items-center gap-0.5 truncate">
+                                                             <MapPin size={10} className="text-gray-400" /> {prop.city || "Ubicación oculta"}
+                                                         </span>
+                                                    </div>
+
+                                                    <p className="text-[10px] text-gray-400 font-mono">{prop.refCode || prop.id}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -474,44 +517,61 @@ const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
                                         
                                         <td className="p-5 text-center bg-gray-50/30">
                                             <div className="flex flex-col items-center gap-1.5">
-                                                <button onClick={async () => {
+                                               <button onClick={async () => {
+                                                    // ⚡️ ZAS ZAS 1: Efecto visual inmediato (Optimista)
+                                                    setLocalProperties(prev => prev.map(p => {
+                                                        if (p.id === prop.id) {
+                                                            return { 
+                                                                ...p, 
+                                                                status: !isPublished ? 'PUBLICADO' : 'PENDIENTE_PAGO',
+                                                                // Si apagamos, aplicamos la acetona visualmente también
+                                                                ...(isPublished ? { isFire: false, isPremium: false, isPromoted: false, promotedTier: 'FREE' } : {})
+                                                            };
+                                                        }
+                                                        return p;
+                                                    }));
+
+                                                    // ⚡️ ZAS ZAS 2: Envío silencioso a la base de datos
                                                     const res = await togglePropertyStatusAction(prop.id, !isPublished);
-                                                    if(res.success) window.location.reload(); else alert("Error al publicar");
+                                                    if(!res.success) {
+                                                        alert("Fallo de comunicación satelital.");
+                                                        window.location.reload(); // Solo recarga si hay un fallo
+                                                    }
                                                 }} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPublished ? 'bg-blue-500' : 'bg-red-200'}`}>
                                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPublished ? 'translate-x-6' : 'translate-x-1'}`} />
                                                 </button>
                                                 {isPublished ? (
-                                                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1"><CheckCircle2 size={10}/> Visible en Radar</span>
-                                                ) : (
+<span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1"><CheckCircle2 size={10}/> Visible en Mapa</span>                                                ) : (
                                                     <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-md border border-red-200 animate-pulse flex items-center gap-1"><AlertTriangle size={10}/> INDECISO</span>
                                                 )}
                                             </div>
                                         </td>
-{/* 2. PREMIUM NORMAL */}
-                                        <td className="p-5 text-center">
-                                            <div className={`flex flex-col items-center gap-1.5 ${!isPublished ? 'opacity-30 pointer-events-none' : ''}`}>
-                                                <button onClick={async () => {
-                                                    const res = await togglePropertyPremiumAction(prop.id, !isPremium);
-                                                    if(res.success) window.location.reload(); else alert("Error");
-                                                }} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isPremium ? 'bg-amber-500' : 'bg-gray-200'}`}>
-                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPremium ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                </button>
-                                                {isPremium && (
-                                                    <div className="flex flex-col items-center gap-0.5">
-                                                        <span className="text-[10px] font-mono text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100 whitespace-nowrap">{premiumTime || "Activa"}</span>
-                                                        <span className="text-[8px] font-black text-amber-700 uppercase tracking-widest mt-0.5">SF-NANOFREETRIAL</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
+
                                         
                                         {/* 3. FUEGO */}
                                         <td className="p-5 text-center">
                                             <div className={`flex flex-col items-center gap-1.5 ${!isPublished ? 'opacity-30 pointer-events-none' : ''}`}>
-                                                <button onClick={async () => {
+                                               <button onClick={async () => {
+                                                        // ⚡️ ZAS ZAS 1: Efecto visual inmediato (Optimista)
+                                                        setLocalProperties(prev => prev.map(p => {
+                                                            if (p.id === prop.id) {
+                                                                return { 
+                                                                    ...p, 
+                                                                    isFire: !isFire,
+                                                                    isPremium: false,
+                                                                    promotedTier: !isFire ? 'FUEGO' : 'FREE'
+                                                                };
+                                                            }
+                                                            return p;
+                                                        }));
+
+                                                        // ⚡️ ZAS ZAS 2: Envío silencioso a la base de datos
                                                         const res = await togglePropertyFireAction(prop.id, !isFire);
-                                                        if(res.success) window.location.reload(); else alert("Error");
-                                                    }} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isFire ? 'bg-[#FF3B30]' : 'bg-gray-200'}`}>
+                                                        if(!res.success) {
+                                                            alert("Fallo de comunicación satelital.");
+                                                            window.location.reload(); // Solo recarga si hay fallo
+                                                        }
+                                                    }} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isFire ? 'bg-red-600' : 'bg-gray-200'}`}>
                                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isFire ? 'translate-x-6' : 'translate-x-1'}`} />
                                                 </button>
                                                 

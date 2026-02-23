@@ -36,6 +36,7 @@ export async function registerUser(formData: FormData) {
   const hashedPassword = await hash(password, 10)
 
   try {
+    // 2. CREACIÓN DEL USUARIO (Su código intacto)
     await db.user.create({
       data: {
         email,
@@ -45,9 +46,31 @@ export async function registerUser(formData: FormData) {
       }
     })
 
+    // --- 🎯 INICIO DE LA INYECCIÓN VIP (RASTREO BLINDADO) ---
+    // Lo hacemos seguro: si esto falla por cualquier motivo, no rompe el registro.
+    const cookieStore = await cookies();
+    const vipInviteCode = cookieStore.get('stratos_vip_invite')?.value;
+    
+    if (assignedRole === 'AGENCIA' && vipInviteCode) {
+        try {
+            // Marcamos a la agencia como CAPTURADA en el CRM de su God Mode
+            await db.agencyProspect.updateMany({ 
+                where: { id: vipInviteCode },
+                data: { status: 'REGISTERED' } 
+            });
+            console.log(`🎯 MISIL IMPACTADO: Agencia VIP capturada (${vipInviteCode})`);
+            
+            // Borramos la baliza del navegador del cliente para limpiar el rastro
+            cookieStore.delete('stratos_vip_invite');
+        } catch (e) {
+            console.warn("⚠️ Aviso: La baliza VIP no se pudo procesar, pero el usuario se registró.", e);
+        }
+    }
+    // --- FIN DE LA INYECCIÓN VIP ---
+
+    // 3. PROCESOS FINALES (Su código intacto)
     sendWelcomeEmail(email, name);
 
-    const cookieStore = await cookies();
     cookieStore.set('stratos_session_email', email, {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -62,7 +85,7 @@ export async function registerUser(formData: FormData) {
 
   console.log(`👉 REGISTRO COMPLETADO: ${email} como ${assignedRole}`)
   
-  // REDIRECCIÓN INTELIGENTE SEGÚN ROL
+  // 4. REDIRECCIÓN INTELIGENTE SEGÚN ROL (Su código intacto)
   if (assignedRole === 'AGENCIA') {
     redirect("/?access=agency")
   } else if (assignedRole === 'DIFUSOR') {
