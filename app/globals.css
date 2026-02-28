@@ -389,37 +389,55 @@ html, body {
 
 
 /* =========================================
-   9. PROTOCOLO ANT-MAN (ESCALADO INTELIGENTE PARA PORTÁTILES)
+   9. PROTOCOLO ANT-MAN V3 (ESCALADO AGRESIVO PARA PORTÁTILES Y MÓVILES)
    ========================================= */
-/* Redimensiona mágicamente todo el SaaS sin romper nada ajustando la raíz (rem) */
+/* Redimensiona la plataforma completa. Si baja el font-size, Tailwind encoge TODO (paneles, letras, márgenes) proporcionalmente. */
 
-@media (max-width: 1440px), (max-height: 800px) {
-  html { font-size: 14px !important; } /* Reduce todo el tamaño un 12.5% en portátiles normales */
+@media (max-width: 1440px), (max-height: 850px) {
+  html { font-size: 13px !important; } /* Reducción moderada para pantallas medianas */
 }
 
-@media (max-width: 1280px), (max-height: 700px) {
-  html { font-size: 13px !important; } /* Reduce un 18% en portátiles de 14" o pantallas pequeñas */
+@media (max-width: 1280px), (max-height: 750px) {
+  html { font-size: 11px !important; } /* 🔥 REDUCCIÓN EXTREMA (30% menos). Ideal para portátiles de 14" con Zoom en Windows. La Nano Card ahora cabrá perfectamente. */
 }
 
-/* El móvil vuelve a su tamaño táctil 100% para que los botones sean cómodos de pulsar */
 @media (max-width: 768px) {
-  html { font-size: 16px !important; }
+  html { font-size: 13px !important; } /* 🔥 REDUCCIÓN MÓVIL: Hace que la interfaz en el teléfono sea más fina, compacta y profesional. */
 }
 
 /* =========================================
-   10. DESBLOQUEO MASIVO DE SCROLL MÓVIL (NIVEL KERNEL)
+   10. ROMPEHIELOS TÁCTICO (DESBLOQUEO DE SCROLL MÓVIL FORZADO)
    ========================================= */
-/* Aniquila la resistencia de Android/iOS al deslizamiento vertical */
+/* El mapa (Mapbox) roba los toques del dedo. Con esto, le ponemos una armadura a los paneles para que manden ellos. */
 
 .custom-scrollbar,
 .overflow-y-auto,
 [class*="overflow-y-auto"] {
-    flex: 1 1 auto !important; /* Fuerza a la lista a no pasarse de su caja */
-    max-height: 100% !important; /* Blindaje de altura */
-    -webkit-overflow-scrolling: touch !important; /* Activa el motor de inercia de Apple/Android */
-    touch-action: pan-y !important; /* 🔥 LA CLAVE: Obliga al móvil a leer el gesto vertical del dedo */
-    pointer-events: auto !important; /* Evita que el cristal protector bloquee el toque */
+    /* 1. Despierta el motor de scroll del móvil forzando la propiedad a 'scroll' en lugar de 'auto' */
+    overflow-y: scroll !important; 
+    
+    /* 2. Inercia de Apple/Android */
+    -webkit-overflow-scrolling: touch !important; 
+    
+    /* 3. Le grita al móvil: "¡SOLO GESTOS VERTICALES AQUÍ!" (Bloquea a Mapbox) */
+    touch-action: pan-y auto !important; 
+    
+    /* 4. Fuerza a que el dedo se detecte en esta capa y no traspase al mapa */
+    pointer-events: auto !important; 
+    
+    /* 5. Aísla el scroll para que no rebote la página entera */
     overscroll-behavior: contain !important;
+    
+    /* 6. Contexto 3D para evitar bugs de renderizado en Safari iOS */
+    transform: translateZ(0); 
+    position: relative;
+    z-index: 50;
+}
+
+/* Blindaje extra para que la caja principal no estalle en el móvil */
+.flex-1 {
+    min-height: 0 !important;
+    flex-shrink: 1 !important;
 }
 
 /* =========================================
