@@ -421,3 +421,58 @@ html, body {
     pointer-events: auto !important; /* Evita que el cristal protector bloquee el toque */
     overscroll-behavior: contain !important;
 }
+
+/* =========================================
+   11. ARSENAL DE ÉLITE: EFECTO "WOW" Y MICRO-INTERACCIONES
+   ========================================= */
+
+/* 🎯 1. SELECCIÓN DE TEXTO TÁCTICA (Adiós al azul por defecto) */
+/* Cuando un usuario arrastra el ratón para copiar texto, en lugar del azul soso de Windows/Mac, verá un Neón futurista brillante */
+::selection {
+  background: rgba(37, 99, 235, 0.3); /* Azul Neón translúcido */
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+::-moz-selection {
+  background: rgba(37, 99, 235, 0.3);
+  color: #ffffff;
+}
+
+/* 🎯 2. TIPOGRAFÍA INTELIGENTE (IA CSS) */
+/* Evita automáticamente que una sola palabra se quede "colgando" sola en la última línea de un título o párrafo. Equilibrio perfecto. */
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance !important;
+}
+p {
+  text-wrap: pretty !important;
+}
+
+/* 🎯 3. DETALLES DE HACKER EN FORMULARIOS */
+input, textarea {
+  /* El cursor (la barrita que parpadea al escribir) ahora será Verde IA Brillante en lugar de negro */
+  caret-color: #4ade80 !important; 
+  /* Los checkboxes nativos usarán el azul corporativo */
+  accent-color: #2563eb !important; 
+}
+
+/* 🎯 4. CURVA DE ACELERACIÓN "APPLE SPRING" GLOBALES */
+/* Cambia la forma matemática en la que se mueven los botones al hacer hover. En lugar de ser lineal, tiene el "rebote elástico" de iOS. */
+button, a, .glass-panel {
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+/* 🎯 5. ANTI-FLICKER HARDWARE (Aceleración de GPU Extrema) */
+/* Evita parpadeos microscópicos cuando los paneles laterales entran deslizándose sobre el mapa 3D */
+.animate-slide-in-right, 
+.animate-slide-in-left, 
+.animate-slide-in-bottom,
+.animate-fade-in-up {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* 🎯 6. EFECTO "CRISTAL EMPAÑADO" EN SCROLL */
+/* Si alguna vez el usuario hace scroll hacia abajo en el mapa (fuera del panel), el fondo respira suavemente */
+html {
+  scroll-behavior: smooth !important; 
+}
