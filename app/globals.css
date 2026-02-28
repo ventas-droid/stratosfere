@@ -386,3 +386,38 @@ html, body {
     min-height: 0;
     min-width: 0;
 }
+
+
+/* =========================================
+   9. PROTOCOLO ANT-MAN (ESCALADO INTELIGENTE PARA PORTÁTILES)
+   ========================================= */
+/* Redimensiona mágicamente todo el SaaS sin romper nada ajustando la raíz (rem) */
+
+@media (max-width: 1440px), (max-height: 800px) {
+  html { font-size: 14px !important; } /* Reduce todo el tamaño un 12.5% en portátiles normales */
+}
+
+@media (max-width: 1280px), (max-height: 700px) {
+  html { font-size: 13px !important; } /* Reduce un 18% en portátiles de 14" o pantallas pequeñas */
+}
+
+/* El móvil vuelve a su tamaño táctil 100% para que los botones sean cómodos de pulsar */
+@media (max-width: 768px) {
+  html { font-size: 16px !important; }
+}
+
+/* =========================================
+   10. DESBLOQUEO MASIVO DE SCROLL MÓVIL (NIVEL KERNEL)
+   ========================================= */
+/* Aniquila la resistencia de Android/iOS al deslizamiento vertical */
+
+.custom-scrollbar,
+.overflow-y-auto,
+[class*="overflow-y-auto"] {
+    flex: 1 1 auto !important; /* Fuerza a la lista a no pasarse de su caja */
+    max-height: 100% !important; /* Blindaje de altura */
+    -webkit-overflow-scrolling: touch !important; /* Activa el motor de inercia de Apple/Android */
+    touch-action: pan-y !important; /* 🔥 LA CLAVE: Obliga al móvil a leer el gesto vertical del dedo */
+    pointer-events: auto !important; /* Evita que el cristal protector bloquee el toque */
+    overscroll-behavior: contain !important;
+}
