@@ -14,20 +14,18 @@ html, body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
   
-  /* Bloquea barras de desplazamiento nativas y evita el rebote elástico en Safari/iOS */
-  overflow: hidden; 
+  /* 🔥 CORRECCIÓN TÁCTICA: Liberamos el eje vertical para el Login, bloqueamos el horizontal */
+  overflow-x: hidden;
+  overflow-y: auto; 
   overscroll-behavior-y: none;
   
-  /* 🔥 INYECCIÓN: SUAVIZADO MILITAR MAC-STYLE PARA WINDOWS 🔥 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  transform: translateZ(0); /* Aceleración por GPU */
-
-  /* 🔥 INYECCIÓN: NORMALIZACIÓN MÓVIL 🔥 */
+  transform: translateZ(0); 
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent; /* Quita el cuadro azul feo al tocar en Android */
+  -webkit-tap-highlight-color: transparent;
   touch-action: pan-x pan-y;
 }
 

@@ -2428,9 +2428,9 @@ useEffect(() => {
 
         {/* 1️⃣ PARTE SUPERIOR: LOGO Y BOTÓN */}
         <div className="w-full flex flex-col items-center gap-8 z-10 mt-10 animate-fade-in-up delay-100">
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-default">
+          <h1 className="text-3xl sm:text-4xl md:text-7xl font-bold tracking-tight text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-default mt-4 md:mt-0">
             Stratosfere OS.
-          </h1>
+        </h1>
           <button
             onClick={() => {
               if (typeof playSynthSound === "function") playSynthSound("click");
@@ -2549,8 +2549,7 @@ useEffect(() => {
                </div>
                
                {/* 2. PANEL SISTEMA */}
-               <div className="absolute top-8 right-8 pointer-events-auto flex flex-col gap-3 items-end w-[280px] animate-fade-in-up delay-100 z-[50]">
-                    <div className="glass-panel p-5 rounded-[1.5rem] w-full shadow-2xl bg-[#050505]/90 border border-white/10 hover:border-blue-500/30 transition-all">
+<div className="absolute top-32 left-4 right-4 md:top-8 md:right-8 md:left-auto pointer-events-auto flex flex-col gap-3 items-center md:items-end w-auto md:w-[280px] animate-fade-in-up delay-100 z-[50]">                    <div className="glass-panel p-5 rounded-[1.5rem] w-full shadow-2xl bg-[#050505]/90 border border-white/10 hover:border-blue-500/30 transition-all">
                         <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5 text-white">
                             <span className="text-[10px] font-extrabold tracking-tighter flex items-center gap-2">SYSTEM</span>
                             <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_10px_blue]"></div><span className="text-[9px] font-mono text-blue-400">ONLINE</span></div>
@@ -2630,8 +2629,7 @@ useEffect(() => {
            <>
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                    <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
-<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-6 flex items-center justify-between gap-4">                           
-                           {/* IZQUIERDA: SALIR */}
+<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-3 md:px-6 flex items-center gap-3 md:gap-4 w-full overflow-x-auto scrollbar-hide snap-x">                           {/* IZQUIERDA: SALIR */}
                            <div className="flex items-center gap-1">
                                 <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
                            </div>
@@ -2739,8 +2737,7 @@ useEffect(() => {
                
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
-<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-6 flex items-center justify-between gap-4">                          
-                          {/* ⚠️ GENERAL: Busque el botón de las rayitas (Filtros) que tiene usted aquí dentro 
+<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-3 md:px-6 flex items-center gap-3 md:gap-4 w-full overflow-x-auto scrollbar-hide snap-x">                          {/* ⚠️ GENERAL: Busque el botón de las rayitas (Filtros) que tiene usted aquí dentro 
                                 y asegúrese de que su onClick sea EXACTAMENTE este: */}
                           
                          <button 
