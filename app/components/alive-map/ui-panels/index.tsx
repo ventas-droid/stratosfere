@@ -2428,7 +2428,7 @@ useEffect(() => {
 
         {/* 1️⃣ PARTE SUPERIOR: LOGO Y BOTÓN */}
         <div className="w-full flex flex-col items-center gap-8 z-10 mt-10 animate-fade-in-up delay-100">
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-default">
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-default">
             Stratosfere OS.
           </h1>
           <button

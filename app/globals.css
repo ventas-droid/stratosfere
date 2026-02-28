@@ -32,39 +32,43 @@ html, body {
 }
 
 /* =========================================
-   1.5. SCROLLBARS APPLE-STYLE (PARA TODOS LOS NAVEGADORES)
+   1.5. SCROLLBARS ELEGANTES (VISIBLES PARA UX)
    ========================================= */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px; /* Más ancho para que el dedo/ratón lo intuya */
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(150, 150, 150, 0.05); /* Pista muy sutil para indicar que hay scroll */
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.3);
+  background: rgba(150, 150, 150, 0.4); /* Semivisible y elegante */
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.7);
+  background: rgba(150, 150, 150, 0.8); /* Se ilumina al pasar el ratón */
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(150, 150, 150, 0.3) transparent;
+  scrollbar-color: rgba(150, 150, 150, 0.4) transparent;
 }
 
+/* 🔥 NEUTRALIZADOR: Si alguna columna vieja tiene 'scrollbar-hide', la forzamos a mostrarse fina */
 .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+    display: block !important; 
+    width: 4px;
 }
 .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    -ms-overflow-style: auto !important;
+    scrollbar-width: thin !important;
 }
 
 .custom-scrollbar {
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; /* Obligatorio para que el móvil deslice suave */
 }
 
 /* =========================================
@@ -363,4 +367,22 @@ html, body {
   box-shadow: 
     0 25px 50px -12px rgba(0, 0, 0, 0.8), /* Sombra exterior para que flote */
     inset 0 2px 3px rgba(255, 255, 255, 0.15) !important; /* El reflejo de cristal en el borde superior */
+}
+
+/* =========================================
+   8. AUTO-BLINDAJE MÓVIL GLOBAL (GENERAL'S COMMAND)
+   ========================================= */
+/* Obliga a TODAS las listas y columnas de la plataforma a respetar la pantalla sin tener que ir archivo por archivo */
+
+.overflow-y-auto, 
+.custom-scrollbar {
+    min-height: 0 !important; /* Evita que los paneles rompan la pantalla hacia abajo */
+    -webkit-overflow-scrolling: touch !important; /* Activa el deslizamiento nativo perfecto en iOS/Android */
+    overscroll-behavior: contain !important; /* Evita que al hacer scroll en la lista se mueva el mapa detrás */
+}
+
+/* Blindaje extra para los contenedores Flex que envuelven las listas */
+.flex-1 {
+    min-height: 0;
+    min-width: 0;
 }
