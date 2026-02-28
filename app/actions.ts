@@ -210,7 +210,7 @@ export async function getGlobalPropertiesAction() {
          openHouseObj = { ...p.openHouses[0], enabled: true };
       }
 
-      // RETORNO DEL PAQUETE RICO (ESTADÍSTICAS INCLUIDAS)
+     // RETORNO DEL PAQUETE RICO (ESTADÍSTICAS INCLUIDAS)
       return {
         ...p,
         id: p.id,
@@ -229,11 +229,16 @@ export async function getGlobalPropertiesAction() {
         longitude: lng,
         latitude: lat,
         
+      // 🔥 DATOS PUROS (Sin lavar, incluyendo Código Postal)
+        address: p.address || null,
+        city: p.city || null,
+        postcode: p.postcode || null,
+        region: p.region || null,
         images: imagesFinal,
         img: realImg,
         price: priceFormatted,    
         rawPrice: rawPrice,                  
-        priceValue: rawPrice,      
+        priceValue: rawPrice,       
         isFavorited: isFavoritedByMe,
         
         m2: Number(p.mBuilt || 0),
@@ -350,12 +355,18 @@ export async function getPropertyByIdAction(propertyId: string) {
         openHouseObj = { ...p.openHouses[0], enabled: true };
     }
 
-    const mapped = {
+   const mapped = {
       ...p,
       id: p.id,
       user: finalIdentity, 
       ownerSnapshot: p.ownerSnapshot ?? null,
       
+ // 🔥 DATOS PUROS (Sin lavar, incluyendo Código Postal)
+      address: p.address || null,
+      city: p.city || null,
+      postcode: p.postcode || null,
+      region: p.region || null,
+     
       // ✅ DATOS COMPLETOS
       b2b: b2bData, 
       activeCampaign: activeCampaign, 
@@ -423,21 +434,58 @@ export async function savePropertyAction(data: any) {
         coordsPayload.latitude = data.coordinates[1];
     }
 
-    // 🔥 5. EXTRACCIÓN DE B2B SEGURO (Da igual si viene en data o data.b2b)
+   // 🔥 5. EXTRACCIÓN DE B2B SEGURO (Da igual si viene en data o data.b2b)
     const b2bSharePct = Number(data.sharePct ?? data.b2b?.sharePct ?? 0);
     const b2bCommissionPct = Number(data.commissionPct ?? data.b2b?.commissionPct ?? 0);
     const b2bVisibility = String(data.shareVisibility ?? data.b2b?.visibility ?? data.b2b?.shareVisibility ?? "PRIVATE");
     const b2bMandate = String(data.mandateType ?? data.b2b?.mandateType ?? "ABIERTO");
-const b2bMonths = Number(data.exclusiveMonths || 6);
-    // 6. PAYLOAD BASE
+    const b2bMonths = Number(data.exclusiveMonths || 6);
+
+// =================================================================
+// 🧠 5.5. EL BISTURÍ DEL GENERAL: EXTRACTOR INTELIGENTE DE MAPBOX
+// =================================================================
+    let autoAddress = data.address || null;
+    let autoCp = data.postcode || data.postalCode || data.zipCode || data.cp || null;
+    let autoCity = data.city || null;
+    let autoRegion = data.region || data.province || data.provincia || null;
+
+    if (autoAddress && typeof autoAddress === 'string' && autoAddress.includes(',')) {
+        const parts = autoAddress.split(',').map((p: any) => p.trim());
+        
+        // 1. Cazador de Código Postal (Busca 5 números seguidos)
+        if (!autoCp) {
+            const cpMatch = autoAddress.match(/\b\d{5}\b/);
+            if (cpMatch) autoCp = cpMatch[0];
+        }
+        
+        // 2. Cazador de Provincia (Suele ser el penúltimo trozo antes de España)
+        if (!autoRegion && parts.length >= 3) {
+            autoRegion = parts[parts.length - 2].replace(/provincia de/ig, '').trim();
+        }
+        
+        // 3. Cazador de Ciudad (Buscamos el trozo que tiene el CP y se lo quitamos)
+        if (!autoCity && autoCp) {
+            const trozoConCp = parts.find((p: any) => p.includes(autoCp));
+            if (trozoConCp) {
+                autoCity = trozoConCp.replace(autoCp, '').trim();
+            }
+        }
+    }
+    
+// 6. PAYLOAD BASE
     const basePayload = {
         type: data.type || 'Piso',
-        title: data.title || undefined,
-        description: data.description || undefined,
+        title: data.title || null, // 🔥 Pasado a null para que la BD sobrescriba bien al editar
+        description: data.description || null, // 🔥 Pasado a null
         price: cleanPrice,
         mBuilt: cleanM2,
-        address: data.address || undefined,
-        city: data.city || undefined, 
+        
+        // 🔥 AQUÍ INYECTAMOS EL RESULTADO DEL BISTURÍ MÁGICO
+        address: autoAddress,
+        city: autoCity,
+        postcode: autoCp,
+        region: autoRegion,
+        
         ...coordsPayload,
         rooms: Number(data.rooms || 0),
         baths: Number(data.baths || 0),
@@ -468,13 +516,12 @@ const b2bMonths = Number(data.exclusiveMonths || 6);
         sharePct: b2bSharePct,
         shareVisibility: b2bVisibility,
         selectedServices: finalServices,
-        mainImage: mainImage || undefined,
+        mainImage: mainImage || null, // 🔥 Pasado a null
         communityFees: Number(data.communityFees || 0), 
         energyConsumption: data.energyConsumption || null, 
         energyEmissions: data.energyEmissions || null,      
         energyPending: Boolean(data.energyPending),        
     };
-
     const imageCreateLogic = { create: imagesList.map((url: string) => ({ url })) };
     let propertyId = data.id;
 
@@ -832,6 +879,12 @@ export async function getFavoritesAction() {
           ...p,
           id: p.id,
           user: finalIdentity, // Identidad ya procesada (Agencia o Propietario)
+
+         // 🔥 DATOS PUROS (Sin lavar, incluyendo Código Postal)
+          address: p.address || null,
+          city: p.city || null,
+          postcode: p.postcode || null,
+          region: p.region || null,
 
           // Inyección de Datos Ricos para la NanoCard
           b2b: b2bData,

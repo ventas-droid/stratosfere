@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, Heart, MapPin, Trash2, Navigation, ArrowRight } from 'lucide-react';
+import { X, Heart, MapPin, Trash2, Navigation, ArrowRight, ArrowLeft } from 'lucide-react';
+import Image from 'next/image';
 
 export default function VaultPanel({ 
   rightPanel, 
@@ -51,12 +52,9 @@ export default function VaultPanel({
       return () => window.removeEventListener('update-property-signal', handleInstantUpdate);
   }, []);
 
+ // 🏷️ EL TEXTO CORTO DE LA TARJETA (La Verdad de Mapbox)
   const getLocationLabel = (p: any) => {
-    if (typeof p?.location === "string" && p.location.trim()) return p.location;
-    if (typeof p?.address === "string" && p.address.trim()) return p.address;
-    if (typeof p?.city === "string" && p.city.trim()) return p.city;
-    if (typeof p?.zone === "string" && p.zone.trim()) return p.zone;
-    return "Ubicación desconocida";
+      return String(p.address || p.city || "UBICACIÓN PRIVADA").toUpperCase();
   };
 
   // 🔥 SOLUCIÓN ESTRATÉGICA FINAL (VERSIÓN INMORTAL): VUELO + DATOS RICOS
@@ -99,19 +97,23 @@ const handleFlyTo = (prop) => {
       // 3. RESCATE DE OPEN HOUSE
       const openHouseData = prop.openHouse || prop.open_house_data || (prop.openHouses && prop.openHouses[0]) || null;
 
-      // 4. EMPAQUETADO BLINDADO
+     // 4. EMPAQUETADO BLINDADO
       const richPayload = {
           ...prop,
           id: String(prop.id),
+          
+         // 🔥 DATOS FÍSICOS PUROS (Usando 'prop' en lugar de 'liveData')
+      address: prop.address || null,
+      city: prop.city || null,
+      postcode: prop.postcode || null,
+      region: prop.region || null,
+          
           coordinates: finalCoords, 
-          b2b: b2bData, // Inyectado forzosamente
-          openHouse: openHouseData, // Inyectado forzosamente
-          // Aseguramos que la identidad de agencia persista
+          b2b: b2bData, 
+          openHouse: openHouseData, 
           user: prop.user || prop.ownerSnapshot || { name: "Agencia" },
           isCaptured: !!(prop.isCaptured || sourceCampaign)
       };
-
-     // ... dentro de handleFlyTo en VaultPanel.tsx ...
 
 // 5. EJECUCIÓN SÍNCRONA DE SEÑALES
 if (typeof window !== 'undefined') {
@@ -156,21 +158,32 @@ if (typeof window !== 'undefined') {
 
       <div className="relative z-10 flex flex-col h-full text-slate-900">
         
-        {/* HEADER */}
-        <div className="p-6 pb-4 flex justify-between items-center shrink-0 border-b border-black/5">
-            <div>
-                <h2 className="text-3xl font-black tracking-tighter text-slate-900 mb-0.5">Favoritos.</h2>
-                <div className="flex items-center gap-2">
-                    <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">COLECCIÓN PRIVADA</span>
-                   <span className="text-xs font-bold text-slate-400">{localFavorites.length} Activos</span>
-                </div>
-            </div>
+      {/* HEADER ESTRUCTURADO CON BOTÓN VOLVER */}
+        <div className="p-6 pb-4 shrink-0 border-b border-black/5 flex flex-col gap-6">
+            
+            {/* 🔥 BOTÓN DE RETIRADA TÁCTICA (VOLVER) - DISEÑO CLONADO 🔥 */}
             <button 
                 onClick={() => toggleRightPanel('NONE')} 
-                className="w-10 h-10 rounded-full bg-white hover:bg-slate-200 text-slate-500 transition-all shadow-sm flex items-center justify-center cursor-pointer border border-black/5"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#8b7b6c]/90 hover:bg-[#8b7b6c] text-white font-bold tracking-widest text-xs rounded-full transition-all active:scale-95 shadow-md w-fit backdrop-blur-sm"
             >
-                <X size={20} />
+                <ArrowLeft size={16} strokeWidth={2.5} /> VOLVER
             </button>
+
+            <div className="flex justify-between items-start">
+                <div>
+                    <h2 className="text-3xl font-black tracking-tighter text-slate-900 mb-0.5">Favoritos.</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider">COLECCIÓN PRIVADA</span>
+                       <span className="text-xs font-bold text-slate-400">{localFavorites.length} Activos</span>
+                    </div>
+                </div>
+                <button 
+                    onClick={() => toggleRightPanel('NONE')} 
+                    className="w-10 h-10 rounded-full bg-white hover:bg-slate-200 text-slate-500 transition-all shadow-sm flex items-center justify-center cursor-pointer border border-black/5 shrink-0"
+                >
+                    <X size={20} />
+                </button>
+            </div>
         </div>
 
         {/* LISTA SCROLLABLE */}
@@ -193,12 +206,16 @@ if (typeof window !== 'undefined') {
                     >
                         <div className="flex gap-4 items-start">
                             
-                            {/* FOTO MINIATURA */}
+                           {/* FOTO MINIATURA (CON NEXT/IMAGE OPTIMIZADO) */}
                             <div className="w-24 h-24 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
-                                <img 
+                                <Image 
                                     src={prop.img || prop.image || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3"} 
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                                    alt="" 
+                                    alt="Miniatura" 
+                                    fill
+                                    sizes="96px"
+                                    className="object-cover group-hover:scale-110 transition-transform duration-700"
+                                    loading="lazy"
+                                    quality={50}
                                 />
                                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                     <Navigation size={20} className="text-white drop-shadow-md"/>

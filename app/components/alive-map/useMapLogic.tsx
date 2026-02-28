@@ -66,7 +66,15 @@ export const useMapLogic = () => {
   map.current.on('load', () => {
       console.log("🟢 MAPA 3D: SISTEMAS LISTOS");
       setIsLoaded(true);
-
+// 🔥 LA BALIZA DE FUERZA BRUTA DEL RADAR (Emite posición cada 1 segundo)
+      setInterval(() => {
+          if (map.current) {
+              const center = map.current.getCenter();
+              window.dispatchEvent(new CustomEvent('map-center-updated', { 
+                  detail: { lng: center.lng, lat: center.lat } 
+              }));
+          }
+      }, 1000);
       // =================================================================
       // 🛑 ESTRATEGIA CERO PARPADEOS (ESTRUCTURA VISUAL)
       // =================================================================
@@ -160,15 +168,67 @@ export const useMapLogic = () => {
           map.current.getCanvas().style.cursor = ''; 
       });
 
-      // Sincronización de Nanocards al mover el mapa
-      map.current.on('moveend', () => updateMarkers());
+     // =================================================================
+      // 🖱️ INTERACTIVIDAD (CLICS Y MOVIMIENTO)
+      // =================================================================
+      
+      // Evento: Click en Cluster -> Zoom Suave (Cinemática)
+      map.current.on('click', 'clusters', (e) => {
+        const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+        const clusterId = features[0].properties.cluster_id;
+        map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err, zoom) => {
+          if (err) return;
+          map.current.flyTo({ 
+              center: features[0].geometry.coordinates, 
+              zoom: zoom + 1, 
+              speed: 0.5 
+          });
+        });
+      });
+
+      // Cursor Pointer (Mano) al pasar por encima
+      map.current.on('mouseenter', 'clusters', () => { 
+          map.current.getCanvas().style.cursor = 'pointer'; 
+      });
+      
+      map.current.on('mouseleave', 'clusters', () => { 
+          map.current.getCanvas().style.cursor = ''; 
+      });
+
+      // Sincronización de Nanocards al terminar de mover el mapa
+      map.current.on('moveend', () => {
+          updateMarkers();
+          
+          // 🔥 SEÑAL DE RADAR: Avisamos al buscador lateral de dónde estamos
+          const center = map.current.getCenter();
+          window.dispatchEvent(new CustomEvent('map-center-updated', { 
+              detail: { lng: center.lng, lat: center.lat } 
+          }));
+      });
+
+      // 🔥 SEÑAL EN TIEMPO REAL: (Para que los km se actualicen "en vivo" mientras arrastra el dedo)
+      map.current.on('move', () => {
+          const center = map.current.getCenter();
+          window.dispatchEvent(new CustomEvent('map-center-updated', { 
+              detail: { lng: center.lng, lat: center.lat } 
+          }));
+      });
 
       // Primera llamada (Prepara el terreno para el Radar)
       updateMarkers();
+
+      // 🔥 NUEVO: EL MAPA GRITA SUS COORDENADAS NADA MÁS NACER (Solo 1 vez)
+      setTimeout(() => {
+          if (map.current) {
+              const initialCenter = map.current.getCenter();
+              window.dispatchEvent(new CustomEvent('map-center-updated', { 
+                  detail: { lng: initialCenter.lng, lat: initialCenter.lat } 
+              }));
+          }
+      }, 500);
       
     }); // <--- CIERRE DEL .on('load')
   }, []); // <--- CIERRE DEL useEffect (ESTO ES LO QUE FALTABA)
- 
  // ----------------------------------------------------------------------
   // 3. LÓGICA DE FILTRADO INTELIGENTE V2
   // ----------------------------------------------------------------------
@@ -443,9 +503,10 @@ export const useMapLogic = () => {
       if (b2bObj) p.b2b = b2bObj;
       p.selectedServices = Array.isArray(servicesArray) ? servicesArray : [];
 
-      p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
+     p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
       p.description = p.description || p.desc || "";
 
+    
       // 🔥 AQUÍ ESTÁ EL CAMBIO: USAMOS SIEMPRE MapNanoCard 🔥
       // Él ya sabe leer "promotedTier" y ponerse Premium solo.
       
@@ -473,9 +534,13 @@ export const useMapLogic = () => {
             role={p.role}
             title={p.title}
             description={p.description}
-            address={p.address || p.location}
-            city={p.city || p.location}
-            location={p.location || p.city || p.address}
+            
+           // 🔥 DATOS PUROS (Sin lavar, pasados directamente)
+            address={p.address || null}
+            city={p.city || null}
+            postcode={p.postcode || null}
+            region={p.region || null}
+            
             communityFees={p.communityFees}
             energyConsumption={p.energyConsumption}
             energyEmissions={p.energyEmissions}
@@ -868,8 +933,7 @@ export const useMapLogic = () => {
             const openHouseJson = p.openHouse ? JSON.stringify(p.openHouse) : (p.openHouses && p.openHouses[0] ? JSON.stringify(p.openHouses[0]) : null);
             const activeCampaignJson = p.activeCampaign ? JSON.stringify(p.activeCampaign) : (p.campaigns && p.campaigns[0] ? JSON.stringify(p.campaigns[0]) : null);
             const b2bJson = p.b2b ? JSON.stringify(p.b2b) : null;
-
-            return {
+return {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
                 properties: {
@@ -880,6 +944,14 @@ export const useMapLogic = () => {
                     m2: finalM2,       
                     mBuilt: finalM2,   
                     elevator: isYes(p.elevator),
+                    
+                // 🔥 SELLANDO LA FUGA: Inyectamos los datos físicos explícitamente
+                    address: p.address || null,
+                    city: p.city || null,
+                    postcode: p.postcode || null,
+                    region: p.region || null,
+                    // -------------------------------------------------------------
+
                     communityFees: p.communityFees,
                     energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions,

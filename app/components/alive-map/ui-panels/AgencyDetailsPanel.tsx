@@ -21,7 +21,7 @@ import {
     Camera, Globe, Plane, Hammer, Ruler, Handshake, Coins,
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
     Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye, ChevronDown,
-    FileDown, PlayCircle,
+    FileDown, PlayCircle, MapPin, 
     Loader2, Send
 } from 'lucide-react';
 
@@ -457,7 +457,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                           {selectedProp?.title || "Sin Título"}
                       </h1>
                       
-                      {selectedProp?.refCode && (
+                   {selectedProp?.refCode && (
                         <div 
                             onClick={copyRefCode} 
                             className="text-[12px] text-slate-500 mb-2 flex items-center gap-2 cursor-pointer hover:text-slate-700 select-none" 
@@ -470,6 +470,14 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                           </span>
                         </div>
                       )}
+                      
+                      {/* 📍 LA INYECCIÓN LETAL: AHORA SÍ TIENE DIRECCIÓN */}
+                      <div className="flex items-start gap-1.5 text-slate-500 mb-6 mt-2">
+                          <MapPin size={16} className="shrink-0 text-indigo-500 mt-0.5" />
+                          <span className="text-[12px] font-bold leading-relaxed uppercase tracking-wide">
+                              {selectedProp?.address || selectedProp?.city || "UBICACIÓN PRIVADA"}
+                          </span>
+                      </div>
                       
                       <p className="text-3xl font-black text-slate-900 tracking-tight">
                           {new Intl.NumberFormat("es-ES").format(numericPrice)} €

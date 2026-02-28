@@ -194,10 +194,17 @@ const safeId = String(safeIdRaw);
     }
   }
 
-  // 6. RETORNO FINAL
+ // 6. RETORNO FINAL
   return {
     ...base,
     id: safeId,
+    
+    // 🔥 PASAPORTE DIPLOMÁTICO PARA LA DIRECCIÓN (Los 4 datos puros pasan sin ser tocados)
+    address: base.address || null,
+    city: base.city || null,
+    postcode: base.postcode || null,
+    region: base.region || null,
+    
     price: safePrice,
     priceValue: safePrice,
     rawPrice: safePrice,
@@ -212,20 +219,18 @@ const safeId = String(safeIdRaw);
     communityFees: base.communityFees || 0,
     mBuilt: Number(base.mBuilt || base.m2 || 0),
     requirements: nanoRequirements,
-   
+    
     // 🔥 ASEGURAMOS QUE EL DUEÑO VIAJE SIEMPRE AL FRONTEND (blindado)
-user: (base.user || p.user)
-  ? {
-      ...(base.user || p.user),
-      role: (base.user || p.user)?.role || base?.role || null,
-      companyName: (base.user || p.user)?.companyName || base?.companyName || null,
-      companyLogo: (base.user || p.user)?.companyLogo || base?.companyLogo || null,
-      cif: (base.user || p.user)?.cif || base?.cif || null,
-      licenseNumber: (base.user || p.user)?.licenseNumber || base?.licenseNumber || null,
-    }
-  : null,
-
-
+    user: (base.user || p.user)
+      ? {
+          ...(base.user || p.user),
+          role: (base.user || p.user)?.role || base?.role || null,
+          companyName: (base.user || p.user)?.companyName || base?.companyName || null,
+          companyLogo: (base.user || p.user)?.companyLogo || base?.companyLogo || null,
+          cif: (base.user || p.user)?.cif || base?.cif || null,
+          licenseNumber: (base.user || p.user)?.licenseNumber || base?.licenseNumber || null,
+        }
+      : null,
   };
 };
 const extractFirstUrl = (s: string) => {
@@ -1255,18 +1260,30 @@ const toggleRightPanel = (p: string) => {
   if (soundEnabled) playSynthSound("click");
   const nextState = rightPanel === p ? "NONE" : p;
 
-  // ✅ Si abrimos Propuestas desde el HUD, es modo LISTA (sin campaignId)
+  // Si abrimos Propuestas desde el HUD, es modo LISTA (sin campaignId)
   if (nextState === "OWNER_PROPOSALS") {
     setActiveCampaignId(null);
   }
 
   setRightPanel(nextState);
 
-  if (nextState !== "NONE" && typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("close-radar-signal"));
+  // 🔥 NUEVO BLINDAJE: Si abro un panel derecho, MATO cualquier panel central/izquierdo que estorbe (como el Premium)
+  if (nextState !== "NONE") {
+      setActivePanel('NONE');
+      setPremiumProp(null); // Apagamos también la prop premium por si acaso
+  }
+
+  // 📡 COMUNICACIONES: Avisamos a los radares y buscadores
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent('park-smart-sidebar', { 
+        detail: { park: nextState !== "NONE" } 
+    }));
+
+    if (nextState !== "NONE") {
+      window.dispatchEvent(new CustomEvent("close-radar-signal"));
+    }
   }
 };
-
 
 const toggleMainPanel = (p: string) => {
   if (soundEnabled) playSynthSound("click");
@@ -2365,6 +2382,32 @@ useEffect(() => {
   mirrorGlobalFavsForNanoCard(Array.isArray(targetList) ? targetList : []);
 }, [systemMode, agencyLikes, localFavs]);
 
+// 🔥 PROTOCOLO DE EXCLUSIÓN MUTUA (POLICÍA DE TRÁFICO DE PANELES)
+useEffect(() => {
+    // REGLA 1: Si abro un panel central (como PREMIUM_STORE o DETAILS)...
+    if (activePanel !== 'NONE') {
+        // ...cierro el panel derecho (VAULT, PROFILE, etc.)
+        if (rightPanel !== 'NONE') {
+            setRightPanel('NONE');
+        }
+        // ...y aparco el buscador
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('park-smart-sidebar', { detail: { park: true } }));
+        }
+    }
+}, [activePanel]);
+
+useEffect(() => {
+    // REGLA 2: Si me llega un premiumProp (alguien pulsó el rayo en una casa)...
+    if (premiumProp) {
+        // ...cierro el panel derecho
+        if (rightPanel !== 'NONE') setRightPanel('NONE');
+        // ...y aparco el buscador
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('park-smart-sidebar', { detail: { park: true } }));
+        }
+    }
+}, [premiumProp]);
 
  // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {
@@ -2587,8 +2630,7 @@ useEffect(() => {
            <>
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                    <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
-                       <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
-                           
+<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-6 flex items-center justify-between gap-4">                           
                            {/* IZQUIERDA: SALIR */}
                            <div className="flex items-center gap-1">
                                 <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
@@ -2697,18 +2739,31 @@ useEffect(() => {
                
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
-                      <div className="relative glass-panel rounded-full p-2 px-6 flex items-center justify-between shadow-2xl gap-4 bg-[#050505]/90 backdrop-blur-xl border border-white/10">
-                          
+<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-6 flex items-center justify-between gap-4">                          
                           {/* ⚠️ GENERAL: Busque el botón de las rayitas (Filtros) que tiene usted aquí dentro 
                                 y asegúrese de que su onClick sea EXACTAMENTE este: */}
                           
-                          <button 
-                              onClick={() => setShowAdvancedConsole(!showAdvancedConsole)}
-                              className={`p-2 rounded-full transition-all ${showAdvancedConsole ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-                              title="Radar Táctico"
-                          >
-                              <SlidersHorizontal size={20} /> 
-                          </button>
+                         <button 
+    onClick={() => {
+        if (typeof playSynthSound === 'function') playSynthSound('click');
+        
+        // Si hay algún panel derecho abierto (Perfil, Favoritos...), LO MATAMOS y abrimos el radar
+        if (rightPanel !== 'NONE') {
+            setRightPanel('NONE');
+            setShowAdvancedConsole(true); // Aseguramos que el radar nazca
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('park-smart-sidebar', { detail: { park: false } }));
+            }
+        } else {
+            // Si no hay nada estorbando, funciona normal (abre/cierra)
+            setShowAdvancedConsole(!showAdvancedConsole);
+        }
+    }}
+    className={`p-2 rounded-full transition-all ${showAdvancedConsole ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
+    title="Radar Táctico"
+>
+    <SlidersHorizontal size={20} /> 
+</button>
                       {/* BOTONES IZQUIERDA (Menu + Ajustes) */}
                         <div className="flex items-center gap-1">
                             <button onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>

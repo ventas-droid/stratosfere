@@ -2,7 +2,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Heart, Bed, Bath, Maximize2, Navigation, Building2, Home, Briefcase, LandPlot, Warehouse, Sun, ArrowUp, Crown } from 'lucide-react';
-
+import Image from 'next/image';
+import { getPropertyByIdAction } from '@/app/actions';
 // ------------------------------------------------------------------
 // 1. MOTORES DE PARSEO (NO TOCAR)
 // ------------------------------------------------------------------
@@ -153,7 +154,7 @@ export default function MapNanoCard(props: any) {
     return () => window.removeEventListener("sync-property-state", onSync as EventListener);
   }, [id, liveData.isFav, liveData.isFavorited]);
 
-  // 🔥 4. DISPARADOR DE ACCIONES (BLINDADO CON ROL AGENCIA Y ANTI-CORCHETES)
+ // 🔥 4. DISPARADOR DE ACCIONES (LA MALETA PURA Y LA APERTURA DIRECTA)
   const handleAction = (e: React.MouseEvent, action: string) => {
     e.preventDefault(); e.stopPropagation();
     if (!id) return;
@@ -164,20 +165,18 @@ export default function MapNanoCard(props: any) {
       normalizedCoords = (navCoords[0] > 30 && navCoords[1] < 0) ? [navCoords[1], navCoords[0]] : [navCoords[0], navCoords[1]];
     }
 
-    // 🚀 1. RESCATE SEGURO DE ARRAYS (Evitamos que Mapbox devuelva el corchete "[")
     const parsedCampaigns = parseJsonSafe(liveData.campaigns);
     const safeActiveCampaign = parseJsonSafe(liveData.activeCampaign) || (Array.isArray(parsedCampaigns) ? parsedCampaigns[0] : null);
 
     const parsedOpenHouses = parseJsonSafe(liveData.openHouses);
     const safeOpenHouse = parseJsonSafe(liveData.openHouse) || parseJsonSafe(liveData.open_house_data) || (Array.isArray(parsedOpenHouses) ? parsedOpenHouses[0] : null);
 
-    // 🚨 2. EL BLINDAJE: Si hay agencia, empaquetamos SU identidad completa
     let finalUser = parseJsonSafe(liveData.user) || parseJsonSafe(liveData.ownerSnapshot) || {};
     
     if (safeActiveCampaign && safeActiveCampaign.status === 'ACCEPTED' && safeActiveCampaign.agency) {
         const agency = safeActiveCampaign.agency;
         finalUser = {
-            ...agency, // 🔥 Esto asegura que viajen los "datos invisibles" como el tagline (slogan) y la zona
+            ...agency,
             id: agency.id,
             name: agency.companyName || agency.name || "Agencia Asociada",
             role: "AGENCIA",
@@ -192,40 +191,61 @@ export default function MapNanoCard(props: any) {
         };
     }
 
-    // 🚀 3. LA MALETA PERFECTA (Payload)
+    // 🧳 LA MALETA PURA (Cero lavadoras, datos crudos directos al Panel)
     const payload = {
       ...liveData,
       id: String(id),
+      
+      // 🔥 DATOS FÍSICOS PUROS (Si no existen, viajan como null o texto por defecto, sin romper nada)
+    // 🔥 DATOS FÍSICOS PUROS (Todo a null si no existe, el panel ya lo gestionará)
+      address: liveData.address || null,
+      city: liveData.city || null,
+      postcode: liveData.postcode || null,
+      region: liveData.region || null,
+      
       images: finalAlbum,
       img: finalAlbum[0] || null,
       price: currentPrice,
       priceValue: currentPrice,
       b2b: b2bData,
-      user: finalUser, // 🔥 ESTO EVITA QUE ABRA EL PANEL DE PARTICULAR, LLEVA SLOGAN Y DATOS COMPLETOS
-      realOwner: parseJsonSafe(liveData.user), // Backup
-      openHouse: safeOpenHouse, // ✅ Ahora es un objeto real, no un texto roto
+      user: finalUser, 
+      realOwner: parseJsonSafe(liveData.user), 
+      openHouse: safeOpenHouse, 
       open_house_data: safeOpenHouse,
-      activeCampaign: safeActiveCampaign, // ✅ Ahora es un objeto real, el botón B2B funcionará
+      activeCampaign: safeActiveCampaign, 
       promotedTier: isPremium ? 'PREMIUM' : undefined
     };
 
+    // ❤️ FAVORITOS
     if (action === "fav") {
-      const next = !liked; setLiked(next);
-      window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: { ...payload, isFav: next } }));
-      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: { ...payload, isFav: next } }));
+      const next = !liked; 
+      setLiked(next);
+      window.dispatchEvent(new CustomEvent("toggle-fav-signal", { detail: { ...payload, isFav: next, isFavorite: next, isFavorited: next } }));
+      window.dispatchEvent(new CustomEvent("update-property-signal", { detail: { id: String(id), updates: { isFav: next, isFavorite: next, isFavorited: next } } }));
+      window.dispatchEvent(new CustomEvent("fav-change-signal", { detail: { id: String(id), isFavorite: next } }));
     }
 
+    // 🚀 ABRIR PANEL (Cero bloqueos)
     if (action === "open") {
-      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(id) } }));
+      const strId = String(id);
+      
+      // 1. Iluminamos el pin en el mapa
+      window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: strId } }));
+      
+      // 2. 📡 DISPARO DIRECTO: Forzamos la variable de memoria y mandamos la maleta
+      (window as any).__currentOpenPropertyId = strId;
       window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload }));
-    }
 
-    if (normalizedCoords) {
-      window.dispatchEvent(new CustomEvent('fly-to-location', { detail: { center: normalizedCoords, zoom: 18.5, pitch: 60, duration: 1500 } }));
+      // 3. Vuelo suave
+      if (normalizedCoords) {
+        setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('fly-to-location', { detail: { center: normalizedCoords, zoom: 18.5, pitch: 60, duration: 1500 } }));
+        }, 150);
+      }
     }
-  };
-
- // 🔥 Z-INDEX TÁCTICO: El Fuego está encima, pero el ratón siempre manda.
+  }; // <-- CIERRE EXACTO DE LA FUNCIÓN handleAction
+ 
+  // 🔥 Z-INDEX TÁCTICO: El Fuego está encima, pero el ratón siempre manda.
   useEffect(() => {
     if (cardRef.current) {
         const marker = cardRef.current.closest('.mapboxgl-marker') as HTMLElement;
@@ -238,7 +258,8 @@ export default function MapNanoCard(props: any) {
     }
   }, [isHovered, isFire]);
 
-  const locationText = String(liveData.city || liveData.location || liveData.address || "MADRID").toUpperCase().replace("PROVINCIA DE ", "").substring(0, 20);
+// 🏷️ EL TEXTO DE LA TARJETA (Directo de la base de datos)
+  const locationText = String(liveData.address || liveData.city || "UBICACIÓN PRIVADA").toUpperCase();
   
   // 🔥 CORRECCIÓN DEL BUG DE HABITACIONES OCULTAS
   // Si tiene habitaciones O baños, NO las ocultamos nunca.
@@ -253,8 +274,16 @@ export default function MapNanoCard(props: any) {
 <div className={`absolute bottom-[100%] origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isFire ? 'w-[500px] z-[250] pb-14' : 'w-[280px] z-[100] pb-5'} ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} onClick={(e) => handleAction(e, 'open')}>          <div className={`flex flex-col rounded-[24px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isFire ? 'shadow-[0_0_60px_rgba(239,68,68,0.5)] border-4 border-red-500' : 'shadow-2xl border border-white/80'}`}>
               <div className="relative">
                   <div className={`relative overflow-hidden group/img ${isFire ? 'h-80' : 'h-44'}`}>
-                      <img src={img} className="w-full h-full object-cover transition-transform duration-1000 group-hover/img:scale-105" alt="Propiedad"/>
-                      {isFire && <div className="absolute inset-0 bg-gradient-to-tr from-red-500/30 via-transparent to-white/40 pointer-events-none mix-blend-overlay"></div>}
+<Image 
+    src={img} 
+    alt="Propiedad" 
+    fill
+    sizes="(max-width: 768px) 100vw, 400px"
+    className="object-cover transition-transform duration-1000 group-hover/img:scale-105"
+    loading="lazy"
+    quality={60}
+/>                   
+  {isFire && <div className="absolute inset-0 bg-gradient-to-tr from-red-500/30 via-transparent to-white/40 pointer-events-none mix-blend-overlay"></div>}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80"></div>
                       <div className="absolute top-4 left-4 px-3 py-2 rounded-full backdrop-blur-xl bg-white/95 shadow-lg flex items-center gap-2 border-2 border-white/50">
                           {isFire ? ( <><Crown size={14} className="text-red-600 fill-red-500 animate-pulse"/><span className="text-[11px] font-black uppercase tracking-widest text-red-700">FUEGO</span></> ) : ( <>{getPropertyIcon(type)}<span className="text-[10px] font-bold uppercase tracking-wide text-gray-800">{type}</span></> )}
@@ -274,8 +303,14 @@ export default function MapNanoCard(props: any) {
                               {floor && <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-wide"><ArrowUp size={12}/> <span>P.{floor}</span></div>}
                           </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-gray-500 mb-5"><Navigation size={12} style={{ color: style.hex }}/><span className="text-xs font-bold uppercase tracking-wider truncate text-gray-500">{locationText}</span></div>
-                      
+{/* 📍 DIRECCIÓN: Dos filas permitidas y cero comas */}
+                      <div className="flex items-start gap-1.5 text-gray-500 mb-5">
+                          <Navigation size={12} className="mt-0.5 shrink-0" style={{ color: style.hex }}/>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 line-clamp-2 leading-snug">
+                              {locationText}
+                          </span>
+                      </div>                      
+
                       {/* Habitación y Baños */}
                       <div className="flex justify-between items-center py-3 px-4 bg-white rounded-xl border-2 border-gray-100 shadow-sm">
                           {showOnlyM2 ? ( 

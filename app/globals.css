@@ -3,46 +3,57 @@
 @tailwind utilities;
 
 /* =========================================
-   ESTILOS GLOBALES (SOLO MAPBOX Y EFECTOS ESPECIALES)
+   1. BASE DEL SISTEMA Y BLINDAJE CROSS-PLATFORM (MÓVIL Y DESKTOP)
    ========================================= */
+:root {
+  --foreground-rgb: 238, 238, 238;
+  --background-rgb: 5, 5, 5;
+}
+
 html, body {
-  background: #050505;
-  color: #eee;
-  overflow: hidden; /* Importante para la App Móvil */
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  
+  /* Bloquea barras de desplazamiento nativas y evita el rebote elástico en Safari/iOS */
+  overflow: hidden; 
+  overscroll-behavior-y: none;
+  
+  /* 🔥 INYECCIÓN: SUAVIZADO MILITAR MAC-STYLE PARA WINDOWS 🔥 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  transform: translateZ(0); /* Aceleración por GPU */
+
+  /* 🔥 INYECCIÓN: NORMALIZACIÓN MÓVIL 🔥 */
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent; /* Quita el cuadro azul feo al tocar en Android */
+  touch-action: pan-x pan-y;
 }
 
-/* --- OVERRIDES DE MAPBOX (INTOCABLE) --- */
-.mapboxgl-popup-content {
-  background: transparent !important;
-  padding: 0 !important;
-  border: none !important;
-  box-shadow: none !important;
+/* =========================================
+   1.5. SCROLLBARS APPLE-STYLE (PARA TODOS LOS NAVEGADORES)
+   ========================================= */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
 }
-.mapboxgl-popup-tip { display: none; }
-
-/* Ocultar logos de Mapbox */
-.mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib, 
-.mapboxgl-ctrl-compass, .mapboxgl-ctrl-group {
-  display: none !important;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-/* Marcador pulsante básico */
-.pulsing-dot {
-  width: 16px; height: 16px; border-radius: 50%;
-  position: relative; display: flex; justify-content: center; align-items: center;
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3);
+  border-radius: 10px;
 }
-.pulsing-dot::before {
-  content: ''; position: absolute; width: 100%; height: 100%;
-  border-radius: 50%; animation: pulse 2s infinite;
-  background-color: inherit; opacity: 0.6;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.7);
 }
 
-/* Scrollbar Personalizada */
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: #050505; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150, 150, 150, 0.3) transparent;
+}
 
-/* Ocultar Scrollbar (para móviles y listas horizontales) */
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }
@@ -51,30 +62,260 @@ html, body {
     scrollbar-width: none;
 }
 
-/* Efectos Glassmorphism */
-.backdrop-blur-xl { backdrop-filter: blur(24px); }
-.backdrop-blur-2xl { backdrop-filter: blur(40px); }
-
-/* --- EFECTOS QUE NO SOPORTA TAILWIND FÁCILMENTE --- */
-
-/* PLATINUM PULSE (El radar dorado) */
-@keyframes shockwave {
-  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
-  70% { transform: scale(2.5); box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
-  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+.custom-scrollbar {
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-.platinum-pulse { position: relative; }
-.platinum-pulse::after {
-  content: ''; position: absolute; top: 50%; left: 50%;
-  width: 100%; height: 100%; border-radius: 50%;
-  transform: translate(-50%, -50%); z-index: -1;
-  animation: shockwave 2s infinite;
-  background: rgba(255, 215, 0, 0.2);
-  border: 1px solid rgba(255, 215, 0, 0.5);
+/* =========================================
+   2. LIMPIEZA TÁCTICA DE MAPBOX
+   ========================================= */
+/* Elimina logos y atribuciones para vista limpia */
+.mapboxgl-ctrl-logo, 
+.mapboxgl-ctrl-attrib {
+  display: none !important;
 }
 
-/* TEXTO IA QUE RESPIRA */
+/* Elimina popups por defecto feos */
+.mapboxgl-popup-content {
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.mapboxgl-popup-tip { display: none; }
+
+/* =========================================
+   3. ARREGLO DE ACTIVOS (NANOCARDS) - VERSIÓN CORREGIDA
+   ========================================= */
+.nanocard-marker {
+  /* 1. VISIBILIDAD TOTAL: Permite que la tarjeta salga de la caja */
+  overflow: visible !important; 
+  
+  /* 2. MANEJABILIDAD: Asegura que el ratón detecte el click */
+  pointer-events: auto !important;
+  cursor: pointer;
+
+  /* 3. POSICIONAMIENTO */
+  display: flex;
+  justify-content: center;
+  align-items: flex-end; /* La base del pin toca la coordenada */
+  width: 0;  /* Truco táctico: El punto exacto es el centro */
+  height: 0; 
+  
+  /* 4. JERARQUÍA: Siempre por encima de los edificios 3D */
+  z-index: 50; 
+  will-change: transform;
+}
+
+/* Efecto de elevación al pasar el mouse */
+.nanocard-marker:hover {
+  z-index: 9999 !important; /* Prioridad absoluta */
+  transform: scale(1.1); /* Zoom suave */
+  transition: transform 0.2s ease-out;
+}
+
+/* =========================================
+   5. INTERFAZ DE CRISTAL (GLASS PANELS)
+   ========================================= */
+.glass-panel {
+  /* 1. Fondo ligeramente más oscuro para que la luz del mapa no se cuele */
+  background: rgba(5, 5, 5, 0.92) !important;
+  
+  /* 2. EL SECRETO ANTI-NIEBLA: Saturar el desenfoque para mantener el contraste */
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  
+  /* 3. Bordes y sombras más limpios */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+.backdrop-blur-xl { backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+.backdrop-blur-2xl { backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); }
+
+/* =========================================
+   5. NEÓN INTELIGENTE (HIGH VOLTAGE) ⚡
+   ========================================= */
+/* Definimos la onda de energía */
+@keyframes neonWave {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 currentColor; /* La luz nace en el centro */
+    opacity: 0.9; 
+  }
+  70% {
+    transform: scale(2.5); /* Se expande */
+    box-shadow: 0 0 0 10px transparent; /* El rastro se desvanece */
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* Clase para aplicar a los puntos de luz */
+.neon-pulse {
+  position: relative;
+}
+
+.neon-pulse::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: -1;
+  background: currentColor; /* Usa el color del texto (azul/rojo) */
+  animation: neonWave 3s infinite cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Animación de viaje espacial */
+@keyframes fly-up {
+  from { transform: translateY(0px); }
+  to { transform: translateY(-2000px); }
+}
+
+/* =========================================
+   NUEVO SISTEMA ESTELAR REALISTA
+   ========================================= */
+
+/* 1. El Campo de Batalla (Fondo Profundo) */
+.space-container {
+  min-height: 100vh;
+  width: 100%;
+  /* Un degradado más rico y profundo */
+  background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
+  overflow: hidden;
+  position: relative;
+}
+
+/* 2. Nueva Animación: TITILAR (Twinkle) en lugar de volar */
+/* Hace que las estrellas pulsen suavemente */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; scale: 0.8; }
+  50% { opacity: 1; scale: 1; }
+}
+
+/* Configuración común para todas las estrellas */
+.stars-layer-1, .stars-layer-2, .stars-layer-3 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  border-radius: 50%; /* ¡CRUCIAL! Esto las hace redondas, no píxeles cuadrados */
+}
+
+/* --- CAPA 1: Polvo estelar lejano (Muy pequeñas y estáticas) --- */
+.stars-layer-1 {
+  width: 1px;
+  height: 1px;
+  /* Muchas estrellas pequeñitas */
+  box-shadow: 
+    10vw 15vh #FFF, 30vw 40vh #FFF, 50vw 10vh #FFF, 70vw 60vh #FFF, 90vw 20vh #FFF,
+    15vw 80vh #FFF, 35vw 65vh #FFF, 55vw 90vh #FFF, 75vw 30vh #FFF, 95vw 75vh #FFF,
+    5vw 25vh #FFF, 25vw 5vh #FFF, 45vw 35vh #FFF, 65vw 50vh #FFF, 85vw 15vh #FFF;
+  opacity: 0.3; /* Muy tenues */
+  z-index: 1;
+}
+
+/* --- CAPA 2: Estrellas Medias (Titilan suavemente) --- */
+.stars-layer-2 {
+  width: 2px;
+  height: 2px;
+  /* Menos cantidad, un poco más visibles */
+  box-shadow: 
+    20vw 30vh #e8f4ff, 60vw 20vh #e8f4ff, 80vw 80vh #e8f4ff,
+    40vw 70vh #fff4e8, 10vw 90vh #e8f4ff, 90vw 40vh #fff4e8;
+  /* Animación de titileo lenta */
+  animation: twinkle 8s ease-in-out infinite alternate;
+  opacity: 0.6;
+  z-index: 2;
+  /* Un toque sutil de color (azul/amarillo muy claro) en lugar de blanco puro */
+  color: #e8f4ff; 
+}
+
+/* --- CAPA 3: Estrellas Brillantes (Inteligencia) --- */
+.stars-layer-3 {
+  width: 3px;
+  height: 3px;
+  /* Pocas, pero protagonistas */
+  /* El cuarto valor del box-shadow (4px) es el DIFUMINADO (Glow) */
+  box-shadow: 
+    15vw 50vh 4px #FFF, 
+    70vw 15vh 4px #FFF, 
+    50vw 85vh 4px #FFF;
+  /* Animación de titileo más rápida */
+  animation: twinkle 5s ease-in-out infinite alternate-reverse;
+  opacity: 0.8;
+  z-index: 3;
+}
+
+/* =========================================
+   SISTEMA DE PROPULSIÓN NEÓN V2 (CORREGIDO)
+   ========================================= */
+
+/* --- NEÓN AZUL (Explorador) --- */
+.neon-blue {
+  /* Estado Reposo: Borde y brillo muy sutil */
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+  transition: all 0.4s ease-in-out;
+}
+
+.neon-blue:hover {
+  /* Estado Ataque: ¡Brillo Potente! */
+  border-color: #3b82f6 !important; /* Azul puro */
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 
+              0 0 50px rgba(59, 130, 246, 0.4),
+              inset 0 0 20px rgba(59, 130, 246, 0.1) !important; /* Brillo también hacia adentro */
+  transform: scale(1.02); /* Pequeño zoom */
+}
+
+/* --- NEÓN NARANJA (Arquitecto) --- */
+.neon-orange {
+  /* Estado Reposo */
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.1);
+  transition: all 0.4s ease-in-out;
+}
+
+.neon-orange:hover {
+  /* Estado Ataque */
+  border-color: #f59e0b !important; /* Naranja puro */
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.6), 
+              0 0 50px rgba(245, 158, 11, 0.4),
+              inset 0 0 20px rgba(245, 158, 11, 0.1) !important;
+  transform: scale(1.02);
+}
+
+/* --- PROTOCOLO FUCSIA: ESCÁNER HOLOGRÁFICO --- */
+@keyframes scanner-move {
+  0% { top: -10%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 110%; opacity: 0; }
+}
+
+.animate-scanner {
+  animation: scanner-move 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  background: linear-gradient(to bottom, transparent, rgba(217, 70, 239, 0.5), rgba(217, 70, 239, 0.8), rgba(217, 70, 239, 0.5), transparent);
+  box-shadow: 0 0 30px rgba(217, 70, 239, 0.6);
+}
+
+/* Efecto Grid Táctico sobre la imagen */
+.tactical-grid {
+  background-image: 
+    linear-gradient(rgba(217, 70, 239, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(217, 70, 239, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 2. Estilos para el texto de la IA */
 @keyframes iaPulse {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -82,11 +323,44 @@ html, body {
 }
 
 .ia-text-normal {
+  /* Color verde sólido y brillante para que se lea bien sobre negro */
   color: #4ade80 !important; 
+  
+  /* Eliminamos cualquier sombra o brillo anterior */
   text-shadow: none !important;
   filter: none !important;
+  
+  /* Aseguramos visibilidad y tamaño */
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 500; /* Peso medio para que no se vea "fina" */
   margin-top: 8px;
+  
+  /* Aplicamos la animación de latido (duración 2 segundos, infinita) */
   animation: iaPulse 2s infinite ease-in-out;
+}
+
+/* Ocultar la brújula y controles de navegación de Mapbox */
+.mapboxgl-ctrl-compass, 
+.mapboxgl-ctrl-group {
+    display: none !important;
+}
+
+/* =========================================
+   7. OMNI BAR - OBSIDIAN BLACK SHINE (PREMIUM)
+   ========================================= */
+.omni-obsidian-bar {
+  /* Fondo negro profundo con un ligerísimo degradado cilíndrico para dar volumen 3D */
+  background: linear-gradient(to bottom, rgba(30, 30, 30, 0.95), rgba(5, 5, 5, 0.98)) !important;
+  
+  /* Blur extremo y saturación al 250% para aniquilar cualquier rastro de niebla */
+  backdrop-filter: blur(40px) saturate(250%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(250%) !important;
+  
+  /* Borde sutil */
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  
+  /* ✨ LA MAGIA: Sombra negra masiva exterior + Un hilo de luz blanca interior (el Brillo) */
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.8), /* Sombra exterior para que flote */
+    inset 0 2px 3px rgba(255, 255, 255, 0.15) !important; /* El reflejo de cristal en el borde superior */
 }

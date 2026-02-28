@@ -6,7 +6,7 @@ import {
     Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck, Flame, Wind, 
     Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, Eye, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, ChevronDown,
-    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown,
+    Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown, MapPin, 
     Loader2, Send // ✅ AÑADIDOS: Para el formulario de contacto
 } from 'lucide-react';
 
@@ -130,7 +130,7 @@ export default function DetailsPanel({
         }
     }, [selectedProp?.id]);
 
-   // ============================================================
+  // ============================================================
     // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (PURGA DE DATOS VIEJOS)
     // ============================================================
     useEffect(() => {
@@ -139,20 +139,21 @@ export default function DetailsPanel({
 
             try {
                 // 1. Pedimos a la base de datos la VERDAD
-                const realData = await getPropertyByIdAction(selectedProp.id);
+                const res = await getPropertyByIdAction(selectedProp.id);
                 
-                if (realData) {
+                // 🔥 LA LLAVE: Verificamos que traiga el .data
+                if (res && res.success && res.data) {
+                    const realData = res.data;
+
                     // 2. Actualizamos la propiedad (Métricas, Precio, Estado)
-                    // 🔥 LA CLAVE: Respetamos a toda costa el usuario de la mochila (initialProp)
                     setSelectedProp((prev: any) => ({ 
                         ...prev, 
-                        ...realData,
+                        ...realData, // AHORA SÍ SACA LOS DATOS CORRECTAMENTE
                         user: initialProp?.user || prev?.user || realData.user
                     }));
 
                     // 3. CAPTURAMOS AL DUEÑO REAL
                     if (realData.user) {
-                        console.log("🦅 Dueño actualizado desde BD:", realData.user.name);
                         setFreshOwner(realData.user);
                     }
                 }
@@ -162,8 +163,7 @@ export default function DetailsPanel({
         };
 
         fetchFreshData();
-    }, [selectedProp?.id, initialProp]); // Añadimos initialProp a la vigilancia
-
+    }, [selectedProp?.id, initialProp]);
 
     // 🔥 SENSOR FOTOS
     const handleMainPhotoClick = () => {
@@ -317,7 +317,7 @@ export default function DetailsPanel({
         return 'bg-red-500'; 
     };
 
-   return (
+    return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             
             {/* ✅ SISTEMA DE ALERTAS (NUEVO) */}
@@ -385,7 +385,7 @@ export default function DetailsPanel({
                         </div>
                     </div>
 
-                    {/* Título y Precio */}
+          {/* Título y Precio */}
                     <div>
                       <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block">
                         {selectedProp?.type || "INMUEBLE"}
@@ -395,23 +395,35 @@ export default function DetailsPanel({
                         {selectedProp?.title || "Sin Título"}
                       </h1>
 
-                     {/* REF CODE */}
-                    {selectedProp?.refCode && (
-                      <div className="text-[12px] text-slate-500 mb-2 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          Ref: <span className="font-mono text-slate-700 break-all">{selectedProp.refCode}</span>
-                        </div>
-                        <button onClick={copyRefCode} className="shrink-0 w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer" title="Copiar referencia">
-                          {copiedRef ? <Check size={18} className="text-green-500" /> : <Copy size={18} className="text-slate-500" />}
-                        </button>
+                     {/* 🔥 1. REFERENCIA */}
+                      <div className="flex items-center gap-2 text-slate-400 mb-3 mt-1">
+                          <span className="text-xs font-bold uppercase tracking-wider">
+                              Ref: {selectedProp?.refCode || "Pendiente"}
+                          </span>
+                          <button onClick={copyRefCode} className="hover:text-blue-500 transition-colors cursor-pointer">
+                              {copiedRef ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                          </button>
                       </div>
-                    )}
 
-                      <p className="text-3xl font-black text-slate-900 tracking-tight">
-                        {new Intl.NumberFormat("es-ES").format(Number(selectedProp?.price || 0))} €
-                      </p>
-                    </div>
-
+                      {/* 📍 2. DIRECCIÓN EXACTA (La verdad de la Base de Datos) */}
+                      <div className="flex items-start gap-1.5 text-slate-500 mb-6 mt-2">
+                          <MapPin size={16} className="shrink-0 text-indigo-500 mt-0.5" />
+                          <span className="text-[12px] font-bold leading-relaxed uppercase tracking-wide">
+                              {selectedProp?.address || "UBICACIÓN PRIVADA"}
+                          </span>
+                      </div>
+                        
+                      {/* 💰 3. PRECIO */}
+                      <div className="mb-6">
+                        <p className="text-3xl font-black text-slate-900 tracking-tight">
+                          {String(selectedProp?.price || 0).includes('€') 
+                              ? selectedProp?.price 
+                              : new Intl.NumberFormat("es-ES").format(Number(String(selectedProp?.price || 0).replace(/\D/g, ''))) + " €"
+                          }
+                        </p>
+                      </div>
+                    </div> {/* <-- ESTE ES EL CIERRE DEL BLOQUE PRINCIPAL, VITAL PARA QUE NO DÉ ERROR */}
+                  
                     {/* Métricas */}
                     <div className="flex justify-between gap-2">
                         <div className="flex-1 bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100 flex flex-col items-center">

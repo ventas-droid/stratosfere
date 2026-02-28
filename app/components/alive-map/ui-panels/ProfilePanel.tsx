@@ -16,7 +16,7 @@ import {
     // 🎟️ Iconos de Tickets y Eventos
     Ticket, Calendar, Navigation, Clock
 } from 'lucide-react';
-
+import Image from 'next/image';
 import { 
     // 👤 Usuario y Propiedades
     getMyPropertiesAction, 
@@ -640,9 +640,18 @@ const handleFlyTo = (e: any, property: any) => {
                             {isManaged && <div className="absolute top-0 right-0 left-0 bg-indigo-600 h-1.5 w-full" />}
 
                             <div className="flex gap-4 mb-4 mt-2">
+                              {/* FOTO MINIATURA (CON NEXT/IMAGE OPTIMIZADO) */}
                                 <div className="w-20 h-20 rounded-2xl bg-slate-100 overflow-hidden shrink-0 shadow-inner relative border border-slate-200">
                                     {prop.img ? (
-                                        <img src={prop.img} className="w-full h-full object-cover" alt="Propiedad"/>
+                                        <Image 
+                                            src={prop.img} 
+                                            alt="Propiedad" 
+                                            fill
+                                            sizes="80px"
+                                            className="object-cover"
+                                            loading="lazy"
+                                            quality={50}
+                                        />
                                     ) : (
                                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                                             <Camera size={20} />
@@ -668,9 +677,30 @@ const handleFlyTo = (e: any, property: any) => {
                                         <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider">REF: {prop.refCode || "---"}</span>
                                         {isPremium && <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">PREMIUM</span>}
                                     </div>
-                                    <div className="flex items-center gap-1 text-xs text-slate-400 mt-1.5 truncate">
-                                        <MapPin size={12} /><span className="truncate">{prop?.location || prop?.address || "Ubicación Privada"}</span>
-                                    </div>
+                                <div className="flex items-center gap-1 text-xs text-slate-400 mt-1.5 truncate">
+    <MapPin size={12} className="shrink-0" />
+    <span className="truncate">
+        {(() => {
+            const rawText = prop?.location || prop?.address || prop?.city || "Ubicación Privada";
+            if (rawText === "Ubicación Privada") return rawText;
+            
+            let cleanText = String(rawText)
+                .replace(/,\s*España/ig, '')
+                .replace(/,\s*Espana/ig, '')
+                .replace(/\b\d{5}\b/g, '')
+                .trim();
+                
+            const parts = cleanText.split(',').map(s => s.trim()).filter(s => s !== "");
+            const uniqueParts = [];
+            parts.forEach(p => {
+                if (!uniqueParts.some(up => up.toLowerCase() === p.toLowerCase())) {
+                    uniqueParts.push(p);
+                }
+            });
+            return uniqueParts.join(', ') || "Ubicación Privada";
+        })()}
+    </span>
+</div>
                                     <p className={`text-lg font-black mt-1 ${isPremium ? 'text-amber-600' : 'text-slate-900'}`}>{prop.price}</p>
                                 </div>
                             </div>
@@ -865,8 +895,16 @@ openDetailsSmart(fullProp);    }
                               <div key={ticket.id} onClick={handleOpenDetail} className="bg-white p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer">
                                   <div className="flex gap-4 items-start mb-3">
                                       <div className="w-20 h-20 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
-                                          <img src={prop.mainImage || "https://images.unsplash.com/photo-1513159446162-54eb8bdaa79b"} className="w-full h-full object-cover" alt="" />
-                                          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
+<Image 
+                                              src={prop.mainImage || "https://images.unsplash.com/photo-1513159446162-54eb8bdaa79b"} 
+                                              alt="Evento" 
+                                              fill
+                                              sizes="80px"
+                                              className="object-cover"
+                                              loading="lazy"
+                                              quality={50}
+                                          />                                         
+                                           <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white backdrop-blur-[1px]">
                                               <span className="text-xl font-black leading-none drop-shadow-md">{dateObj.getDate()}</span>
                                               <span className="text-[9px] uppercase font-bold drop-shadow-md">{dateObj.toLocaleDateString('es-ES', {month:'short'})}</span>
                                           </div>
