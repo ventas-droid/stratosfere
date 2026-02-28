@@ -23,9 +23,8 @@ export default function DualGateway({ onSelectMode, userRole }: any) {
   const isParticular = !isAgent; 
 
   return (
-   // CONTENEDOR PRINCIPAL
-    <div className="fixed inset-0 z-[50000] bg-[#F5F5F7] flex flex-col items-center font-sans select-none overflow-y-auto custom-scrollbar animate-fade-in py-12 md:py-0 md:justify-center">
-    
+    // CONTENEDOR PRINCIPAL
+<div className="fixed top-0 left-0 w-screen h-screen z-[50000] bg-[#F5F5F7] flex flex-col items-center justify-start md:justify-center overflow-y-auto overflow-x-hidden py-12 md:py-0">      
       {/* ATMÓSFERA */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-200/40 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-200/40 blur-[120px] rounded-full mix-blend-multiply pointer-events-none"></div>
