@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction } from "@/app/components/admin/actions";
 import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, 
-    MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2,
+    MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2, Eye, EyeOff, Lock,
     Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
 } from "lucide-react";
 
@@ -13,6 +13,7 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
   const [isMounted, setIsMounted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM'>('USERS'); 
   const [now, setNow] = useState<Date | null>(null);
@@ -116,34 +117,58 @@ if (!isMounted) return <div className="fixed inset-0 bg-gray-50" />;
 
 if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-[100000] bg-white flex flex-col items-center justify-center p-4">
-        {/* Forzamos que el fondo sea blanco para romper la oscuridad del mapa */}
-        <div className="bg-white p-8 rounded-2xl shadow-2xl border border-gray-100 max-w-sm w-full text-center relative z-[100001]">
-            <div className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center mx-auto mb-6 shadow-md"><ShieldCheck size={24} /></div>
-            <h1 className="text-xl font-bold text-gray-900 mb-1">Stratosfere Admin</h1>
-            <p className="text-gray-500 mb-8 text-sm">Centro de Mando Supremo</p>
-            <input 
-                type="password" 
-                placeholder="Contraseña de acceso" 
-                className="w-full p-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-lg mb-4 text-center text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" 
-                value={passwordInput} 
-                onChange={(e) => setPasswordInput(e.target.value)} 
-                onKeyDown={(e) => { if (e.key === 'Enter' && passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
-            />
-            <button 
-                onClick={() => { if (passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
-                className="w-full bg-black text-white font-medium py-3 rounded-lg text-sm hover:bg-gray-800 transition-all shadow-lg"
-            >
-                Acceder
-            </button>
+      <div className="fixed inset-0 z-[100000] bg-[#0a0a0a] flex items-center justify-center font-sans">
+        {/* Fondo decorativo sutil */}
+        <div className="absolute inset-0 opacity-20 overflow-hidden pointer-events-none">
+            <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-600 rounded-full blur-[120px] animate-pulse"></div>
+            <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-600 rounded-full blur-[120px] animate-pulse"></div>
+        </div>
+
+        <div className="relative z-10 w-full max-w-md p-6">
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[2.5rem] shadow-2xl text-center">
+                <div className="w-20 h-20 bg-gradient-to-tr from-indigo-600 to-blue-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg transform -rotate-3 hover:rotate-0 transition-transform duration-500">
+                    <ShieldCheck size={40} strokeWidth={1.5} />
+                </div>
+                
+                <h1 className="text-4xl font-black text-white mb-2 tracking-tighter uppercase">Stratosfere</h1>
+                <p className="text-indigo-300/60 font-bold tracking-[0.3em] text-[10px] uppercase mb-10">Omni Intelligence Mode</p>
+                
+                <div className="relative mb-6">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
+                        <Lock size={18} />
+                    </div>
+                    <input 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="CÓDIGO DE ACCESO" 
+                        className="w-full pl-12 pr-12 py-4 bg-white/5 border border-white/10 rounded-2xl text-white text-center text-sm font-black tracking-[0.2em] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-white/20" 
+                        value={passwordInput} 
+                        onChange={(e) => setPasswordInput(e.target.value)} 
+                        onKeyDown={(e) => { if (e.key === 'Enter' && passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
+                    />
+                    <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors"
+                    >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                </div>
+
+                <button 
+                    onClick={() => { if (passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
+                    className="w-full bg-white text-black font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95"
+                >
+                    Iniciar Protocolo
+                </button>
+            </div>
+            <p className="text-center mt-8 text-white/20 text-[9px] font-bold tracking-widest uppercase">Nivel de Seguridad: Máximo (Nivel 5)</p>
         </div>
       </div>
     );
 }
 
   return (
-<div className="fixed inset-0 overflow-y-auto bg-gray-50 z-[100000] font-sans pointer-events-auto" style={{ height: "100vh", width: "100vw" }}
-> 
+<div className="fixed inset-0 overflow-y-auto bg-[#f8fafc] z-[100000] font-sans pointer-events-auto selection:bg-indigo-500 selection:text-white" style={{ height: "100vh", width: "100vw" }}>
      <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
