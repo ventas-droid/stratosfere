@@ -13,16 +13,19 @@
 html, body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
-  
+
   /* 🔥 CORRECCIÓN TÁCTICA: Liberamos el eje vertical para el Login, bloqueamos el horizontal */
   overflow-x: hidden;
-  overflow-y: auto; 
+  overflow-y: auto;
   overscroll-behavior-y: none;
-  
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  transform: translateZ(0); 
+
+  /* ✅ FIX: NO uses transform en html/body (rompe position: fixed en /admin) */
+  transform: none !important;
+
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
@@ -63,10 +66,14 @@ html, body {
     scrollbar-width: thin !important;
 }
 
-.custom-scrollbar {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch; /* Obligatorio para que el móvil deslice suave */
+/* ✅ Solo scroll/touch. NO cambiar position/transform globalmente */
+.custom-scrollbar,
+[class*="overflow-y-auto"] {
+  overflow-y: scroll !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y auto !important;
+  pointer-events: auto !important;
+  overscroll-behavior: contain !important;
 }
 
 /* =========================================
@@ -491,4 +498,12 @@ button, a, .glass-panel {
 /* Si alguna vez el usuario hace scroll hacia abajo en el mapa (fuera del panel), el fondo respira suavemente */
 html {
   scroll-behavior: smooth !important; 
+}
+
+/* ✅ Admin siempre fullscreen aunque exista el override global */
+.admin-root {
+  position: fixed !important;
+  inset: 0 !important;
+  transform: none !important;
+  z-index: 100000 !important;
 }

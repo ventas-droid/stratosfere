@@ -4,7 +4,7 @@ import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertySt
 import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, 
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2,
-    Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle
+    Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
 } from "lucide-react";
 
 const MASTER_PASSWORD = "GENERAL_ISIDRO"; 
@@ -22,8 +22,9 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
   // ESTADO DEL FORMULARIO DEL CRM
   const [newProspect, setNewProspect] = useState({ companyName: '', email: '', phone: '', city: '' });
   const [isSending, setIsSending] = useState(false);
-
- useEffect(() => {
+useEffect(() => { setLocalProperties(properties); }, [properties]);
+ 
+useEffect(() => {
     setIsMounted(true);
     if (sessionStorage.getItem("god_mode_auth") === "true") setIsAuthenticated(true);
     
@@ -111,25 +112,39 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
     }
   };
  
-  if (!isMounted) return null;
+if (!isMounted) return <div className="fixed inset-0 bg-gray-50" />;
 
 if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-50 bg-gray-50 flex flex-col items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 max-w-sm w-full text-center">
+      <div className="fixed inset-0 z-[100000] bg-white flex flex-col items-center justify-center p-4">
+        {/* Forzamos que el fondo sea blanco para romper la oscuridad del mapa */}
+        <div className="bg-white p-8 rounded-2xl shadow-2xl border border-gray-100 max-w-sm w-full text-center relative z-[100001]">
             <div className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center mx-auto mb-6 shadow-md"><ShieldCheck size={24} /></div>
             <h1 className="text-xl font-bold text-gray-900 mb-1">Stratosfere Admin</h1>
             <p className="text-gray-500 mb-8 text-sm">Centro de Mando Supremo</p>
-            <input type="password" placeholder="Contraseña de acceso" className="w-full p-3 bg-white text-gray-900 border border-gray-200 rounded-lg mb-4 text-center text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} />
-            <button onClick={() => { if (passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} className="w-full bg-black text-white font-medium py-3 rounded-lg text-sm">Acceder</button>
+            <input 
+                type="password" 
+                placeholder="Contraseña de acceso" 
+                className="w-full p-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-lg mb-4 text-center text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all" 
+                value={passwordInput} 
+                onChange={(e) => setPasswordInput(e.target.value)} 
+                onKeyDown={(e) => { if (e.key === 'Enter' && passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
+            />
+            <button 
+                onClick={() => { if (passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
+                className="w-full bg-black text-white font-medium py-3 rounded-lg text-sm hover:bg-gray-800 transition-all shadow-lg"
+            >
+                Acceder
+            </button>
         </div>
       </div>
     );
-  }
+}
 
   return (
-    <div className="fixed inset-0 overflow-y-auto bg-gray-50 z-50 font-sans">
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
+<div className="fixed inset-0 overflow-y-auto bg-gray-50 z-[100000] font-sans pointer-events-auto" style={{ height: "100vh", width: "100vw" }}
+> 
+     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-black text-white rounded-lg flex items-center justify-center"><LayoutDashboard size={18} /></div>
@@ -166,11 +181,11 @@ if (!isAuthenticated) {
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
             />
-            {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="pr-4 text-gray-400 hover:text-red-500 transition-colors" title="Limpiar búsqueda">
-                    <LogOut size={18} />
-                </button>
-            )}
+           {searchTerm && (
+    <button onClick={() => setSearchTerm("")} className="pr-4 text-gray-400 hover:text-red-500 transition-colors" title="Limpiar búsqueda">
+        <X size={18} /> {/* CAMBIE LogOut POR X AQUÍ */}
+    </button>
+)}
         </div>
 
         {/* ========================================================= */}
