@@ -253,12 +253,13 @@ export default function UIPanels({
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
  
- // 🔥 DETECTOR DE ENLACES MEJORADO (CON VIP PASS)
+ // 🔥 DETECTOR DE ENLACES MEJORADO (CON VIP PASS PARA PÚBLICO)
   const searchParams = useSearchParams();
+  const [isVipGuest, setIsVipGuest] = useState(false);
 
   useEffect(() => {
       const checkUrl = async () => {
-          const propId = searchParams.get('selectedProp'); 
+          const propId = searchParams.get('p') || searchParams.get('selectedProp'); 
           
           if (propId) {
                console.log("🎯 Link detectado. Ejecutando VIP PASS para:", propId);
@@ -269,34 +270,37 @@ export default function UIPanels({
                        const cleanProp = sanitizePropertyData(res.data);
 
                        if (cleanProp) {
-                           // 1. Abrimos el panel de la casa
-                           setSelectedProp(cleanProp);
-                           setActivePanel('DETAILS');
+                           // 1. ABRIMOS LAS COMPUERTAS A CIVILES
+                           setIsVipGuest(true);
+                           setGateUnlocked(true);
 
-                           // 🔥 2. ORDEN CRÍTICA: SALTAR LA GATEWAY
-                           // Forzamos al sistema a entrar en modo EXPLORER inmediatamente
+                           // 2. Forzamos modo EXPLORER PRIMERO
                            if (typeof setSystemMode === 'function') {
                                setSystemMode('EXPLORER');
                            }
                            
-                           // 🔥 3. SALTAR LA INTRO/LANDING
+                           // 3. Limpiamos la intro
                            setLandingComplete(true); 
                            setShowAdvancedConsole(false);
                            
-                           // 4. Volamos hacia la casa
+                           // 🔥 4. RETRASO TÁCTICO: Esperamos 500ms para esquivar el "Protocolo de Descontaminación"
+                           // y luego le lanzamos la propiedad a la pantalla.
+                           setTimeout(() => {
+                               setSelectedProp(cleanProp);
+                               setActivePanel('DETAILS');
+                               
+                               // 5. Volamos hacia la casa
                            if (cleanProp.coordinates && map?.current) {
-                               // Pequeño delay para dar tiempo a que el mapa se pinte tras quitar la Gateway
-                               setTimeout(() => {
                                    map.current.flyTo({ 
                                        center: cleanProp.coordinates, 
                                        zoom: 18, 
                                        pitch: 60,
                                        duration: 3000 
                                    });
+                               }
                                }, 500);
                            }
                        }
-                   }
                } catch (e) {
                    console.error("Error abriendo link:", e);
                }
@@ -306,6 +310,7 @@ export default function UIPanels({
       checkUrl();
   }, [searchParams, map]);
 
+ 
   // --- 1. MEMORIA DE UBICACIÓN ---
   const [homeBase, setHomeBase] = useState<any>(null);
   useEffect(() => {
@@ -325,19 +330,61 @@ export default function UIPanels({
   const [agencyLikes, setAgencyLikes] = useState<any[]>([]);
   const uiFavs = systemMode === "AGENCY" ? agencyLikes : localFavs;
   const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
-
-  // --- 2. CREDENCIALES (SaaS Puro) ---
   const [gateUnlocked, setGateUnlocked] = useState(false);
 
-  // Efecto reactivo: Si tenemos usuario confirmado, abrimos la puerta.
+// Efecto reactivo: Si tenemos usuario confirmado, O UN PASE VIP, abrimos la puerta.
   useEffect(() => {
-      // AHORA SÍ: activeUserKey YA EXISTE AQUÍ
-      if (activeUserKey && activeUserKey !== 'anon' && identityVerified) {
+      // 🔥 BYPASS TÁCTICO: Si hay cualquier llave que no sea anon, abrimos la puerta. 
+      // No esperamos a que identityVerified sea true porque el cambio de roles lo retrasa.
+      if (isVipGuest || (activeUserKey && activeUserKey !== 'anon')) {
           setGateUnlocked(true);
+          setIdentityVerified(true); // Forzamos la verificación
       } else {
           setGateUnlocked(false);
       }
-  }, [activeUserKey, identityVerified]);
+  }, [activeUserKey, isVipGuest]);
+
+  // 👇👇👇 PEGUE EL COMITÉ AQUÍ ABAJO 👇👇👇
+
+  // 🧠 COMITÉ DE BIENVENIDA (MEMORIA DE REGRESO TRAS REGISTRO/LOGIN)
+  useEffect(() => {
+      // Solo actuamos si el Gate está abierto Y el usuario es real (ya se ha registrado/logueado)
+      if (gateUnlocked && identityVerified && activeUserKey && activeUserKey !== 'anon') {
+          
+          // Revisamos si dejó algo en la mochila antes de irse
+          const returnIntentId = localStorage.getItem('stratos_return_intent');
+          
+          if (returnIntentId) {
+              console.log("🧠 Recuperando objetivo previo al registro:", returnIntentId);
+              
+              // 1. Borramos la huella para que no se quede en bucle infinito
+              localStorage.removeItem('stratos_return_intent');
+              
+              // 2. Vamos a buscar la casa a la base de datos
+              getPropertyByIdAction(returnIntentId).then(res => {
+                  if (res?.success && res.data) {
+                      const cleanProp = sanitizePropertyData(res.data);
+                      if (cleanProp) {
+                          // 3. ¡ZAS! Le abrimos la casa automáticamente
+                          setSelectedProp(cleanProp);
+                          setActivePanel('DETAILS');
+                          
+                          // 4. Y le volamos el mapa a su posición
+                          if (cleanProp.coordinates && map?.current) {
+                              setTimeout(() => {
+                                  map.current.flyTo({ center: cleanProp.coordinates, zoom: 18, pitch: 60, duration: 3000 });
+                              }, 500);
+                          }
+                          
+                          if (typeof addNotification === 'function') {
+                              addNotification("✅ Bienvenido de nuevo. Aquí tienes tu expediente.");
+                          }
+                      }
+                  }
+              }).catch(console.error);
+          }
+      }
+  }, [gateUnlocked, identityVerified, activeUserKey, map]);
 
   // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
@@ -1476,10 +1523,13 @@ const tryOpenDetailsFromThread = async (t: any) => {
 // =======================
 const openChatPanel = async () => {
   setChatOpen(true);
+  
+  // 🔥 BLINDAJE: Si la IA está abierta, la aniquilamos para hacer hueco al Chat
+  setActivePanel(prev => prev === 'AI' ? 'NONE' : prev); 
+
   setChatConversationId(null);
   setChatMessages([]);
   setChatLoading(true);
-
   try {
     // ✅ Source of truth: alias importado
     const listFn = listMyConversationsAction as any;
@@ -2386,12 +2436,20 @@ useEffect(() => {
 useEffect(() => {
     // REGLA 1: Si abro un panel central (como PREMIUM_STORE o DETAILS)...
     if (activePanel !== 'NONE') {
-        // ...cierro el panel derecho (VAULT, PROFILE, etc.)
-        if (rightPanel !== 'NONE') {
+        
+        // 🔥 BLINDAJE FAVORITOS: Solo cerramos el panel derecho si NO estamos abriendo Detalles.
+        // Así podemos mantener la lista de favoritos abierta mientras vemos la ficha del piso.
+        if (rightPanel !== 'NONE' && activePanel !== 'DETAILS') {
             setRightPanel('NONE');
         }
-        // ...y aparco el buscador
-        if (typeof window !== 'undefined') {
+        
+        // 🔥 NUEVA REGLA DE EXCLUSIÓN: Si abro la IA, el Chat se cierra automáticamente
+        if (activePanel === 'AI') {
+            setChatOpen(false);
+        }
+
+        // ...y aparco el buscador (excepto si son los detalles)
+        if (typeof window !== 'undefined' && activePanel !== 'DETAILS') {
             window.dispatchEvent(new CustomEvent('park-smart-sidebar', { detail: { park: true } }));
         }
     }
@@ -2468,6 +2526,28 @@ useEffect(() => {
       </div>
     );
   }
+// 🛡️ ESCUDO ANTI-INTRUSOS (CON MEMORIA DE REGRESO)
+  const requireAuth = (callback: Function) => {
+      if (!identityVerified || activeUserKey === 'anon') {
+          if (typeof playSynthSound === 'function') playSynthSound('error'); 
+          
+          if (typeof addNotification === 'function') {
+              addNotification("🔒 Acción restringida. Regístrate para explorar más.");
+          }
+
+          // 🧠 TÁCTICA DE RETENCIÓN: Guardamos el ID del piso en la mochila (localStorage)
+          if (selectedProp?.id) {
+              localStorage.setItem('stratos_return_intent', selectedProp.id);
+          }
+          
+          setTimeout(() => {
+              setGateUnlocked(false); 
+          }, 1500);
+          
+          return; 
+      }
+      callback();
+  };
 
   // --- RENDERIZADO PRINCIPAL ---
   return (
@@ -2727,7 +2807,7 @@ useEffect(() => {
                {/* Ahora el sistema usará obligatoriamente los que están definidos al final del archivo, que sí funcionan bien. */}
            </>
        )}
-   {/* MODO EXPLORADOR (BARRA USUARIO) */}
+   {/* MODO EXPLORADOR (BARRA USUARIO BLINDADA) */}
        {systemMode === 'EXPLORER' && (
            <>
                {/* 🚀 NUEVO CEREBRO: COLUMNA DERECHA INTELIGENTE (Ahora sí obedece a la orden de abrir/cerrar) */}
@@ -2737,55 +2817,82 @@ useEffect(() => {
                
                <div className="absolute bottom-10 z-[10000] w-full px-6 pointer-events-none flex justify-center items-center">
                   <div className="pointer-events-auto w-full max-w-3xl animate-fade-in-up delay-300">
-<div className="relative omni-obsidian-bar rounded-[32px] p-2 px-3 md:px-6 flex items-center gap-3 md:gap-4 w-full overflow-x-auto scrollbar-hide snap-x">                          {/* ⚠️ GENERAL: Busque el botón de las rayitas (Filtros) que tiene usted aquí dentro 
-                                y asegúrese de que su onClick sea EXACTAMENTE este: */}
+                      <div className="relative omni-obsidian-bar rounded-[32px] p-2 px-3 md:px-6 flex items-center gap-3 md:gap-4 w-full overflow-x-auto scrollbar-hide snap-x">                          
                           
+                        {/* BOTÓN BUSCADOR INTELIGENTE (CON ESCUDO) */}
                          <button 
-    onClick={() => {
+                            onClick={() => requireAuth(() => {
         if (typeof playSynthSound === 'function') playSynthSound('click');
         
-        // Si hay algún panel derecho abierto (Perfil, Favoritos...), LO MATAMOS y abrimos el radar
+                                // Si hay algún panel derecho abierto, lo matamos
         if (rightPanel !== 'NONE') {
             setRightPanel('NONE');
-            setShowAdvancedConsole(true); // Aseguramos que el radar nazca
+                                    setShowAdvancedConsole(true);
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('park-smart-sidebar', { detail: { park: false } }));
             }
         } else {
-            // Si no hay nada estorbando, funciona normal (abre/cierra)
             setShowAdvancedConsole(!showAdvancedConsole);
         }
-    }}
-    className={`p-2 rounded-full transition-all ${showAdvancedConsole ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'}`}
-    title="Radar Táctico"
->
-    <SlidersHorizontal size={20} /> 
+                            })}
+                            className={`p-3 rounded-full transition-all relative group ${
+                                showAdvancedConsole 
+                                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.4)]' 
+                                    : 'text-white/50 hover:text-white hover:bg-white/10 border border-transparent'
+                            }`}
+                            title="Buscador Inteligente"
+                        >
+                            {/* 🔍 COMBO TÁCTICO: Lupa + Casa */}
+                            <div className="relative flex items-center justify-center">
+                                <Search size={18} strokeWidth={2.5} />
+                                <div className={`absolute -bottom-1 -right-1 rounded-full p-[1px] ${showAdvancedConsole ? 'bg-[#050505]' : 'bg-transparent group-hover:bg-[#050505]'}`}>
+                                    <Home size={10} strokeWidth={3} className={showAdvancedConsole ? "text-blue-300" : "text-white/70"} />
+                                </div>
+                            </div>
 </button>
-                      {/* BOTONES IZQUIERDA (Menu + Ajustes) */}
+                        
+                        {/* BOTONES IZQUIERDA (Menu + Ajustes) -> Libre de acceso para que puedan volver al inicio */}
                         <div className="flex items-center gap-1">
                             <button onClick={() => { playSynthSound('click'); setSystemMode('GATEWAY'); }} className="p-3 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all"><LayoutGrid size={18}/></button>
-                            {/* 🔥 INTRUSO ELIMINADO: Aquí estaba el botón malo antiguo */}
                         </div>
                         
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
                         
-                        {/* BARRA BUSCADORA CENTRAL */}
+                        {/* BARRA BUSCADORA CENTRAL (CON ESCUDO AL PULSAR ENTER) */}
                         <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-blue-500/50 focus-within:bg-blue-500/5 transition-all group">
                           <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
-                          <input value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleAICommand(e); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); (e.target as HTMLInputElement).blur(); } }} className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text" placeholder="LOCALIZACIÓN..." />
+                          <input 
+                              value={aiInput} 
+                              onChange={(e) => setAiInput(e.target.value)} 
+                              onKeyDown={(e) => { 
+                                  if (e.key === "Enter") { 
+                                      e.preventDefault(); 
+                                      e.stopPropagation(); 
+                                      requireAuth(() => handleAICommand(e)); 
+                                  } 
+                                  if (e.key === "Escape") { 
+                                      e.preventDefault(); 
+                                      e.stopPropagation(); 
+                                      (e.target as HTMLInputElement).blur(); 
+                                  } 
+                              }} 
+                              className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text" 
+                              placeholder="LOCALIZACIÓN..." 
+                          />
                           <Mic size={16} className="text-white/30"/>
                         </div>
                         
                         <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
                         
-                        {/* ARSENAL DERECHA (Aquí están los nuevos botones) */}
+                        {/* ARSENAL DERECHA (Aquí están los nuevos botones, TODOS BLINDADOS) */}
                         <div className="flex items-center gap-1">
+                            
                             {/* 1. MERCADO INMOBILIARIO */}
                             <button
-                              onClick={() => {
+                              onClick={() => requireAuth(() => {
                                 playSynthSound('click');
                                 setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE');
-                              }}
+                              })}
                               className={`p-3 rounded-full hover:bg-white/10 transition-all ${
                                 activePanel === 'MARKETPLACE' ? 'text-emerald-400 bg-white/10' : 'text-white/50 hover:text-white'
                               }`}
@@ -2796,10 +2903,10 @@ useEffect(() => {
 
                             {/* 2. 🔥 AGENCIAS (NUEVO) */}
                             <button
-                                onClick={() => {
+                                onClick={() => requireAuth(() => {
                                     playSynthSound('click');
                                     setActivePanel(activePanel === 'AGENCIES_LIST' ? 'NONE' : 'AGENCIES_LIST');
-                                }}
+                                })}
                                 className={`p-3 rounded-full hover:bg-white/10 transition-all ${
                                     activePanel === 'AGENCIES_LIST' ? 'text-indigo-400 bg-white/10' : 'text-white/50 hover:text-white'
                                 }`}
@@ -2810,10 +2917,10 @@ useEffect(() => {
 
                             {/* 3. 👑 PREMIUM NANO STORE (NUEVO) */}
                             <button
-                                onClick={() => {
+                                onClick={() => requireAuth(() => {
                                     playSynthSound('click');
                                     setActivePanel(activePanel === 'PREMIUM_STORE' ? 'NONE' : 'PREMIUM_STORE');
-                                }}
+                                })}
                                 className={`p-3 rounded-full hover:bg-white/10 transition-all ${
                                     activePanel === 'PREMIUM_STORE' ? 'text-orange-400 bg-white/10' : 'text-white/50 hover:text-white'
                                 }`}
@@ -2824,14 +2931,14 @@ useEffect(() => {
 
                             {/* 4. CHAT */}
                             <button
-                              onClick={() => {
+                              onClick={() => requireAuth(() => {
                                 playSynthSound('click');
                                if (chatOpen) {
                                   setChatOpen(false);
                                 } else {
                                   openChatPanel();
                                 }
-                              }}
+                              })}
                              className={`p-3 rounded-full hover:bg-white/10 transition-all ${
                               chatOpen ? 'text-blue-400 bg-blue-500/10' : 'text-white/50 hover:text-white'
                             }`}
@@ -2851,10 +2958,10 @@ useEffect(() => {
 
                             {/* 5. IA */}
                             <button
-                              onClick={() => {
+                              onClick={() => requireAuth(() => {
                                 playSynthSound('click');
                                 setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI');
-                              }}
+                              })}
                               className={`p-3 rounded-full transition-all relative group ${
                                 activePanel === 'AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'
                               }`}
@@ -2864,10 +2971,10 @@ useEffect(() => {
 
                             {/* 6. FAVORITOS (VAULT) */}
                             <button
-                              onClick={() => {
+                              onClick={() => requireAuth(() => {
                                 playSynthSound('click');
                                 toggleRightPanel('VAULT');
-                              }}
+                              })}
                               className={`p-3 rounded-full hover:bg-white/10 transition-all ${
                                 rightPanel === 'VAULT' ? 'text-red-500' : 'text-white/50 hover:text-white'
                               }`}
@@ -2877,10 +2984,10 @@ useEffect(() => {
 
                             {/* 7. PERFIL */}
                             <button
-                              onClick={() => {
+                              onClick={() => requireAuth(() => {
                                 playSynthSound('click');
                                 toggleRightPanel('PROFILE');
-                              }}
+                              })}
                               className={`p-3 rounded-full hover:bg-white/10 transition-all ${
                                 rightPanel === 'PROFILE' ? 'text-white' : 'text-white/50 hover:text-white'
                               }`}
