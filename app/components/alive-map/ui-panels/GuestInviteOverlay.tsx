@@ -43,11 +43,25 @@ export default function GuestInviteOverlay({ isOpen, onClose, onAccept }: Props)
             </div>
 
             <div className="mt-3 text-[15px] leading-relaxed text-slate-600 max-w-[55ch]">
-              Tu acceso temporal ha concluido. Registra tu cuenta gratuita hoy mismo para explorar el mercado en tiempo real, guardar tus activos favoritos y conectar con nuestra red de agencias.
+              Tu acceso temporal ha concluido. Registra tu cuenta gratuita hoy mismo para explorar el mercado en tiempo real, guardar tus activos favoritos y conectar con nuestra red de agencias, embajador€s y particulares.
             </div>
           </div>
 
-          <button onClick={onClose} className="h-11 w-11 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-all flex items-center justify-center">
+          {/* ✅ EL BOTÓN "X" CON EFECTO TORNILLO PREMIUM */}
+          <button
+            onClick={onClose}
+            className="
+              h-11 w-11 rounded-full
+              bg-slate-100 text-slate-500
+              border border-black/5
+              transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)] // Transición suave y sofisticada
+              hover:bg-slate-200 hover:text-slate-900 // Estilos de hover
+              hover:rotate-180 // Giro de 180 grados (efecto tornillo completo)
+              active:rotate-[225deg] // Giro adicional al hacer clic
+              active:scale-95 // Ligera escala hacia abajo para feedback de acción
+              flex items-center justify-center
+            "
+          >
             ✕
           </button>
         </div>
