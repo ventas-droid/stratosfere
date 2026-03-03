@@ -247,8 +247,8 @@ export default function DetailsPanel({
         const banos = p.baths || p.bathrooms || 0;
         const metros = p.mBuilt || p.surface || 0;
 const vipLink = p.refCode 
-    ? `https://stratosfere.com/?ref=${encodeURIComponent(p.refCode.trim())}` 
-    : `https://stratosfere.com/?p=${propId}`;      
+    ? `https://stratosfere.com/?vip=${encodeURIComponent(p.refCode.trim())}` 
+    : `https://stratosfere.com/?p=${propId}`;
     
     const shareText = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${vipLink}`;
 

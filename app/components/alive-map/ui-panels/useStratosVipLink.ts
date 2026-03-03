@@ -24,8 +24,7 @@ export const useStratosVipLink = (
     const checkUrl = async () => {
       // 🛰️ SENSOR DUAL
       const propId = searchParams.get('p') || searchParams.get('selectedProp');
-      const refCode = searchParams.get('ref'); 
-      
+const refCode = searchParams.get('vip');      
       if (propId || refCode) {
         hasProcessed.current = true; // Marcamos como procesado
         console.log("🎯 VIP PASS Detectado:", refCode ? `Ref: ${refCode}` : `ID: ${propId}`);
@@ -72,12 +71,11 @@ export const useStratosVipLink = (
                 }
 
                 // 🔥 LA CLAVE: Limpiamos la URL aquí, 4 segundos después, no antes.
-                // Si la limpias arriba, el sistema cree que ya no eres VIP y te echa.
                 setTimeout(() => {
                   if (typeof window !== 'undefined') {
                     const url = new URL(window.location.href);
                     url.searchParams.delete('p');
-                    url.searchParams.delete('ref');
+                    url.searchParams.delete('vip');                    
                     url.searchParams.delete('selectedProp');
                     window.history.replaceState(null, '', url.pathname);
                     console.log("🧹 URL Limpiada: Acceso VIP consolidado.");
@@ -96,8 +94,9 @@ export const useStratosVipLink = (
     };
     
     checkUrl();
-    // Añadimos las dependencias para que el linter no de guerra
-  }, [searchParams, map, setSelectedProp, setActivePanel, setSystemMode, setLandingComplete, setGateUnlocked, setShowAdvancedConsole]);
+    
+    // 🛡️ MODO BLINDADO: Solo vigilamos searchParams y map para evitar el Error 9
+  }, [searchParams, map]); 
 
   return { isVipGuest };
 };

@@ -92,9 +92,9 @@ const [showB2BModal, setShowB2BModal] = useState(false);
         const ref = selectedProp.refCode || "N/A";
         const id = selectedProp.id || "error";
         
-        const link = selectedProp.refCode 
-            ? `https://stratosfere.com/?ref=${encodeURIComponent(selectedProp.refCode.trim())}` 
-            : `https://stratosfere.com/?p=${id}`;
+       const link = selectedProp.refCode 
+    ? `https://stratosfere.com/?vip=${encodeURIComponent(selectedProp.refCode.trim())}` 
+    : `https://stratosfere.com/?p=${id}`;
 
         const tipo = selectedProp.type ? String(selectedProp.type).toUpperCase() : "INMUEBLE";
         const ubicacion = selectedProp.address || selectedProp.location || selectedProp.city || "Ubicación Privada";
@@ -751,7 +751,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                     
                     <div className="h-32 w-full shrink-0"></div>
                 </div>
-                
+
                 {/* FOOTER */}
                 <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20 relative">
                   {canSeeCommission && (
