@@ -199,20 +199,20 @@ if (typeof window !== 'undefined') {
                 </div>
             ) : (
                 localFavorites.map((prop: any, index: number) => (
-                    <div 
+                 <div 
                         key={prop.id || index} 
-                        className="bg-white p-3 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-white cursor-pointer"
+                        className="bg-white p-3 md:p-4 rounded-[24px] shadow-sm hover:shadow-xl hover:-translate-x-1 transition-all group relative overflow-hidden border border-slate-100 cursor-pointer"
                         onClick={() => handleFlyTo(prop)}
                     >
                         <div className="flex gap-4 items-start">
                             
-                           {/* FOTO MINIATURA (CON NEXT/IMAGE OPTIMIZADO) */}
-                            <div className="w-24 h-24 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
+                           {/* FOTO MINIATURA (AMPLIADA Y MEJORADA) */}
+                            <div className="w-28 h-28 md:w-32 md:h-32 rounded-[18px] bg-slate-200 overflow-hidden shrink-0 relative shadow-inner">
                                 <Image 
                                     src={prop.img || prop.image || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3"} 
                                     alt="Miniatura" 
                                     fill
-                                    sizes="96px"
+                                    sizes="128px"
                                     className="object-cover group-hover:scale-110 transition-transform duration-700"
                                     loading="lazy"
                                     quality={50}
@@ -222,36 +222,39 @@ if (typeof window !== 'undefined') {
                                 </div>
                             </div>
 
-                            {/* DATOS */}
-                            <div className="flex-1 min-w-0 py-1 flex flex-col h-24 justify-between">
+                            {/* DATOS (SIN RESTRICCIÓN DE ALTURA, TOTALMENTE ELÁSTICO) */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-between min-h-[7rem] py-1">
                                 <div>
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider truncate max-w-[100px]">
+                                    <div className="flex justify-between items-start mb-2 gap-2">
+                                        <span className="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0">
                                             {prop.type || "Inmueble"}
                                         </span>
-                                        <span className="font-black text-slate-900 text-sm">
+                                        <span className="font-black text-slate-900 text-sm truncate">
                                             {prop.formattedPrice || prop.price || "Consultar"}
                                         </span>
                                     </div>
                                     
-                                    <h4 className="font-bold text-[#1c1c1e] text-sm leading-tight truncate">
+                                    <h4 className="font-bold text-[#1c1c1e] text-sm md:text-base leading-tight truncate">
                                         {prop.title || "Propiedad sin nombre"}
                                     </h4>
-                                    <p className="text-[10px] font-bold text-slate-400 font-mono truncate uppercase">
+                                    
+                                    {/* DIRECCIÓN: Blindada a 2 líneas máximas para no romper el diseño */}
+                                    <p className="text-[10px] font-bold text-slate-400 font-mono mt-1 line-clamp-2 uppercase leading-snug pr-2">
                                        {getLocationLabel(prop)}
                                     </p>
                                 </div>
                                 
-                               {/* BOTONERA INTERNA */}
-                                <div className="flex items-center gap-2 mt-auto">
+                               {/* BOTONERA INTERNA MÁS GRANDE Y ESPACIADA */}
+                                <div className="flex items-center gap-2 mt-3 w-full">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleFlyTo(prop);
                                     }}
-                                    className="flex-1 bg-[#1c1c1e] text-white h-7 rounded-[10px] text-[9px] font-bold uppercase tracking-wide flex items-center justify-center gap-1.5 hover:bg-black hover:scale-105 transition-all shadow-md active:scale-95"
+                                    className="flex-1 min-w-0 bg-[#1c1c1e] text-white h-8 md:h-9 rounded-[10px] text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black hover:scale-[1.02] transition-all shadow-md active:scale-95 px-2"
                                   >
-                                    <MapPin size={10} /> LOCALIZAR
+                                    <MapPin size={12} className="shrink-0" /> 
+                                    <span className="truncate">LOCALIZAR</span>
                                   </button>
 
                                   <button
@@ -259,10 +262,10 @@ if (typeof window !== 'undefined') {
                                       e.stopPropagation();
                                       if (onToggleFavorite) onToggleFavorite({ ...prop, isFav: false });
                                     }}
-                                    className="w-7 h-7 rounded-[10px] bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-90 border border-red-100 hover:border-red-500"
+                                    className="shrink-0 w-8 h-8 md:w-9 md:h-9 rounded-[10px] bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-90 border border-red-100 hover:border-red-500"
                                     title="Eliminar de Favoritos"
                                   >
-                                    <Trash2 size={12} />
+                                    <Trash2 size={14} />
                                   </button>
                                 </div>
 

@@ -117,30 +117,30 @@ if (!isMounted) return <div className="fixed inset-0 bg-gray-50" />;
 
 if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-[100000] bg-[#0a0a0a] flex items-center justify-center font-sans">
-        {/* Fondo decorativo sutil */}
-        <div className="absolute inset-0 opacity-20 overflow-hidden pointer-events-none">
-            <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-600 rounded-full blur-[120px] animate-pulse"></div>
-            <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-600 rounded-full blur-[120px] animate-pulse"></div>
-        </div>
+      <div className="fixed inset-0 z-[100000] bg-[#050505] flex items-center justify-center font-sans overflow-hidden">
+        {/* LUCES TÁCTICAS DE FONDO */}
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/20 rounded-full blur-[120px] animate-pulse"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px] animate-pulse"></div>
 
-        <div className="relative z-10 w-full max-w-md p-6">
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[2.5rem] shadow-2xl text-center">
-                <div className="w-20 h-20 bg-gradient-to-tr from-indigo-600 to-blue-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-                    <ShieldCheck size={40} strokeWidth={1.5} />
+        <div className="relative z-10 w-full max-w-[440px] p-6">
+            <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 p-10 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center">
+                
+                {/* ICONO ESCUDO CON GLOW */}
+                <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-blue-500 text-white rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(79,70,229,0.3)] transform -rotate-3 hover:rotate-0 transition-all duration-700">
+                    <ShieldCheck size={48} strokeWidth={1.5} />
                 </div>
                 
-                <h1 className="text-4xl font-black text-white mb-2 tracking-tighter uppercase">Stratosfere</h1>
-                <p className="text-indigo-300/60 font-bold tracking-[0.3em] text-[10px] uppercase mb-10">Omni Intelligence Mode</p>
+                <h1 className="text-5xl font-black text-white mb-2 tracking-tighter uppercase italic">Stratosfere</h1>
+                <p className="text-indigo-400/60 font-bold tracking-[0.4em] text-[10px] uppercase mb-12">God Mode Access</p>
                 
-                <div className="relative mb-6">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
-                        <Lock size={18} />
+                <div className="relative mb-8">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20">
+                        <Lock size={20} />
                     </div>
                     <input 
                         type={showPassword ? "text" : "password"} 
-                        placeholder="CÓDIGO DE ACCESO" 
-                        className="w-full pl-12 pr-12 py-4 bg-white/5 border border-white/10 rounded-2xl text-white text-center text-sm font-black tracking-[0.2em] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-white/20" 
+                        placeholder="CÓDIGO SUPREMO" 
+                        className="w-full pl-14 pr-14 py-5 bg-white/[0.05] border border-white/10 rounded-2xl text-white text-center text-lg font-black tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-white/10 placeholder:font-normal placeholder:tracking-normal" 
                         value={passwordInput} 
                         onChange={(e) => setPasswordInput(e.target.value)} 
                         onKeyDown={(e) => { if (e.key === 'Enter' && passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
@@ -148,20 +148,25 @@ if (!isAuthenticated) {
                     <button 
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors"
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-white/20 hover:text-indigo-400 transition-colors"
                     >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
                     </button>
                 </div>
 
                 <button 
                     onClick={() => { if (passwordInput === MASTER_PASSWORD) { setIsAuthenticated(true); sessionStorage.setItem("god_mode_auth", "true"); } }} 
-                    className="w-full bg-white text-black font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95"
+                    className="w-full bg-white text-black font-black py-5 rounded-2xl text-sm uppercase tracking-[0.2em] hover:bg-indigo-500 hover:text-white transition-all shadow-xl active:scale-[0.97]"
                 >
-                    Iniciar Protocolo
+                    Desbloquear Sistema
                 </button>
             </div>
-            <p className="text-center mt-8 text-white/20 text-[9px] font-bold tracking-widest uppercase">Nivel de Seguridad: Máximo (Nivel 5)</p>
+            
+            <div className="flex justify-center items-center gap-4 mt-10">
+                <div className="h-[1px] w-12 bg-white/10"></div>
+                <p className="text-white/20 text-[10px] font-bold tracking-widest uppercase">Encriptación AES-256 Activa</p>
+                <div className="h-[1px] w-12 bg-white/10"></div>
+            </div>
         </div>
       </div>
     );

@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 // 1. IMPORTACIÓN UNIFICADA DE ICONOS (CON BUILDING2 AÑADIDO)
 import { 
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
-  Square, Box, Crosshair, Sun, Moon,  Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
+  Square, Box, Crosshair, Sun, Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
   Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2, Crown,
 } from 'lucide-react';
@@ -64,27 +64,254 @@ getPropertyByIdAction,
   getOwnerProposalsAction,
 } from "@/app/actions";
 
-import { 
-  LUXURY_IMAGES, 
-  sanitizePropertyData, 
-  extractFirstUrl, 
-  isPdfUrl, 
-  isImageUrl 
-} from "../../../utils/propertyCore";
+// --- UTILIDADES ---
+export const LUXURY_IMAGES = [
+  "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
+  "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
+  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100",
+  "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=100"
+];
 
-import { useOwnerProposals } from "./useOwnerProposals";
-import { useStratosFavorites } from "./useStratosFavorites"; // 👈 NUEVO
-import { useStratosAI } from "./useStratosAI";
-import { useStratosChat } from "./useStratosChat";
-import StratosChatWindow from "./StratosChatWindow";
-import StratosWelcomeGate from "./StratosWelcomeGate";
-import { useStratosVipLink } from "./useStratosVipLink";
+// HERRAMIENTA DE REPARACIÓN DE DATOS E INYECCIÓN DE NANO CARDS (CORREGIDA Y BLINDADA)
+export const sanitizePropertyData = (p: any) => {
+  if (!p) return null;
+
+  // 1. APLANADO INTELIGENTE
+  // Usamos { ...p } en el else para crear una copia y poder modificarla sin afectar al original
+  const base = p?.property
+    ? { ...p.property, propertyId: p.propertyId, favoriteId: p.id }
+    : { ...p };
+
+  // 🔥 FIX CRÍTICO: RESCATE DEL DUEÑO
+  // Si el objeto padre 'p' tiene 'user' (el creador) pero 'base' lo perdió al aplanar, lo recuperamos.
+  if (!base.user && p.user) {
+      base.user = p.user;
+  }
+
+  // 2. GESTIÓN DE IMÁGENES (FIX robusto: soporta secure_url/src/etc. sin romper nada)
+const collectUrls = (val: any): string[] => {
+  const out: string[] = [];
+
+  const push = (u: any) => {
+    if (!u) return;
+
+    if (typeof u === "string") {
+      const s = u.trim();
+      if (!s) return;
+
+      // soporta "url1,url2,url3" si algún backend lo manda así
+      if (s.includes(",") && /^https?:\/\//i.test(s.split(",")[0].trim())) {
+        s.split(",").forEach((p) => push(p));
+        return;
+      }
+
+      out.push(s);
+      return;
+    }
+
+    if (typeof u === "object") {
+      const cand =
+        u.url ||
+        u.secure_url ||
+        u.secureUrl ||
+        u.src ||
+        u.href ||
+        u.path ||
+        u.image ||
+        u.imageUrl ||
+        u.publicUrl;
+
+      if (cand) push(cand);
+    }
+  };
+
+  if (Array.isArray(val)) val.forEach(push);
+  else push(val);
+
+  return Array.from(new Set(out.filter(Boolean)));
+};
+
+let safeImages: string[] = [];
+
+// prioridad: galerías/listas típicas
+safeImages = collectUrls(base.images);
+if (safeImages.length === 0) safeImages = collectUrls(base.imageUrls);
+if (safeImages.length === 0) safeImages = collectUrls(base.photos);
+if (safeImages.length === 0) safeImages = collectUrls(base.gallery);
+if (safeImages.length === 0) safeImages = collectUrls(base.media);
+if (safeImages.length === 0) safeImages = collectUrls(base.assets);
+
+// fallback: single
+if (safeImages.length === 0) safeImages = collectUrls(base.img);
+if (safeImages.length === 0) safeImages = collectUrls(base.mainImage);
+if (safeImages.length === 0) safeImages = collectUrls(base.image);
+if (safeImages.length === 0) safeImages = collectUrls(base.coverImage);
+
+
+  // 3. GESTIÓN DE PRECIOS (Lógica original conservada)
+  const safePrice = Number(
+    base.priceValue || base.rawPrice || String(base.price).replace(/\D/g, "") || 0
+  );
+
+const safeIdRaw = base.propertyId ?? base.id ?? base._id ?? base.uuid;
+if (!safeIdRaw) return null; // ✅ sin id real, no inventamos
+const safeId = String(safeIdRaw);
+
+  // 4. GESTIÓN DE COORDENADAS (Lógica original conservada al 100%)
+  const lngRaw =
+    base.lng ??
+    base.longitude ??
+    (Array.isArray(base.coordinates) ? base.coordinates[0] : undefined) ??
+    base.geometry?.coordinates?.[0] ??
+    (Array.isArray(base.location) ? base.location[0] : undefined);
+
+  const latRaw =
+    base.lat ??
+    base.latitude ??
+    (Array.isArray(base.coordinates) ? base.coordinates[1] : undefined) ??
+    base.geometry?.coordinates?.[1] ??
+    (Array.isArray(base.location) ? base.location[1] : undefined);
+
+  const lng = lngRaw !== undefined && lngRaw !== null ? Number(lngRaw) : undefined;
+  const lat = latRaw !== undefined && latRaw !== null ? Number(latRaw) : undefined;
+
+  const hasCoords = Number.isFinite(lng) && Number.isFinite(lat);
+  const coordinates = hasCoords ? [lng as number, lat as number] : undefined;
+
+  // 5. REQUISITOS (Lógica original conservada)
+  let nanoRequirements = base.requirements || [];
+  if (!Array.isArray(nanoRequirements)) nanoRequirements = [];
+
+  if (nanoRequirements.length === 0) {
+    if (safePrice > 1000000) {
+      nanoRequirements = ["Acuerdo de Confidencialidad (NDA)", "Video Drone 4K", "Filtrado Financiero"];
+    } else if (base.type === "land" || base.type === "suelo") {
+      nanoRequirements = ["Levantamiento Topográfico", "Informe Urbanístico", "Cédula"];
+    } else if (base.type === "commercial" || base.type === "local") {
+      nanoRequirements = ["Licencia de Apertura", "Plano de Instalaciones", "Estudio de Mercado"];
+    } else {
+      nanoRequirements = ["Reportaje Fotográfico", "Certificado Energético", "Nota Simple"];
+    }
+  }
+
+ // 6. RETORNO FINAL
+  return {
+    ...base,
+    id: safeId,
+    
+    // 🔥 PASAPORTE DIPLOMÁTICO PARA LA DIRECCIÓN (Los 4 datos puros pasan sin ser tocados)
+    address: base.address || null,
+    city: base.city || null,
+    postcode: base.postcode || null,
+    region: base.region || null,
+    
+    price: safePrice,
+    priceValue: safePrice,
+    rawPrice: safePrice,
+    formattedPrice: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(safePrice),
+    images: safeImages,
+    img: safeImages[0] || null,
+    longitude: hasCoords ? (lng as number) : base.longitude,
+    latitude: hasCoords ? (lat as number) : base.latitude,
+    lng: hasCoords ? (lng as number) : base.lng,
+    lat: hasCoords ? (lat as number) : base.lat,
+    coordinates,
+    communityFees: base.communityFees || 0,
+    mBuilt: Number(base.mBuilt || base.m2 || 0),
+    requirements: nanoRequirements,
+    
+    // 🔥 ASEGURAMOS QUE EL DUEÑO VIAJE SIEMPRE AL FRONTEND (blindado)
+    user: (base.user || p.user)
+      ? {
+          ...(base.user || p.user),
+          role: (base.user || p.user)?.role || base?.role || null,
+          companyName: (base.user || p.user)?.companyName || base?.companyName || null,
+          companyLogo: (base.user || p.user)?.companyLogo || base?.companyLogo || null,
+          cif: (base.user || p.user)?.cif || base?.cif || null,
+          licenseNumber: (base.user || p.user)?.licenseNumber || base?.licenseNumber || null,
+        }
+      : null,
+  };
+};
+const extractFirstUrl = (s: string) => {
+  const m = String(s || "").match(/(https?|blob):\/\/[^\s]+/i);
+  if (!m?.[0]) return "";
+  return m[0].replace(/[)\],.]+$/g, "");
+};
+
+const isPdfUrl = (u: string) =>
+  /\/raw\/upload\//i.test(u) || /\.pdf(\?|#|$)/i.test(u);
+
+const isImageUrl = (u: string) =>
+  /^blob:/i.test(u) ||
+  /^data:image\//i.test(u) ||
+  /\/image\/upload\//i.test(u) ||
+  (/res\.cloudinary\.com\/.+\/upload\//i.test(u) && !/\.pdf(\?|#|$)/i.test(u)) ||
+  /\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(u);
 
 export default function UIPanels({ 
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
  
- // --- 1. MEMORIA DE UBICACIÓN ---
+ // 🔥 DETECTOR DE ENLACES MEJORADO (CON VIP PASS PARA PÚBLICO)
+  const searchParams = useSearchParams();
+  const [isVipGuest, setIsVipGuest] = useState(false);
+
+  useEffect(() => {
+      const checkUrl = async () => {
+          const propId = searchParams.get('p') || searchParams.get('selectedProp'); 
+          
+          if (propId) {
+               console.log("🎯 Link detectado. Ejecutando VIP PASS para:", propId);
+               try {
+                   const res = await getPropertyByIdAction(propId);
+                   
+                   if (res?.success && res.data) {
+                       const cleanProp = sanitizePropertyData(res.data);
+
+                       if (cleanProp) {
+                           // 1. ABRIMOS LAS COMPUERTAS A CIVILES
+                           setIsVipGuest(true);
+                           setGateUnlocked(true);
+
+                           // 2. Forzamos modo EXPLORER PRIMERO
+                           if (typeof setSystemMode === 'function') {
+                               setSystemMode('EXPLORER');
+                           }
+                           
+                           // 3. Limpiamos la intro
+                           setLandingComplete(true); 
+                           setShowAdvancedConsole(false);
+                           
+                           // 🔥 4. RETRASO TÁCTICO: Esperamos 500ms para esquivar el "Protocolo de Descontaminación"
+                           // y luego le lanzamos la propiedad a la pantalla.
+                           setTimeout(() => {
+                               setSelectedProp(cleanProp);
+                               setActivePanel('DETAILS');
+                               
+                               // 5. Volamos hacia la casa
+                           if (cleanProp.coordinates && map?.current) {
+                                   map.current.flyTo({ 
+                                       center: cleanProp.coordinates, 
+                                       zoom: 18, 
+                                       pitch: 60,
+                                       duration: 3000 
+                                   });
+                               }
+                               }, 500);
+                           }
+                       }
+               } catch (e) {
+                   console.error("Error abriendo link:", e);
+               }
+          }
+      };
+      
+      checkUrl();
+  }, [searchParams, map]);
+
+ 
+  // --- 1. MEMORIA DE UBICACIÓN ---
   const [homeBase, setHomeBase] = useState<any>(null);
   useEffect(() => {
       if (typeof window !== 'undefined') {
@@ -98,10 +325,28 @@ export default function UIPanels({
   const [activeUserKey, setActiveUserKey] = useState<string | null>(null);
   const [identityVerified, setIdentityVerified] = useState(false);
   const [agencyProfileData, setAgencyProfileData] = useState<any>(null);
+  const [localFavs, setLocalFavs] = useState<any[]>([]);
+  const [agencyFavs, setAgencyFavs] = useState<any[]>([]);
+  const [agencyLikes, setAgencyLikes] = useState<any[]>([]);
+  const uiFavs = systemMode === "AGENCY" ? agencyLikes : localFavs;
   const [userRole, setUserRole] = useState<'PARTICULAR' | 'AGENCIA' | null>(null);
   const [gateUnlocked, setGateUnlocked] = useState(false);
 
-// 🧠 COMITÉ DE BIENVENIDA (MEMORIA DE REGRESO TRAS REGISTRO/LOGIN)
+// Efecto reactivo: Si tenemos usuario confirmado, O UN PASE VIP, abrimos la puerta.
+  useEffect(() => {
+      // 🔥 BYPASS TÁCTICO: Si hay cualquier llave que no sea anon, abrimos la puerta. 
+      // No esperamos a que identityVerified sea true porque el cambio de roles lo retrasa.
+      if (isVipGuest || (activeUserKey && activeUserKey !== 'anon')) {
+          setGateUnlocked(true);
+          setIdentityVerified(true); // Forzamos la verificación
+      } else {
+          setGateUnlocked(false);
+      }
+  }, [activeUserKey, isVipGuest]);
+
+  // 👇👇👇 PEGUE EL COMITÉ AQUÍ ABAJO 👇👇👇
+
+  // 🧠 COMITÉ DE BIENVENIDA (MEMORIA DE REGRESO TRAS REGISTRO/LOGIN)
   useEffect(() => {
       // Solo actuamos si el Gate está abierto Y el usuario es real (ya se ha registrado/logueado)
       if (gateUnlocked && identityVerified && activeUserKey && activeUserKey !== 'anon') {
@@ -143,19 +388,163 @@ export default function UIPanels({
 
   // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
-  const [isNightMode, setIsNightMode] = useState(false);
   const [rightPanel, setRightPanel] = useState('NONE');   
-
-  useEffect(() => {
+useEffect(() => {
   if (systemMode === "AGENCY" && rightPanel === "OWNER_PROPOSALS") {
     setRightPanel("NONE");
     setActiveCampaignId(null);
   }
 }, [systemMode, rightPanel]);
 
- // ✅ Propuestas (Campaign) en columna derecha
-  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
-  const { ownerProposals, ownerProposalsLoading, ownerProposalsManualList, setOwnerProposalsManualList } = useOwnerProposals(systemMode, activeUserKey, rightPanel, activeCampaignId);
+  // ✅ Propuestas (Campaign) en columna derecha
+const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+const [ownerProposals, setOwnerProposals] = useState<any[]>([]);
+const [ownerProposalsLoading, setOwnerProposalsLoading] = useState(false);
+const [ownerProposalsManualList, setOwnerProposalsManualList] = useState(false);
+
+// ✅ loader robusto (Owner Proposals) — con mapping COMPLETO (comisión/terms) + anti-duplicados + anti-stale
+const ownerProposalsReqRef = useRef(0);
+
+const loadOwnerProposals = async () => {
+  // ✅ PRIVACIDAD: OwnerProposals SOLO en EXPLORER (particular)
+  if (systemMode !== "EXPLORER") return;
+
+  // 🚫 sin sesión
+  if (!activeUserKey || activeUserKey === "anon") return;
+
+  // ✅ evita doble llamada si ya está cargando
+  if (ownerProposalsLoading) return;
+
+  const reqId = ++ownerProposalsReqRef.current;
+
+  try {
+    setOwnerProposalsLoading(true);
+
+    const fn = getOwnerProposalsAction as any;
+    if (typeof fn !== "function") {
+      console.warn("getOwnerProposalsAction is not a function");
+      if (reqId === ownerProposalsReqRef.current) setOwnerProposals([]);
+      return;
+    }
+
+    const r = await fn();
+    if (reqId !== ownerProposalsReqRef.current) return;
+
+    if (!r?.success) {
+      console.warn("getOwnerProposalsAction failed:", r?.error);
+      setOwnerProposals([]);
+      return;
+    }
+
+    const rawList = Array.isArray(r?.data) ? r.data : [];
+    
+    // ✅ anti-duplicados por id
+    const dedup = new Map<string, any>();
+    for (const x of rawList) {
+      const id = String(x?.id || "").trim();
+      if (!id) continue;
+      if (!dedup.has(id)) dedup.set(id, x);
+    }
+
+    // ✅ BLINDAJE: catálogo de servicios
+    const catalog: any[] =
+      (globalThis as any)?.SERVICES_CATALOG && Array.isArray((globalThis as any).SERVICES_CATALOG)
+        ? (globalThis as any).SERVICES_CATALOG
+        : (typeof (SERVICES_CATALOG as any) !== "undefined" && Array.isArray(SERVICES_CATALOG as any))
+        ? (SERVICES_CATALOG as any[])
+        : [];
+
+    const normalized = Array.from(dedup.values()).map((raw: any) => {
+      // 1. Mapeo de Servicios
+      const services = (Array.isArray(raw?.serviceIds) ? raw.serviceIds : [])
+        .map((sid: any) => String(sid).trim())
+        .filter(Boolean)
+        .map((sid: string) => {
+          const hit = catalog.find((s: any) => String(s?.id) === sid);
+          return hit
+            ? { id: String(hit.id), label: String(hit.label || hit.name || sid), mode: hit.mode || hit.category }
+            : { id: sid, label: sid, mode: undefined };
+        });
+
+      // 2. 🔥 RED DE ARRASTRE DE DATOS (CORREGIDA PARA COINCIDIR CON RADAR) 🔥
+      // Unificamos todo en un objeto fuente 'src' para buscar fácil
+      const terms = raw?.terms || raw?.financials || {};
+      const src = { ...raw, ...terms }; 
+
+      // -- EXTRACCIÓN DE DINERO (BUSCANDO LO QUE ENVÍA EL RADAR) --
+      const totalAmount = Number(src.totalAmount || src.commissionTotalEur || src.amount || 0);
+      
+      const commissionPct = Number(src.commissionPct || src.commission || 0);
+      
+      // OJO: El radar envía 'commissionIvaPct', no 'vatPct'
+      const vatPct = Number(src.commissionIvaPct || src.vatPct || src.ivaPct || src.vat || 21);
+
+      // -- EXTRACCIÓN DE TIEMPO Y EXCLUSIVA --
+      // OJO: El radar envía 'exclusiveMonths', no 'durationMonths'
+      const duration = Number(src.exclusiveMonths || src.durationMonths || src.months || src.duration || 0);
+      
+      // OJO: El radar envía 'exclusiveMandate'
+      const isExclusive = Boolean(
+          src.exclusiveMandate === true || src.isExclusive === true || src.exclusive === true || 
+          String(src.exclusiveMandate) === "true" || String(src.isExclusive) === "true"
+      );
+
+      // Cálculos derivados (Base e IVA en euros)
+      const baseEur = totalAmount > 0 ? (totalAmount / (1 + (vatPct/100))) : 0;
+      const ivaEur = totalAmount - baseEur;
+
+      return {
+        id: String(raw?.id || ""),
+        status: raw?.status || "SENT",
+        createdAt: raw?.createdAt || null,
+
+        property: raw?.property || null,
+        agency: raw?.agency || null,
+
+        message: raw?.message || "",
+        conversationId: raw?.conversationId ? String(raw.conversationId) : "",
+
+        services,
+
+        // 🔥🔥 TRADUCCIÓN FINAL PARA EL PANEL VISUAL 🔥🔥
+        terms: {
+            exclusive: isExclusive,
+            months: duration,
+            commissionPct: commissionPct,
+            ivaPct: vatPct,
+            
+            // DINERO:
+            commissionTotalEur: totalAmount,
+            commissionBaseEur: baseEur, 
+            ivaAmountEur: ivaEur
+        }
+      };
+    });
+
+    setOwnerProposals(normalized);
+  } catch (e) {
+    console.error("loadOwnerProposals error:", e);
+    setOwnerProposals([]);
+  } finally {
+    if (reqId === ownerProposalsReqRef.current) setOwnerProposalsLoading(false);
+  }
+};
+
+
+/// ✅ CARGA AUTOMÁTICA de propuestas SOLO en EXPLORER (particular)
+useEffect(() => {
+  if (systemMode !== "EXPLORER") return;
+  if (!activeUserKey || activeUserKey === "anon") return;
+
+  // Cargar cuando:
+  // - abres la columna OWNER_PROPOSALS
+  // - o hay un campaign seleccionado
+  if (rightPanel === "OWNER_PROPOSALS" || !!activeCampaignId) {
+    loadOwnerProposals();
+  }
+}, [systemMode, activeUserKey, rightPanel, activeCampaignId]);
+
+
 
   const [selectedProp, setSelectedProp] = useState<any>(null);
  const [premiumProp, setPremiumProp] = useState<any>(null);
@@ -169,23 +558,7 @@ export default function UIPanels({
   const [landingComplete, setLandingComplete] = useState(false);
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
-  
-  // 🔥 MOTOR VIP PASS (BLINDADO CONTRA BUCLES)
-  const searchParams = useSearchParams();
-  const { isVipGuest } = useStratosVipLink(
-    searchParams, map, setSystemMode, setSelectedProp, setActivePanel, setLandingComplete, setShowAdvancedConsole, setGateUnlocked
-  );
 
-  // EFECTO REACTIVO DE PUERTAS (SEGURO)
-  useEffect(() => {
-      if (isVipGuest) {
-          setGateUnlocked(true);
-      } else if (activeUserKey && activeUserKey !== 'anon') {
-          setGateUnlocked(true);
-      } else {
-          setGateUnlocked(false);
-      }
-  }, [activeUserKey, isVipGuest]);
   
   // --- 5. REFERENCIAS ---
   const prevFavIdsRef = useRef<Set<string>>(new Set());
@@ -220,7 +593,68 @@ const applyFreshOwnerBranding = (prop: any) => {
     role: prop.role || cached.role || prop?.user?.role || "AGENCIA",
   };
 };
+// --- 6. ESTADOS IA ---
+const [chatOpen, setChatOpen] = useState(false);
+const [chatThreads, setChatThreads] = useState<any[]>([]);
+const [chatContextProp, setChatContextProp] = useState<any>(null);
+const [chatConversationId, setChatConversationId] = useState<string | null>(null);
 
+
+
+// ✅ Añádelo aquí (una sola vez) para el anti-loop definitivo:
+const processedConversationRef = useRef<string | null>(null);
+
+// ✅ Auto-select SOLO 1 vez por conversación (anti-loop definitivo)
+useEffect(() => {
+  if (rightPanel !== "OWNER_PROPOSALS") return;
+  if (!chatConversationId) return;
+
+  const cid = String(chatConversationId);
+
+  // ✅ si ya procesamos esta conversación, no re-seleccionamos aunque cambie ownerProposals
+  if (processedConversationRef.current === cid) return;
+
+  const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
+    (p: any) => String(p?.conversationId || "") === cid
+  );
+
+  // Solo auto-seleccionamos si NO hay nada seleccionado
+  if (match?.id && !activeCampaignId) {
+    processedConversationRef.current = cid; // ✅ marcamos como “ya procesado”
+    setActiveCampaignId(String(match.id));
+  }
+  // ⚠️ mantenemos activeCampaignId fuera del deps para no re-disparar por el set
+}, [rightPanel, chatConversationId, ownerProposals]);
+
+// ✅ (A) Reset al cerrar/salir de OWNER_PROPOSALS
+useEffect(() => {
+  if (rightPanel !== "OWNER_PROPOSALS") {
+    processedConversationRef.current = null;
+  }
+}, [rightPanel]);
+
+// ✅ (B) Reset al cerrar el Chat
+useEffect(() => {
+  if (!chatOpen) {
+    processedConversationRef.current = null;
+  }
+}, [chatOpen]);
+
+const [chatMessages, setChatMessages] = useState<any[]>([]);
+const [chatInput, setChatInput] = useState("");
+const [chatLoading, setChatLoading] = useState(false);
+
+const [aiInput, setAiInput] = useState("");
+const [aiResponse, setAiResponse] = useState("");
+const [isAiTyping, setIsAiTyping] = useState(false);
+
+// ✅ CHAT UNREAD (badge + alertas)
+const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
+const [unreadTotal, setUnreadTotal] = useState(0);
+
+// convId -> timestamp del último mensaje por el que YA notificamos (para no spamear)
+const lastNotifiedAtRef = useRef<Record<string, number>>({});
+const lastSeenAtRef = useRef<Record<string, number>>({});
 
 // ✅ BILLING / PLAN OVERLAY (nuevo - mínimo)
 const [planOpen, setPlanOpen] = useState(false);
@@ -260,6 +694,162 @@ useEffect(() => {
   // STARTER / EXPIRED => modal
   if (showPaywall) setPlanOpen(true);
 }, [gateUnlocked, planLoading, plan, planOpen]);
+
+
+// recalcular total
+useEffect(() => {
+  const total = Object.values(unreadByConv || {}).reduce(
+    (acc, n) => acc + Number(n || 0),
+    0
+  );
+  setUnreadTotal(total);
+}, [unreadByConv]);
+
+const markConversationAsRead = (conversationId: string, lastAt?: number) => {
+  if (!conversationId) return;
+
+  const ts = Number.isFinite(Number(lastAt)) ? Number(lastAt) : Date.now();
+  lastSeenAtRef.current[String(conversationId)] = ts;
+
+  // ✅ UI instantánea: quita badge local
+  setUnreadByConv((prev) => {
+    if (!prev || !prev[String(conversationId)]) return prev;
+    const next = { ...(prev || {}) };
+    delete next[String(conversationId)];
+    return next;
+  });
+
+  // ✅ evita notificar de nuevo por el mismo último mensaje
+  lastNotifiedAtRef.current[String(conversationId)] = ts;
+
+  // ✅ server-truth (blindado para no romper nada)
+  try {
+    const fn = markConversationReadAction as any;
+    if (typeof fn === "function") fn(String(conversationId), ts);
+  } catch (e) {
+    // silencioso
+  }
+};
+
+// ✅ calcula unread + notifica (server-truth)
+const updateUnreadFromThreads = (threads: any[]) => {
+  try {
+    const next: Record<string, number> = {};
+
+    (Array.isArray(threads) ? threads : []).forEach((t: any) => {
+      const id = String(t?.id || "");
+      if (!id) return;
+
+      // ✅ si estás dentro de esa conversación, no mostramos unread
+      if (String(chatConversationId || "") === id) {
+        return;
+      }
+
+      // ✅ SERVER TRUTH: ya viene de actions.ts (normalizeThread)
+      const isUnread = !!t?.unread;
+
+      if (isUnread) {
+        next[id] = 1;
+
+        // ✅ notificación 1 vez por "nuevo lastMessageAt"
+        const lastAt = Number(t?.lastMessageAt || 0);
+        const notifiedAt = Number(lastNotifiedAtRef.current[id] || 0);
+
+        if (lastAt && lastAt > notifiedAt) {
+          const title = t?.title || t?.propertyTitle || t?.refCode || "Nuevo mensaje";
+          addNotification(`📩 ${title}`);
+          lastNotifiedAtRef.current[id] = lastAt;
+        }
+      }
+    });
+
+    setUnreadByConv(next);
+  } catch (err) {
+    console.warn("updateUnreadFromThreads failed:", err);
+  }
+};
+
+// ✅ polling ligero: refresca threads/unread y, si estás dentro, mensajes (cada 12s)
+useEffect(() => {
+  if (!identityVerified || !activeUserKey || activeUserKey === "anon") return;
+
+  let alive = true;
+  let timer: any = null;
+
+  const poll = async () => {
+    try {
+      // 1) Threads + unread
+      const listFn = listMyConversationsAction as any;
+      if (typeof listFn === "function") {
+        const res = await listFn();
+        if (!alive) return;
+
+        if (res?.success) {
+          const threads = Array.isArray(res.data) ? res.data : [];
+          setChatThreads(threads);
+          if (typeof updateUnreadFromThreads === "function") {
+            updateUnreadFromThreads(threads);
+          }
+        }
+      }
+
+      // 2) Si hay conversación abierta, refrescamos mensajes
+      if (chatOpen && chatConversationId) {
+        const msgFn = getConversationMessagesAction as any;
+        if (typeof msgFn === "function") {
+          const r2 = await msgFn(String(chatConversationId));
+          if (!alive) return;
+
+          if (r2?.success) {
+            const nextMsgs = Array.isArray(r2.data) ? r2.data : [];
+
+            // evita re-render inútil si no cambió nada
+            setChatMessages((prev: any[]) => {
+              const prevArr = Array.isArray(prev) ? prev : [];
+              const prevLast = prevArr[prevArr.length - 1];
+              const nextLast = nextMsgs[nextMsgs.length - 1];
+
+              const prevKey = prevLast
+                ? `${prevLast.id || ""}|${prevLast.createdAt || ""}`
+                : "";
+              const nextKey = nextLast
+                ? `${nextLast.id || ""}|${nextLast.createdAt || ""}`
+                : "";
+
+              if (prevArr.length === nextMsgs.length && prevKey === nextKey) return prevArr;
+              return nextMsgs;
+            });
+
+            // marca como leído por si llegó algo nuevo
+            try {
+              const last = nextMsgs[nextMsgs.length - 1];
+              const lastAt = last?.createdAt ? new Date(last.createdAt).getTime() : Date.now();
+              if (typeof markConversationAsRead === "function") {
+                markConversationAsRead(String(chatConversationId), lastAt);
+              }
+            } catch {}
+
+            // scroll suave al final si hubo novedades
+            try {
+              scrollChatToBottom();
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      // silencioso (no spamear notificaciones)
+      console.warn("chat poll failed", e);
+    }
+  };
+
+  poll();
+  timer = setInterval(poll, 12000);
+
+  return () => {
+    alive = false;
+    if (timer) clearInterval(timer);
+  };
+}, [identityVerified, activeUserKey, chatConversationId, chatOpen]);
 
 // --- EFECTOS INICIALES ---
 
@@ -359,7 +949,38 @@ useEffect(() => {
     }).filter(Boolean);
   };
 
- 
+ // ✅ Mirror SOLO por eventos (sin localStorage)
+const mirrorGlobalFavsForNanoCard = (list: any[]) => {
+  try {
+    const prevIds = prevFavIdsRef.current || new Set<string>();
+    const nextIds = new Set(
+      (Array.isArray(list) ? list : [])
+        .map((x: any) => String(x?.id))
+        .filter(Boolean)
+    );
+
+    // 1) Apagar los que ya no están
+    prevIds.forEach((pid) => {
+      if (!nextIds.has(pid)) {
+        window.dispatchEvent(
+          new CustomEvent("sync-property-state", { detail: { id: pid, isFav: false } })
+        );
+      }
+    });
+
+    // 2) Encender los nuevos
+    nextIds.forEach((nid) => {
+      if (!prevIds.has(nid)) {
+        window.dispatchEvent(
+          new CustomEvent("sync-property-state", { detail: { id: nid, isFav: true } })
+        );
+      }
+    });
+
+    // 3) Guardar snapshot en memoria (RAM)
+    prevFavIdsRef.current = nextIds;
+  } catch {}
+};
 
   // ✅ Persistencia Inteligente (CON MEMORIA DE SUPERVIVENCIA)
   const persistFavsForUser = (userKey: string, list: any[]) => {
@@ -444,7 +1065,244 @@ if (systemMode === "AGENCY") {
     
   }, [activeUserKey, systemMode, identityVerified, dataVersion]);
   
- 
+ // 3. TOGGLE FAVORITE (BIFURCADO: Agency Likes vs Private Likes)
+const handleToggleFavorite = async (prop: any) => {
+  // A. Validaciones iniciales
+  if (!prop || activeUserKey === null) return;
+  if (soundEnabled) playSynthSound("click");
+
+  const userKey = activeUserKey;
+
+  // 🚫 SaaS puro: Validación de identidad
+  if (!identityVerified || userKey === "anon") {
+    addNotification("Inicia sesión para guardar Referencias");
+    return;
+  }
+
+  // B. Limpieza de datos (Sanitización robusta)
+  const cleaned = sanitizePropertyData(prop) || prop;
+
+  // 🚫 Validación de ID seguro
+  const safeIdRaw = cleaned?.id || prop?.id;
+  if (!safeIdRaw) {
+    console.warn("handleToggleFavorite: sin id real, abortado");
+    return;
+  }
+  const safeId = String(safeIdRaw);
+
+  // C. Selección de bóveda
+  const isAgencyMode = systemMode === "AGENCY";
+  const currentList = isAgencyMode ? agencyLikes : localFavs;
+  const setTargetList = isAgencyMode ? setAgencyLikes : setLocalFavs;
+  const targetName = isAgencyMode ? "Bóveda de Agencia" : "Favoritos Personales";
+
+  // D. Estado actual (en la lista activa)
+  const isCurrentlyFav = (Array.isArray(currentList) ? currentList : []).some(
+    (f: any) => String(f?.id) === safeId
+  );
+
+  // ✅ Intención: si viene forzada (isFav), se respeta SIEMPRE (sin “redundante”)
+  const desired =
+    typeof prop?.isFav === "boolean" ? prop.isFav : !isCurrentlyFav;
+
+  // Construimos el objeto seguro para guardar (solo si desired=true)
+  const safeProp = {
+    ...cleaned,
+    id: safeId,
+    title: cleaned?.title || prop?.title || "Propiedad",
+    formattedPrice: cleaned?.formattedPrice || cleaned?.price || "Consultar",
+    savedAt: Date.now(),
+    isFavorited: true,
+    isFav: true,
+    isFavorite: true,
+  };
+
+  const dedupeById = (list: any[]) => {
+    const m = new Map<string, any>();
+    (Array.isArray(list) ? list : []).forEach((x: any) => {
+      const id = x?.id != null ? String(x.id) : "";
+      if (!id) return;
+      m.set(id, x);
+    });
+    return Array.from(m.values());
+  };
+
+  // ✅ Broadcast TRIPLE (Details + NanoCard + Vault)
+  const broadcastFav = (status: boolean) => {
+    if (typeof window === "undefined") return;
+
+    // 1) NanoCards / mapa (tu canal principal)
+    window.dispatchEvent(
+      new CustomEvent("sync-property-state", { detail: { id: safeId, isFav: status } })
+    );
+
+    // 2) Live update genérico (Details escucha esto en tu panel)
+    window.dispatchEvent(
+      new CustomEvent("update-property-signal", {
+        detail: { id: safeId, updates: { isFav: status, isFavorite: status, isFavorited: status } },
+      })
+    );
+
+    // 3) Canal específico de favoritos (por si tu bóveda/notifs lo usan)
+    window.dispatchEvent(
+      new CustomEvent("fav-change-signal", { detail: { id: safeId, isFavorite: status } })
+    );
+  };
+
+  // E. Snapshot para rollback
+  const prevListSnapshot = Array.isArray(currentList) ? [...currentList] : [];
+
+  // 1) Optimistic UI (lista)
+  setTargetList((prev: any[]) => {
+    const base = Array.isArray(prev) ? prev : [];
+    if (desired) return dedupeById([...base, safeProp]);
+    return base.filter((x: any) => String(x?.id) !== safeId);
+  });
+
+  // 2) Optimistic UI (Details si está abierta esa prop)
+  setSelectedProp((prev: any) => {
+    if (!prev) return prev;
+    if (String(prev?.id) !== safeId) return prev;
+    return { ...prev, isFav: desired, isFavorited: desired, isFavorite: desired };
+  });
+
+  addNotification(desired ? `Guardado en ${targetName}` : `Eliminado de ${targetName}`);
+  broadcastFav(!!desired);
+
+  // 3) Servidor (source of truth)
+  try {
+    const res: any = await toggleFavoriteAction(String(safeId), !!desired);
+
+    const serverState =
+      typeof res?.isFavorite === "boolean"
+        ? res.isFavorite
+        : typeof res?.data?.isFavorite === "boolean"
+        ? res.data.isFavorite
+        : !!desired;
+
+    // Corrección si el server decide distinto
+    if (serverState !== !!desired) {
+      setTargetList((prev: any[]) => {
+        const base = Array.isArray(prev) ? prev : [];
+        if (serverState) return dedupeById([...base, safeProp]);
+        return base.filter((x: any) => String(x?.id) !== safeId);
+      });
+
+      setSelectedProp((prev: any) => {
+        if (!prev) return prev;
+        if (String(prev?.id) !== safeId) return prev;
+        return { ...prev, isFav: serverState, isFavorited: serverState, isFavorite: serverState };
+      });
+
+      broadcastFav(!!serverState);
+    } else {
+      // re-broadcast para “resucitar” sync si algún panel se quedó atrás
+      broadcastFav(!!serverState);
+    }
+  } catch (error) {
+    console.error(error);
+
+    // Rollback UI
+    setTargetList(prevListSnapshot);
+    setSelectedProp((prev: any) => {
+      if (!prev) return prev;
+      if (String(prev?.id) !== safeId) return prev;
+      return { ...prev, isFav: isCurrentlyFav, isFavorited: isCurrentlyFav, isFavorite: isCurrentlyFav };
+    });
+
+    broadcastFav(!!isCurrentlyFav);
+    addNotification("❌ Error guardando en servidor");
+  }
+};
+
+
+// 🔥 4. NUEVA FUNCIÓN: BORRADO LETAL DE AGENCIA (PARA EL BOTÓN DE PAPELERA)
+const handleDeleteAgencyAsset = async (asset: any) => {
+  if (!asset) return;
+  if (soundEnabled) playSynthSound("click");
+
+  const targetId = String(asset?.id || asset || "").trim();
+  if (!targetId) return;
+
+  const isOwnerHint = asset?.isOwner === true; // si tu lista unificada marca owner, mejor
+
+  // 1) Optimistic UI: quitar del Stock visual
+  setAgencyFavs((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+  );
+
+  // 1.1) Si está abierto en Details, apagamos corazón/estado para evitar desync visual
+  setSelectedProp((prev: any) => {
+    if (!prev) return prev;
+    if (String(prev?.id) !== targetId) return prev;
+    return { ...prev, isFav: false, isFavorited: false, isFavorite: false };
+  });
+
+  addNotification("Eliminando de Base de Datos...");
+
+  try {
+    // 2) Llamada real a servidor
+    const result: any = await deleteFromStockAction(targetId);
+
+    if (!result?.success) {
+      addNotification("❌ Error al borrar");
+      setDataVersion((v: number) => v + 1);
+      return;
+    }
+
+    // 2.x) Interpretación robusta (si tu action no devuelve type)
+    const type =
+      result?.type ||
+      (isOwnerHint ? "property_deleted" : "favorite_removed");
+
+    // 2.1) Si fue “quitar favorito” (no borrar propiedad)
+    if (type === "favorite_removed" || type === "favorite_noop") {
+      setAgencyLikes((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+      setLocalFavs((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+
+      addNotification("✅ Eliminado de Favoritos");
+    }
+
+    // 2.2) Si fue “borrar propiedad”
+    if (type === "property_deleted") {
+      // fuera también de favoritos (por si estaba)
+      setAgencyLikes((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+      setLocalFavs((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).filter((x: any) => String(x?.id) !== targetId)
+      );
+
+      // cerrar Details SOLO si estabas viendo esa misma propiedad
+      setActivePanel((p: any) => {
+        const isThisOpen = String(selectedProp?.id || "") === targetId;
+        if (p === "DETAILS" && isThisOpen) return "NONE";
+        return p;
+      });
+
+      addNotification("✅ Propiedad eliminada permanentemente");
+    }
+
+    // 3) Sincronizar Mapa/NanoCards (manteniendo tu sistema)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("sync-property-state", { detail: { id: targetId, isFav: false } })
+      );
+    }
+
+    // 4) Re-sync final desde server
+    setDataVersion((v: number) => v + 1);
+  } catch (e) {
+    console.error(e);
+    addNotification("❌ Error al borrar");
+    setDataVersion((v: number) => v + 1);
+  }
+};
+
 const toggleRightPanel = (p: string) => {
   if (soundEnabled) playSynthSound("click");
   const nextState = rightPanel === p ? "NONE" : p;
@@ -496,89 +1354,693 @@ const handleEditAsset = (asset: any) => {
 };
 
 const addNotification = (title: string) => {
-    setNotifications((prev) => [{ title }, ...prev].slice(0, 3));
-    setTimeout(() => setNotifications((prev) => prev.slice(0, -1)), 4000);
-  };
+  setNotifications((prev) => [{ title }, ...prev].slice(0, 3));
+  setTimeout(() => setNotifications((prev) => prev.slice(0, -1)), 4000);
+};
 
-  // 🛡️ NUEVO MOTOR DE FAVORITOS (ATERRIZAJE SEGURO)
-  const { 
-    localFavs, 
-    setLocalFavs, 
-    agencyLikes, 
-    setAgencyLikes, 
-    agencyFavs, 
-    setAgencyFavs, 
-    handleToggleFavorite, 
-    handleDeleteAgencyAsset, 
-    mirrorGlobalFavsForNanoCard 
-  } = useStratosFavorites(
-    systemMode, 
-    activeUserKey, 
-    identityVerified, 
-    addNotification, 
-    soundEnabled, 
-    playSynthSound, 
-    setDataVersion, 
-    setActivePanel, 
-    setSelectedProp
-  );
-  const uiFavs = systemMode === "AGENCY" ? agencyLikes : localFavs;
+// =======================
+// ✅ CHAT helpers (avatar/nombre + blocklist + delete thread)
+// =======================
+const getUserLabel = (u: any) => {
+  if (!u) return "Usuario";
+  const full = [u?.name, u?.surname].filter(Boolean).join(" ").trim();
+  return (u?.companyName || full || u?.email || "Usuario").trim();
+};
 
-// 👇 PEGUE EL NUEVO MOTOR DE IA EXACTAMENTE AQUÍ 👇
-  const { 
-    aiInput, 
-    setAiInput, 
-    aiResponse, 
-    isAiTyping, 
-    handleAICommand 
-  } = useStratosAI(
-    searchCity, 
-    addNotification, 
-    playSynthSound, 
-    soundEnabled, 
-    agencyFavs, 
-    agencyLikes, 
-    localFavs
-  );
-// 📡 NUEVO MOTOR CENTRAL DE COMUNICACIONES (CHAT)
-  const chatEngine = useStratosChat(
-    activeUserKey,
-    identityVerified,
-    addNotification,
-    setDataVersion,
-    setActivePanel,
-    setRightPanel,
-    systemMode,
-    ownerProposals,
-    setActiveCampaignId
-  );
-  
-  // Extraemos solo lo que el Cuartel General necesita tocar:
-  const { chatOpen, setChatOpen, openChatPanel, openConversation, unreadTotal } = chatEngine;
+const getUserAvatar = (u: any) => {
+  return u?.companyLogo || u?.avatar || null;
+};
 
-  
-const handleDayNight = () => {
-  if (soundEnabled) playSynthSound("click");
-  
-  const nextMode = !isNightMode;
-  setIsNightMode(nextMode);
+// intenta sacar “el otro” usuario de un thread
+const resolveOtherUser = (t: any) => {
+  if (t?.otherUser) return t.otherUser;
 
-  // 1. Orden directa al motor 3D de Mapbox (Estilo Standard v3)
+  const parts = Array.isArray(t?.participants) ? t.participants : [];
+  const other =
+    parts
+      .map((p: any) => p?.user || p)
+      .find((u: any) => String(u?.id || "") && String(u?.id || "") !== String(activeUserKey || ""));
+
+  return other || null;
+};
+
+// title coherente
+const getThreadTitle = (t: any) => {
+  if (t?.title) return t.title;
+  const ref = t?.refCode ? String(t.refCode) : "";
+  const pt = t?.propertyTitle ? String(t.propertyTitle) : "";
+  if (ref && pt) return `${ref} — ${pt}`;
+  return ref || pt || "Conversación";
+};
+
+// ---- blocklist local (sin server, 0 riesgo)
+const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
+
+useEffect(() => {
   try {
-    if (map?.current?.setConfigProperty) {
-      map.current.setConfigProperty('basemap', 'lightPreset', nextMode ? 'night' : 'day');
+    if (typeof window === "undefined") return;
+    const key = `stratos_chat_blocked_v1:${String(activeUserKey || "anon")}`;
+    const raw = localStorage.getItem(key);
+    const arr = raw ? JSON.parse(raw) : [];
+    setBlockedUsers(new Set((Array.isArray(arr) ? arr : []).map(String)));
+  } catch {}
+}, [activeUserKey]);
+
+const toggleBlockUser = (userId: string) => {
+  const uid = String(userId || "").trim();
+  if (!uid) return;
+
+  setBlockedUsers((prev) => {
+    const next = new Set(prev || []);
+    const isBlocked = next.has(uid);
+    if (isBlocked) next.delete(uid);
+    else next.add(uid);
+
+    try {
+      if (typeof window !== "undefined") {
+        const key = `stratos_chat_blocked_v1:${String(activeUserKey || "anon")}`;
+        localStorage.setItem(key, JSON.stringify(Array.from(next)));
+      }
+    } catch {}
+
+    addNotification(isBlocked ? "✅ Usuario desbloqueado" : "⛔ Usuario bloqueado");
+
+    // si estabas dentro de una conversación, vuelves a lista para evitar líos
+    setChatConversationId(null);
+    setChatMessages([]);
+
+    return next;
+  });
+};
+
+const isBlockedThread = (t: any) => {
+  const other = resolveOtherUser(t);
+  const oid = String(other?.id || "");
+  return oid ? blockedUsers.has(oid) : false;
+};
+
+const handleDeleteConversation = async (conversationId: string) => {
+  const cid = String(conversationId || "").trim();
+  if (!cid) return;
+  if (!confirm("¿Borrar esta conversación y sus mensajes?")) return;
+
+  // optimista (quita de UI)
+  setChatThreads((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((t: any) => String(t?.id) !== cid));
+  setUnreadByConv((prev) => {
+    const next = { ...(prev || {}) };
+    delete next[cid];
+    return next;
+  });
+
+  if (String(chatConversationId || "") === cid) {
+    setChatConversationId(null);
+    setChatMessages([]);
+  }
+
+  try {
+    const fn = deleteConversationAction as any;
+    if (typeof fn !== "function") {
+      addNotification("⚠️ Falta action deleteConversationAction");
+      return;
+    }
+    const res = await fn(cid);
+    if (!res?.success) {
+      addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ No pude borrar");
+      setDataVersion((v: number) => v + 1); // re-sync duro
+      return;
+    }
+    addNotification("🗑️ Conversación eliminada");
+  } catch (e) {
+    console.error(e);
+    addNotification("⚠️ Error borrando conversación");
+    setDataVersion((v: number) => v + 1);
+  }
+};
+// ✅ Threads -> abre Details SIEMPRE con property COMPLETA (sin stub)
+const tryOpenDetailsFromThread = async (t: any) => {
+  try {
+    if (typeof window === "undefined") return;
+    if (!t) return;
+
+    // 1) propertyId robusto (por si tu normalizeThread cambia forma)
+    const pidRaw =
+      t?.propertyId ||
+      t?.property?.id ||
+      t?.property?.propertyId ||
+      t?.property?.uuid ||
+      null;
+
+    const pid = pidRaw ? String(pidRaw).trim() : "";
+    if (!pid) return;
+
+    // 2) evita llamadas repetidas si ya estás viendo esa misma prop
+    if (String(selectedProp?.id || "") === pid) {
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: selectedProp }));
+      return;
+    }
+
+    // 3) action existente
+    const fn = getPropertyByIdAction as any;
+    if (typeof fn !== "function") {
+      console.warn("tryOpenDetailsFromThread: falta getPropertyByIdAction");
+      return;
+    }
+
+    const res = await fn(pid);
+    if (!res?.success || !res?.data) return;
+
+    // 4) dispara tu canal global (tu listener ya sanitiza y abre DETAILS)
+    window.dispatchEvent(new CustomEvent("open-details-signal", { detail: res.data }));
+  } catch (e) {
+    console.warn("tryOpenDetailsFromThread failed:", e);
+  }
+};
+
+
+
+// =======================
+// ✅ CHAT: abrir panel + cargar conversaciones
+// =======================
+const openChatPanel = async () => {
+  setChatOpen(true);
+  
+  // 🔥 BLINDAJE: Si la IA está abierta, la aniquilamos para hacer hueco al Chat
+  setActivePanel(prev => prev === 'AI' ? 'NONE' : prev); 
+
+  setChatConversationId(null);
+  setChatMessages([]);
+  setChatLoading(true);
+  try {
+    // ✅ Source of truth: alias importado
+    const listFn = listMyConversationsAction as any;
+
+    if (typeof listFn !== "function") {
+      addNotification("⚠️ Falta action: getMyConversationsAction (alias listMyConversationsAction)");
+      return;
+    }
+
+    const res = await listFn();
+
+    if (res?.success) {
+      const threads = Array.isArray(res.data) ? res.data : [];
+      setChatThreads(threads);
+
+      // ✅ refresca badge/unread al instante (si existe el helper)
+      if (typeof updateUnreadFromThreads === "function") {
+        updateUnreadFromThreads(threads);
+      }
+    } else {
+      addNotification("⚠️ No puedo listar conversaciones");
     }
   } catch (e) {
-    console.warn("No se pudo cambiar la iluminación nativa del mapa", e);
+    console.error(e);
+    addNotification("⚠️ Error cargando conversaciones");
+  } finally {
+    setChatLoading(false);
   }
-
-  // 2. Por si su componente de Mapa prefiere escuchar eventos globales
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("toggle-map-vision", { detail: { isNight: nextMode } }));
-  }
-
-  addNotification(nextMode ? "🌙 Visión Nocturna Activada" : "☀️ Visión Diurna Activada");
 };
+
+// ✅ abrir una conversación y cargar mensajes
+const openConversation = async (conversationId: string) => {
+  if (!conversationId) return;
+
+  setChatConversationId(conversationId);
+  setChatLoading(true);
+
+  try {
+    const res = await (getConversationMessagesAction as any)(conversationId);
+
+    if (res?.success) {
+      const msgs = Array.isArray(res.data) ? res.data : [];
+      setChatMessages(msgs);
+
+      // ✅ marca como leído LOCAL (UI instantánea)
+      const lastMsg = msgs[msgs.length - 1];
+      const lastAt = lastMsg?.createdAt ? new Date(lastMsg.createdAt).getTime() : Date.now();
+
+      // IMPORTANT: non-blocking
+      try {
+        if (typeof markConversationAsRead === "function") {
+          markConversationAsRead(conversationId, lastAt);
+        }
+      } catch (err) {
+        console.warn("markConversationAsRead failed (non-blocking):", err);
+      }
+
+      // ✅ marca como leído SERVER (multi-dispositivo)
+      try {
+        await (markConversationReadAction as any)(String(conversationId));
+      } catch {}
+
+      // ✅ baja al final para ver lo último
+      scrollChatToBottom();
+    } else {
+      addNotification("⚠️ No puedo cargar mensajes");
+    }
+  } catch (e) {
+    console.error(e);
+    addNotification("⚠️ Error cargando mensajes");
+  } finally {
+    setChatLoading(false);
+  }
+};
+
+// ✅ enviar mensaje (robusto + debug)
+const handleSendChat = async () => {
+  const text = String(chatInput || "").trim();
+  if (!text || !chatConversationId) return;
+
+  setChatInput("");
+
+  // Optimista
+  const tempId = `tmp-${Date.now()}`;
+  const optimistic = {
+    id: tempId,
+    text,
+    content: text,
+    senderId: String(activeUserKey || "anon"),
+    createdAt: new Date().toISOString(),
+  };
+
+  setChatMessages((prev: any[]) => [...(Array.isArray(prev) ? prev : []), optimistic]);
+  scrollChatToBottom();
+
+  try {
+    let res: any = null;
+
+    // A) firma (conversationId, text)
+    try {
+      res = await (sendMessageAction as any)(chatConversationId, text);
+    } catch {}
+
+    // B) firma ({ conversationId, text })
+    if (!res?.success) {
+      try {
+        res = await (sendMessageAction as any)({ conversationId: chatConversationId, text });
+      } catch {}
+    }
+
+    // C) firma ({ conversationId, content })
+    if (!res?.success) {
+      try {
+        res = await (sendMessageAction as any)({ conversationId: chatConversationId, content: text });
+      } catch {}
+    }
+
+    // D) firma (text, conversationId) por si está al revés
+    if (!res?.success) {
+      try {
+        res = await (sendMessageAction as any)(text, chatConversationId);
+      } catch {}
+    }
+
+    console.log("sendMessageAction ->", res);
+
+    if (res?.success && res?.data) {
+      const serverMsg = res.data;
+
+      const normalized = {
+        ...serverMsg,
+        text: serverMsg?.text ?? serverMsg?.content ?? text,
+        content: serverMsg?.content ?? serverMsg?.text ?? text,
+      };
+
+      setChatMessages((prev: any[]) =>
+        (Array.isArray(prev) ? prev : []).map((m: any) => (m.id === tempId ? normalized : m))
+      );
+
+      // ✅ al enviar, esa conversación cuenta como "vista" (LOCAL + SERVER)
+      const sentAt = normalized?.createdAt ? new Date(normalized.createdAt).getTime() : Date.now();
+
+      // IMPORTANT: no dejes que un bug en markConversationAsRead convierta un envío OK en "Error enviando"
+      try {
+        if (typeof markConversationAsRead === "function") {
+          markConversationAsRead(String(chatConversationId), sentAt);
+        }
+      } catch (err) {
+        console.warn("markConversationAsRead failed (non-blocking):", err);
+      }
+
+      try {
+        await (markConversationReadAction as any)(String(chatConversationId));
+      } catch {}
+
+      scrollChatToBottom();
+      return;
+    }
+
+    // fallo -> quitamos el optimista
+    setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((m: any) => m.id !== tempId));
+    addNotification(res?.error ? `❌ ${res.error}` : "❌ No se pudo enviar");
+  } catch (e) {
+    console.error(e);
+    setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((m: any) => m.id !== tempId));
+    addNotification("❌ Error enviando");
+  }
+};
+
+const scrollChatToBottom = () => {
+  setTimeout(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(".chat-scroll") as HTMLElement | null;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }, 0);
+};
+
+
+// ✅ UPLOAD Cloudinary (chat adjuntos: imagen/pdf)
+const chatFileInputRef = useRef<any>(null);
+const [chatUploading, setChatUploading] = useState(false);
+const [chatUploadProgress, setChatUploadProgress] = useState(0); // 0-100
+const chatUploadTempIdRef = useRef<string | null>(null); // para “enganchar” el mensaje optimista
+
+const uploadChatFileToCloudinary = (file: File) => {
+  const cloudName = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn11trogr").trim();
+  const uploadPreset = (process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload").trim();
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary: falta NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME o NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET");
+  }
+
+  // ✅ auto/upload (Cloudinary decide image/raw)
+  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", uploadPreset);
+  fd.append("folder", "stratos/chat");
+
+  setChatUploadProgress(0);
+
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", endpoint);
+
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+      setChatUploadProgress(pct);
+
+      // ✅ engancha progreso al mensaje temporal (si existe)
+      const tempId = chatUploadTempIdRef.current; // ✅ FIX (antes: uploadTempIdRef)
+      if (tempId) {
+        setChatMessages((prev: any[]) =>
+          (Array.isArray(prev) ? prev : []).map((m: any) =>
+            String(m?.id) === String(tempId) ? { ...m, __progress: pct } : m
+          )
+        );
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Upload fallido (network)"));
+
+    xhr.onload = () => {
+      try {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        const data = JSON.parse(xhr.responseText || "{}");
+
+        if (!ok) {
+          return reject(new Error(data?.error?.message || `Upload fallido (${xhr.status})`));
+        }
+
+        const delivered = String(data?.secure_url || "").trim();
+        console.log("CLOUDINARY_DELIVERY_URL:", delivered);
+
+        if (!delivered) return reject(new Error("Cloudinary no devolvió secure_url"));
+
+        // si no es un delivery público, ni lo mandamos al chat
+        if (!/^https?:\/\/res\.cloudinary\.com\//i.test(delivered)) {
+          return reject(new Error("Cloudinary devolvió una URL no pública (no es res.cloudinary.com)"));
+        }
+
+        setChatUploadProgress(100);
+        resolve(delivered);
+      } catch (e: any) {
+        reject(new Error(e?.message || "Upload: respuesta inválida"));
+      }
+    };
+
+    xhr.send(fd);
+  });
+};
+
+const handlePickChatFile = () => {
+  try {
+    chatFileInputRef.current?.click?.();
+  } catch {}
+};
+
+const handleChatFileSelected = async (e: any) => {
+  const file: File | null = e?.target?.files?.[0] || null;
+  if (e?.target) e.target.value = "";
+  if (!file) return;
+
+  if (!chatConversationId) {
+    addNotification("⚠️ Selecciona una conversación");
+    return;
+  }
+
+  setChatUploading(true);
+  setChatUploadProgress(0);
+
+  // ✅ PREVIEW INMEDIATO (miniatura local) mientras sube
+const localPreview =
+  file.type?.startsWith("image/") ? URL.createObjectURL(file) : null;
+
+const tempId = `tmp-upload-${Date.now()}`;
+chatUploadTempIdRef.current = tempId;
+
+setChatMessages((prev: any[]) => [
+  ...(Array.isArray(prev) ? prev : []),
+  {
+    id: tempId,
+    // si es imagen -> preview ya; si no -> texto "subiendo..."
+    text: localPreview ? localPreview : `⏳ Subiendo: ${file.name}`,
+    content: localPreview ? localPreview : `⏳ Subiendo: ${file.name}`,
+    senderId: String(activeUserKey || "anon"),
+    createdAt: new Date().toISOString(),
+    __uploading: true,
+    __filename: file.name,
+    __progress: 0,
+  },
+]);
+
+// ✅ auto-scroll para ver el preview al instante
+scrollChatToBottom();
+
+// ✅ fuerza a pintar ya el preview (por si React agrupa updates)
+await Promise.resolve();
+
+try {
+  const url = await uploadChatFileToCloudinary(file);
+
+  if (!url) {
+    setChatMessages((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).filter((m: any) => m?.id !== tempId)
+    );
+    addNotification("⚠️ No recibí URL del upload");
+    return;
+  }
+
+  // ✅ sustituye el preview local por la URL real (sin recargar)
+  setChatMessages((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).map((m: any) =>
+      m.id === tempId
+        ? { ...m, text: url, content: url, __uploading: false, __progress: 100 }
+        : m
+    )
+  );
+
+  // ✅ al reemplazar por URL, baja otra vez (por si el layout cambió)
+  scrollChatToBottom();
+
+  // ✅ libera blob (evita leaks)
+  if (localPreview) {
+    try {
+      URL.revokeObjectURL(localPreview);
+    } catch {}
+  }
+
+  // enviar al servidor (firma simple)
+  let res: any = null;
+  try {
+    res = await (sendMessageAction as any)(chatConversationId, url);
+  } catch {}
+
+  // fallback por si tu action usa objeto
+  if (!res?.success) {
+    try {
+      res = await (sendMessageAction as any)({
+        conversationId: chatConversationId,
+        text: url,
+      });
+    } catch {}
+  }
+  if (!res?.success) {
+    try {
+      res = await (sendMessageAction as any)({
+        conversationId: chatConversationId,
+        content: url,
+      });
+    } catch {}
+  }
+
+  // si el server devuelve mensaje, reemplazamos el temp por el real
+  if (res?.success && res?.data) {
+    const serverMsg = res.data;
+    const normalized = {
+      ...serverMsg,
+      text: serverMsg?.text ?? serverMsg?.content ?? url,
+      content: serverMsg?.content ?? serverMsg?.text ?? url,
+      __uploading: false,
+      __progress: 100,
+    };
+
+    setChatMessages((prev: any[]) =>
+      (Array.isArray(prev) ? prev : []).map((m: any) =>
+        m.id === tempId ? normalized : m
+      )
+    );
+
+    // ✅ scroll final al quedar el mensaje real
+    scrollChatToBottom();
+
+    const sentAt = normalized?.createdAt
+      ? new Date(normalized.createdAt).getTime()
+      : Date.now();
+    markConversationAsRead(String(chatConversationId), sentAt);
+
+    addNotification("✅ Archivo enviado");
+    return;
+  }
+
+  addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ Subido pero no pude enviar");
+} catch (err: any) {
+  console.error(err);
+
+  // limpia el mensaje temp
+  setChatMessages((prev: any[]) =>
+    (Array.isArray(prev) ? prev : []).filter((m: any) => m?.id !== tempId)
+  );
+
+  // libera blob si existía
+  if (localPreview) {
+    try {
+      URL.revokeObjectURL(localPreview);
+    } catch {}
+  }
+
+  addNotification(`❌ Upload: ${err?.message || "falló"}`);
+}
+};
+
+
+const handleDayNight = () => {
+  if (soundEnabled) playSynthSound("click");
+  addNotification("Visión Nocturna Alternada");
+};
+
+const handleAICommand = (e: any) => {
+  if (e) e.preventDefault();
+  const rawInput = String(aiInput || "").trim();
+  if (!rawInput) return;
+
+  if (soundEnabled) playSynthSound("click");
+
+ // --- 1) Detectar REF (o pegado con "Ref:" o incluso dentro de una URL) ---
+const extractRefCode = (input: string) => {
+  // 1) Normalizamos a MAYÚSCULA y quitamos "Ref:" si viene
+  let s = String(input || "").toUpperCase().trim();
+  s = s.replace(/^REF[^A-Z0-9]*?/i, "").trim();
+
+  // 2) Buscamos SF + separadores raros + código (acepta espacios/saltos/guiones/":", etc.)
+  //    Ejemplos que cubre:
+  //    "SF-UWNDPX"
+  //    "SF- \n CMKJQR9TS0002..."
+  //    "https://.../propiedad/... SF- CMK...."
+  const m = s.match(/SF[^A-Z0-9]*([A-Z0-9]{4,80})/);
+  if (!m?.[1]) return null;
+
+  let code = m[1].trim();
+
+  // 3) Si el pegado mezcló cosas y dentro aparece "CMK...", nos quedamos desde ahí (Prisma ids)
+  const cmkIndex = code.indexOf("CMK");
+  if (cmkIndex > 0) code = code.slice(cmkIndex);
+
+  // 4) Devolvemos formato final normalizado
+  return `SF-${code}`;
+};
+
+  const refCode = extractRefCode(rawInput);
+
+  // --- 2) Si es una REF, buscamos en LISTAS YA CARGADAS (Stock + Favoritos) ---
+  if (refCode) {
+   const pool = [
+  // ✅ STOCK REAL de agencia (tu cartera)
+  ...(Array.isArray(agencyFavs) ? agencyFavs : []),
+
+  // ✅ favoritos/likes
+  ...(Array.isArray(agencyLikes) ? agencyLikes : []),
+  ...(Array.isArray(localFavs) ? localFavs : []),
+
+  // ✅ (opcional) si tienes más listas globales, las añadiremos en el paso 2
+].filter(Boolean);
+
+
+    const found = pool.find(
+      (p: any) => String(p?.refCode || "").toUpperCase() === refCode
+    );
+
+    if (found) {
+      // A) Abrir DETAILS (tu listener ya lo maneja)
+      window.dispatchEvent(new CustomEvent("open-details-signal", { detail: found }));
+
+      // B) Vuelo cinematográfico al punto
+      const coords =
+        found?.coordinates ||
+        (Number.isFinite(Number(found?.longitude)) && Number.isFinite(Number(found?.latitude))
+          ? [Number(found.longitude), Number(found.latitude)]
+          : null);
+
+      if (coords) {
+        window.dispatchEvent(
+          new CustomEvent("map-fly-to", {
+            detail: { center: coords, zoom: 19, pitch: 60, bearing: -20, duration: 2500 },
+          })
+        );
+      } else {
+        addNotification("⚠️ Encontrada, pero sin coordenadas GPS");
+      }
+
+      addNotification(`✅ Ref localizada: ${refCode}`);
+      setAiInput("");
+      return; // <- MUY IMPORTANTE: no seguimos con searchCity
+    }
+
+    addNotification(`⚠️ No encuentro ${refCode} en tu Stock/Favoritos`);
+    setAiInput("");
+    return;
+  }
+
+  // --- 3) Si NO es REF, comportamiento actual (búsqueda de ciudad / comando) ---
+  setIsAiTyping(true);
+
+  if (searchCity) {
+    searchCity(rawInput);
+    addNotification(`Rastreando: ${rawInput.toUpperCase()}`);
+  } else {
+    console.warn("⚠️ searchCity no conectado.");
+  }
+
+  setTimeout(() => {
+    setAiResponse(`Objetivo confirmado: "${rawInput}". Iniciando aproximación...`);
+    setIsAiTyping(false);
+    setAiInput("");
+  }, 1500);
+};
+
 
   // Escucha de señales (Actualizado para detectar cambios de Modo)
   useEffect(() => {
@@ -1007,9 +2469,63 @@ useEffect(() => {
 
  // --- PROTOCOLO DE SEGURIDAD (GATE) ---
   if (!gateUnlocked) {
-    return <StratosWelcomeGate playSynthSound={playSynthSound} />;
-  }
+    return (
+      <div className="fixed inset-0 z-[99999] flex flex-col justify-between items-center p-8 sm:p-20 pointer-events-auto animate-fade-in select-none overflow-hidden bg-black">
 
+        {/* 📽️ VÍDEO DE FONDO CINEMÁTICO (La Tierra girando) */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute top-0 left-0 w-full h-full object-cover z-0 opacity-80"
+        >
+          {/* Busca el vídeo en la carpeta /public */}
+          <source src="/background-video.mp4" type="video/mp4" />
+        </video>
+
+        {/* 1️⃣ PARTE SUPERIOR: LOGO Y BOTÓN */}
+        <div className="w-full flex flex-col items-center gap-8 z-10 mt-10 animate-fade-in-up delay-100">
+          <h1 className="text-3xl sm:text-4xl md:text-7xl font-bold tracking-tight text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] cursor-default mt-4 md:mt-0">
+            Stratosfere OS.
+        </h1>
+          <button
+            onClick={() => {
+              if (typeof playSynthSound === "function") playSynthSound("click");
+              window.location.href = "/register";
+            }}
+            className="px-10 py-4 bg-[#0071e3]/90 hover:bg-[#0077ED] text-white font-bold rounded-full shadow-[0_0_20px_rgba(0,113,227,0.4)] hover:shadow-[0_0_40px_rgba(0,113,227,0.8)] transition-all transform hover:scale-105 backdrop-blur-md uppercase tracking-widest text-sm border border-white/10"
+          >
+            Crear Cuenta
+          </button>
+        </div>
+
+        {/* 2️⃣ PARTE CENTRAL: EL MENSAJE DE BIENVENIDA (Estilo Apple Glassmorphism) */}
+        <div className="flex flex-col items-center justify-center text-center z-10 mb-20 animate-fade-in-up delay-300">
+          <div className="p-10 md:p-14 rounded-[2.5rem] bg-black/20 backdrop-blur-2xl border border-white/10 shadow-2xl max-w-3xl transform transition-all hover:bg-black/30 hover:border-white/20">
+            <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 drop-shadow-lg tracking-tight">
+              Te damos la bienvenida.
+            </h2>
+            <p className="text-lg md:text-xl text-zinc-300 font-light drop-shadow-md leading-relaxed">
+              Explora el mercado inmobiliario con la tecnología del mañana.<br/>Tu centro de mando orbital te espera.
+            </p>
+          </div>
+        </div>
+
+        {/* 3️⃣ PARTE INFERIOR: PIE DE PÁGINA LEGAL Y SUTIL */}
+        <div className="z-10 mb-4 backdrop-blur-md py-3 px-8 rounded-full bg-black/30 border border-white/5 animate-fade-in-up delay-500">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-white/70 tracking-wide font-light">
+            <a className="hover:text-white transition-colors" href="/pricing">Pricing</a>
+            <a className="hover:text-white transition-colors" href="/terms">Términos</a>
+            <a className="hover:text-white transition-colors" href="/privacy">Privacidad</a>
+            <a className="hover:text-white transition-colors" href="/refunds">Reembolsos</a>
+            <span className="text-white/30 ml-2 font-mono">© {new Date().getFullYear()} Stratosfere</span>
+          </div>
+        </div>
+
+      </div>
+    );
+  }
 // 🛡️ ESCUDO ANTI-INTRUSOS (CON MEMORIA DE REGRESO)
   const requireAuth = (callback: Function) => {
       if (!identityVerified || activeUserKey === 'anon') {
@@ -1121,13 +2637,8 @@ useEffect(() => {
                         <div className="space-y-3">
                             <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{if(typeof playSynthSound==='function') playSynthSound('click'); setLang(lang==='ES'?'EN':'ES')}}><span className="tracking-widest">IDIOMA</span> <span className="text-white font-mono">{lang}</span></div>
                             <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{if(typeof playSynthSound==='function') playSynthSound('click'); toggleSound();}}><span className="tracking-widest">SONIDO</span> <span className={soundEnabled ? "text-emerald-400" : "text-zinc-500"}>{soundEnabled ? 'ON' : 'MUTED'}</span></div>
-<div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={handleDayNight}>
-  <span className="tracking-widest">VISIÓN</span> 
-  <div className={`flex items-center gap-1 ${isNightMode ? 'text-indigo-400' : 'text-amber-400'}`}>
-    {isNightMode ? <Moon size={10}/> : <Sun size={10}/>} 
-    <span className="text-white">{isNightMode ? 'NOCHE' : 'DÍA'}</span>
-  </div>
-</div>                        </div>
+                            <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={handleDayNight}><span className="tracking-widest">VISIÓN</span> <div className="flex items-center gap-1"><Sun size={10}/> DÍA/NOCHE</div></div>
+                        </div>
                         <div className="mt-4 pt-2 border-t border-white/5 space-y-1">
                             {notifications.map((n,i)=>(<div key={i} className="bg-blue-900/20 border-l-2 border-blue-500 p-2 rounded flex items-center gap-2 animate-slide-in-right"><Bell size={10} className="text-blue-400"/><span className="text-[9px] text-blue-100">{n.title}</span></div>))}
                         </div>
@@ -1670,22 +3181,383 @@ useEffect(() => {
            )}
        </div>
     
-    {/* =================================================================
+       {/* =================================================================
            CAPA ORBITAL (Z-20000) - CHAT E INTELIGENCIA ARTIFICIAL
+           Siempre flotando sobre todo lo demás.
        ================================================================= */}
        
-    {/* CHAT TÁCTICO (NUEVO CHASIS) */}
-       <StratosChatWindow 
-           chatEngine={chatEngine}
-           systemMode={systemMode}
-           ownerProposals={ownerProposals}
-           setActiveCampaignId={setActiveCampaignId}
-           activeUserKey={activeUserKey}
-           addNotification={addNotification}
-           setRightPanel={setRightPanel} // 👈 ¡ENCHUFE EL CABLE AQUÍ!
-       />
+{/* CHAT TÁCTICO (CONECTADO) */}
+{chatOpen && (
+  <div className="fixed bottom-32 left-1/2 -translate-x-1/2 w-[680px] max-w-[95vw] z-[20000] pointer-events-auto">
+    <div className="animate-fade-in glass-panel rounded-3xl border border-white/10 bg-[#050505]/95 backdrop-blur-xl shadow-2xl overflow-hidden flex flex-col h-[520px]">
 
-      
+      {/* Header */}
+      <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs font-black tracking-widest text-white uppercase">COMMS LINK</span>
+            <span className="text-[10px] text-white/40 font-mono">
+              {unreadTotal > 0 ? `UNREAD ${unreadTotal}` : "ONLINE"}
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setChatOpen(false)}
+          className="text-white/30 hover:text-white transition-colors p-2"
+          title="Cerrar"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {/* Body 2-column */}
+      <div className="flex-1 min-h-0 grid grid-cols-5">
+
+        {/* LEFT: threads */}
+        <div className="col-span-2 min-h-0 border-r border-white/10 overflow-y-auto custom-scrollbar">
+          <div className="p-3">
+            {(chatThreads || []).length === 0 && !chatLoading ? (
+              <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
+                No hay conversaciones todavía. Abre una desde Details con “MENSAJE”.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="px-3 pb-3 space-y-2">
+            {(chatThreads || []).map((t: any) => {
+              const id = String(t?.id || "");
+              if (!id) return null;
+
+              const other = resolveOtherUser(t);
+              const otherName = getUserLabel(other);
+              const avatar = getUserAvatar(other);
+              const title = getThreadTitle(t);
+
+              const snippet =
+                t?.lastMessage?.text ||
+                t?.lastMessage?.content ||
+                t?.lastMessage ||
+                "";
+
+              const blocked = isBlockedThread(t);
+              const active = String(chatConversationId || "") === id;
+              const unread = Number(unreadByConv?.[id] || 0) > 0;
+
+              return (
+                <button
+  key={id}
+  onClick={async () => {
+    if (blocked) {
+      addNotification("⛔ Usuario bloqueado");
+      return;
+    }
+
+    // ✅ 1) abre Details (si hay property) y espera a que cargue del server si hace falta
+    await tryOpenDetailsFromThread(t);
+
+    // ✅ 2) abre el chat
+    await openConversation(id);
+
+    // ✅ 3) SOLO en EXPLORER (particular) podemos abrir OwnerProposalsPanel
+if (systemMode === "EXPLORER") {
+  const hasPropCtx = !!(
+    t?.propertyId ||
+    t?.property?.id ||
+    t?.refCode ||
+    t?.propertyRef ||
+    /\bSF-[A-Z0-9-]+\b/i.test(String(title || ""))
+  );
+
+  if (hasPropCtx) {
+    setRightPanel("OWNER_PROPOSALS");
+
+    // si ya está en memoria, abre directamente el expediente correcto
+    const match = (Array.isArray(ownerProposals) ? ownerProposals : []).find(
+      (p: any) => String(p?.conversationId || "") === String(id)
+    );
+
+    setActiveCampaignId(match?.id ? String(match.id) : null);
+  }
+}
+
+  }}
+  className={`w-full text-left border rounded-2xl p-3 transition-all ${
+    active
+      ? "bg-blue-500/15 border-blue-500/30"
+      : "bg-white/5 hover:bg-white/10 border-white/10"
+  } ${blocked ? "opacity-40" : ""}`}
+>
+  <div className="flex items-center gap-3">
+    {/* avatar */}
+    <div className="w-9 h-9 rounded-full overflow-hidden bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
+      {avatar ? (
+        <img src={avatar} className="w-full h-full object-cover" alt="" />
+      ) : (
+        <span className="text-[10px] font-black text-white/60">
+          {String(otherName || "U").slice(0, 1).toUpperCase()}
+        </span>
+      )}
+    </div>
+
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
+          {otherName}
+        </div>
+        <div className="flex items-center gap-2">
+          {unread && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
+          {blocked && <span className="text-[9px] text-white/30 font-mono">BLOCK</span>}
+        </div>
+      </div>
+
+      <div className="mt-0.5 text-[10px] text-white/50 font-mono truncate">
+        {title}
+      </div>
+
+      <div className="mt-1 text-[10px] text-white/40 line-clamp-2">
+        {snippet ? String(snippet) : "Sin mensajes aún"}
+      </div>
+    </div>
+  </div>
+</button>
+
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT: conversation */}
+        <div className="col-span-3 min-h-0 flex flex-col">
+          {/* header right */}
+          <div className="p-3 border-b border-white/10 bg-black/20 flex items-center justify-between">
+            {chatConversationId ? (
+              (() => {
+                const t = (chatThreads || []).find((x: any) => String(x?.id) === String(chatConversationId));
+                const other = resolveOtherUser(t);
+                const otherName = getUserLabel(other);
+                const avatar = getUserAvatar(other);
+                const blocked = other?.id ? blockedUsers.has(String(other.id)) : false;
+
+                return (
+                  <div className="flex items-center justify-between w-full gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full overflow-hidden bg-white/10 border border-white/10 shrink-0 flex items-center justify-center">
+                        {avatar ? (
+                          <img src={avatar} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <span className="text-[10px] font-black text-white/60">
+                            {String(otherName || "U").slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
+                          {otherName}
+                        </div>
+                        <div className="text-[10px] text-white/40 font-mono truncate">
+                          {t ? getThreadTitle(t) : "Conversación"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* bloquear / desbloquear */}
+                      {other?.id ? (
+                        <button
+                          onClick={() => toggleBlockUser(String(other.id))}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all"
+                          title={blocked ? "Desbloquear" : "Bloquear"}
+                        >
+                          {blocked ? <Unlock size={16} /> : <Lock size={16} />}
+                        </button>
+                      ) : null}
+
+                      {/* borrar conversación */}
+                      <button
+                        onClick={() => handleDeleteConversation(String(chatConversationId))}
+                        className="p-2 rounded-xl bg-white/5 hover:bg-red-500/15 border border-white/10 text-white/70 hover:text-red-300 transition-all"
+                        title="Borrar conversación"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+
+                      {/* volver */}
+                      <button
+                        onClick={() => {
+                          setChatConversationId(null);
+                          setChatMessages([]);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white transition-all"
+                        title="Volver a la lista"
+                      >
+                        ← Volver
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="text-[10px] text-white/40 tracking-widest uppercase">
+                Selecciona una conversación a la izquierda
+              </div>
+            )}
+          </div>
+
+   {/* messages */}
+<div className="chat-scroll flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar space-y-2">
+  {chatLoading && (
+    <div className="text-[10px] text-white/40 tracking-widest uppercase">
+      Cargando...
+    </div>
+  )}
+
+  {!chatConversationId && !chatLoading ? (
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-xs text-white/60">
+      Aquí verás los mensajes. La lista de la izquierda mantiene tus threads.
+    </div>
+  ) : null}
+
+  {chatConversationId ? (
+    (chatMessages || []).length === 0 && !chatLoading ? (
+      <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
+        Aún no hay mensajes. Envía el primero.
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {(chatMessages || []).map((m: any) => {
+          const mine = String(m?.senderId || "") === String(activeUserKey || "");
+          const text = m?.text ?? m?.content ?? "";
+
+          const uploading = !!m?.__uploading;
+          const pct = Math.max(0, Math.min(100, Number(m?.__progress || 0)));
+
+          const s = String(text || "").trim();
+          const media = extractFirstUrl(s) || s;
+          const isImg = isImageUrl(media);
+          const isUrl =
+            /^https?:\/\//i.test(media) ||
+            /^blob:/i.test(media) ||
+            /^data:image\//i.test(media);
+
+          return (
+            <div
+              key={String(m?.id || Math.random())}
+              className={`max-w-[90%] p-3 rounded-2xl text-xs border ${
+                mine
+                  ? "ml-auto bg-blue-500/20 border-blue-500/30 text-white"
+                  : "mr-auto bg-white/10 border-white/10 text-white/80"
+              } ${mine ? "rounded-tr-none" : "rounded-tl-none"}`}
+            >
+              {/* contenido */}
+              {isImg ? (
+                <a href={media} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={media}
+                    className="max-w-full rounded-xl border border-white/10"
+                    alt="Adjunto"
+                  />
+                </a>
+              ) : isUrl ? (
+                <a
+                  href={media}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-white/90 break-all"
+                >
+                  {media}
+                </a>
+              ) : (
+                s || <span className="text-white/30">...</span>
+              )}
+
+              {/* progreso moderno */}
+              {uploading && (
+                <div className="mt-2">
+                  <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-1.5 rounded-full bg-blue-400 transition-all"
+                      style={{ width: `${Math.max(2, pct)}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[10px] text-white/50 font-mono">
+                    Subiendo… {pct}%
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )
+  ) : null}
+</div>
+
+{/* footer input */}
+<div className="p-3 border-t border-white/10 bg-black/20 pointer-events-auto">
+  <div className="flex items-center gap-2 bg-white/5 rounded-full px-4 py-2 border border-white/10 pointer-events-auto">
+    {/* input oculto (imagen/pdf) */}
+    <input
+      ref={chatFileInputRef}
+      type="file"
+      accept="image/*,application/pdf"
+      className="hidden"
+      onChange={handleChatFileSelected}
+    />
+
+    {/* adjuntos (Cloudinary) */}
+    <button
+      type="button"
+      onClick={handlePickChatFile}
+disabled={chatUploading}
+      className="text-white/40 hover:text-white transition-colors pointer-events-auto disabled:opacity-30"
+      title={!chatConversationId ? "Selecciona una conversación" : "Adjuntar (Cloudinary)"}
+    >
+      <Camera size={14} />
+    </button>
+
+    <input
+      autoFocus
+      value={chatInput}
+      onChange={(e) => setChatInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleSendChat();
+        }
+      }}
+      placeholder={
+        !chatConversationId
+          ? "Selecciona una conversación..."
+          : chatUploading
+          ? "Subiendo archivo..."
+          : "Transmitir mensaje..."
+      }
+      disabled={!chatConversationId || chatUploading}
+      className="pointer-events-auto bg-transparent w-full text-xs text-white outline-none placeholder-white/20 disabled:opacity-40"
+    />
+
+    <button
+      type="button"
+      onClick={handleSendChat}
+      disabled={!chatConversationId || chatUploading || !String(chatInput || "").trim()}
+      className="text-blue-400 hover:text-blue-300 disabled:opacity-30 pointer-events-auto"
+      title="Enviar"
+    >
+      <Send size={14} />
+    </button>
+  </div>
+</div>
+
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+)}
+
 <PlanOverlay
   enabled={systemMode === "AGENCY"}
   pricingHref="/pricing"

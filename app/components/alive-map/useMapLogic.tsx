@@ -37,7 +37,7 @@ export const useMapLogic = () => {
   const markersRef = useRef({});
 
   // --------------------------------------------------------------------
-  // A. INICIALIZACIÓN DEL MAPA
+  // A. INICIALIZACIÓN DEL MAPA (MOTOR ELITE V2 - 3D REAL)
   // --------------------------------------------------------------------
   useEffect(() => {
     if (map.current) return;
@@ -46,27 +46,38 @@ export const useMapLogic = () => {
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/standard',
-      center: [-3.6883, 40.4280], // Madrid Base
-      zoom: 13,
-      pitch: 65,
+      style: 'mapbox://styles/mapbox/standard', // EL MOTOR MAESTRO
+      center: [-3.6883, 40.4280], 
+      zoom: 16, // Zoom Pro para ver fachadas
+      pitch: 75, // Inclinación agresiva
       bearing: -20,
-      maxPitch: 85,
-      attributionControl: false,
       antialias: true,
       projection: 'globe'
     });
 
-    // Controles de Navegación (Abajo Izquierda)
+    // 🚀 CONFIGURACIÓN DE ALTO NIVEL (FUERZA BRUTA 3D)
+    map.current.on('style.import.load', () => {
+        // 1. FORZAMOS EL RELIEVE (Esto es lo que levanta los edificios de 30 años)
+        map.current.setConfigProperty('basemap', 'show3dObjects', true);
+        map.current.setConfigProperty('basemap', 'showLandmarks', true);
+        
+        // 2. LUZ DE DÍA (Para que no sea "de noche" y se vea todo nítido)
+        // Opciones: 'day' (Día), 'dawn' (Amanecer), 'dusk' (Atardecer)
+        map.current.setConfigProperty('basemap', 'lightPreset', 'day'); 
+        
+        console.log("⚡️ STRATOSFERE: EDIFICIOS 3D DESBLOQUEADOS");
+    });
+
     map.current.addControl(
       new mapboxgl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }),
       'bottom-left'
     );
 
-  map.current.on('load', () => {
-      console.log("🟢 MAPA 3D: SISTEMAS LISTOS");
+    map.current.on('load', () => {
+      console.log("🟢 SISTEMA CARGADO");
       setIsLoaded(true);
-// 🔥 LA BALIZA DE FUERZA BRUTA DEL RADAR (Emite posición cada 1 segundo)
+
+      // 🔥 BALIZA RADAR (Su código original)
       setInterval(() => {
           if (map.current) {
               const center = map.current.getCenter();
@@ -98,6 +109,8 @@ export const useMapLogic = () => {
           clusterRadius: 80
         });
       }
+
+      
 
       // =================================================================
       // 🎨 DISEÑO VISUAL Y CAPAS (MANTENIDO AL 100%)

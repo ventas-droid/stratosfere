@@ -226,31 +226,106 @@ export default function DetailsPanel({
 
     // ❤️ FAVORITOS
     const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
-
-    // 🔥 FUNCIÓN: COMPARTIR Y SUMAR ESTADÍSTICAS
-    const handleShareProperty = async () => {
-        if (!selectedProp?.id) return;
-
-        // Generamos el enlace
-        const url = `${window.location.origin}/property/${selectedProp.id}`;
-        
+// 🔥 FUNCIÓN 1: WHATSAPP DIRECTO (CON PLAN B DE EMERGENCIA)
+    const handleWhatsAppShare = async () => {
         try {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            const p = selectedProp || {};
+            const propId = p.id || p.propertyId || p._id || "NO_ID";
+            
+            // Si no hay ID, abortamos misión
+            if (propId === "NO_ID") {
+                if (typeof toast !== 'undefined') toast.error("Error", { description: "Esta propiedad no tiene un ID válido." });
+                return; 
+            }
+            
+            const ref = p.refCode || "N/A";
+            const tipo = p.type ? String(p.type).toUpperCase() : "INMUEBLE";
+            const ubicacion = p.address || p.location || p.city || "Ubicación Privada";
+            
+            let precio = "Consultar Precio";
+            if (p.price) {
+                const numPrice = Number(String(p.price).replace(/\D/g, ''));
+                if (!isNaN(numPrice) && numPrice > 0) precio = new Intl.NumberFormat('es-ES').format(numPrice) + " €";
+                else precio = String(p.price);
+            }
 
-            // 1. Impactar DB
-            await incrementStatsAction(selectedProp.id, 'share');
+            const habs = p.rooms || p.bedrooms || 0;
+            const banos = p.baths || p.bathrooms || 0;
+            const metros = p.mBuilt || p.surface || 0;
+            
+            const vipLink = `https://stratosfere.com/?p=${propId}`;
+            const shareText = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${vipLink}`;
 
-            // 2. Actualizar visualmente al instante
-            setSelectedProp((prev: any) => ({
-                ...prev,
-                shareCount: (prev.shareCount || 0) + 1
-            }));
+            // Abre WhatsApp Automáticamente
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
 
-        } catch (err) {
-            console.error("Error al compartir", err);
+            if (typeof incrementStatsAction === 'function') await incrementStatsAction(propId, 'share');
+            setSelectedProp((prev: any) => ({ ...prev, shareCount: (prev?.shareCount || 0) + 1 }));
+
+        } catch (error) {
+            console.error("Error en WhatsApp Share:", error);
+            // 🔥 PLAN B: Si todo lo demás falla, enviamos solo el link pelado
+            try {
+                 const emergencyId = selectedProp?.id || selectedProp?.propertyId || selectedProp?._id;
+                 if (emergencyId) {
+                     const fallbackText = `Mira este inmueble: https://stratosfere.com/?p=${emergencyId}`;
+                     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(fallbackText)}`, '_blank');
+                 }
+            } catch (e) {
+                 if (typeof toast !== 'undefined') toast.error("Error crítico al abrir WhatsApp");
+            }
         }
+    };
+
+    // 🔥 FUNCIÓN 2: COPIAR TODO EL TEXTO (Para Email o pegar manualmente)
+    const handleCopyVipLink = async () => {
+        const p = selectedProp || {};
+        const propId = p.id || p.propertyId || p._id || "NO_ID";
+        
+        // Generamos el texto completo también aquí
+        const ref = p.refCode || "N/A";
+        const tipo = p.type ? String(p.type).toUpperCase() : "INMUEBLE";
+        const ubicacion = p.address || p.location || p.city || "Ubicación Privada";
+        let precio = "Consultar Precio";
+        if (p.price) {
+            const numPrice = Number(String(p.price).replace(/\D/g, ''));
+            if (!isNaN(numPrice) && numPrice > 0) precio = new Intl.NumberFormat('es-ES').format(numPrice) + " €";
+            else precio = String(p.price);
+        }
+        const habs = p.rooms || p.bedrooms || 0;
+        const banos = p.baths || p.bathrooms || 0;
+        const metros = p.mBuilt || p.surface || 0;
+        const vipLink = `https://stratosfere.com/?p=${propId}`;
+        const shareText = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${vipLink}`;
+
+        try {
+            await navigator.clipboard.writeText(shareText);
+            copiadoExitoso(propId);
+        } catch (err) {
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = shareText;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+                copiadoExitoso(propId);
+            } catch (fallbackErr) {
+                alert("Tu navegador bloqueó la copia. El link es: " + vipLink);
+            }
+        }
+    };
+
+    // Función auxiliar para actualizar contadores
+    const copiadoExitoso = async (propId: string) => {
+        setCopied(true);
+        if (typeof toast !== 'undefined') toast.success("Expediente Copiado", { description: "Pase VIP listo para pegar." });
+        setTimeout(() => setCopied(false), 2000);
+        
+        if (propId !== "NO_ID" && typeof incrementStatsAction === 'function') await incrementStatsAction(propId, 'share');
+        setSelectedProp((prev: any) => ({ ...prev, shareCount: (prev?.shareCount || 0) + 1 }));
     };
 
     const handleHeartClick = (e: any) => {
@@ -533,87 +608,85 @@ export default function DetailsPanel({
                         )}
                     </div>
 
-                  {/* 🔥 PANEL DE INTELIGENCIA DE MERCADO (VERSIÓN 2.0 - ACTIVA) */}
-                    <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
-                        <div className="flex items-center gap-2 mb-4">
+               {/* 🔥 PANEL DE INTELIGENCIA DE MERCADO (VERSIÓN 3.0 - PREMIUM) */}
+                    <div className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 mt-3 animate-fade-in-up">
+                        <div className="flex items-center gap-2 mb-5">
                              <Activity size={16} className="text-blue-600"/>
-                             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900">Métricas de Interés</h3>
+                             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900">Métricas & VIP Pass</h3>
                         </div>
                        
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Visitas Totales */}
-                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-slate-400">
-                                    <Eye size={20}/>
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-black text-slate-900 leading-none">
-                                        {selectedProp?.views || 0}
-                                    </p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vistas Ficha</p>
-                                </div>
+                        {/* 1. MÉTRICAS (3 Columnas Premium) */}
+                        <div className="grid grid-cols-3 gap-3 mb-5">
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md transition-shadow">
+                                <Eye size={20} className="text-slate-400 mb-2"/>
+                                <p className="text-2xl font-black text-slate-900 leading-none">{selectedProp?.views || 0}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1.5">Visitas</p>
                             </div>
-
-                            {/* Vistas Fotos */}
-                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-slate-400">
-                                    <Camera size={20}/>
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-black text-slate-900 leading-none">
-                                        {selectedProp?.photoViews || 0}
-                                    </p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vistas Fotos</p>
-                                </div>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md transition-shadow">
+                                <Camera size={20} className="text-slate-400 mb-2"/>
+                                <p className="text-2xl font-black text-slate-900 leading-none">{selectedProp?.photoViews || 0}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1.5">Fotos</p>
                             </div>
-
-                             {/* Favoritos (CORREGIDO: Híbrido Count/Array) */}
-                             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-rose-400">
-                                    <Heart size={20} className="fill-current"/>
-                                </div>
-                                <div>
-                                    {/* 🔥 AQUÍ ESTÁ EL CAMBIO CLAVE PARA QUE NO SALGA 0 */}
-                                    <p className="text-2xl font-black text-slate-900 leading-none">
-                                        {selectedProp?.favoritedCount || selectedProp?.favoritedBy?.length || 0}
-                                    </p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Guardado</p>
-                                </div>
-                            </div>
-
-                            {/* Compartidos (CORREGIDO: Botón Activo) */}
-                            <div 
-                                onClick={handleShareProperty}
-                                className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-95 group"
-                            >
-                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm text-blue-400 group-hover:text-blue-600 transition-colors">
-                                    {/* Cambio visual al copiar */}
-                                    {copied ? <Check size={20} /> : <Share2 size={20}/>}
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-black text-slate-900 leading-none">
-                                        {selectedProp?.shareCount || 0}
-                                    </p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-500 transition-colors">
-                                        {copied ? "¡Copiado!" : "Compartir"}
-                                    </p>
-                                </div>
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md transition-shadow">
+                                <Heart size={20} className="text-rose-400 mb-2 fill-rose-100"/>
+                                <p className="text-2xl font-black text-slate-900 leading-none">{selectedProp?.favoritedCount || selectedProp?.favoritedBy?.length || 0}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1.5">Guardado</p>
                             </div>
                         </div>
+
+                        {/* 2. ZONA VIP PASS */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            
+                            {/* Botón WhatsApp Oficial */}
+                            <button
+                                onClick={handleWhatsAppShare}
+                                className="bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 p-3 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                                
+                                <div className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform z-10">
+                                    <MessageCircle size={18} className="fill-current" />
+                                </div>
+                                <div className="text-left z-10 flex flex-col justify-center">
+                                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">WhatsApp</p>
+                                    <p className="text-[9px] font-bold text-[#25D366] uppercase tracking-wider flex items-center gap-1">Enviar VIP <Sparkles size={10}/></p>
+                                </div>
+                            </button>
+
+                            {/* Botón Copiar Enlace Universal */}
+                            <button
+                                onClick={handleCopyVipLink}
+                                className="bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 p-3 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden"
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-colors z-10 border border-slate-100 ${copied ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
+                                    {copied ? <Check size={18} /> : <Copy size={18} />}
+                                </div>
+                                <div className="text-left z-10 flex flex-col justify-center">
+                                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">{copied ? "¡COPIADO!" : "Copiar Link"}</p>
+                                    <p className="text-[9px] font-bold text-slate-400 group-hover:text-blue-500 uppercase tracking-wider transition-colors">{copied ? "Listo para pegar" : "Universal"}</p>
+                                </div>
+                            </button>
+                        </div>
                         
-                        <div className="mt-3 text-[9px] text-slate-400 font-medium text-center bg-slate-50 py-1 rounded-lg">
+                        {/* 3. Indicador Total Compartidos */}
+                        <div className="mt-4 flex items-center justify-between bg-slate-50 py-2.5 px-4 rounded-xl border border-slate-100">
+                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Share2 size={12} className="text-slate-400" />
+                                Impacto del Expediente
+                             </span>
+                             <span className="text-sm font-black text-slate-900">{selectedProp?.shareCount || 0} <span className="text-[9px] text-slate-400 ml-1">SHARES</span></span>
+                        </div>
+
+                        <div className="mt-3 text-[9px] text-slate-400 font-medium text-center bg-slate-50 py-1.5 rounded-lg border border-slate-100">
                             Datos en tiempo real • Stratos Intelligence™
                         </div>
                     </div>
                     {/* 🔥 FIN DEL PANEL */}
 
-                    {/* 👇 AIRBAG: Espacio vital para que el footer no tape nada 👇 */}
-                    <div className="h-32 w-full shrink-0"></div>
-
                 </div> {/* 🛑 CIERRE DEL CONTENIDO SCROLLABLE */}
 
-                {/* 3. FOOTER */}
-                <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20">
+                {/* 3. FOOTER (BLINDADO Y SIEMPRE CLICABLE) */}
+                <div className="relative shrink-0 w-full p-5 bg-white/95 backdrop-blur-2xl border-t border-slate-200 flex gap-3 z-[50000] pointer-events-auto shadow-[0_-20px_40px_rgba(0,0,0,0.05)]">
                   
                   {/* Botón Contactar INTELIGENTE */}
                   <button 
