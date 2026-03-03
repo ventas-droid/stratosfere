@@ -6,9 +6,10 @@ import { Sparkles, Heart, Search, ShieldCheck } from "lucide-react";
 type Props = {
   isOpen: boolean;
   onClose: () => void;
+  onAccept: () => void; // 👈 NUEVA ACCIÓN AÑADIDA
 };
 
-export default function GuestInviteOverlay({ isOpen, onClose }: Props) {
+export default function GuestInviteOverlay({ isOpen, onClose, onAccept }: Props) {
   if (!isOpen) return null;
 
   return (
@@ -16,7 +17,7 @@ export default function GuestInviteOverlay({ isOpen, onClose }: Props) {
       {/* Velo oscuro */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Tarjeta Premium */}
+      {/* Tarjeta Premium SaaS */}
       <div className="relative overflow-hidden w-[min(900px,calc(100vw-48px))] rounded-[34px] border border-white/20 bg-white/80 backdrop-blur-2xl p-10 shadow-[0_28px_90px_rgba(0,0,0,0.3)] animate-scale-in">
         
         {/* Brillo de fondo */}
@@ -32,17 +33,17 @@ export default function GuestInviteOverlay({ isOpen, onClose }: Props) {
               <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1">
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
                 <span className="text-[10px] font-black tracking-[0.28em] uppercase text-blue-700">
-                  INVITACIÓN VIP
+                  ACCESO LIMITADO
                 </span>
               </div>
             </div>
 
-            <div className="mt-5 text-[44px] leading-[1.05] font-black tracking-tight text-slate-900">
-              Únete a la Élite.
+            <div className="mt-5 text-[42px] leading-[1.05] font-black tracking-tight text-slate-900">
+              Desbloquea el ecosistema completo.
             </div>
 
-            <div className="mt-3 text-[15px] leading-relaxed text-slate-600 max-w-[50ch]">
-              Tu Pase Efímero ha finalizado. Registra tu cuenta gratuita ahora y despliega todo el arsenal de herramientas de nuestro Supercaza Inmobiliario.
+            <div className="mt-3 text-[15px] leading-relaxed text-slate-600 max-w-[55ch]">
+              Tu acceso temporal ha concluido. Registra tu cuenta gratuita hoy mismo para explorar el mercado en tiempo real, guardar tus activos favoritos y conectar con nuestra red de agencias.
             </div>
           </div>
 
@@ -54,55 +55,58 @@ export default function GuestInviteOverlay({ isOpen, onClose }: Props) {
         {/* Grid de Ventas */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
           
-          {/* IZQUIERDA: Lo que te llevas */}
+          {/* IZQUIERDA: Funcionalidades */}
           <div className="rounded-[26px] border border-white bg-white/60 shadow-sm p-7">
             <div className="text-[10px] font-black tracking-[0.35em] uppercase text-slate-400 mb-6">
-              Arsenal Desbloqueado
+              Herramientas Incluidas
             </div>
 
-            <ul className="space-y-4 text-[13px] text-slate-700 font-semibold">
+            <ul className="space-y-4 text-[13px] text-slate-700 font-medium">
               <li className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><Search size={14}/></div>
                 <span>Buscador Inteligente Omni-Search</span>
               </li>
               <li className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-500"><Heart size={14}/></div>
-                <span>Bóveda de Favoritos y Nano Cards</span>
+                <span>Bóveda personal y Nano Cards</span>
               </li>
               <li className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><Sparkles size={14}/></div>
-                <span>Pases exclusivos a eventos Open House</span>
+                <span>Gestión de eventos y visitas (Open House)</span>
               </li>
               <li className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><ShieldCheck size={14}/></div>
-                <span>Contacto blindado con Agencias PRO</span>
+                <span>Contacto directo y seguro con Agencias</span>
               </li>
             </ul>
           </div>
 
-          {/* DERECHA: El Precio (Gratis) */}
+          {/* DERECHA: Call to Action */}
           <div className="rounded-[26px] border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-7 flex flex-col justify-center">
             <div className="flex justify-between items-start">
               <div>
-                <div className="text-[10px] font-black tracking-[0.35em] uppercase text-blue-500">Plan actual</div>
-                <div className="mt-2 text-[18px] font-black text-slate-900">Explorer (Particular)</div>
+                <div className="text-[10px] font-black tracking-[0.35em] uppercase text-blue-500">Plan de Entrada</div>
+                <div className="mt-2 text-[18px] font-black text-slate-900">Licencia Explorer</div>
               </div>
               <div className="text-right">
                 <div className="text-[46px] leading-[1] font-black tracking-tight text-slate-900">0 €</div>
-                <div className="mt-1 text-[10px] font-black tracking-[0.35em] uppercase text-slate-400">PARA SIEMPRE</div>
+                <div className="mt-1 text-[10px] font-black tracking-[0.35em] uppercase text-slate-400">SIN COSTE OCULTO</div>
               </div>
             </div>
-<div className="mt-8 flex flex-col gap-3">
-              {/* Este botón ahora simplemente cierra el pop-up y te deja en la Bola del Mundo */}
+
+            <div className="mt-8 flex flex-col gap-3">
               <button 
-                onClick={onClose} 
+                onClick={onAccept} // 👈 EJECUTA LA ORDEN DE SALIDA A LA BOLA DEL MUNDO
                 className="h-14 w-full rounded-[18px] bg-blue-600 text-white font-black tracking-wide transition hover:bg-blue-700 hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-lg shadow-blue-600/30"
               >
-                Ir a Crear Cuenta Gratuita
+                Crear Cuenta Gratuita
               </button>
               
-              <button onClick={onClose} className="h-12 w-full rounded-[18px] text-slate-500 font-bold text-sm hover:text-slate-900 transition-colors">
-                Cerrar invitación
+              <button 
+                onClick={onClose} 
+                className="h-12 w-full rounded-[18px] text-slate-500 font-bold text-sm hover:text-slate-900 transition-colors"
+              >
+                Volver al inicio
               </button>
             </div>
           </div>

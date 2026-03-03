@@ -1766,10 +1766,21 @@ useEffect(() => {
          </div>
        )}
        
-       {/* 🕸️ LA RED DE CAPTURA PARA INVITADOS VIP 🕸️ */}
+      {/* 🕸️ LA RED DE CAPTURA PARA INVITADOS VIP 🕸️ */}
        <GuestInviteOverlay 
           isOpen={showGuestInvite} 
-          onClose={() => setShowGuestInvite(false)} 
+          
+          // Si dice "Volver al inicio" o cierra en la X:
+          onClose={() => {
+              setShowGuestInvite(false);
+              setGateUnlocked(false); // Le quita el mapa y lo deja en la bola del mundo
+          }} 
+          
+          // Si pulsa "Crear Cuenta Gratuita":
+          onAccept={() => {
+              setShowGuestInvite(false);
+              setGateUnlocked(false); // Lo manda a la bola del mundo (donde está el botón real)
+          }}
        />
 
     </div>
