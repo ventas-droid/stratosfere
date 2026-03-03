@@ -286,7 +286,6 @@ useEffect(() => {
   const handleLogoutCleanup = () => {
       setActiveUserKey(null);
       setIdentityVerified(false);
-      setGateUnlocked(false);
       if (typeof setUserRole === 'function') {
           setUserRole(null);
       }
