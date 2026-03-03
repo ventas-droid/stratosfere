@@ -1027,12 +1027,13 @@ useEffect(() => {
           // 🔥 LA TRAMPA: Si el intruso tiene un Pase VIP y toca donde no debe, se lo rompemos.
           if (isVipGuest) {
               if (typeof revokeVipPass === 'function') revokeVipPass();
-              setSystemMode('GATEWAY'); // Lo mandamos directo a la calle
-              setShowGuestInvite(true); // 👈 BOOM: LE LANZAMOS LA INVITACIÓN
+              setSystemMode('GATEWAY'); 
+              setShowGuestInvite(true); 
+              return; // 👈 CORTAFUEGOS: Salimos de la función YA para que no cierre el candado
           }
           
           setTimeout(() => {
-              setGateUnlocked(false); // Echamos el candado total
+              setGateUnlocked(false); // (Esto solo le pasará a los que NO son VIP)
           }, 1500);
           
           return; 
@@ -1647,15 +1648,15 @@ useEffect(() => {
                    
                    console.log("   - 🚪 PUERTA ELEGIDA:", usarPanelPro ? "PANEL PRO (Agencia)" : "PANEL CIVIL (Particular)");
 
-                   // 🛡️ FUNCIÓN DE CIERRE BLINDADA
+              // 🛡️ FUNCIÓN DE CIERRE BLINDADA
                    const handleCloseDetails = () => {
                        setActivePanel('NONE');
                        // Si es un invitado VIP y NO tiene cuenta registrada, lo echamos al Gateway y le vendemos
                        if (isVipGuest && (!activeUserKey || activeUserKey === 'anon')) {
                            if (typeof revokeVipPass === 'function') revokeVipPass(); 
-                           setGateUnlocked(false); 
+                           // ✂️ LÍNEA BORRADA AQUÍ (setGateUnlocked)
                            setSystemMode('GATEWAY'); 
-                           setShowGuestInvite(true); // 👈 BOOM: INVITACIÓN
+                           setShowGuestInvite(true); // 👈 INVITACIÓN
                        }
                    };
 
