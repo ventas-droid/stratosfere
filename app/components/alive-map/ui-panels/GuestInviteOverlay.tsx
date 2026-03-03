@@ -92,14 +92,17 @@ export default function GuestInviteOverlay({ isOpen, onClose }: Props) {
                 <div className="mt-1 text-[10px] font-black tracking-[0.35em] uppercase text-slate-400">PARA SIEMPRE</div>
               </div>
             </div>
-
-            <div className="mt-8 flex flex-col gap-3">
-              {/* SUSTITUYE '/login' POR TU RUTA REAL DE REGISTRO (ej: /sign-up, /auth, etc) */}
-              <a href="/login" className="h-14 w-full rounded-[18px] bg-blue-600 text-white font-black tracking-wide transition hover:bg-blue-700 hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-lg shadow-blue-600/30">
-                Crear Cuenta Gratuita
-              </a>
+<div className="mt-8 flex flex-col gap-3">
+              {/* Este botón ahora simplemente cierra el pop-up y te deja en la Bola del Mundo */}
+              <button 
+                onClick={onClose} 
+                className="h-14 w-full rounded-[18px] bg-blue-600 text-white font-black tracking-wide transition hover:bg-blue-700 hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-lg shadow-blue-600/30"
+              >
+                Ir a Crear Cuenta Gratuita
+              </button>
+              
               <button onClick={onClose} className="h-12 w-full rounded-[18px] text-slate-500 font-bold text-sm hover:text-slate-900 transition-colors">
-                Volver a la vista global
+                Cerrar invitación
               </button>
             </div>
           </div>
