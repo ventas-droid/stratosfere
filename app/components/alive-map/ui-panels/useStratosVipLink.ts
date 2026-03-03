@@ -42,15 +42,7 @@ export const useStratosVipLink = (
             const cleanProp = sanitizePropertyData(res.data);
 
             if (cleanProp) {
-              // 🧨 1. LIMPIEZA DE URL (Silenciosa)
-              if (typeof window !== 'undefined') {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('p');
-                url.searchParams.delete('ref');
-                url.searchParams.delete('selectedProp');
-                window.history.replaceState(null, '', url.pathname);
-              }
-
+            
               // 2. PROTOCOLO DE APERTURA
               setIsVipGuest(true);
               if (setGateUnlocked) setGateUnlocked(true);
@@ -61,30 +53,51 @@ export const useStratosVipLink = (
               // 3. DESPLIEGUE TÁCTICO (Vuelo del dron al activo)
               setTimeout(() => {
                 setSelectedProp(cleanProp);
-                setActivePanel('DETAILS');
                 
-                // Si la propiedad tiene coordenadas, mandamos el mapa allí
+                // Forzamos apertura del panel
+                setTimeout(() => {
+                  setActivePanel('DETAILS');
+                }, 150);
+                
+                // Vuelo del dron
                 const coords = cleanProp.coordinates || [cleanProp.lng, cleanProp.lat];
                 if (coords && map?.current) {
                   map.current.flyTo({ 
                     center: coords, 
                     zoom: 18, 
-                    pitch: 65, // Un poco más de inclinación para efecto cinematográfico
+                    pitch: 65, 
                     bearing: -20,
-                    duration: 3500 // Un vuelo un poco más suave
+                    duration: 3500 
                   });
                 }
-              }, 800); // Un poco más de margen para que la UI respire
+
+                // 🔥 LA CLAVE: Limpiamos la URL aquí, 4 segundos después, no antes.
+                // Si la limpias arriba, el sistema cree que ya no eres VIP y te echa.
+                setTimeout(() => {
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('p');
+                    url.searchParams.delete('ref');
+                    url.searchParams.delete('selectedProp');
+                    window.history.replaceState(null, '', url.pathname);
+                    console.log("🧹 URL Limpiada: Acceso VIP consolidado.");
+                  }
+                }, 4000);
+
+              }, 800); 
             }
           }
         } catch (e) {
           console.error("❌ Error crítico en el enlace VIP:", e);
+          hasProcessed.current = false;
+          if (setShowAdvancedConsole) setShowAdvancedConsole(true);
         }
       }
     };
     
     checkUrl();
-  }, [searchParams, map]); // Simplificamos dependencias para evitar bucles
+    // Añadimos las dependencias para que el linter no de guerra
+  }, [searchParams, map, setSelectedProp, setActivePanel, setSystemMode, setLandingComplete, setGateUnlocked, setShowAdvancedConsole]);
 
   return { isVipGuest };
 };

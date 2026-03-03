@@ -16,7 +16,7 @@ import { Toaster, toast } from 'sonner';
 
 import { 
     X, Heart, Phone, Sparkles, User, ShieldCheck, Briefcase,
-    Star, Home, Maximize2, ArrowUp,
+    Star, Home, Maximize2, ArrowUp, Link,
     Car, Trees, Waves, Sun, Box, Thermometer, 
     Camera, Globe, Plane, Hammer, Ruler, Handshake, Coins,
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
@@ -83,6 +83,49 @@ const [showB2BModal, setShowB2BModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
+// 🔥 ESTADO PARA EL BOTÓN VIP
+    const [copiedVip, setCopiedVip] = useState(false);
+
+    // 🔥 FUNCIÓN PARA COPIAR EL ENLACE VIP
+    const handleCopyVipLink = async () => {
+        if (!selectedProp) return;
+        const ref = selectedProp.refCode || "N/A";
+        const id = selectedProp.id || "error";
+        
+        const link = selectedProp.refCode 
+            ? `https://stratosfere.com/?ref=${encodeURIComponent(selectedProp.refCode.trim())}` 
+            : `https://stratosfere.com/?p=${id}`;
+
+        const tipo = selectedProp.type ? String(selectedProp.type).toUpperCase() : "INMUEBLE";
+        const ubicacion = selectedProp.address || selectedProp.location || selectedProp.city || "Ubicación Privada";
+        
+        let precio = "Consultar Precio";
+        if (selectedProp.price) {
+            const numPrice = Number(String(selectedProp.price).replace(/\D/g, ''));
+            if (!isNaN(numPrice) && numPrice > 0) precio = new Intl.NumberFormat('es-ES').format(numPrice) + " €";
+            else precio = String(selectedProp.price);
+        }
+
+        const habs = selectedProp.rooms || selectedProp.bedrooms || 0;
+        const banos = selectedProp.baths || selectedProp.bathrooms || 0;
+        const metros = selectedProp.mBuilt || selectedProp.surface || 0;
+
+        const texto = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${link}`;
+
+        try {
+            await navigator.clipboard.writeText(texto);
+            setCopiedVip(true);
+            toast.success("Enlace VIP Copiado", { description: "Listo para compartir por WhatsApp o Email." });
+            setTimeout(() => setCopiedVip(false), 2000);
+            
+            if (id !== "error" && typeof incrementStatsAction === 'function') {
+                incrementStatsAction(id, 'share');
+            }
+        } catch (err) {
+            console.error("Error al copiar", err);
+            toast.error("Error", { description: "No se pudo copiar el enlace." });
+        }
+    };
 
     const [sendingLead, setSendingLead] = useState(false);
     const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', message: '' });
@@ -644,7 +687,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                         )}
                     </div>
 
-                    <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
+                  <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
                         <div className="flex items-center gap-2 mb-4">
                             <Activity size={16} className="text-blue-600"/>
                             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900">Métricas de Interés</h3>
@@ -679,6 +722,28 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                 </div>
                             </div>
                         </div>
+
+                        {/* 🔥 NUEVO BOTÓN VIP PASS 🔥 */}
+                        <div className="mt-5 border-t border-slate-100 pt-5">
+                            <button
+                                type="button"
+                                onClick={handleCopyVipLink}
+                                className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 p-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group cursor-pointer shadow-lg"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform">
+                                    {copiedVip ? <Check size={18} className="text-emerald-400" /> : <Link size={18} />}
+                                </div>
+                                <div className="text-left flex flex-col justify-center">
+                                    <p className="text-[12px] font-black text-white uppercase tracking-wide">
+                                        {copiedVip ? "¡Copiado con éxito!" : "Copiar Invitación"}
+                                    </p>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                        {copiedVip ? "Pégalo en WhatsApp o Email" : "Acceso VIP Universal"}
+                                    </p>
+                                </div>
+                            </button>
+                        </div>
+
                         <div className="mt-3 text-[9px] text-slate-400 font-medium text-center bg-slate-50 py-1 rounded-lg">
                             Datos actualizados en tiempo real por Stratos Intelligence™
                         </div>
@@ -686,7 +751,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                     
                     <div className="h-32 w-full shrink-0"></div>
                 </div>
-
+                
                 {/* FOOTER */}
                 <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20 relative">
                   {canSeeCommission && (
