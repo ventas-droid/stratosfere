@@ -1,6 +1,6 @@
 "use client";
 // Ubicación: ./app/components/alive-map/ui-panels/useStratosVipLink.ts
-import { useState, useEffect, useRef } from "react"; // 💡 Añadimos useRef
+import { useState, useEffect, useRef } from "react"; 
 import { sanitizePropertyData } from "../../../utils/propertyCore";
 import { getPropertyByIdAction, getPropertyByRefCodeAction } from "@/app/actions";
 
@@ -15,16 +15,22 @@ export const useStratosVipLink = (
   setGateUnlocked: any
 ) => {
   const [isVipGuest, setIsVipGuest] = useState(false);
-  // 🛡️ Evitamos que el sensor se dispare dos veces (strict mode)
   const hasProcessed = useRef(false);
+
+  // 🛡️ PROTOCOLO DE EXTRACCIÓN: Destruye el pase VIP
+  const revokeVipPass = () => {
+    setIsVipGuest(false);
+    hasProcessed.current = false;
+    console.log("🔒 Pase VIP revocado. Usuario expulsado al Gateway.");
+  };
 
   useEffect(() => {
     if (!searchParams || hasProcessed.current) return;
 
     const checkUrl = async () => {
-      // 🛰️ SENSOR DUAL
       const propId = searchParams.get('p') || searchParams.get('selectedProp');
-const refCode = searchParams.get('vip');      
+      const refCode = searchParams.get('vip');      
+      
       if (propId || refCode) {
         hasProcessed.current = true; // Marcamos como procesado
         console.log("🎯 VIP PASS Detectado:", refCode ? `Ref: ${refCode}` : `ID: ${propId}`);
@@ -41,7 +47,6 @@ const refCode = searchParams.get('vip');
             const cleanProp = sanitizePropertyData(res.data);
 
             if (cleanProp) {
-            
               // 2. PROTOCOLO DE APERTURA
               setIsVipGuest(true);
               if (setGateUnlocked) setGateUnlocked(true);
@@ -49,16 +54,14 @@ const refCode = searchParams.get('vip');
               if (setLandingComplete) setLandingComplete(true); 
               if (setShowAdvancedConsole) setShowAdvancedConsole(false);
               
-              // 3. DESPLIEGUE TÁCTICO (Vuelo del dron al activo)
+              // 3. DESPLIEGUE TÁCTICO
               setTimeout(() => {
                 setSelectedProp(cleanProp);
                 
-                // Forzamos apertura del panel
                 setTimeout(() => {
                   setActivePanel('DETAILS');
                 }, 150);
                 
-                // Vuelo del dron
                 const coords = cleanProp.coordinates || [cleanProp.lng, cleanProp.lat];
                 if (coords && map?.current) {
                   map.current.flyTo({ 
@@ -70,7 +73,6 @@ const refCode = searchParams.get('vip');
                   });
                 }
 
-                // 🔥 LA CLAVE: Limpiamos la URL aquí, 4 segundos después, no antes.
                 setTimeout(() => {
                   if (typeof window !== 'undefined') {
                     const url = new URL(window.location.href);
@@ -94,9 +96,8 @@ const refCode = searchParams.get('vip');
     };
     
     checkUrl();
-    
-    // 🛡️ MODO BLINDADO: Solo vigilamos searchParams y map para evitar el Error 9
   }, [searchParams, map]); 
 
-  return { isVipGuest };
+  // 🔥 EXPORTAMOS LA NUEVA FUNCIÓN AQUÍ
+  return { isVipGuest, revokeVipPass };
 };

@@ -1010,7 +1010,7 @@ useEffect(() => {
     return <StratosWelcomeGate playSynthSound={playSynthSound} />;
   }
 
-// 🛡️ ESCUDO ANTI-INTRUSOS (CON MEMORIA DE REGRESO)
+/// 🛡️ ESCUDO ANTI-INTRUSOS (CON MEMORIA DE REGRESO Y TRAMPA VIP)
   const requireAuth = (callback: Function) => {
       if (!identityVerified || activeUserKey === 'anon') {
           if (typeof playSynthSound === 'function') playSynthSound('error'); 
@@ -1019,20 +1019,25 @@ useEffect(() => {
               addNotification("🔒 Acción restringida. Regístrate para explorar más.");
           }
 
-          // 🧠 TÁCTICA DE RETENCIÓN: Guardamos el ID del piso en la mochila (localStorage)
+          // 🧠 TÁCTICA DE RETENCIÓN: Guardamos el ID del piso en la mochila
           if (selectedProp?.id) {
               localStorage.setItem('stratos_return_intent', selectedProp.id);
           }
           
+          // 🔥 LA TRAMPA: Si el intruso tiene un Pase VIP y toca donde no debe, se lo rompemos.
+          if (isVipGuest) {
+              revokeVipPass();
+              setSystemMode('GATEWAY'); // Lo mandamos directo a la calle
+          }
+          
           setTimeout(() => {
-              setGateUnlocked(false); 
+              setGateUnlocked(false); // Echamos el candado total
           }, 1500);
           
           return; 
       }
       callback();
   };
-
   // --- RENDERIZADO PRINCIPAL ---
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end pb-8 animate-fade-in text-sans select-none">

@@ -265,6 +265,8 @@ export async function getGlobalPropertiesAction() {
 
 // ✅ Obtener UNA propiedad completa (CORREGIDO: Con Estadísticas y Datos Financieros)
 export async function getPropertyByIdAction(propertyId: string) {
+  cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché de Next.js. Garantiza privacidad total.
+
   try {
     const id = String(propertyId || "").trim();
     if (!id) return { success: false, error: "MISSING_PROPERTY_ID" };
@@ -299,7 +301,6 @@ export async function getPropertyByIdAction(propertyId: string) {
     });
 
     if (!p) return { success: false, error: "NOT_FOUND" };
-
     // --- IMÁGENES ---
     const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
     const realImg = allImages?.[0] || p.mainImage || null;
@@ -3662,6 +3663,8 @@ export async function getUnreadCountAction() {
 
 // ✅ RESOLVER EXPEDIENTE VIP POR REFCODE (SF-XXXX)
 export async function getPropertyByRefCodeAction(refCode: string) {
+  cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché cruzada de Next.js aquí
+
   try {
     // 1. Normalización estricta
     const cleanRef = String(refCode || "").trim().toUpperCase();
