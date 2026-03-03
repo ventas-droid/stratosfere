@@ -3659,3 +3659,42 @@ export async function getUnreadCountAction() {
         return { count: 0 };
     }
 }
+
+// ✅ RESOLVER EXPEDIENTE VIP POR REFCODE (SF-XXXX)
+export async function getPropertyByRefCodeAction(refCode: string) {
+  try {
+    // 1. Normalización estricta
+    const cleanRef = String(refCode || "").trim().toUpperCase();
+    
+    if (!cleanRef) {
+      return { success: false, error: "REF_REQUIRED" };
+    }
+
+    // 2. Búsqueda directa (Aprovechando que es @unique en tu DB)
+    // Usamos findUnique porque es el método más rápido de Prisma para campos únicos
+    const property = await prisma.property.findUnique({
+      where: { 
+        refCode: cleanRef 
+      },
+      include: {
+        user: true // Vital para que el DetailsPanel cargue el avatar del dueño
+      }
+    });
+
+    // 3. Validación de existencia
+    if (!property) {
+      console.error(`[VIP_ERROR]: Intento de acceso con REF inexistente: ${cleanRef}`);
+      return { success: false, error: "NOT_FOUND" };
+    }
+
+    // 4. Éxito: Retornamos el expediente completo
+    return { 
+      success: true, 
+      data: property 
+    };
+
+  } catch (e) {
+    console.error("[CRITICAL_DATABASE_ERROR]:", e);
+    return { success: false, error: "SERVER_ERROR" };
+  }
+}

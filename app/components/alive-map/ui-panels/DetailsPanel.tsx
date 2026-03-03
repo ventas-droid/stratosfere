@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
     X, Heart, Phone, Sparkles, Star, Home, Maximize2, Building2, ArrowUp,
-    Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck, Flame, Wind, 
-    Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, Eye, 
+    Car, Trees, Waves, Sun, Box, Thermometer, ShieldCheck, Flame, Wind, Link, ExternalLink, 
+    Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, TrendingUp, Share2, Eye, LinkIcon, 
     Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, ChevronDown,
     Droplets, Paintbrush, Truck, Briefcase, Bed, Bath, User, Copy, Check, MessageCircle, FileDown, MapPin, 
     Loader2, Send // ✅ AÑADIDOS: Para el formulario de contacto
@@ -226,57 +226,8 @@ export default function DetailsPanel({
 
     // ❤️ FAVORITOS
     const isFavorite = (favorites || []).some((f: any) => String(f?.id) === String(selectedProp?.id));
-// 🔥 FUNCIÓN 1: WHATSAPP DIRECTO (CON PLAN B DE EMERGENCIA)
-    const handleWhatsAppShare = async () => {
-        try {
-            const p = selectedProp || {};
-            const propId = p.id || p.propertyId || p._id || "NO_ID";
-            
-            // Si no hay ID, abortamos misión
-            if (propId === "NO_ID") {
-                if (typeof toast !== 'undefined') toast.error("Error", { description: "Esta propiedad no tiene un ID válido." });
-                return; 
-            }
-            
-            const ref = p.refCode || "N/A";
-            const tipo = p.type ? String(p.type).toUpperCase() : "INMUEBLE";
-            const ubicacion = p.address || p.location || p.city || "Ubicación Privada";
-            
-            let precio = "Consultar Precio";
-            if (p.price) {
-                const numPrice = Number(String(p.price).replace(/\D/g, ''));
-                if (!isNaN(numPrice) && numPrice > 0) precio = new Intl.NumberFormat('es-ES').format(numPrice) + " €";
-                else precio = String(p.price);
-            }
 
-            const habs = p.rooms || p.bedrooms || 0;
-            const banos = p.baths || p.bathrooms || 0;
-            const metros = p.mBuilt || p.surface || 0;
-            
-            const vipLink = `https://stratosfere.com/?p=${propId}`;
-            const shareText = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${vipLink}`;
-
-            // Abre WhatsApp Automáticamente
-            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
-
-            if (typeof incrementStatsAction === 'function') await incrementStatsAction(propId, 'share');
-            setSelectedProp((prev: any) => ({ ...prev, shareCount: (prev?.shareCount || 0) + 1 }));
-
-        } catch (error) {
-            console.error("Error en WhatsApp Share:", error);
-            // 🔥 PLAN B: Si todo lo demás falla, enviamos solo el link pelado
-            try {
-                 const emergencyId = selectedProp?.id || selectedProp?.propertyId || selectedProp?._id;
-                 if (emergencyId) {
-                     const fallbackText = `Mira este inmueble: https://stratosfere.com/?p=${emergencyId}`;
-                     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(fallbackText)}`, '_blank');
-                 }
-            } catch (e) {
-                 if (typeof toast !== 'undefined') toast.error("Error crítico al abrir WhatsApp");
-            }
-        }
-    };
-
+ 
     // 🔥 FUNCIÓN 2: COPIAR TODO EL TEXTO (Para Email o pegar manualmente)
     const handleCopyVipLink = async () => {
         const p = selectedProp || {};
@@ -295,8 +246,11 @@ export default function DetailsPanel({
         const habs = p.rooms || p.bedrooms || 0;
         const banos = p.baths || p.bathrooms || 0;
         const metros = p.mBuilt || p.surface || 0;
-        const vipLink = `https://stratosfere.com/?p=${propId}`;
-        const shareText = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${vipLink}`;
+const vipLink = p.refCode 
+    ? `https://stratosfere.com/?ref=${encodeURIComponent(p.refCode.trim())}` 
+    : `https://stratosfere.com/?p=${propId}`;      
+    
+    const shareText = `🏛️ *STRATOSFERE OS | EXPEDIENTE OFICIAL* 🏛️\n\n*REF:* ${ref}\n*Activo:* ${tipo}\n*Ubicación:* ${ubicacion}\n*Precio:* ${precio}\n\n🛏️ ${habs} Hab. | 🛁 ${banos} Baños | 📐 ${metros}m²\n\n🔗 *Ver Expediente y Fotos:*\n${vipLink}`;
 
         try {
             await navigator.clipboard.writeText(shareText);
@@ -634,39 +588,29 @@ export default function DetailsPanel({
                             </div>
                         </div>
 
-                        {/* 2. ZONA VIP PASS */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            
-                            {/* Botón WhatsApp Oficial */}
-                            <button
-                                onClick={handleWhatsAppShare}
-                                className="bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 p-3 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                                
-                                <div className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform z-10">
-                                    <MessageCircle size={18} className="fill-current" />
-                                </div>
-                                <div className="text-left z-10 flex flex-col justify-center">
-                                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">WhatsApp</p>
-                                    <p className="text-[9px] font-bold text-[#25D366] uppercase tracking-wider flex items-center gap-1">Enviar VIP <Sparkles size={10}/></p>
-                                </div>
-                            </button>
-
-                            {/* Botón Copiar Enlace Universal */}
-                            <button
-                                onClick={handleCopyVipLink}
-                                className="bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 p-3 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group relative overflow-hidden"
-                            >
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-colors z-10 border border-slate-100 ${copied ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
-                                    {copied ? <Check size={18} /> : <Copy size={18} />}
-                                </div>
-                                <div className="text-left z-10 flex flex-col justify-center">
-                                    <p className="text-[11px] font-black text-slate-900 uppercase tracking-wide">{copied ? "¡COPIADO!" : "Copiar Link"}</p>
-                                    <p className="text-[9px] font-bold text-slate-400 group-hover:text-blue-500 uppercase tracking-wider transition-colors">{copied ? "Listo para pegar" : "Universal"}</p>
-                                </div>
-                            </button>
-                        </div>
+                    {/* 2. ZONA VIP PASS - Limpio y Estable */}
+<div className="mt-4">
+    <div className="flex flex-col gap-3">
+        {/* Solo mantenemos el botón de Copiar que ya te funciona */}
+        <button
+            type="button"
+            onClick={handleCopyVipLink}
+            className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 p-3 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group cursor-pointer"
+        >
+            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform">
+                <LinkIcon size={18} />
+            </div>
+            <div className="text-left flex flex-col justify-center">
+                <p className="text-[11px] font-black text-white uppercase tracking-wide">
+                    Copiar Invitación
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    Acceso VIP Universal
+                </p>
+            </div>
+        </button>
+    </div>
+</div>
                         
                         {/* 3. Indicador Total Compartidos */}
                         <div className="mt-4 flex items-center justify-between bg-slate-50 py-2.5 px-4 rounded-xl border border-slate-100">

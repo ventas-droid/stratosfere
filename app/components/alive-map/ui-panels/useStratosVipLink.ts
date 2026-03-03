@@ -1,7 +1,8 @@
+"use client";
 // Ubicación: ./app/components/alive-map/ui-panels/useStratosVipLink.ts
-import { useState, useEffect } from "react";
-import { getPropertyByIdAction } from "@/app/actions";
+import { useState, useEffect, useRef } from "react"; // 💡 Añadimos useRef
 import { sanitizePropertyData } from "../../../utils/propertyCore";
+import { getPropertyByIdAction, getPropertyByRefCodeAction } from "@/app/actions";
 
 export const useStratosVipLink = (
   searchParams: any,
@@ -14,59 +15,76 @@ export const useStratosVipLink = (
   setGateUnlocked: any
 ) => {
   const [isVipGuest, setIsVipGuest] = useState(false);
+  // 🛡️ Evitamos que el sensor se dispare dos veces (strict mode)
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
-    if (!searchParams) return;
+    if (!searchParams || hasProcessed.current) return;
 
     const checkUrl = async () => {
-      const propId = searchParams.get('p') || searchParams.get('selectedProp'); 
+      // 🛰️ SENSOR DUAL
+      const propId = searchParams.get('p') || searchParams.get('selectedProp');
+      const refCode = searchParams.get('ref'); 
       
-      if (propId) {
-        console.log("🎯 VIP PASS Detectado para:", propId);
+      if (propId || refCode) {
+        hasProcessed.current = true; // Marcamos como procesado
+        console.log("🎯 VIP PASS Detectado:", refCode ? `Ref: ${refCode}` : `ID: ${propId}`);
+        
         try {
-          const res = await getPropertyByIdAction(propId);
+          let res = null;
+          if (refCode) {
+            res = await getPropertyByRefCodeAction(refCode);
+          } else if (propId) {
+            res = await getPropertyByIdAction(propId as string);
+          }
           
           if (res?.success && res.data) {
             const cleanProp = sanitizePropertyData(res.data);
 
             if (cleanProp) {
-              // 🧨 1. LA CURA AL BUCLE INFINITO: Borramos el rastro de la URL sin recargar la página.
+              // 🧨 1. LIMPIEZA DE URL (Silenciosa)
               if (typeof window !== 'undefined') {
-                window.history.replaceState(null, '', window.location.pathname);
+                const url = new URL(window.location.href);
+                url.searchParams.delete('p');
+                url.searchParams.delete('ref');
+                url.searchParams.delete('selectedProp');
+                window.history.replaceState(null, '', url.pathname);
               }
 
-              // 2. Activamos modo invitado y abrimos la puerta (SIN mentir con la identidad)
+              // 2. PROTOCOLO DE APERTURA
               setIsVipGuest(true);
-              setGateUnlocked(true);
-
-              if (typeof setSystemMode === 'function') setSystemMode('EXPLORER');
-              setLandingComplete(true); 
-              setShowAdvancedConsole(false);
+              if (setGateUnlocked) setGateUnlocked(true);
+              if (setSystemMode) setSystemMode('EXPLORER');
+              if (setLandingComplete) setLandingComplete(true); 
+              if (setShowAdvancedConsole) setShowAdvancedConsole(false);
               
-              // 3. Volamos hacia la casa
+              // 3. DESPLIEGUE TÁCTICO (Vuelo del dron al activo)
               setTimeout(() => {
                 setSelectedProp(cleanProp);
                 setActivePanel('DETAILS');
                 
-                if (cleanProp.coordinates && map?.current) {
+                // Si la propiedad tiene coordenadas, mandamos el mapa allí
+                const coords = cleanProp.coordinates || [cleanProp.lng, cleanProp.lat];
+                if (coords && map?.current) {
                   map.current.flyTo({ 
-                    center: cleanProp.coordinates, 
+                    center: coords, 
                     zoom: 18, 
-                    pitch: 60,
-                    duration: 3000 
+                    pitch: 65, // Un poco más de inclinación para efecto cinematográfico
+                    bearing: -20,
+                    duration: 3500 // Un vuelo un poco más suave
                   });
                 }
-              }, 500);
+              }, 800); // Un poco más de margen para que la UI respire
             }
           }
         } catch (e) {
-          console.error("Error abriendo link VIP:", e);
+          console.error("❌ Error crítico en el enlace VIP:", e);
         }
       }
     };
     
     checkUrl();
-  }, [searchParams, map, setSystemMode, setSelectedProp, setActivePanel, setLandingComplete, setShowAdvancedConsole, setGateUnlocked]);
+  }, [searchParams, map]); // Simplificamos dependencias para evitar bucles
 
   return { isVipGuest };
 };
