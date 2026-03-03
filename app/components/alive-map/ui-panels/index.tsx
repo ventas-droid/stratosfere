@@ -38,6 +38,7 @@ import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
 import AgencyAmbassadorPanel from "./AgencyAmbassadorPanel";
 import PremiumUpgradePanel from "./PremiumUpgradePanel";
 import PlanOverlay from "@/app/components/billing/PlanOverlay";
+import GuestInviteOverlay from "./GuestInviteOverlay";
 import { useMyPlan } from "@/app/components/billing/useMyPlan";
 import SmartSidebar from '@/app/components/alive-map/ui-panels/SmartSidebar';
 
@@ -169,7 +170,7 @@ export default function UIPanels({
   const [landingComplete, setLandingComplete] = useState(false);
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
-  
+  const [showGuestInvite, setShowGuestInvite] = useState(false);
   // 🔥 MOTOR VIP PASS (BLINDADO CONTRA BUCLES)
   const searchParams = useSearchParams();
   const { isVipGuest } = useStratosVipLink(
@@ -1009,7 +1010,7 @@ useEffect(() => {
     return <StratosWelcomeGate playSynthSound={playSynthSound} />;
   }
 
-/// 🛡️ ESCUDO ANTI-INTRUSOS (CON MEMORIA DE REGRESO Y TRAMPA VIP)
+// 🛡️ ESCUDO ANTI-INTRUSOS (CON MEMORIA DE REGRESO Y TRAMPA VIP)
   const requireAuth = (callback: Function) => {
       if (!identityVerified || activeUserKey === 'anon') {
           if (typeof playSynthSound === 'function') playSynthSound('error'); 
@@ -1025,8 +1026,9 @@ useEffect(() => {
           
           // 🔥 LA TRAMPA: Si el intruso tiene un Pase VIP y toca donde no debe, se lo rompemos.
           if (isVipGuest) {
-              revokeVipPass();
+              if (typeof revokeVipPass === 'function') revokeVipPass();
               setSystemMode('GATEWAY'); // Lo mandamos directo a la calle
+              setShowGuestInvite(true); // 👈 BOOM: LE LANZAMOS LA INVITACIÓN
           }
           
           setTimeout(() => {
@@ -1639,18 +1641,30 @@ useEffect(() => {
                    console.log("   - Visitante (Usted):", roleVisitante);
                    console.log("   - ¿Usted es Agencia?:", soyAgencia);
 
-                   // 3. DECISIÓN FINAL (REGLAS UNIVERSALES SAAS)
+                 // 3. DECISIÓN FINAL (REGLAS UNIVERSALES SAAS)
                    // LA CASA MANDA. Si la casa la lleva una Agencia, abre PRO. Si no, CIVIL.
                    const usarPanelPro = isOwnerAgency;
                    
                    console.log("   - 🚪 PUERTA ELEGIDA:", usarPanelPro ? "PANEL PRO (Agencia)" : "PANEL CIVIL (Particular)");
+
+                   // 🛡️ FUNCIÓN DE CIERRE BLINDADA
+                   const handleCloseDetails = () => {
+                       setActivePanel('NONE');
+                       // Si es un invitado VIP y NO tiene cuenta registrada, lo echamos al Gateway y le vendemos
+                       if (isVipGuest && (!activeUserKey || activeUserKey === 'anon')) {
+                           if (typeof revokeVipPass === 'function') revokeVipPass(); 
+                           setGateUnlocked(false); 
+                           setSystemMode('GATEWAY'); 
+                           setShowGuestInvite(true); // 👈 BOOM: INVITACIÓN
+                       }
+                   };
 
                    // 4. ABRIMOS LA PUERTA
                    return usarPanelPro ? (
                         <AgencyDetailsPanel 
                             key={`agency-panel-${selectedProp?.id}`} 
                             selectedProp={selectedProp} 
-                            onClose={() => setActivePanel('NONE')} 
+                            onClose={handleCloseDetails} // 👈 SUSTITUIDO
                             onToggleFavorite={handleToggleFavorite} 
                             favorites={uiFavs}
                             onOpenInspector={() => setActivePanel('INSPECTOR')}
@@ -1661,7 +1675,7 @@ useEffect(() => {
                        <DetailsPanel 
                            key={`civil-panel-${selectedProp?.id}`}
                            selectedProp={selectedProp} 
-                           onClose={() => setActivePanel('NONE')} 
+                           onClose={handleCloseDetails} // 👈 SUSTITUIDO
                            onToggleFavorite={handleToggleFavorite} 
                            favorites={uiFavs}
                            soundEnabled={soundEnabled} 
@@ -1748,9 +1762,15 @@ useEffect(() => {
                       </p>
                   </div>
               </div>
-          </div>
+         </div>
        )}
+       
+       {/* 🕸️ LA RED DE CAPTURA PARA INVITADOS VIP 🕸️ */}
+       <GuestInviteOverlay 
+          isOpen={showGuestInvite} 
+          onClose={() => setShowGuestInvite(false)} 
+       />
+
     </div>
   );
 }
-
