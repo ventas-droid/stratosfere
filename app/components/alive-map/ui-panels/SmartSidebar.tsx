@@ -146,14 +146,24 @@ const handlePark = (e: any) => {
 
   return (
 <div className={`fixed right-7 top-0 bottom-10 w-[490px] pt-8 flex flex-col gap-4 pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${isParked ? 'translate-x-[120%] opacity-0 z-[10]' : 'translate-x-0 opacity-100 z-[999999]'}`}>        
-        <div className="bg-white/95 backdrop-blur-xl rounded-[28px] pt-12 pb-6 px-6 shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white pointer-events-auto shrink-0 flex flex-col gap-5 relative">        
+        <div className="bg-white/95 backdrop-blur-xl rounded-[28px] pt-8 pb-6 px-6 shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white pointer-events-auto shrink-0 flex flex-col gap-4 relative">        
             {onClose && (
                 <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 p-1.5 rounded-full transition-all z-10">
                     <X size={18} />
                 </button>
             )}
 
-            <div className="relative group mt-2 pr-8">
+            {/* 🔥 NUEVA CABECERA DE ALTO IMPACTO 🔥 */}
+            <div className="pr-10 mt-1">
+                <h2 className="text-3xl font-black tracking-tighter text-slate-900 leading-none">
+                    Stratosfere OS.
+                </h2>
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">
+                    Intelligence: Search Better.
+                </p>
+            </div>
+
+            <div className="relative group pr-8">
                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                     <Search className="text-blue-500 transition-colors" size={20} />
                 </div>

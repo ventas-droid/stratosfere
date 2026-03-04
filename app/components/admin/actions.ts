@@ -257,3 +257,80 @@ export async function importarBaseDeDatosAction() {
         return { success: false };
     }
 }
+// =========================================================
+// 👑 SUPER ADMIN: GESTIÓN DE SUSCRIPCIONES (PREMIUM VITALICIO)
+// =========================================================
+export async function toggleUserSubscriptionAction(userId: string, targetStatus: "ACTIVE" | "INACTIVE") {
+  try {
+    // 1. SI ES ACTIVAR -> UPSERT (Crear o Actualizar a AGENCY/ACTIVE)
+    if (targetStatus === "ACTIVE") {
+        await prisma.subscription.upsert({
+            where: { userId: userId },
+            update: {
+                status: "ACTIVE",
+                plan: "AGENCY",
+                currentPeriodEnd: new Date("2030-01-01"), // Licencia vitalicia
+            },
+            create: {
+                userId: userId,
+                status: "ACTIVE",
+                plan: "AGENCY",
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: new Date("2030-01-01"),
+            }
+        });
+    } 
+    // 2. SI ES DESACTIVAR -> UPDATE A CANCELLED
+    else {
+        try {
+            await prisma.subscription.update({
+                where: { userId: userId },
+                data: { status: "CANCELLED" }
+            });
+        } catch (e) {
+            // Ignoramos si no existía, da igual
+        }
+    }
+
+    revalidatePath("/admin"); // Refresca la página de admin
+    return { success: true };
+
+  } catch (error) {
+    console.error("Error Admin Action:", error);
+    return { success: false, error: "Fallo en la matriz" };
+  }
+}
+
+// =========================================================
+// ⏱️ SUPER ADMIN: REINICIAR FREE TRIAL CON PRECISIÓN
+// =========================================================
+export async function resetFreeTrialAction(userId: string, days: number = 15) {
+  try {
+    const now = new Date();
+    // Sumamos los días exactos que usted indique en el panel
+    const end = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    
+    await prisma.subscription.upsert({
+      where: { userId: userId },
+      update: {
+        status: "TRIAL",
+        plan: "AGENCY",
+        currentPeriodStart: now,
+        currentPeriodEnd: end,
+      },
+      create: {
+        userId: userId,
+        status: "TRIAL",
+        plan: "AGENCY",
+        currentPeriodStart: now,
+        currentPeriodEnd: end,
+      }
+    });
+
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error) {
+    console.error("Error Reset Trial:", error);
+    return { success: false, error: "Fallo al manipular el tiempo" };
+  }
+}

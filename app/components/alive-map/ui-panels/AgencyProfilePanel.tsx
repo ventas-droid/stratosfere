@@ -29,7 +29,7 @@ export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, play
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState({ avatar: false, cover: false });
   const [userId, setUserId] = useState<string | null>(null);
-
+const [billingInfo, setBillingInfo] = useState<any>(null);
   // 🔥 ESTADOS DE MODALES INTERNOS
   const [showEventManager, setShowEventManager] = useState(false);
   const [showCollabManager, setShowCollabManager] = useState(false); // <--- NUEVO ESTADO B2B
@@ -69,11 +69,12 @@ export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, play
 
 const loadRealData = async () => {
   try {
+      // 1. Cargar Perfil de Usuario
       const userRes = await getUserMeAction();
       
       if (userRes.success && userRes.data) {
           const d = userRes.data;
-         setUserId(d?.id ? String(d.id) : null);
+          setUserId(d?.id ? String(d.id) : null);
 
            setProfile(prev => ({
               ...prev,
@@ -89,6 +90,13 @@ const loadRealData = async () => {
               licenseType: d.licenseType || 'STARTER',
           }));
       }
+
+      // 🔥 2. CARGAR LA VERDAD DE LA LICENCIA (EL JUEZ) 🔥
+      const billingRes = await getBillingGateAction();
+      if (billingRes?.success && billingRes?.data) {
+          setBillingInfo(billingRes.data);
+      }
+
   } catch (e) { console.error("Error cargando perfil agencia:", e); }
 };
 
@@ -361,18 +369,50 @@ const creditPercentage = Math.min(
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-200/40">
-                  <div className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200/60 flex items-center gap-1.5">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">FREE TRIAL</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Activa</span>
-                  </div>
-                </div>
+              {/* 🔥 ESTADO REAL DE LA LICENCIA CONECTADO AL SERVIDOR 🔥 */}
+                {(() => {
+                    const status = billingInfo?.status || "CARGANDO...";
+                    
+                    // Configuración visual según el estado del servidor
+                    let badgeText = "FREE TRIAL";
+                    let badgeBg = "bg-slate-100 border-slate-200/60 text-slate-600";
+                    let dotColor = "bg-slate-400";
+                    let dotPing = false;
+                    let rightText = "ACTIVA";
+
+                    if (status === "ACTIVE") {
+                        badgeText = "AGENCY PRO";
+                        badgeBg = "bg-indigo-50 border-indigo-200 text-indigo-700";
+                        dotColor = "bg-emerald-500";
+                        dotPing = true;
+                    } else if (status === "TRIAL") {
+                        badgeText = "FREE TRIAL";
+                        badgeBg = "bg-slate-100 border-slate-200/60 text-slate-600";
+                        dotColor = "bg-emerald-500";
+                        dotPing = true;
+                    } else if (status === "EXPIRED" || status === "BLOCKED") {
+                        badgeText = "PAGO PENDIENTE";
+                        badgeBg = "bg-red-50 border-red-200 text-red-700";
+                        dotColor = "bg-red-500";
+                        dotPing = false;
+                        rightText = "DESACTIVADA";
+                    }
+
+                    return (
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-200/40">
+                          <div className={`px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-sm ${badgeBg}`}>
+                            <span className="text-[9px] font-black uppercase tracking-widest">{badgeText}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="relative flex h-2 w-2">
+                              {dotPing && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dotColor}`}></span>}
+                              <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{rightText}</span>
+                          </div>
+                        </div>
+                    );
+                })()}
               </div>
           </section>
 

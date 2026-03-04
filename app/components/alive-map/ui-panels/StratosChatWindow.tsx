@@ -12,7 +12,7 @@ export default function StratosChatWindow({
   addNotification,
   setRightPanel // 👈 ¡AÑADA ESTA LÍNEA AQUÍ!
 }: any) {
-    
+
   // Extraemos las herramientas del motor que necesitamos para pintar la interfaz
   const {
     chatOpen, setChatOpen, chatThreads, chatConversationId, setChatConversationId,
@@ -83,14 +83,17 @@ export default function StratosChatWindow({
               const active = String(chatConversationId || "") === id;
               const unread = Number(unreadByConv?.[id] || 0) > 0;
 
-              return (
+           return (
                 <button
-  key={id}
-  onClick={async () => {
-    if (blocked) {
-      addNotification("⛔ Usuario bloqueado");
-      return;
-    }
+                  key={id}
+                  onClick={async () => {
+                    if (blocked) {
+                      // 🔥 LA LLAVE MAESTRA: Si está bloqueado, le damos la opción de indulto al hacer clic
+                      if (window.confirm(`¿Desea desbloquear a ${otherName} y restaurar las comunicaciones?`)) {
+                          toggleBlockUser(String(other?.id));
+                      }
+                      return;
+                    }
 
     // ✅ 1) abre Details (si hay property) y espera a que cargue del server si hace falta
     await tryOpenDetailsFromThread(t);
@@ -355,7 +358,7 @@ disabled={chatUploading}
       <Camera size={14} />
     </button>
 
-    <input
+   <input
       autoFocus
       value={chatInput}
       onChange={(e) => setChatInput(e.target.value)}

@@ -8,7 +8,7 @@ import {
   TrendingUp, Camera, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
   Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
   Droplets, Paintbrush, Truck, Briefcase, Sparkles, Clock, Check, 
-  Lock, Handshake, Eye, MessageCircle, Calculator, Coins, Navigation 
+  Lock, Handshake, Eye, MessageCircle, Calculator, Coins, Navigation, Unlock 
 } from "lucide-react";
 
 // --- DICCIONARIO DE ICONOS ---
@@ -202,25 +202,38 @@ export default function AgencyPortfolioPanel({
                           </div>
                       </div>
 
-                     {/* ========================================== */}
+                   {/* ========================================== */}
                       {/* 🌟 ZONA SAAS UNIFICADA (PARA TODAS LAS PROPIEDADES) 🌟 */}
                       {/* ========================================== */}
                       <div className="mt-4 pt-3 border-t border-indigo-50">
                           <div className="bg-indigo-50/40 rounded-xl p-3 border border-indigo-100/50">
                               <div className="flex justify-between items-center mb-3">
                                   <div className="flex items-center gap-2">
-                                      {/* Leemos si es EXCLUSIVA desde cualquier origen (creada o heredada) */}
-                                      {p.mandateType === "EXCLUSIVE" || p.activeCampaign?.mandateType === "EXCLUSIVE" || p.radarType === "EXCLUSIVE" ? (
-                                          <div className="flex items-center gap-1 px-2 py-1 bg-white border border-indigo-100 text-indigo-700 rounded-lg shadow-sm">
-                                              <Lock size={10} />
-                                              <span className="text-[9px] font-black tracking-wider uppercase">EXCLUSIVA</span>
-                                          </div>
-                                      ) : (
-                                          <div className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg">
-                                              <FileText size={10} />
-                                              <span className="text-[9px] font-black tracking-wider uppercase">MANDATO SIMPLE</span>
-                                          </div>
-                                      )}
+                                      {/* 🔥 LÓGICA INTELIGENTE DE EXCLUSIVIDAD (EL JUEZ) 🔥 */}
+                                      {(() => {
+                                          // 1. Pruebas: Miramos en la propiedad, en la campaña y en el radar
+                                          const rawMandate = p.mandateType || p.activeCampaign?.mandateType || p.radarType || "";
+                                          const isAbierto = String(rawMandate).toUpperCase().includes("ABIERTO") || String(rawMandate).toUpperCase().includes("SIMPLE");
+                                          const isExclusive = String(rawMandate).toUpperCase().includes("EXCLUSIV") || (p.activeCampaign?.exclusiveMandate === true && !isAbierto);
+                                          const months = p.exclusiveMonths || p.activeCampaign?.exclusiveMonths;
+
+                                          return (
+                                              <>
+                                                  <div className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 text-slate-600 rounded-lg shadow-sm">
+                                                      {isExclusive ? (
+                                                          <><Lock size={10} className="text-slate-400"/> <span className="text-[9px] font-black tracking-wider uppercase">EXCLUSIVA</span></>
+                                                      ) : (
+                                                          <><Unlock size={10} className="text-slate-400"/> <span className="text-[9px] font-black tracking-wider uppercase">NO EXCLUSIVA</span></>
+                                                      )}
+                                                  </div>
+                                                  {months && (
+                                                      <div className="flex items-center px-2 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-lg shadow-sm">
+                                                          <span className="text-[9px] font-black tracking-wider uppercase">{months} MESES</span>
+                                                      </div>
+                                                  )}
+                                              </>
+                                          );
+                                      })()}
                                   </div>
                               </div>
                               
@@ -290,20 +303,22 @@ export default function AgencyPortfolioPanel({
               <div className="bg-white w-[850px] max-w-full rounded-[30px] overflow-hidden shadow-2xl animate-scale-in flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                   
                   {(() => {
-                      // 1. EXTRACCIÓN DE DATOS
+                      // 1. EXTRACCIÓN DE DATOS (Tus variables originales intactas)
                       const price = Number(contractModalProp.rawPrice || String(contractModalProp.price || "0").replace(/[^0-9]/g, ""));
                       const commissionPct = Number(contractModalProp.activeCampaign?.commissionPct ?? contractModalProp.commissionPct ?? 0);
                       const vatPct = 21; 
                       const sharePct = Number(contractModalProp.activeCampaign?.commissionSharePct ?? contractModalProp.sharePct ?? contractModalProp.b2b?.sharePct ?? 0);
                       const isB2bActive = sharePct > 0;
                       
-// Lógica limpia para el Mandato y los Meses
-const mandateType = contractModalProp.mandateType || contractModalProp.activeCampaign?.mandateType || "MANDATO SIMPLE";
+                      // 🔥 LÓGICA INTELIGENTE DE EXCLUSIVIDAD (EL JUEZ) 🔥
+                      const rawMandate = contractModalProp.mandateType || contractModalProp.activeCampaign?.mandateType || contractModalProp.radarType || "";
+                      const isAbierto = String(rawMandate).toUpperCase().includes("ABIERTO") || String(rawMandate).toUpperCase().includes("SIMPLE");
+                      const isExclusive = String(rawMandate).toUpperCase().includes("EXCLUSIV") || (contractModalProp.activeCampaign?.exclusiveMandate === true && !isAbierto);
 
-// 🔥 EL CABLE DE LOS MESES CONECTADO AL PANEL 🔥
-// Leemos directamente el número. Si por algún motivo no hay nada guardado, ponemos 6 por defecto.
-const rawMonths = contractModalProp.activeCampaign?.exclusiveMonths || contractModalProp.exclusiveMonths || 6;
-const duration = `${rawMonths} MESES`;
+                      // 🔥 EL CABLE DE LOS MESES CONECTADO AL PANEL 🔥
+                      const rawMonths = contractModalProp.activeCampaign?.exclusiveMonths || contractModalProp.exclusiveMonths || 6;
+                      const duration = `${rawMonths} MESES`;
+
                       // 2. MATEMÁTICAS - AGENCIA CAPTADORA
                       const commissionAmount = price * (commissionPct / 100);
                       const vatAmount = commissionAmount * (vatPct / 100);
@@ -336,10 +351,14 @@ const duration = `${rawMonths} MESES`;
                                       </div>
                                   </div>
                                   
-                              {/* BADGES */}
+                                  {/* BADGES BLINDADOS (Se acabó el texto ABIERTO fantasma) */}
                                   <div className="flex gap-2 mt-6 relative z-10">
                                      <div className="px-4 py-1.5 bg-white/10 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/20 flex items-center gap-1.5 uppercase shadow-sm">
-                                        <Lock size={12} className="text-blue-300" /> {mandateType}
+                                        {isExclusive ? (
+                                            <><Lock size={12} className="text-blue-300" /> EXCLUSIVA</>
+                                        ) : (
+                                            <><Unlock size={12} className="text-blue-300" /> NO EXCLUSIVA</>
+                                        )}
                                      </div>
                                      <div className="px-4 py-1.5 bg-white/10 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/20 flex items-center gap-1.5 uppercase shadow-sm">
                                         <Clock size={12} className="text-amber-300" /> {duration}
@@ -347,7 +366,7 @@ const duration = `${rawMonths} MESES`;
                                   </div>
                               </div>
 
-                              {/* BODY: DESGLOSES FINANCIEROS */}
+                              {/* BODY: DESGLOSES FINANCIEROS (NUEVO FORMATO PASTILLAS) */}
                               <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar bg-slate-50">
                                   
                                   {/* BLOQUE 1: TUS HONORARIOS (AGENCIA CAPTADORA) */}
@@ -356,22 +375,25 @@ const duration = `${rawMonths} MESES`;
                                           <p className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                                               <Calculator size={16} className="text-blue-600"/> Honorarios Agencia Captadora
                                           </p>
-                                          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md text-[10px] font-bold border border-blue-200 shadow-sm">
-                                              TU COMISIÓN: {commissionPct}%
-                                          </span>
+                                          <div className="px-3 py-1 bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-[9px] font-black tracking-widest uppercase flex flex-col items-end shadow-sm">
+                                              <span className="text-[8px] text-blue-600">TU COMISIÓN</span>
+                                              <span>{commissionPct}%</span>
+                                          </div>
                                       </div>
-                                      <div className="grid grid-cols-3 gap-4">
-                                          <div className="p-5 bg-white rounded-2xl border border-slate-200 text-center shadow-sm">
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Base Imponible</p>
-                                              <p className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(commissionAmount)}</p>
+                                      
+                                      <div className="flex flex-col gap-2.5">
+                                          <div className="flex justify-between items-center px-5 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-slate-100 transition-colors">
+                                              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Base Imponible</span>
+                                              <span className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(commissionAmount)}</span>
                                           </div>
-                                          <div className="p-5 bg-white rounded-2xl border border-slate-200 text-center shadow-sm">
-                                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">IVA ({vatPct}%)</p>
-                                              <p className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(vatAmount)}</p>
+                                          <div className="flex justify-between items-center px-5 py-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-slate-100 transition-colors">
+                                              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">IVA ({vatPct}%)</span>
+                                              <span className="text-xl font-black text-slate-800 tracking-tight">{formatCurrency(vatAmount)}</span>
                                           </div>
-                                          <div className="p-5 bg-blue-600 rounded-2xl border border-blue-700 text-center shadow-md text-white">
-                                              <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">Total a Facturar</p>
-                                              <p className="text-2xl font-black tracking-tight">{formatCurrency(totalCommission)}</p>
+                                          <div className="flex justify-between items-center px-6 py-5 bg-blue-600 border border-blue-700 rounded-2xl shadow-md mt-1 relative overflow-hidden group">
+                                              <div className="absolute right-0 top-0 bottom-0 w-32 bg-white/10 blur-2xl transform translate-x-10 group-hover:-translate-x-full transition-transform duration-1000 ease-in-out"></div>
+                                              <span className="text-[12px] font-black text-blue-200 uppercase tracking-widest relative z-10">Total a Facturar</span>
+                                              <span className="text-2xl sm:text-3xl font-black text-white tracking-tight relative z-10">{formatCurrency(totalCommission)}</span>
                                           </div>
                                       </div>
                                   </div>
@@ -383,29 +405,32 @@ const duration = `${rawMonths} MESES`;
                                               <p className="text-xs font-black text-emerald-800 uppercase tracking-widest flex items-center gap-2">
                                                   <Handshake size={16} className="text-emerald-600"/> Reparto Colaborador (B2B)
                                               </p>
-                                              <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-md text-[10px] font-bold border border-emerald-200 shadow-sm">
-                                                  COMPARTES: {sharePct}%
-                                              </span>
+                                              <div className="px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-[9px] font-black tracking-widest uppercase flex flex-col items-end shadow-sm">
+                                                  <span className="text-[8px] text-emerald-600">COMPARTES</span>
+                                                  <span>{sharePct}%</span>
+                                              </div>
                                           </div>
-                                          <div className="grid grid-cols-3 gap-4">
-                                              <div className="p-5 bg-white rounded-2xl border border-emerald-100 text-center shadow-sm">
-                                                  <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Base Cedida</p>
-                                                  <p className="text-lg font-black text-emerald-900 tracking-tight">{formatCurrency(collabAmount)}</p>
+                                          
+                                          <div className="flex flex-col gap-2.5">
+                                              <div className="flex justify-between items-center px-5 py-4 bg-white border border-emerald-100 rounded-2xl shadow-sm hover:bg-emerald-50 transition-colors">
+                                                  <span className="text-[11px] font-bold text-emerald-600/70 uppercase tracking-widest">Base Cedida</span>
+                                                  <span className="text-xl font-black text-emerald-900 tracking-tight">{formatCurrency(collabAmount)}</span>
                                               </div>
-                                              <div className="p-5 bg-white rounded-2xl border border-emerald-100 text-center shadow-sm">
-                                                  <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">IVA ({vatPct}%)</p>
-                                                  <p className="text-lg font-black text-emerald-900 tracking-tight">{formatCurrency(collabVat)}</p>
+                                              <div className="flex justify-between items-center px-5 py-4 bg-white border border-emerald-100 rounded-2xl shadow-sm hover:bg-emerald-50 transition-colors">
+                                                  <span className="text-[11px] font-bold text-emerald-600/70 uppercase tracking-widest">IVA ({vatPct}%)</span>
+                                                  <span className="text-xl font-black text-emerald-900 tracking-tight">{formatCurrency(collabVat)}</span>
                                               </div>
-                                              <div className="p-5 bg-emerald-500 rounded-2xl border border-emerald-600 text-center shadow-md text-white">
-                                                  <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest mb-1">Total Colaborador</p>
-                                                  <p className="text-2xl font-black tracking-tight">{formatCurrency(collabTotal)}</p>
+                                              <div className="flex justify-between items-center px-6 py-5 bg-emerald-500 border border-emerald-600 rounded-2xl shadow-md mt-1 relative overflow-hidden group">
+                                                  <div className="absolute right-0 top-0 bottom-0 w-32 bg-white/20 blur-2xl transform translate-x-10 group-hover:-translate-x-full transition-transform duration-1000 ease-in-out"></div>
+                                                  <span className="text-[12px] font-bold text-emerald-100 uppercase tracking-widest relative z-10">Total Colaborador</span>
+                                                  <span className="text-2xl sm:text-3xl font-black text-white tracking-tight relative z-10">{formatCurrency(collabTotal)}</span>
                                               </div>
                                           </div>
                                       </div>
                                   ) : (
                                       <div className="pt-6 border-t border-slate-200 border-dashed">
                                           <div className="p-6 rounded-2xl border border-slate-200 bg-slate-100/50 flex items-center gap-4">
-                                              <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+                                              <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 shrink-0">
                                                   <Handshake size={24}/>
                                               </div>
                                               <div>

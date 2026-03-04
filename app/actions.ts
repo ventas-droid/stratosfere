@@ -1331,7 +1331,7 @@ export async function getOrCreateConversationAction(a: any, b?: any) {
       const prop = pid
         ? await prisma.property.findUnique({
             where: { id: pid },
-            select: { id: true, title: true, refCode: true },
+           select: { id: true, title: true, refCode: true, longitude: true, latitude: true, mainImage: true },
           })
         : null;
 
@@ -1422,10 +1422,11 @@ export async function getMyConversationsAction() {
       )
     );
 
-    const props = propIds.length
+   const props = propIds.length
       ? await prisma.property.findMany({
           where: { id: { in: propIds } },
-          select: { id: true, title: true, refCode: true },
+          // 🔥 AÑADIMOS LAS COORDENADAS PARA QUE EL MAPA PUEDA VOLAR 🔥
+          select: { id: true, title: true, refCode: true, longitude: true, latitude: true, mainImage: true },
         })
       : [];
 
@@ -1794,34 +1795,41 @@ export async function getBillingGateAction() {
       };
     }
 // 🔹 cálculo de estados (server truth)
-const endMs = sub?.currentPeriodEnd
-  ? new Date(sub.currentPeriodEnd).getTime()
-  : null;
+    const endMs = sub?.currentPeriodEnd
+      ? new Date(sub.currentPeriodEnd).getTime()
+      : null;
 
-const baseStatus = String(sub?.status || "ACTIVE").toUpperCase();
-let status = baseStatus;
-let showPaywall = false;
+    const baseStatus = String(sub?.status || "ACTIVE").toUpperCase();
+    let status = baseStatus;
+    let showPaywall = false;
 
-// Si está ACTIVE, nunca hay paywall
-if (baseStatus === "ACTIVE") {
-  status = "ACTIVE";
-  showPaywall = false;
-} else {
-  // Si no tenemos endMs, por seguridad bloqueamos
-  if (!endMs) {
-    status = "BLOCKED";
-    showPaywall = true;
-  } else if (now <= endMs) {
-    status = "TRIAL";
-    showPaywall = false;
-  } else if (now <= endMs + 24 * 60 * 60 * 1000) {
-    status = "GRACE";
-    showPaywall = false;
-  } else {
-    status = "BLOCKED";
-    showPaywall = true;
-  }
-}
+    // 🔥 1. PRIORIDAD ABSOLUTA: SI EL ADMIN BLOQUEA, SE ACABÓ. EL RELOJ NO IMPORTA.
+    if (baseStatus === "BLOCKED" || baseStatus === "CANCELED" || baseStatus === "CANCELLED") {
+      status = "BLOCKED";
+      showPaywall = true;
+    } 
+    // 🔥 2. SI HA PAGADO Y ES PREMIUM VITALICIO
+    else if (baseStatus === "ACTIVE") {
+      status = "ACTIVE";
+      showPaywall = false;
+    } 
+    // 🔥 3. SI NO ES NINGUNO DE LOS ANTERIORES, ENTONCES MIRAMOS EL RELOJ (FREE TRIAL)
+    else {
+      // Si no tenemos endMs, por seguridad bloqueamos
+      if (!endMs) {
+        status = "BLOCKED";
+        showPaywall = true;
+      } else if (now <= endMs) {
+        status = "TRIAL";
+        showPaywall = false;
+      } else if (now <= endMs + 24 * 60 * 60 * 1000) {
+        status = "GRACE";
+        showPaywall = false;
+      } else {
+        status = "EXPIRED"; // Expirado
+        showPaywall = true;
+      }
+    }
 
 
     return {

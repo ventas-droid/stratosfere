@@ -1,7 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction } from "@/app/components/admin/actions";
-import { 
+import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction, toggleUserSubscriptionAction, resetFreeTrialAction } from "@/app/components/admin/actions";import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, 
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2, Eye, EyeOff, Lock,
     Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
@@ -34,7 +33,8 @@ useEffect(() => {
     if (savedTab) setActiveTab(savedTab as 'USERS' | 'PROPERTIES' | 'CRM');
 
     setNow(new Date());
-    const timer = setInterval(() => setNow(new Date()), 60000);
+    // 🔥 EL RELOJ AHORA LATE CADA 1 SEGUNDO (1000ms) EN VEZ DE CADA MINUTO 🔥
+    const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -72,6 +72,7 @@ useEffect(() => {
     return (p.companyName || "").toLowerCase().includes(search) || (p.email || "").toLowerCase().includes(search) || (p.city || "").toLowerCase().includes(search);
   });
 
+  // 🔥 NUEVO CÁLCULO DE TIEMPO CON SEGUNDOS Y FECHA EXACTA
   const getTimeRemaining = (endDate: string | Date | null) => {
     if (!endDate || !now) return null;
     const end = new Date(endDate);
@@ -79,12 +80,19 @@ useEffect(() => {
     if (diff <= 0) return "¡CADUCADO!";
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    return `${days}d ${hours}h`; 
+    const minutes = Math.floor((diff / 1000 / 60) % 60);
+    const seconds = Math.floor((diff / 1000) % 60);
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`; 
+  };
+
+  const formatDateExact = (date: any) => {
+    if (!date) return "Sin datos";
+    return new Date(date).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
   const checkIsFire = (prop: any) => prop.isFire === true || prop.isPromoted === true || (prop.promotedUntil && now && new Date(prop.promotedUntil) > now) || String(prop.promotedTier).toUpperCase().includes('FUEGO');
   const checkIsPremium = (prop: any) => prop.isPremium === true || prop.isPromoted === true || String(prop.promotedTier).toUpperCase().includes('PREMIUM');
-
+  
   // FUNCIÓN PARA AÑADIR AGENCIA AL CRM
   const handleAddProspect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -430,16 +438,21 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                             </div>
                                         </td>
 
+                                   {/* COLUMNA 3: ESTADO COMERCIAL (CON LA VERDAD DE LA BD) */}
                                         <td className="p-5 text-center">
                                             {isBlocked ? (
                                                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-red-200"><Ban size={12}/> BLOQUEADO</span>
                                             ) : isAgency ? (
                                                 isActive ? (
-                                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-indigo-200"><Building2 size={12}/> AGENCIA PREMIUM</span>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-indigo-200 shadow-sm"><Building2 size={12}/> AGENCIA PREMIUM</span>
+                                                        <span className="text-[8px] text-gray-400 font-mono tracking-tighter">Inicio: {formatDateExact(user.subscription?.currentPeriodStart)}</span>
+                                                    </div>
                                                 ) : (
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-amber-200"><Timer size={12}/> FREE TRIAL</span>
-                                                        <span className="text-[10px] text-amber-600 font-mono font-bold">{timeRest || "Sin caducidad en BD"}</span>
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-amber-200 shadow-sm"><Timer size={12}/> FREE TRIAL</span>
+                                                        <span className="text-[11px] text-amber-600 font-mono font-black tracking-widest">{timeRest || "¡CADUCADO!"}</span>
+                                                        <span className="text-[8px] text-gray-400 font-mono tracking-tighter">Inicio: {formatDateExact(user.subscription?.currentPeriodStart)}</span>
                                                     </div>
                                                 )
                                             ) : (
@@ -447,33 +460,64 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                             )}
                                         </td>
 
+                                        {/* COLUMNA 4: MASTER SWITCH (ARSENAL DE DIOS) */}
                                         <td className="p-5 text-center">
                                             <div className="flex flex-col gap-2">
+                                                
+                                                {/* BOTONES EXCLUSIVOS PARA AGENCIAS */}
+                                                {isAgency && (
+                                                    <>
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if(window.confirm(`¿Convertir a ${user.companyName || user.name} en PREMIUM VITALICIO?`)) {
+                                                                    const res = await toggleUserSubscriptionAction(user.id, "ACTIVE");
+                                                                    if(res.success) window.location.reload();
+                                                                }
+                                                            }} 
+                                                            className="w-full flex justify-center items-center gap-2 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-700"
+                                                        >
+                                                            <Gem size={12}/> HACER PREMIUM
+                                                        </button>
+                                                        
+                                                        <button 
+                                                            onClick={async () => {
+                                                                const daysStr = window.prompt("¿Cuántos días de Free Trial quiere asignarle?", "15");
+                                                                const days = parseInt(daysStr || "0");
+                                                                if(days > 0) {
+                                                                    const res = await resetFreeTrialAction(user.id, days);
+                                                                    if(res.success) window.location.reload();
+                                                                }
+                                                            }} 
+                                                            className="w-full flex justify-center items-center gap-2 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
+                                                        >
+                                                            <Timer size={12}/> INYECTAR TIEMPO
+                                                        </button>
+                                                    </>
+                                                )}
+
                                                 <button 
                                                     onClick={async () => {
-                                                        const confirmMsg = isBlocked ? "¿Activar a este usuario en el sistema y darle acceso?" : "¿Bloquear/Desactivar a este usuario por mala conducta?";
+                                                        const confirmMsg = isBlocked ? "¿Activar a este usuario en el sistema?" : "¿Bloquear a este usuario por mala conducta?";
                                                         if(window.confirm(confirmMsg)) {
                                                             const res = await toggleUserStatusAction(user.id, isBlocked);
                                                             if(res.success) window.location.reload();
-                                                            else alert("Error de conexión");
                                                         }
                                                     }} 
-                                                    className={`w-full flex justify-center items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-all shadow-sm ${isBlocked ? "bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600" : "bg-white text-amber-600 hover:bg-amber-50 border border-amber-200"}`}
+                                                    className={`w-full flex justify-center items-center gap-2 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm ${isBlocked ? "bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600" : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"}`}
                                                 >
-                                                    {isBlocked ? <><Power size={12}/> REACTIVAR</> : <><PowerOff size={12}/> BLOQUEAR</>}
+                                                    {isBlocked ? <><Power size={12}/> REACTIVAR</> : <><Ban size={12}/> BLOQUEAR</>}
                                                 </button>
 
                                                 <button 
                                                     onClick={async () => {
-                                                        if(window.confirm("¡ALERTA GENERAL! ¿Está seguro de que desea EJECUTAR a este usuario? Se borrará ÉL Y TODAS SUS PROPIEDADES de la faz de la tierra. NO HAY VUELTA ATRÁS.")) {
+                                                        if(window.confirm("¡ALERTA! ¿Desea EJECUTAR a este usuario? Se borrará ÉL Y TODAS SUS PROPIEDADES. NO HAY VUELTA ATRÁS.")) {
                                                             const res = await deleteUserAction(user.id);
                                                             if(res.success) window.location.reload();
-                                                            else alert("Error: No se pudo eliminar el objetivo.");
                                                         }
                                                     }} 
-                                                    className="w-full flex justify-center items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-all shadow-sm bg-red-600 text-white hover:bg-red-700 border border-red-700"
+                                                    className="w-full flex justify-center items-center gap-2 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all shadow-sm bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
                                                 >
-                                                    <Trash2 size={12}/> BORRAR CUENTA
+                                                    <Trash2 size={12}/> ELIMINAR
                                                 </button>
                                             </div>
                                         </td>

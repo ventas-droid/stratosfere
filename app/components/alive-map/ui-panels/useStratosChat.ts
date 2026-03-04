@@ -434,20 +434,48 @@ export const useStratosChat = (
     }
   };
 
-  const tryOpenDetailsFromThread = async (t: any) => {
+const tryOpenDetailsFromThread = async (t: any) => {
     try {
       if (typeof window === "undefined") return;
       if (!t) return;
+      
       const pidRaw = t?.propertyId || t?.property?.id || t?.property?.propertyId || t?.property?.uuid || null;
       const pid = pidRaw ? String(pidRaw).trim() : "";
       if (!pid) return;
+
+      // 🔥 ORDEN INMEDIATA DE VUELO (Conectado al radar existente 'map-fly-to')
+      if (t?.property?.longitude && t?.property?.latitude) {
+          window.dispatchEvent(new CustomEvent("map-fly-to", {
+              detail: { 
+                  center: [Number(t.property.longitude), Number(t.property.latitude)],
+                  zoom: 19,
+                  pitch: 60,
+                  duration: 2500
+              }
+          }));
+      }
 
       const fn = getPropertyByIdAction as any;
       if (typeof fn !== "function") return;
 
       const res = await fn(pid);
       if (!res?.success || !res?.data) return;
+      
+      // 🔥 ORDEN DE ABRIR PANEL
       window.dispatchEvent(new CustomEvent("open-details-signal", { detail: res.data }));
+      
+      // 🔥 ORDEN DE VUELO DE RESPALDO (Por si la memoria caché falló)
+      if (res.data.longitude && res.data.latitude) {
+          window.dispatchEvent(new CustomEvent("map-fly-to", {
+              detail: { 
+                  center: [Number(res.data.longitude), Number(res.data.latitude)],
+                  zoom: 19,
+                  pitch: 60,
+                  duration: 2500
+              }
+          }));
+      }
+
     } catch (e) {
       console.warn("tryOpenDetailsFromThread failed:", e);
     }

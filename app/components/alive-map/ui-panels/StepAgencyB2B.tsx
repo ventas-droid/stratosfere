@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Handshake, Briefcase, Coins, Check, Eye, Lock, Globe, ArrowLeft } from "lucide-react";
+import { Handshake, Briefcase, Coins, Check, Eye, Lock, Globe, ArrowLeft, Unlock } from "lucide-react";
 export default function StepAgencyB2B({ formData, updateData, setStep }: any) {
     
     // Inicialización segura
@@ -35,16 +35,27 @@ export default function StepAgencyB2B({ formData, updateData, setStep }: any) {
              
              <div className="flex-1 overflow-y-auto px-4 -mx-4 custom-scrollbar space-y-6 pb-6">
                 
-                {/* 1. TIPO DE MANDATO */}
+               {/* 1. CONDICIONES DE MANDATO */}
                 <div className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <Briefcase size={12}/> Tipo de Mandato
+                        <Briefcase size={12}/> Condiciones
                     </label>
                     <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => setMandate("ABIERTO")} className={`py-4 rounded-xl text-xs font-bold border transition-all flex flex-col items-center gap-2 ${mandate === "ABIERTO" ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
-                            <span className="uppercase tracking-wider">Nota Encargo</span>
+                        <button 
+                            onClick={() => setMandate("ABIERTO")} 
+                            className={`py-4 rounded-xl text-xs font-bold border transition-all flex flex-col items-center gap-2 ${mandate === "ABIERTO" ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                        >
+                            {/* Candado abierto para "No Exclusiva" */}
+                            <Unlock size={18} />
+                            <span className="uppercase tracking-wider">No Exclusiva</span>
                         </button>
-                        <button onClick={() => setMandate("EXCLUSIVE")} className={`py-4 rounded-xl text-xs font-bold border transition-all flex flex-col items-center gap-2 ${mandate === "EXCLUSIVE" ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>
+
+                        <button 
+                            onClick={() => setMandate("EXCLUSIVE")} 
+                            className={`py-4 rounded-xl text-xs font-bold border transition-all flex flex-col items-center gap-2 ${mandate === "EXCLUSIVE" ? 'bg-black text-white border-black shadow-lg' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                        >
+                            {/* Candado cerrado para "Exclusiva" */}
+                            <Lock size={18} />
                             <span className="uppercase tracking-wider">Exclusiva</span>
                         </button>
                     </div>

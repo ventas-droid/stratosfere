@@ -203,23 +203,29 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     }));
   }, [proposalServiceIds, servicesTab]);
 
-  // ✅ Mensaje masterizado (propuesta)
+ // ✅ Mensaje masterizado (propuesta) CON ESCUDO ANTI "CARGANDO"
   const buildDefaultProposalMessage = (opts?: {
     refCode?: string;
     price?: any;
     ownerName?: string;
   }) => {
     const ref = String(opts?.refCode || "SF").trim() || "SF";
-    const owner = String(opts?.ownerName || "").trim();
-    const greet = owner ? `Hola ${owner},` : "Hola,";
+    
+    // 🔥 EL ESCUDO ANTI "Cargando..." 🔥
+    const rawOwner = String(opts?.ownerName || "").trim();
+    const owner = (!rawOwner || rawOwner.toLowerCase().includes("cargando")) 
+        ? "Propietario" 
+        : rawOwner;
+        
+    const greet = `Hola ${owner},`;
 
     const sids = getServiceIdsForCampaign();
     const list = sids.map((id) => `– ${getServiceLabel(id)}`).join("\n");
     const count = sids.length;
 
     const mandateTxt = exclusiveMandate
-      ? `Mandato: Exclusiva durante ${exclusiveMonths} meses.`
-      : `Mandato: No exclusiva.`;
+      ? `Condiciones: Exclusiva durante ${exclusiveMonths} meses.`
+      : `Condiciones: No exclusiva.`;
 
     const rawPrice = String(opts?.price ?? "").trim();
     const priceNum = rawPrice
@@ -694,20 +700,40 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
 
     setInputMsg("");
 
-    const res: any = await sendMessageAction({ conversationId: cid, text });
-    if (!res?.success) {
-      console.error("sendMessage failed:", res?.error);
-      return;
-    }
-
-    setChatHistory((prev) => [
-      ...(Array.isArray(prev) ? prev : []),
-      { sender: "me", text },
-    ]);
-
     try {
-      await markConversationReadAction(cid);
-    } catch {}
+        // 🔥 EL MISMO ESCUDO IMPENETRABLE DE SU CONSOLA CENTRAL 🔥
+        let res: any = null;
+        try { res = await (sendMessageAction as any)(cid, text); } catch {}
+        if (!res?.success) { try { res = await (sendMessageAction as any)({ conversationId: cid, text }); } catch {} }
+        if (!res?.success) { try { res = await (sendMessageAction as any)({ conversationId: cid, content: text }); } catch {} }
+        if (!res?.success) { try { res = await (sendMessageAction as any)(text, cid); } catch {} }
+
+        if (!res?.success) {
+          console.error("sendMessage failed:", res?.error);
+          return;
+        }
+
+        // Actualizamos el historial visual del Radar
+        setChatHistory((prev) => [
+          ...(Array.isArray(prev) ? prev : []),
+          { sender: "me", text },
+        ]);
+
+        // 🔥 SINCRONIZACIÓN GLOBAL (Sin tocar useStratosChat) 🔥
+        // Simulamos el evento de abrir chat para que la consola principal se entere y descargue el mensaje
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("open-chat-signal", { 
+                detail: { conversationId: cid } 
+            }));
+        }
+
+        try {
+          await markConversationReadAction(cid);
+        } catch {}
+
+    } catch (error) {
+        console.error("Error crítico al enviar el mensaje:", error);
+    }
   };
 
   // 🔥 FILTRO CONECTADO A LA VERDAD DE LA BASE DE DATOS 🔥
@@ -726,7 +752,8 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
 
   // --- RENDERIZADO ---
   return (
-    <div className="flex flex-col h-full w-full bg-white/85 backdrop-blur-2xl text-slate-900 shadow-[0_20px_80px_-30px_rgba(0,0,0,0.35)] font-sans border-l border-slate-200/60 pointer-events-auto">
+    <div className="flex flex-col h-full w-full bg-white z-[70000] relative text-slate-900 shadow-[0_20px_80px_-30px_rgba(0,0,0,0.35)] font-sans border-l border-slate-200 pointer-events-auto">
+      
       {/* 1. CABECERA */}
       <div className="shrink-0 p-6 pb-4 border-b border-slate-200/70 z-20 bg-white/75 backdrop-blur-xl shadow-[inset_0_-1px_0_rgba(0,0,0,0.04)]">
         <div className="flex justify-between items-center mb-4">
@@ -1024,7 +1051,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                             Exclusiva
                           </button>
 
-                          <button
+                       <button
                             type="button"
                             onClick={() => setExclusiveMandate(false)}
                             className={`h-10 rounded-2xl border text-[10px] font-black uppercase tracking-wider transition-all ${
@@ -1097,19 +1124,22 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                         </div>
                       </div>
 
-                      {/* Resumen */}
+                    {/* Resumen */}
                       <div className="mt-4 bg-white border border-slate-200/60 rounded-3xl p-4 shadow-[0_14px_50px_-36px_rgba(0,0,0,0.35)]">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
                           Resumen de Propuesta
                         </p>
 
                         <div className="space-y-2 text-[11px] font-semibold text-slate-700">
+                          
+                          {/* 👇 ESTE ES EL BLOQUE QUE HEMOS CAMBIADO 👇 */}
                           <div className="flex justify-between gap-3">
-                            <span className="text-slate-500">Mandato</span>
+                            <span className="text-slate-500">Condiciones</span>
                             <span className="font-black text-slate-900">
                               {exclusiveMandate ? `Exclusiva ${exclusiveMonths}m` : "No exclusiva"}
                             </span>
                           </div>
+                          {/* 👆 ------------------------------------ 👆 */}
 
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-500">Comisión</span>
@@ -1164,8 +1194,8 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                           TOTAL SERVICIOS SELECCIONADOS:{" "}
                           <span className="text-slate-900">{proposalServiceIds.length}</span>
                         </p>
+                      </div>                    
                       </div>
-                    </div>
 
                     <button
                       onClick={aceptarEncargo}

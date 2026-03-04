@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { 
     // 🛠️ Iconos de Interfaz
     X, Plus, ArrowLeft, User, Heart, ChevronRight, Store, LogOut,
-    MapPin, Zap, Building2, Edit3, Trash2, Camera, Image as ImageIcon,
+    MapPin, Zap, Building2, Edit3, Trash2, Camera, Image as ImageIcon, 
     Loader2, MessageSquare, Phone, // ✅ AÑADIDOS: Para el Buzón de Mensajes
     
     // 🏠 Iconos de Servicios y Propiedades
     Waves, Car, Trees, ShieldCheck, ArrowUp, Sun, Box, Star, Award, Crown, 
     TrendingUp, Globe, Plane, Hammer, Ruler, LayoutGrid, Share2, 
-    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, 
+    Mail, FileText, FileCheck, Activity, Newspaper, KeyRound, Sofa, Unlock, 
     Droplets, Paintbrush, Truck, Briefcase, Sparkles, Lock, Eye, Calculator,
     
     // 🎟️ Iconos de Tickets y Eventos
@@ -93,19 +93,21 @@ function PremiumClock({ expiresAt }: { expiresAt: any }) {
 // --- DICCIONARIO MAESTRO ---
 const normalizeKey = (v: any) => String(v || '').toLowerCase().trim();
 
-const getServiceIds = (prop: any): string[] => {
-    // 1. Obtenemos la lista sucia
-    const ids = Array.isArray(prop?.selectedServices) ? prop.selectedServices : [];
+const getServiceIds = (propOrCampaign: any): string[] => {
+    // 1. Obtenemos la lista sucia (Detecta si viene de la propiedad o de la campaña B2B)
+    const ids = Array.isArray(propOrCampaign?.selectedServices) ? propOrCampaign.selectedServices : 
+                Array.isArray(propOrCampaign?.serviceIds) ? propOrCampaign.serviceIds :
+                Array.isArray(propOrCampaign?.services) ? propOrCampaign.services : [];
     
-    // 2. LISTA NEGRA (Aquí añadimos lo que queremos esconder: Pack Basic, Balcón, Amueblado...)
+    // 2. LISTA NEGRA (Aquí añadimos lo que queremos esconder)
     const BASURA_A_ESCONDER = new Set([
         'pool','piscina','garden','jardin','jardín','garage','garaje',
         'security','seguridad','elevator','ascensor','parking','aparcamiento',
-        'trastero','storage','terraza','terraz','balcon','balcón','balcony', // <--- Balcón fuera
+        'trastero','storage','terraza','terraz','balcon','balcón','balcony',
         'aire','air','aircon','ac','calefaccion','calefacción','heating',
         'm2','mbuilt','m_built','bed','beds','bath','baths','room','rooms',
-        'furnished','amueblado', // <--- Amueblado fuera
-        'pack_basic','pack_premium','pack_pro' // <--- Packs fuera
+        'furnished','amueblado', 
+        'pack_basic','pack_premium','pack_pro' 
     ]);
 
     // 3. Filtramos
@@ -705,23 +707,49 @@ const handleFlyTo = (e: any, property: any) => {
                                 </div>
                             </div>
 
-                            {/* TARJETA DE GESTIÓN O TAGS (CORREGIDA CON ESTILO PREMIUM) */}
-                            {isManaged && activeCampaign ? (
-                                // CASO A: AGENCIA (Tarjeta Azul)
-                                <div className="mb-4 bg-white p-4 rounded-[20px] border border-indigo-100 shadow-sm relative">
-                                    <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
-                                        <div className="flex items-center gap-1.5">
-                                            <Briefcase size={12} className="text-indigo-600" />
-                                            <span className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">GESTIONADO POR {agencyName.toUpperCase()}</span>
+                         {isManaged && activeCampaign ? (
+                                // CASO A: AGENCIA (Tarjeta Indigo Premium - Rediseñada)
+                                <div className="mb-4 bg-gradient-to-br from-indigo-50/80 to-white p-5 rounded-[20px] border border-indigo-100 shadow-sm relative overflow-hidden group/agency hover:border-indigo-300 hover:shadow-md transition-all">
+                                    {/* Barra lateral de acento */}
+                                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500 rounded-l-[20px]"></div>
+                                    
+                                    <div className="flex justify-between items-start mb-4 pl-2">
+                                        <div className="flex flex-col gap-1 min-w-0 pr-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <Briefcase size={12} className="text-indigo-500" />
+                                                <span className="text-[9px] font-black text-indigo-900 uppercase tracking-widest truncate">
+                                                    GESTIONADO POR
+                                                </span>
+                                            </div>
+                                            <span className="text-sm font-black text-slate-800 truncate">
+                                                {agencyName}
+                                            </span>
                                         </div>
-                                        <span className="text-[9px] font-bold text-slate-400">{activeCampaign.duration || "6 Meses"}</span>
+                                       <span className="text-[9px] font-bold text-indigo-600 bg-white border border-indigo-100 px-2.5 py-1 rounded-md shrink-0 shadow-sm">
+    {activeCampaign?.exclusiveMonths ? `${activeCampaign.exclusiveMonths} Meses` : "6 Meses"}
+</span>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 mb-3">
-                                        <div><p className="text-[9px] font-bold text-slate-400 uppercase">Honorarios</p><p className="text-sm font-black text-slate-700">{activeCampaign.commissionPct || activeCampaign.commission}%</p></div>
-                                        <div className="text-right"><p className="text-[9px] font-bold text-slate-400 uppercase">Total (con IVA)</p><p className="text-sm font-black text-indigo-600">{activeCampaign.financials?.total || "---"}</p></div>
+
+                                    {/* 🔥 PASTILLA FINANCIERA INTERNA 🔥 */}
+                                    <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 flex justify-between items-center mb-5 ml-2 shadow-sm border border-indigo-50">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Honorarios</span>
+                                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-md">
+                                                {activeCampaign.commissionPct || activeCampaign.commission}%
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-black text-indigo-700 leading-none truncate">
+                                                {activeCampaign.financials?.total || "---"}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <button onClick={(e) => { e.stopPropagation(); setContractModalProp({...prop, activeCampaign}); }} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-200">
-                                        <Eye size={12} /> VER CONDICIONES FIRMADAS
+
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setContractModalProp({...prop, activeCampaign}); }} 
+                                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/20 active:scale-95 ml-1"
+                                    >
+                                        <Eye size={14} /> VER CONDICIONES FIRMADAS
                                     </button>
                                 </div>
                             ) : (
@@ -1130,43 +1158,82 @@ openDetailsSmart(fullProp);    }
                   <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 p-8 text-white relative overflow-hidden">
                       <div className="absolute -right-20 -top-20 w-60 h-60 bg-white/10 rounded-full blur-3xl"/>
                       <div className="flex justify-between items-start relative z-10">
-                          <div>
+                          <div className="min-w-0 pr-4">
                               <p className="text-[10px] font-black tracking-[0.3em] opacity-70 uppercase mb-2">Expediente Oficial</p>
-                              <h3 className="text-3xl font-black">{contractModalProp.title}</h3>
+                              <h3 className="text-3xl font-black truncate">{contractModalProp.title}</h3>
                               <p className="text-indigo-200 text-xs font-medium mt-1 uppercase tracking-wide">REF: {contractModalProp.refCode || "---"}</p>
                           </div>
-                          <div className="flex gap-2">
-                             <div className="px-4 py-1.5 bg-white/20 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                                <Lock size={12} /> {contractModalProp.activeCampaign.mandateType === "EXCLUSIVE" ? "EXCLUSIVA" : "MANDATO SIMPLE"}
-                             </div>
-                             <div className="px-4 py-1.5 bg-emerald-500/20 text-emerald-100 border border-emerald-500/30 rounded-full text-[10px] font-bold flex items-center gap-1.5">
-                                <Zap size={12} /> {contractModalProp.activeCampaign.duration || "6 Meses"}
-                             </div>
-                          </div>
+                          
+                        {/* BOTONES BLINDADOS CON LÓGICA DEFINITIVA (EL JUEZ) */}
+                          {(() => {
+                              // 1. Recopilamos las pruebas (miramos tanto en la raíz como en la campaña)
+                              const rawMandate = contractModalProp.mandateType || contractModalProp.activeCampaign?.mandateType || "";
+                              
+                              // 2. Sentencia: ¿Dice que es abierto/simple en algún lado?
+                              const isAbierto = String(rawMandate).toUpperCase().includes("ABIERTO") || String(rawMandate).toUpperCase().includes("SIMPLE");
+                              
+                              // 3. Resolución final: Es exclusiva SOLO si no es abierto.
+                              const isExclusive = String(rawMandate).toUpperCase().includes("EXCLUSIV") || (contractModalProp.activeCampaign?.exclusiveMandate === true && !isAbierto);
+                              
+                              // 4. Meses
+                              const months = contractModalProp.exclusiveMonths || contractModalProp.activeCampaign?.exclusiveMonths || 6;
+
+                              return (
+                                  <div className="flex gap-2 shrink-0">
+                                     <div className="px-4 py-1.5 bg-white/20 rounded-full text-[10px] font-bold backdrop-blur-md border border-white/10 flex items-center gap-1.5 shadow-sm">
+                                        {isExclusive ? (
+                                            <><Lock size={12} /> EXCLUSIVA</>
+                                        ) : (
+                                            <><Unlock size={12} /> NO EXCLUSIVA</>
+                                        )}
+                                     </div>
+                                     <div className="px-4 py-1.5 bg-emerald-500/20 text-emerald-100 border border-emerald-500/30 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm">
+                                        <Zap size={12} /> {months} Meses
+                                     </div>
+                                  </div>
+                              );
+                          })()}
+                          
                       </div>
                   </div>
 
                   {/* BODY: DESGLOSE FINANCIERO */}
                   <div className="p-8 space-y-8">
                       
-                      {/* 💰 SECCIÓN 1: FINANZAS */}
+                     {/* 💰 SECCIÓN 1: FINANZAS (Formato Recibo SaaS) */}
                       <div>
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                               <Calculator size={14} /> Desglose Económico
                           </p>
-                          <div className="grid grid-cols-3 gap-4">
-                              <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Honorarios Netos</p>
-                                  <p className="text-xl font-bold text-gray-800">{contractModalProp.activeCampaign.financials?.base || "---"}</p>
-                                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">{contractModalProp.activeCampaign.commission}%</span>
+                          
+                          <div className="flex flex-col gap-2.5">
+                              {/* Pastilla 1: Base */}
+                              <div className="flex justify-between items-center px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-gray-100 transition-colors">
+                                  <div className="flex items-center gap-3">
+                                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Honorarios Netos</p>
+                                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-md">
+                                          {contractModalProp.activeCampaign?.commissionPct || contractModalProp.activeCampaign?.commission}%
+                                      </span>
+                                  </div>
+                                  <p className="text-lg font-black text-slate-700">{contractModalProp.activeCampaign?.financials?.base || "---"}</p>
                               </div>
-                              <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">IVA (21%)</p>
-                                  <p className="text-xl font-bold text-gray-600">{contractModalProp.activeCampaign.financials?.ivaAmount || "---"}</p>
+
+                              {/* Pastilla 2: IVA */}
+                              <div className="flex justify-between items-center px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-gray-100 transition-colors">
+                                  <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">IVA (21%)</p>
+                                  <p className="text-lg font-black text-slate-500">{contractModalProp.activeCampaign?.financials?.ivaAmount || "---"}</p>
                               </div>
-                              <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 text-center shadow-inner">
-                                  <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Total a Pagar</p>
-                                  <p className="text-2xl font-black text-indigo-700">{contractModalProp.activeCampaign.financials?.total || "---"}</p>
+
+                              {/* Separador visual opcional */}
+                              <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent my-1"></div>
+
+                              {/* Pastilla 3: TOTAL (Destacada) */}
+                              <div className="flex justify-between items-center px-6 py-5 bg-indigo-600 border border-indigo-500 rounded-2xl shadow-lg relative overflow-hidden group">
+                                  {/* Brillo dinámico de fondo */}
+                                  <div className="absolute right-0 top-0 bottom-0 w-32 bg-white/10 blur-2xl transform translate-x-10 group-hover:-translate-x-full transition-transform duration-1000 ease-in-out"></div>
+                                  
+                                  <p className="text-[12px] font-black text-indigo-200 uppercase tracking-widest relative z-10">Total a Pagar</p>
+                                  <p className="text-2xl sm:text-3xl font-black text-white relative z-10">{contractModalProp.activeCampaign?.financials?.total || "---"}</p>
                               </div>
                           </div>
                       </div>
