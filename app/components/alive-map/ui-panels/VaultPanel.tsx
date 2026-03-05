@@ -238,9 +238,9 @@ if (typeof window !== 'undefined') {
                                         {prop.title || "Propiedad sin nombre"}
                                     </h4>
                                     
-                                    {/* DIRECCIÓN: Blindada a 2 líneas máximas para no romper el diseño */}
-                                    <p className="text-[10px] font-bold text-slate-400 font-mono mt-1 line-clamp-2 uppercase leading-snug pr-2">
-                                       {getLocationLabel(prop)}
+                                   {/* DIRECCIÓN: Estilo limpio (Mis Activos) */}
+                                    <p className="text-[11px] font-medium text-slate-500 mt-1 line-clamp-2 leading-snug pr-2">
+                                       {prop.address || prop.city || "Ubicación Privada"}
                                     </p>
                                 </div>
                                 

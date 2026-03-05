@@ -701,7 +701,6 @@ export async function updateUserAction(data: any) {
     // ✅ Comunes (Particular + Agencia)
     if (data.name !== undefined) updateData.name = data.name;
     if (data.avatar !== undefined) updateData.avatar = data.avatar;
-
     if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.mobile !== undefined) updateData.mobile = data.mobile;
@@ -712,6 +711,12 @@ export async function updateUserAction(data: any) {
     if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo;
     if (data.tagline !== undefined) updateData.tagline = data.tagline;
     if (data.zone !== undefined) updateData.zone = data.zone;
+
+    // 🔥 NUEVOS CAMPOS DEL BÚNKER (Aduana abierta) 🔥
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.postalCode !== undefined) updateData.postalCode = data.postalCode;
+    if (data.cif !== undefined) updateData.cif = data.cif;
+    if (data.licenseNumber !== undefined) updateData.licenseNumber = data.licenseNumber;
 
     const updated = await prisma.user.update({
       where: { id: user.id },
@@ -733,9 +738,13 @@ export async function updateUserAction(data: any) {
         licenseType: true,
         licenseNumber: true,
         cif: true,
+        // 🔥 AÑADIMOS DIRECCIÓN Y CP AL RADAR DE SALIDA 🔥
+        address: true,
+        postalCode: true,
       },
     });
 
+    // 🔄 Refrescar caché según su protocolo
     revalidatePath("/");
     return { success: true, data: updated };
   } catch (e) {
@@ -743,7 +752,6 @@ export async function updateUserAction(data: any) {
     return { success: false, error: String(e) };
   }
 }
-
 
 // actions.ts
 export async function toggleFavoriteAction(propertyId: string, desired?: boolean) {

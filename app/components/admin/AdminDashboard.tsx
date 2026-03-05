@@ -386,9 +386,9 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                 return (
                                     <tr key={user.id} className={`transition-colors ${isBlocked ? 'bg-red-50/30' : 'hover:bg-gray-50'}`}>
                                         
-                                        <td className="p-5 border-r border-gray-100/50">
-                                            <div className="flex items-center gap-4">
-                                                <div className="relative shrink-0">
+                                      <td className="p-5 border-r border-gray-100/50 align-top">
+                                            <div className="flex items-start gap-4">
+                                                <div className="relative shrink-0 mt-1">
                                                     {user.avatar || user.companyLogo ? (
                                                         <img src={user.avatar || user.companyLogo} className="w-14 h-14 rounded-full object-cover border border-gray-200 shadow-sm" alt="Avatar" />
                                                     ) : (
@@ -398,6 +398,7 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                                     )}
                                                     {isOnline && <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></span>}
                                                 </div>
+                                                
                                                 <div className="flex flex-col gap-1 w-full overflow-hidden">
                                                     <div className="flex items-center gap-2">
                                                         <p className="font-black text-gray-900 text-sm truncate">{user.companyName || user.name || "Usuario"}</p>
@@ -405,6 +406,43 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                                     </div>
                                                     <span className="text-xs text-gray-600 flex items-center gap-1.5 font-medium truncate"><Mail size={12} className="text-gray-400 shrink-0"/> {user.email}</span>
                                                     <span className="text-xs text-gray-600 flex items-center gap-1.5 font-medium truncate"><Phone size={12} className="text-gray-400 shrink-0"/> {phones}</span>
+
+                                                    {/* 🔥 DOSSIER DE INTELIGENCIA: LICENCIA, CIF, ZONA Y DIRECCIÓN 🔥 */}
+                                                    {isAgency && (
+                                                        <div className="mt-3 pt-3 border-t border-gray-100/80 flex flex-col gap-1.5 w-full">
+                                                            
+                                                            <div className="flex items-center justify-between text-[10px]">
+                                                                <span className="text-gray-400 font-bold tracking-wider">LICENCIA SF:</span>
+                                                                <span className="font-mono font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
+                                                                    SF-PRO-{String(user.id).slice(-6).toUpperCase()}
+                                                                </span>
+                                                            </div>
+                                                            
+                                                            {user.cif && (
+                                                                <div className="flex items-center justify-between text-[10px]">
+                                                                    <span className="text-gray-400 font-bold tracking-wider">CIF / NIF:</span>
+                                                                    <span className="font-bold text-gray-700">{user.cif}</span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {user.zone && (
+                                                                <div className="flex items-center justify-between text-[10px]">
+                                                                    <span className="text-gray-400 font-bold tracking-wider">ZONA:</span>
+                                                                    <span className="font-bold text-gray-700 truncate ml-2">{user.zone}</span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {(user.address || user.postalCode) && (
+                                                                <div className="flex flex-col text-[10px] bg-gray-50 p-1.5 rounded border border-gray-100 mt-0.5">
+                                                                    <span className="text-gray-400 font-bold tracking-wider mb-0.5">DIRECCIÓN FÍSICA Y CP:</span>
+                                                                    <span className="font-medium text-gray-700 leading-tight">
+                                                                        {user.address} {user.address && user.postalCode ? ' - ' : ''} {user.postalCode}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>

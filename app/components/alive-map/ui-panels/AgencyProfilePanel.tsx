@@ -53,15 +53,18 @@ const [billingInfo, setBillingInfo] = useState<any>(null);
       name: "Nueva Agencia",
       tagline: "Slogan de Agencia",
       zone: "Zona Operativa",
+      address: "", // <-- NUEVO
+      postalCode: "", // <-- NUEVO
+     cif: "",
       web: "",
       email: "",
       phone: "",
       mobile: "",
-      avatar: "", // Esto será el LOGO de la empresa
+      avatar: "",
       cover: "",
-      licenseType: null 
+      licenseType: null,
+      licenseNumber: "" // <-- NUEVO 
   });
-
   // --- CARGA INTELIGENTE (PRIORIZA DATOS DE AGENCIA) ---
   useEffect(() => {
       if (isOpen) loadRealData();
@@ -76,7 +79,7 @@ const loadRealData = async () => {
           const d = userRes.data;
           setUserId(d?.id ? String(d.id) : null);
 
-           setProfile(prev => ({
+       setProfile(prev => ({
               ...prev,
               name: d.companyName || d.name || "Nueva Agencia",
               email: d.email || "",
@@ -84,10 +87,14 @@ const loadRealData = async () => {
               cover: d.coverImage || "",   
               tagline: d.tagline || "",
               zone: d.zone || "",
+              address: d.address || "",       // <-- NUEVO
+              postalCode: d.postalCode || "", // <-- NUEVO
+              cif: d.cif || "",
               phone: d.phone || "",      
               mobile: d.mobile || "",    
               web: d.website || "",
               licenseType: d.licenseType || 'STARTER',
+              licenseNumber: d.licenseNumber || "", // <-- NUEVO
           }));
       }
 
@@ -105,12 +112,16 @@ const handleSave = async () => {
   setIsSaving(true);
   if (soundEnabled) playSynthSound('click');
   try {
-      const result = await updateUserAction({
+     const result = await updateUserAction({
           companyName: profile.name,     
           companyLogo: profile.avatar,   
           coverImage: profile.cover,     
           tagline: profile.tagline,      
-          zone: profile.zone,            
+          zone: profile.zone, 
+          address: profile.address,       // <-- NUEVO
+          postalCode: profile.postalCode, // <-- NUEVO
+          cif: profile.cif,
+          licenseNumber: profile.licenseNumber, // <-- NUEVO
           phone: profile.phone,          
           mobile: profile.mobile,        
           website: profile.web,
@@ -486,16 +497,96 @@ const creditPercentage = Math.min(
               </button>
           </div>
 
-          {/* DATOS DE CONTACTO */}
+     {/* DATOS FISCALES, LEGALES Y CONTACTO */}
           <section className="bg-white p-6 rounded-[32px] shadow-sm border border-black/5 space-y-5">
+              
+              {/* 1. LICENCIA DE SOFTWARE STRATOSFERE (Autogenerada y Solo Lectura) */}
               <div className="flex items-start gap-4 group">
-                  <div className="p-3 bg-gray-50 rounded-2xl text-gray-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors"><MapPin size={20}/></div>
+                  <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors"><ShieldCheck size={20}/></div>
                   <div className="flex-1 pt-1">
-                      <div className="text-[10px] font-bold text-black/40 uppercase mb-1">Zona Operativa</div>
-                      {isEditing ? <input value={profile.zone} onChange={(e)=>setProfile({...profile, zone: e.target.value})} className="w-full text-sm font-bold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-emerald-500" placeholder="Ej: Madrid Centro" /> : <div className="text-sm font-bold text-black leading-tight">{profile.zone}</div>}
+                      <div className="text-[10px] font-bold text-black/40 uppercase mb-1">Licencia Software Stratosfere</div>
+                      <div className="text-sm font-black text-indigo-900 leading-tight tracking-widest">
+                          {userId ? `SF-PRO-${userId.slice(-6).toUpperCase()}` : 'PROCESANDO...'}
+                      </div>
                   </div>
               </div>
+
               <div className="h-px bg-black/5"></div>
+
+              {/* 2. DATOS FISCALES (Razón Social y CIF) */}
+              <div className="flex items-start gap-4 group">
+                  <div className="p-3 bg-gray-50 rounded-2xl text-gray-400 group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors"><Award size={20}/></div>
+                  <div className="flex-1 pt-1 space-y-3">
+                      <div>
+                          <div className="text-[10px] font-bold text-black/40 uppercase mb-1">Razón Social / Empresa</div>
+                          {isEditing ? (
+                              <input value={profile.name} onChange={(e)=>setProfile({...profile, name: e.target.value})} className="w-full text-sm font-bold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-amber-500" placeholder="Ej: Bernabeu Realty S.L." /> 
+                          ) : (
+                              <div className="text-sm font-bold text-black leading-tight">{profile.name || 'No definida'}</div>
+                          )}
+                      </div>
+                      
+                      {isEditing ? (
+                          <div className="mt-2">
+                              <div className="text-[9px] font-bold text-black/40 uppercase mb-0.5">CIF / NIF / DNI</div>
+                              <input value={profile.cif} onChange={(e)=>setProfile({...profile, cif: e.target.value})} className="w-full text-xs font-semibold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-amber-500" placeholder="B12345678" />
+                          </div>
+                      ) : (
+                          profile.cif && (
+                              <div className="mt-2">
+                                  <div className="text-[10px] font-bold text-black/40 uppercase mb-1">CIF / NIF</div>
+                                  <div className="text-sm font-bold text-slate-700 leading-tight">{profile.cif}</div>
+                              </div>
+                          )
+                      )}
+                  </div>
+              </div>
+
+              <div className="h-px bg-black/5"></div>
+
+              {/* 3. SEDE CENTRAL: ZONA + DIRECCIÓN FÍSICA Y CP */}
+              <div className="flex items-start gap-4 group">
+                  <div className="p-3 bg-gray-50 rounded-2xl text-gray-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors"><MapPin size={20}/></div>
+                  <div className="flex-1 pt-1 space-y-3">
+                      
+                      {/* ZONA OPERATIVA */}
+                      <div>
+                          <div className="text-[10px] font-bold text-black/40 uppercase mb-1">Zona Operativa</div>
+                          {isEditing ? (
+                              <input value={profile.zone} onChange={(e)=>setProfile({...profile, zone: e.target.value})} className="w-full text-sm font-bold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-emerald-500" placeholder="Ej: Madrid Centro" /> 
+                          ) : (
+                              <div className="text-sm font-bold text-black leading-tight">{profile.zone || 'No definida'}</div>
+                          )}
+                      </div>
+
+                      {/* DIRECCIÓN Y CP (Aparecen al editar o si ya hay datos) */}
+                      {isEditing ? (
+                          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-black/5 mt-2">
+                              <div className="col-span-2">
+                                  <div className="text-[9px] font-bold text-black/40 uppercase mb-0.5">Dirección Oficina</div>
+                                  <input value={profile.address} onChange={(e)=>setProfile({...profile, address: e.target.value})} className="w-full text-xs font-semibold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-emerald-500" placeholder="Calle, Número..." />
+                              </div>
+                              <div className="col-span-1">
+                                  <div className="text-[9px] font-bold text-black/40 uppercase mb-0.5">C. Postal</div>
+                                  <input value={profile.postalCode} onChange={(e)=>setProfile({...profile, postalCode: e.target.value})} className="w-full text-xs font-semibold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-emerald-500" placeholder="CP" />
+                              </div>
+                          </div>
+                      ) : (
+                          (profile.address || profile.postalCode) && (
+                              <div className="pt-2 border-t border-black/5 mt-2">
+                                  <div className="text-[10px] font-bold text-black/40 uppercase mb-1">Oficina Central</div>
+                                  <div className="text-sm font-bold text-slate-700 leading-tight">
+                                      {profile.address} {profile.address && profile.postalCode ? '-' : ''} {profile.postalCode}
+                                  </div>
+                              </div>
+                          )
+                      )}
+                  </div>
+              </div>
+              
+              <div className="h-px bg-black/5"></div>
+              
+              {/* 4. WEB, EMAIL Y TELÉFONOS */}
               <div className="grid grid-cols-1 gap-4">
                  <div className="flex items-start gap-3 group">
                      <div className="p-2 bg-gray-50 rounded-xl text-gray-400 group-hover:text-blue-500 transition-colors"><Globe size={16}/></div>
@@ -512,6 +603,7 @@ const creditPercentage = Math.min(
                      </div>
                  </div>
               </div>
+              
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-black/5 mt-2">
                  <div className="flex items-start gap-3 group">
                      <div className="p-2 bg-gray-50 rounded-xl text-gray-400 group-hover:text-blue-500 transition-colors"><Phone size={16}/></div>
@@ -529,9 +621,11 @@ const creditPercentage = Math.min(
                  </div>
               </div>
           </section>
+          
           <div className="h-10"></div>
       </div>
 
+      {/* FOOTER: BOTONES DE GUARDAR Y SALIR */}
       <div className="p-6 bg-white border-t border-black/5 shrink-0 flex flex-col gap-3">
           {isEditing ? (
                <button onClick={handleSave} disabled={isSaving} className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-xs tracking-[0.2em] shadow-lg shadow-emerald-200 hover:bg-emerald-500 hover:scale-[1.02] active:scale-95 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50">

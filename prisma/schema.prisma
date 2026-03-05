@@ -25,9 +25,11 @@ model User {
   companyLogo   String?
   coverImage    String?
   licenseType   String?  @default("STARTER")
-  mobile        String?
+ mobile        String?
   tagline       String?
   zone          String?
+  address       String?  // <-- NUEVO
+  postalCode    String?  // <-- NUEVO
 ambassadorProfile AmbassadorProfile?
   // Relaciones Básicas
   favorites                Favorite[]
@@ -626,4 +628,25 @@ model AgencyProspect {
 
   @@index([status])
   @@index([city])
+}
+
+// =========================================================
+// 🗂️ ARCHIVOS Y DOCUMENTOS ENCRIPTADOS (BUZÓN SAAS)
+// =========================================================
+
+model StratosDocument {
+  id           String   @id @default(cuid())
+  fileName     String   
+  fileUrl      String   
+  sizeKB       String   
+  propertyRef  String   
+  ownerId      String   
+  isRead       Boolean  @default(false)
+  
+  senderName   String?  // 👈 NUEVO: Nombre del remitente
+  senderEmail  String?  // 👈 NUEVO: Email del remitente
+  
+  createdAt    DateTime @default(now())
+  @@index([ownerId])
+  @@index([propertyRef])
 }

@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation';
 import { 
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Moon,  Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
-  Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal,
+  Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal, StickyNote, 
   Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2, Crown,
 } from 'lucide-react';
 
@@ -25,7 +25,8 @@ import ArchitectHud from "./ArchitectHud";
 import MarketPanel from "./MarketPanel";
 import DualSlider from "./DualSlider";
 import OwnerProposalsPanel from "./OwnerProposalsPanel";
-
+import StratosNotesWidget from "./StratosNotesWidget"; // O la ruta correcta
+import SmartSidebar from "./SmartSidebar";
 // --- 4. COMPONENTES LÓGICOS ---
 import DetailsPanel from "./DetailsPanel";
 import { playSynthSound } from "./audio";
@@ -40,8 +41,8 @@ import PremiumUpgradePanel from "./PremiumUpgradePanel";
 import PlanOverlay from "@/app/components/billing/PlanOverlay";
 import GuestInviteOverlay from "./GuestInviteOverlay";
 import { useMyPlan } from "@/app/components/billing/useMyPlan";
-import SmartSidebar from '@/app/components/alive-map/ui-panels/SmartSidebar';
-
+import StratosAIConsole from "./StratosAIConsole";
+import { handleRealDeployment } from './deploymentService';
 // 🔥 IMPORTS ACTIONS (chat + favoritos + agency)
 import {
   getFavoritesAction,
@@ -144,6 +145,9 @@ export default function UIPanels({
 
   // --- 3. ESTADOS SISTEMA ---
   const [activePanel, setActivePanel] = useState('NONE'); 
+ // Estados para la Recepción de Documentos (El Cristal)
+  const [incomingFile, setIncomingFile] = useState<File | null>(null);
+  const [hasAiNotification, setHasAiNotification] = useState(false);
   const [isNightMode, setIsNightMode] = useState(false);
   const [rightPanel, setRightPanel] = useState('NONE');   
 
@@ -169,6 +173,7 @@ export default function UIPanels({
   const [explorerIntroDone, setExplorerIntroDone] = useState(true);
   const [landingComplete, setLandingComplete] = useState(false);
   const [showAdvancedConsole, setShowAdvancedConsole] = useState(false);
+  const [showTacticalNotes, setShowTacticalNotes] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showGuestInvite, setShowGuestInvite] = useState(false);
   // 🔥 MOTOR VIP PASS (BLINDADO CONTRA BUCLES)
@@ -556,6 +561,15 @@ const addNotification = (title: string) => {
   // Extraemos solo lo que el Cuartel General necesita tocar:
   const { chatOpen, setChatOpen, openChatPanel, openConversation, unreadTotal } = chatEngine;
 
+  // 🚀 PUENTE DE TRANSMISIÓN DE ARCHIVOS
+  const executeDeploymentWrapper = async (file: File, reference: string) => {
+    const success = await handleRealDeployment(file, reference, agencyProfileData);
+    
+    // ❌ HEMOS BORRADO EL setHasAiNotification(true) DE AQUÍ.
+    // Ahora solo parpadeará si alguien de verdad le envía algo.
+    
+    return success;
+  };
   
 const handleDayNight = () => {
   if (soundEnabled) playSynthSound("click");
@@ -1283,8 +1297,17 @@ useEffect(() => {
     </span>
   </button>
 
-                               {/* 4. IA */}
-                               <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); }} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-white/50 hover:text-white'}`}><Sparkles size={18}/></button>
+                    {/* 4. IA */}
+<button onClick={() => { 
+    if(typeof playSynthSound === 'function') playSynthSound('click'); 
+    setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI'); 
+    if (activePanel !== 'AI') setHasAiNotification(false);
+}} className={`p-3 rounded-full transition-all relative group ${activePanel==='AI' ? 'bg-blue-500/20 text-blue-400' : 'hover:bg-blue-500/10 text-white/50 hover:text-white'}`}>
+    <Sparkles size={18} className="relative z-10" />
+    {hasAiNotification && (
+        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,1)] animate-pulse" style={{ animationDuration: '0.8s' }}></span>
+    )}
+</button>
                                
                                {/* 5. 🏢 MI STOCK (ABRE PORTAFOLIO DE VENTAS) */}
                                <button onClick={() => { if(typeof playSynthSound === 'function') playSynthSound('click'); setRightPanel(rightPanel === 'AGENCY_PORTFOLIO' ? 'NONE' : 'AGENCY_PORTFOLIO'); }} className={`p-3 rounded-full hover:bg-white/10 transition-all ${rightPanel === 'AGENCY_PORTFOLIO' ? 'text-emerald-400 bg-white/10' : 'text-white/50 hover:text-white'}`}><Building2 size={18}/></button>
@@ -1397,18 +1420,20 @@ useEffect(() => {
                               <Store size={18} />
                             </button>
 
-                            {/* 2. 🔥 AGENCIAS (NUEVO) */}
+                           {/* 2. 📝 BLOC DE NOTAS TÁCTICO */}
                             <button
                                 onClick={() => requireAuth(() => {
-                                    playSynthSound('click');
-                                    setActivePanel(activePanel === 'AGENCIES_LIST' ? 'NONE' : 'AGENCIES_LIST');
+                                    if (typeof playSynthSound === 'function') playSynthSound('click');
+                                    setShowTacticalNotes(!showTacticalNotes);
                                 })}
-                                className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-                                    activePanel === 'AGENCIES_LIST' ? 'text-indigo-400 bg-white/10' : 'text-white/50 hover:text-white'
+                                className={`p-3 rounded-full transition-all relative group ${
+                                    showTacticalNotes ? 'text-amber-400 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'text-white/50 hover:text-white hover:bg-white/10'
                                 }`}
-                                title="Directorio Agencias"
+                                title="Bloc de Notas Táctico"
                             >
-                                <Briefcase size={18} />
+                                <StickyNote size={18} />
+                                {/* Chivato visual: un pequeño punto parpadeante cuando el bloc está abierto */}
+                                {showTacticalNotes && <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse shadow-[0_0_5px_rgba(245,158,11,0.8)]"></span>}
                             </button>
 
                             {/* 3. 👑 PREMIUM NANO STORE (NUEVO) */}
@@ -1452,18 +1477,22 @@ useEffect(() => {
                               </span>
                             </button>
 
-                            {/* 5. IA */}
-                            <button
-                              onClick={() => requireAuth(() => {
-                                playSynthSound('click');
-                                setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI');
-                              })}
-                              className={`p-3 rounded-full transition-all relative group ${
-                                activePanel === 'AI' ? 'bg-blue-500/20 text-blue-300' : 'hover:bg-blue-500/10 text-blue-400'
-                              }`}
-                            >
-                              <Sparkles size={18} className="relative z-10" />
-                            </button>
+                         {/* 5. IA */}
+<button
+  onClick={() => requireAuth(() => {
+    if(typeof playSynthSound === 'function') playSynthSound('click');
+    setActivePanel(activePanel === 'AI' ? 'NONE' : 'AI');
+    if (activePanel !== 'AI') setHasAiNotification(false);
+  })}
+  className={`p-3 rounded-full transition-all relative group ${
+    activePanel === 'AI' ? 'bg-blue-500/20 text-blue-400' : 'hover:bg-blue-500/10 text-white/50 hover:text-white'
+  }`}
+>
+  <Sparkles size={18} className="relative z-10" />
+  {hasAiNotification && (
+        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,1)] animate-pulse" style={{ animationDuration: '0.8s' }}></span>
+  )}
+</button>
 
                             {/* 6. FAVORITOS (VAULT) */}
                             <button
@@ -1546,11 +1575,16 @@ useEffect(() => {
 />
 
 )}
+{/* EL BLOC DE NOTAS CINEMÁTICO */}
+<StratosNotesWidget 
+    isOpen={showTacticalNotes} 
+    onClose={() => setShowTacticalNotes(false)} 
+    soundEnabled={soundEnabled} 
+    playSynthSound={playSynthSound} 
+/>
 
 
-
-
-           {/* 4. PANELES DE AGENCIA (CONECTADOS AL BORRADO REAL) */}
+          {/* 4. PANELES DE AGENCIA (CONECTADOS AL BORRADO REAL) */}
            {/* Aquí estaba el duplicado. Esta es la versión ÚNICA y CORRECTA. */}
            <AgencyProfilePanel isOpen={rightPanel === 'AGENCY_PROFILE'} onClose={() => toggleRightPanel('NONE')} />
            <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
@@ -1743,45 +1777,35 @@ useEffect(() => {
                    }}
                />
            )}
-
-       {/* IA / OMNI INTELLIGENCE */}
-       {activePanel === 'AI' && (
-           <div className="fixed bottom-40 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-[20000] pointer-events-auto">
-              <div className="animate-fade-in rounded-[2.5rem] p-8 bg-[#050505]/95 backdrop-blur-2xl border border-blue-500/30 shadow-[0_0_100px_rgba(59,130,246,0.2)]">
-                  <div className="flex justify-between items-center mb-8 text-white">
-                      <span className="text-xs font-bold tracking-[0.3em] flex items-center gap-2">
-                          <Sparkles size={14} className="text-blue-500 animate-spin-slow"/> STRATOS AI
-                      </span>
-                      <button onClick={() => setActivePanel('NONE')} className="hover:text-red-500 transition-colors p-2"><X size={18}/></button>
-                  </div>
-                  <div className="h-48 flex flex-col items-center justify-center text-center gap-4 relative">
-                      <div className="w-16 h-16 rounded-full border border-blue-500/30 flex items-center justify-center animate-pulse">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full blur-md"></div>
-                      </div>
-                      <p className="text-white/50 text-xs tracking-widest font-mono">
-                          {aiResponse ? aiResponse : "ESCUCHANDO FRECUENCIA..."}
-                      </p>
-                  </div>
-              </div>
-         </div>
-       )}
+<StratosAIConsole 
+    isOpen={activePanel === 'AI'} 
+    onClose={() => {
+        setActivePanel('NONE');
+        setHasAiNotification(false);
+    }} 
+    aiResponse={aiResponse} 
+    onDeploy={executeDeploymentWrapper}
+    incomingFile={incomingFile}
+    onClearFile={() => setIncomingFile(null)}
+    activeUserKey={activeUserKey}
+    currentUser={agencyProfileData} // 👈 ¡NUEVA LÍNEA AÑADIDA!
+    onUnreadAlert={(hasUnread: boolean) => {
+        if (hasUnread) setHasAiNotification(true); 
+    }}
+/>
        
       {/* 🕸️ LA RED DE CAPTURA PARA INVITADOS VIP 🕸️ */}
-       <GuestInviteOverlay 
-          isOpen={showGuestInvite} 
-          
-          // Si dice "Volver al inicio" o cierra en la X:
-          onClose={() => {
-              setShowGuestInvite(false);
-              setGateUnlocked(false); // Le quita el mapa y lo deja en la bola del mundo
-          }} 
-          
-          // Si pulsa "Crear Cuenta Gratuita":
-          onAccept={() => {
-              setShowGuestInvite(false);
-              setGateUnlocked(false); // Lo manda a la bola del mundo (donde está el botón real)
-          }}
-       />
+      <GuestInviteOverlay 
+         isOpen={showGuestInvite} 
+         onClose={() => {
+             setShowGuestInvite(false);
+             setGateUnlocked(false); 
+         }} 
+         onAccept={() => {
+             setShowGuestInvite(false);
+             setGateUnlocked(false); 
+         }}
+      />
 
     </div>
   );
