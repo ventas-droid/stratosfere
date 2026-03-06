@@ -13,6 +13,8 @@ export async function registerUser(formData: FormData) {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const name = formData.get("name") as string
+  const companyName = formData.get("companyName") as string | null
+  const cif = formData.get("cif") as string | null
   
   if (!email || !password || !name) {
     return { error: "Faltan datos obligatorios" }
@@ -36,13 +38,15 @@ export async function registerUser(formData: FormData) {
   const hashedPassword = await hash(password, 10)
 
   try {
-    // 2. CREACIÓN DEL USUARIO (Su código intacto)
+   // 2. CREACIÓN DEL USUARIO (Su código intacto + CIF)
     await db.user.create({
       data: {
         email,
         password: hashedPassword,
         name,
-        role: assignedRole as any, // Guardamos AGENCIA, DIFUSOR o PARTICULAR
+        role: assignedRole as any, 
+        companyName: companyName || undefined, // 🔥 NUEVO: Guardamos la Empresa
+        cif: cif || undefined,                 // 🔥 NUEVO: Guardamos el CIF/NIF
       }
     })
 

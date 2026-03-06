@@ -415,18 +415,26 @@ export const useMapLogic = () => {
   }, []);
 
   // --------------------------------------------------------------------
-  // C. SISTEMA DE TELETRANSPORTE
+  // C. SISTEMA DE TELETRANSPORTE (GIROSCOPIO BLINDADO)
   // --------------------------------------------------------------------
   useEffect(() => {
     const handleFlyTo = (e: any) => {
       if (!map.current) return;
-      const { center, zoom, pitch } = e.detail;
+      const { center, zoom, pitch, duration } = e.detail;
+
+      // 🔥 1. LEEMOS LA CÁMARA ACTUAL DEL USUARIO
+      const currentPitch = map.current.getPitch();
+      const currentBearing = map.current.getBearing();
+
+      // 🔥 2. VOLAMOS RESPETANDO SU INCLINACIÓN Y ROTACIÓN
       map.current.flyTo({
         center: center,
         zoom: zoom || 18,
-        pitch: pitch || 60,
-        bearing: -20,
-        duration: 3000,
+        // Si el botón manda un pitch exacto, lo usamos. Si no, mantenemos el del usuario.
+        pitch: pitch !== undefined ? pitch : currentPitch,
+        // Ya no forzamos -20. Mantenemos hacia dónde miraba el usuario.
+        bearing: currentBearing, 
+        duration: duration || 3000,
         essential: true
       });
     };
@@ -671,11 +679,24 @@ export const useMapLogic = () => {
 
         console.log(`✅ ATERRIZANDO EN: ${bestMatch.place_name} (Tipo: ${type})`);
 
-        // 🚁 MANIOBRAS DE VUELO
+      // 🚁 MANIOBRAS DE VUELO
         if (bestMatch.bbox && ['country', 'region', 'place', 'district', 'locality'].includes(type)) {
            // Vuelo general para ciudades
-           map.current.fitBounds(bestMatch.bbox, { padding: 50, duration: 3000, essential: true });
+           
+           // 🔥 EL SECRETO: Leer la cámara antes de encuadrar
+           const currentPitch = map.current.getPitch();
+           const currentBearing = map.current.getBearing();
+
+           map.current.fitBounds(bestMatch.bbox, { 
+               padding: 50, 
+               duration: 3000, 
+               pitch: currentPitch,     // <-- EVITA QUE SE PONGA RECTO
+               bearing: currentBearing, // <-- EVITA QUE GIRE AL NORTE DE GOLPE
+               essential: true 
+           });
         } else {
+           // --- CONFIGURACIÓN DE CÁMARA POR DEFECTO ---
+           // ... (El resto de su código hacia abajo se queda igual)
            // --- CONFIGURACIÓN DE CÁMARA POR DEFECTO ---
            let targetZoom = 16.5; 
            let targetPitch = 60;

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Heart, Bed, Bath, Maximize2, Navigation, Building2, Home, Briefcase, LandPlot, Warehouse, Sun, ArrowUp, Crown } from 'lucide-react';
 import Image from 'next/image';
 import { getPropertyByIdAction } from '@/app/actions';
+import { optimizeStratosImage } from '@/app/utils/imageOptimizer';
 // ------------------------------------------------------------------
 // 1. MOTORES DE PARSEO (NO TOCAR)
 // ------------------------------------------------------------------
@@ -94,8 +95,8 @@ export default function MapNanoCard(props: any) {
     const backupImg = liveData.mainImage || liveData.img || liveData.image;
     if (backupImg) finalAlbum = [backupImg];
   }
-  const img = finalAlbum[0] || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
-
+// 🔥 Inyectamos la IA en la imagen principal de la tarjeta
+  const img = optimizeStratosImage(finalAlbum[0]) || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
   // 📡 Antena de Comunicaciones (BLINDADA)
   useEffect(() => {
     const handleUpdate = (e: any) => {
@@ -198,13 +199,14 @@ export default function MapNanoCard(props: any) {
       
       // 🔥 DATOS FÍSICOS PUROS (Si no existen, viajan como null o texto por defecto, sin romper nada)
     // 🔥 DATOS FÍSICOS PUROS (Todo a null si no existe, el panel ya lo gestionará)
-      address: liveData.address || null,
+    address: liveData.address || null,
       city: liveData.city || null,
       postcode: liveData.postcode || null,
       region: liveData.region || null,
       
       images: finalAlbum,
-      img: finalAlbum[0] || null,
+      // 🔥 Mandamos la foto con IA directamente al HoloInspector
+      img: optimizeStratosImage(finalAlbum[0]) || null,
       price: currentPrice,
       priceValue: currentPrice,
       b2b: b2bData,

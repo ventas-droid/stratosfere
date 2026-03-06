@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import { 
   X, MapPin, ShieldCheck, Globe, Mail, Edit2, Save, Camera, 
   Zap, Award, TrendingUp, Layers, LogOut, Image as ImageIcon,
-  Phone, Smartphone, User, Users, ChevronRight, Handshake // <--- AÑADIDO Handshake
+  Phone, Smartphone, User, Users, ChevronRight, Handshake, Crown // <--- AÑADIDO Handshake
 } from "lucide-react";
 import { getUserMeAction, updateUserAction, logoutAction } from '@/app/actions';
 import { uploadToCloudinary } from '@/app/utils/upload';
@@ -14,7 +14,7 @@ import { getBillingGateAction } from "@/app/actions";
 // 🔥 IMPORTANTE: GESTORES DE AGENCIA
 import AgencyEventManager from "./AgencyEventManager"; 
 import CollaborationManager from "./CollaborationManager"; // <--- NUEVO FICHAJE
-
+import VanguardRequestModal from './VanguardRequestModal';
 // --- CONSTANTES DE LICENCIA ---
 const LICENSE_LEVELS = {
   AGENCY: { name: "Agency SF PRO", credits: 50, maxCredits: 50, rank: "Agencia profesional", color: "emerald" },
@@ -33,7 +33,7 @@ const [billingInfo, setBillingInfo] = useState<any>(null);
   // 🔥 ESTADOS DE MODALES INTERNOS
   const [showEventManager, setShowEventManager] = useState(false);
   const [showCollabManager, setShowCollabManager] = useState(false); // <--- NUEVO ESTADO B2B
-
+const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VANGUARD VIP
   const bust = (url: string | null | undefined) => {
     if (!url) return url;
     const sep = url.includes("?") ? "&" : "?";
@@ -427,74 +427,99 @@ const creditPercentage = Math.min(
               </div>
           </section>
 
-          {/* 🔥 BOTONERA DE GESTIÓN (Eventos + B2B) */}
+       {/* 🔥 BOTONERA DE GESTIÓN (Eventos + B2B + Embajadores + VIP) */}
           <div className="space-y-3">
               
               {/* 1. GESTOR DE EVENTOS */}
               <button 
                   onClick={() => { if(soundEnabled) playSynthSound('click'); setShowEventManager(true); }}
-                  className="w-full bg-white p-5 rounded-[24px] shadow-sm border border-slate-200 flex items-center justify-between group hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
+                  className="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex items-center justify-between group hover:border-indigo-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
               >
-                  <div className="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors border border-indigo-100/50">
-                          <Users size={22} />
+                  <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-500/30 transition-all duration-300 border border-indigo-100/50 shrink-0">
+                          <Users size={20} strokeWidth={2.5} />
                       </div>
                       <div className="text-left">
-                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Gestor de Eventos</h3>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">Control de Aforo & Leads</p>
+                          <h3 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-indigo-600 transition-colors">Gestor de Eventos</h3>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">Control de Aforo & Leads</p>
                       </div>
                   </div>
-                  <div className="relative z-10 w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-300 group-hover:text-indigo-500 group-hover:border-indigo-100 transition-all shadow-sm">
-                     <ChevronRight size={16} />
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:text-indigo-500 group-hover:bg-indigo-50 transition-all shrink-0">
+                     <ChevronRight size={16} strokeWidth={3} />
                   </div>
               </button>
 
-              {/* 2. 🔥 GESTOR DE COLABORACIONES (B2B) 🔥 */}
+              {/* 2. GESTOR DE COLABORACIONES (B2B) */}
               <button 
                   onClick={() => { if(soundEnabled) playSynthSound('click'); setShowCollabManager(true); }}
-                  className="w-full bg-gradient-to-r from-amber-50 to-orange-50 p-5 rounded-[24px] shadow-sm border border-amber-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
+                  className="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex items-center justify-between group hover:border-amber-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
               >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-200/20 rounded-full blur-3xl pointer-events-none group-hover:bg-yellow-300/30 transition-colors"></div>
-                  
-                  <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-12 h-12 rounded-2xl bg-white text-amber-500 flex items-center justify-center shadow-sm border border-amber-100 group-hover:text-amber-600 transition-colors">
-                          <Handshake size={22} strokeWidth={2.5}/>
+                  <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-amber-500/30 transition-all duration-300 border border-amber-100/50 shrink-0">
+                          <Handshake size={20} strokeWidth={2.5}/>
                       </div>
                       <div className="text-left">
-                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">Colaboraciones B2B</h3>
-                          <p className="text-[10px] font-bold text-amber-700/60 uppercase tracking-wider group-hover:text-amber-700 transition-colors">Gestión de Alianzas</p>
+                          <h3 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-amber-600 transition-colors">Colaboraciones B2B</h3>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">Gestión de Alianzas</p>
                       </div>
                   </div>
-                  <div className="relative z-10 w-8 h-8 rounded-full bg-white/50 border border-amber-200/50 flex items-center justify-center text-amber-400 group-hover:text-amber-600 group-hover:bg-white transition-all shadow-sm">
-                     <ChevronRight size={16} />
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:text-amber-500 group-hover:bg-amber-50 transition-all shrink-0">
+                     <ChevronRight size={16} strokeWidth={3} />
                   </div>
               </button>
 
-{/* 3. 🎖️ RED DE EMBAJADORES (NUEVO - GATILLO DEL PANEL ANCHO) */}
+              {/* 3. RED DE EMBAJADORES */}
               <button 
                   onClick={() => { 
-                      if(onClose) onClose(); // Cerramos el perfil para dejar sitio
+                      if(onClose) onClose();
                       if(typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-ambassadors-signal'));
                   }}
-                  className="w-full bg-[#0F172A] p-5 rounded-[24px] shadow-lg shadow-slate-900/20 border border-slate-800 flex items-center justify-between group hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer relative overflow-hidden"
+                  className="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex items-center justify-between group hover:border-blue-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
               >
-                  {/* Fondo animado oscuro */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-slate-900 to-black opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  
-                  <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-12 h-12 rounded-2xl bg-white/5 text-blue-400 flex items-center justify-center border border-white/10 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-500 transition-colors">
-                          <ShieldCheck size={22} strokeWidth={2.5}/>
+                  <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-blue-500/30 transition-all duration-300 border border-blue-100/50 shrink-0">
+                          <ShieldCheck size={20} strokeWidth={2.5}/>
                       </div>
                       <div className="text-left">
-                          <h3 className="text-sm font-black text-white uppercase tracking-wide">Red de Embajadores</h3>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-blue-200 transition-colors">Gestión de Embajadores & Leads</p>
+                          <h3 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-blue-600 transition-colors">Red de Embajadores</h3>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">Gestión de Embajadores</p>
                       </div>
                   </div>
-                  <div className="relative z-10 w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-slate-500 group-hover:text-white group-hover:bg-white/20 transition-all">
-                     <ChevronRight size={16} />
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:text-blue-500 group-hover:bg-blue-50 transition-all shrink-0">
+                     <ChevronRight size={16} strokeWidth={3} />
                   </div>
               </button>
+
+              {/* 4. VANGUARD VIP MARKET (Premium Look) */}
+              <button 
+                  onClick={() => setShowVipModal(true)}
+                  className="w-full bg-gradient-to-br from-slate-900 to-black p-[1px] rounded-2xl shadow-md flex items-center justify-between group hover:shadow-xl hover:shadow-amber-500/10 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden relative"
+              >
+                  {/* Brillo dinámico de fondo */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none"></div>
+
+                  <div className="w-full bg-[#0a0a0a] p-4 rounded-[15px] flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400/10 to-orange-600/10 text-amber-500 flex items-center justify-center border border-amber-500/20 group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all duration-300 shrink-0">
+                              <Crown size={20} strokeWidth={2.5} />
+                          </div>
+                          <div className="text-left">
+                              <h3 className="text-sm font-bold text-white tracking-tight group-hover:text-amber-400 transition-colors">VANGUARD VIP MARKET</h3>
+                              <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mt-0.5">Liderazgo de Zona B2B</p>
+                          </div>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 group-hover:text-amber-400 group-hover:bg-amber-500/10 transition-all shrink-0 border border-white/5">
+                         <span className="font-bold text-lg leading-none">+</span>
+                      </div>
+                  </div>
+              </button>
+
+              {/* El Modal Oculto (Se renderiza por encima de todo cuando showVipModal es true) */}
+              <VanguardRequestModal 
+                  isOpen={showVipModal} 
+                  onClose={() => setShowVipModal(false)} 
+                  agencyData={{ ...profile, id: userId }} 
+              />
           </div>
 
      {/* DATOS FISCALES, LEGALES Y CONTACTO */}

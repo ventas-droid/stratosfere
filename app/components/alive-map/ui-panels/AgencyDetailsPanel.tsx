@@ -138,7 +138,9 @@ const [showB2BModal, setShowB2BModal] = useState(false);
             name: leadForm.name,
             email: leadForm.email,
             phone: leadForm.phone,
-            message: leadForm.message || "Hola, me interesa esta propiedad."
+            message: leadForm.message || "Hola, me interesa esta propiedad.",
+            // 🔥 EL CHIVATO VIP: Si viene del mapa 3D, enviará "MARKET_NETWORK"
+            source: selectedProp.source || "ORGANIC" 
         });
         setSendingLead(false);
 

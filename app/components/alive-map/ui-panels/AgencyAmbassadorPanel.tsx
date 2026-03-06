@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Users, ShieldCheck, X, Search, 
     MessageSquare, Phone, MapPin, Trash2, Navigation, 
-    Loader2, TrendingUp, Mail, Award, Clock
+    Loader2, TrendingUp, Mail, Award, Clock, Crown
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -286,13 +286,20 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                         {isNew && <span className="bg-rose-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black tracking-widest shadow-sm animate-pulse">NUEVO</span>}
                                                     </div>
                                                     
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest">
-                                                            REF: {p?.refCode || "---"}
-                                                        </span>
-                                                    </div>
+                                                <div className="flex items-center gap-2 mb-2 flex-wrap">
+    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border border-slate-200">
+        REF: {p?.refCode || "---"}
+    </span>
+    
+    {/* 🔥 DETONADOR INFALIBLE: Se enciende si viene del mapa o si el nombre contiene "VIP" */}
+    {(lead.source === 'MARKET_NETWORK' || lead.campaignId || lead.name?.includes('VIP')) && (
+        <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm border border-orange-400">
+            <Crown size={10} className="text-white"/> ROI CAMPAÑA VIP
+        </span>
+    )}
+</div>
 
-                                                    <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold truncate">
+<div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold truncate">
                                                         <MapPin size={12} className="text-indigo-400"/> <span className="truncate">{p?.address || p?.title || "Propiedad en Radar"}</span>
                                                     </div>
                                                 </div>

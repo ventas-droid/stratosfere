@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
     ],
     qualities: [60, 75], // ✅ añade 60 (y deja 75)
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb', // 💥 AUTORIZAMOS FOTOS DE HASTA 10 MEGAS
+    },
+  },
 };
 
 export default nextConfig;

@@ -9,7 +9,7 @@ import {
   LayoutGrid, Search, Mic, Bell, MessageCircle, Heart, User, Sparkles, Activity, X, Send, 
   Square, Box, Crosshair, Sun, Moon,  Phone, Maximize2, Bed, Bath, TrendingUp, CheckCircle2,
   Camera, Zap, Globe, Newspaper, Share2, Shield, Store, SlidersHorizontal, StickyNote, 
-  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2, Crown,
+  Briefcase, Home, Map as MapIcon, Lock, Unlock, Edit2, Building2, Trash2, Crown, Gem
 } from 'lucide-react';
 
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
@@ -81,7 +81,9 @@ import { useStratosChat } from "./useStratosChat";
 import StratosChatWindow from "./StratosChatWindow";
 import StratosWelcomeGate from "./StratosWelcomeGate";
 import { useStratosVipLink } from "./useStratosVipLink";
-
+// 🔥 EL RADAR DE ZONAS VIP
+import { getZoneCampaignAction } from '@/app/actions-zones';
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 export default function UIPanels({ 
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
@@ -94,6 +96,65 @@ export default function UIPanels({
           if (saved) try { setHomeBase(JSON.parse(saved)); } catch (e) {}
       }
   }, []);
+// ========================================================
+  // 🎰 MOTOR "LAS VEGAS": SONAR ACTIVO DE ZONAS VIP
+  // ========================================================
+  const [vipZoneActive, setVipZoneActive] = useState(false);
+
+  useEffect(() => {
+      let lastZip: string | null = null;
+      let isAlive = true;
+
+      const sonarInterval = setInterval(async () => {
+          if (!map?.current) return;
+          
+          try {
+              // Obtenemos coordenadas exactas
+              let lng, lat;
+              if (typeof map.current.getCenter === 'function') {
+                  const center = map.current.getCenter();
+                  lng = center.lng;
+                  lat = center.lat;
+              } else if (map.current.center) {
+                  lng = map.current.center.lng;
+                  lat = map.current.center.lat;
+              }
+              
+              if (!lng || !lat) return;
+
+              // 🔥 AQUÍ ESTABA EL FALLO: Ahora usamos la misma fórmula que en su MarketPanel
+              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=postcode,locality,place&language=es`;
+              const res = await fetch(url);
+              const data = await res.json();
+
+              let currentZip = null;
+              if (data.features && data.features.length > 0) {
+                  data.features.forEach((f: any) => {
+                      if (f.place_type.includes('postcode')) currentZip = f.text;
+                  });
+              }
+
+              // Consultamos la Base de Datos solo si el código ha cambiado
+              if (currentZip !== lastZip) {
+                  lastZip = currentZip;
+                  if (currentZip) {
+                      const dbCampaign = await getZoneCampaignAction(currentZip);
+                      if (isAlive) setVipZoneActive(!!(dbCampaign?.success && dbCampaign.data));
+                  } else {
+                      if (isAlive) setVipZoneActive(false);
+                  }
+              }
+          } catch (error) {
+              // Silencioso para no molestar
+          }
+      }, 1500); // Pulso cada 1.5 segundos
+
+      return () => {
+          isAlive = false;
+          clearInterval(sonarInterval);
+      };
+  }, [map]); // 🔥 Recuperamos el [map] de forma segura
+  // ========================================================
 
   // 🔥 MOVIDO AQUÍ (ANTES DE USARSE EN EL EFECTO DE GATE)
   // --- DATOS USUARIO (SERVER-SIDE SOURCE OF TRUTH) ---
@@ -1406,18 +1467,26 @@ useEffect(() => {
                         {/* ARSENAL DERECHA (Aquí están los nuevos botones, TODOS BLINDADOS) */}
                         <div className="flex items-center gap-1">
                             
-                            {/* 1. MERCADO INMOBILIARIO */}
+                       {/* 1. MERCADO INMOBILIARIO (EFECTO TESORO VIP) */}
                             <button
                               onClick={() => requireAuth(() => {
-                                playSynthSound('click');
+                                if (typeof playSynthSound === 'function') playSynthSound('click');
                                 setActivePanel(activePanel === 'MARKETPLACE' ? 'NONE' : 'MARKETPLACE');
                               })}
-                              className={`p-3 rounded-full hover:bg-white/10 transition-all ${
-                                activePanel === 'MARKETPLACE' ? 'text-emerald-400 bg-white/10' : 'text-white/50 hover:text-white'
+                              className={`p-3 rounded-full transition-all duration-500 relative group ${
+                                vipZoneActive 
+                                  ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-[0_0_20px_rgba(245,158,11,0.6)] hover:scale-110 z-50'
+                                  : activePanel === 'MARKETPLACE' 
+                                      ? 'text-emerald-400 bg-white/10' 
+                                      : 'text-white/50 hover:text-white hover:bg-white/10'
                               }`}
-                              title="Mercado"
+                              title={vipZoneActive ? "¡Joyas VIP Detectadas!" : "Mercado"}
                             >
-                              <Store size={18} />
+                              {/* Onda expansiva dorada */}
+                              {vipZoneActive && <span className="absolute inset-0 rounded-full border-2 border-amber-300 animate-ping opacity-75"></span>}
+                              
+                              {/* 💎 EL DIAMANTE */}
+                              <Gem size={18} className={vipZoneActive ? "relative z-10 drop-shadow-md animate-pulse" : ""} />
                             </button>
 
                            {/* 2. 📝 BLOC DE NOTAS TÁCTICO */}

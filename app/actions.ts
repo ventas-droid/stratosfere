@@ -3172,8 +3172,7 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
                     <h2 style="color: #059669;">¡Nuevo Mandato Conseguido!</h2>
                     <p>El propietario ha aceptado tu propuesta para <strong>${campaign.property.address}</strong>.</p>
                     <p>Ya tienes acceso completo al expediente.</p>
-                    <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel</a>
-                  </div>
+<a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel</a>                  </div>
                 `
             });
             console.log("✅ [SERVER] Email enviado a la agencia.");
@@ -3364,6 +3363,7 @@ export async function submitLeadAction(data: {
     email: string;
     phone: string;
     message: string;
+    source?: string; // 🔥 1. ABRIMOS LA PUERTA AL CHIVATO VIP
 }) {
     try {
         // 1. RASTREO TÁCTICO
@@ -3371,7 +3371,7 @@ export async function submitLeadAction(data: {
         const ambassadorId = cookieStore.get('stratos_ref')?.value;
         const currentUser = await getCurrentUser(); 
 
-        console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO");
+        console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO", "| ORIGEN:", data.source || "ORGÁNICO");
 
         // 2. GUARDAR EN LA BASE DE DATOS
         const newLead = await prisma.lead.create({
@@ -3382,7 +3382,8 @@ export async function submitLeadAction(data: {
                 message: data.message,
                 propertyId: data.propertyId,
                 status: "NEW",
-                ambassadorId: ambassadorId ? ambassadorId : undefined
+                ambassadorId: ambassadorId ? ambassadorId : undefined,
+                source: data.source || "ORGANIC" // 🔥 2. GUARDAMOS LA MEDALLA EN LA BASE DE DATOS
             },
             include: { 
                 property: { include: { user: true } } // Traemos al dueño para saber su email

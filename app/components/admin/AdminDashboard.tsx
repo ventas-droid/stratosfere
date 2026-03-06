@@ -1,7 +1,8 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
+import AdminZoneManager from './AdminZoneManager';
 import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction, toggleUserSubscriptionAction, resetFreeTrialAction } from "@/app/components/admin/actions";import { 
-    ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, 
+    ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, Crown, 
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2, Eye, EyeOff, Lock,
     Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
 } from "lucide-react";
@@ -22,7 +23,11 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
   // ESTADO DEL FORMULARIO DEL CRM
   const [newProspect, setNewProspect] = useState({ companyName: '', email: '', phone: '', city: '' });
   const [isSending, setIsSending] = useState(false);
-useEffect(() => { setLocalProperties(properties); }, [properties]);
+// 🔥 ESTADOS PARA EL VISOR DE DOSSIERES VIP
+  const [selectedDossier, setSelectedDossier] = useState<string | null>(null);
+  const [showDossierModal, setShowDossierModal] = useState(false);
+
+  useEffect(() => { setLocalProperties(properties); }, [properties]);
  
 useEffect(() => {
     setIsMounted(true);
@@ -189,12 +194,16 @@ if (!isAuthenticated) {
                 <span className="font-bold text-gray-900 tracking-tight">Stratosfere <span className="text-gray-400 font-normal">God Mode</span></span>
             </div>
            <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
-                <button onClick={() => { setActiveTab('USERS'); sessionStorage.setItem('god_mode_tab', 'USERS'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'USERS' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}><Users size={14}/> Agencias</button>
+               <button onClick={() => { setActiveTab('USERS'); sessionStorage.setItem('god_mode_tab', 'USERS'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'USERS' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}><Users size={14}/> Agencias</button>
                 <button onClick={() => { setActiveTab('PROPERTIES'); sessionStorage.setItem('god_mode_tab', 'PROPERTIES'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'PROPERTIES' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}><Flame size={14} className={activeTab === 'PROPERTIES' ? "text-orange-500" : ""} /> Radar</button>
                 <button onClick={() => { setActiveTab('CRM'); sessionStorage.setItem('god_mode_tab', 'CRM'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'CRM' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}><Target size={14}/> CRM Captación</button>
+               
+                {/* 👑 NUEVO BOTÓN: ZONAS VIP */}
+                <button onClick={() => { setActiveTab('ZONAS' as any); sessionStorage.setItem('god_mode_tab', 'ZONAS'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'ZONAS' as any ? 'bg-amber-100 text-amber-700 shadow-sm border border-amber-200' : 'text-gray-500 hover:text-amber-600'}`}><Crown size={14}/> Market Network</button>
             </div>
-<button onClick={() => { setIsAuthenticated(false); sessionStorage.removeItem("god_mode_auth"); }} className="text-gray-400 hover:text-red-600"><LogOut size={18} /></button>        
-</div>
+
+            <button onClick={() => { setIsAuthenticated(false); sessionStorage.removeItem("god_mode_auth"); }} className="text-gray-400 hover:text-red-600"><LogOut size={18} /></button>        
+        </div>
       </nav>
 
       <div className="max-w-7xl mx-auto p-6 md:p-8 pb-20">
@@ -283,8 +292,31 @@ if (!isAuthenticated) {
                                                 <MapPin size={14} className="text-gray-400"/> {prospect.city || "Sin definir"}
                                             </div>
                                         </td>
-                                        <td className="p-5 text-center border-r border-gray-100/50">
-                                            {isContacted ? (
+                                   {/* COLUMNA: ESTADO / HISTORIAL VIP */}
+                                     <td className="p-5 text-center border-r border-gray-100/50 relative overflow-hidden">
+                                            {/* 🔥 Línea LED lateral si es VIP */}
+                                            {prospect.status === 'VANGUARD_VIP' && (
+                                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-400 to-orange-500 shadow-[0_0_15px_rgba(245,158,11,1)]"></div>
+                                            )}
+                                            
+                                            {prospect.status === 'VANGUARD_VIP' ? (
+                                                <div className="flex flex-col items-center gap-2.5 bg-gradient-to-br from-amber-50 to-orange-50/30 p-3 rounded-xl border border-amber-200 relative">
+                                                    
+                                                    <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black text-[10px] uppercase tracking-widest rounded-lg shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse">
+                                                        <Crown size={14} className="drop-shadow-md"/> ALERTA: PETICIÓN VIP
+                                                    </span>
+                                                    
+                                                   <button 
+                                                        onClick={() => {
+                                                            setSelectedDossier(prospect.notes);
+                                                            setShowDossierModal(true);
+                                                        }} 
+                                                        className="flex items-center gap-1.5 text-[10px] font-black text-amber-900 bg-white hover:bg-amber-100 px-3 py-1.5 rounded-md border border-amber-300 transition-all uppercase shadow-sm cursor-pointer"
+                                                    >
+                                                        <Eye size={12} className="text-amber-600" /> ABRIR DOSSIER
+                                                    </button>
+                                                </div>
+                                            ) : prospect.status === 'CONTACTED' ? (
                                                 <div className="flex flex-col items-center gap-1">
                                                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-blue-200"><CheckCircle2 size={12}/> Email Enviado</span>
                                                     <span className="text-[10px] text-gray-400 font-medium">Envíos totales: {prospect.emailsSent}</span>
@@ -632,7 +664,77 @@ const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
                                                          </span>
                                                     </div>
 
-                                                    <p className="text-[10px] text-gray-400 font-mono">{prop.refCode || prop.id}</p>
+                                                 <div className="flex flex-col gap-1 mt-1">
+                                                       {/* 🍏 CAJA DE INTELIGENCIA MEJORADA (Ref y Agencia ID) */}
+                                                        <div className="mt-1.5 flex flex-col gap-2 bg-[#F5F5F7] p-3 rounded-2xl border border-gray-200/60 shadow-sm w-fit transition-all hover:bg-white hover:shadow-md">
+                                                            
+                                                            {/* 🔥 FILA REF (Con botón de copiar) */}
+                                                            <div className="flex items-center justify-between gap-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest w-8">REF</span>
+                                                                    <span className="text-[11px] font-mono font-black text-indigo-700">{prop.refCode || "Sin Ref"}</span>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const refToCopy = prop.refCode || "";
+                                                                        navigator.clipboard.writeText(refToCopy);
+                                                                        alert("✅ REFERENCIA COPIADA:\n" + refToCopy);
+                                                                    }} 
+                                                                    className="text-gray-400 hover:text-indigo-600 transition-colors p-1 hover:bg-indigo-50 rounded-md" 
+                                                                    title="Copiar Referencia"
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="h-px w-full bg-gray-200/50"></div>
+
+                                                            {/* 🔥 FILA ID AGENCIA (El que necesita para crear campañas) */}
+                                                            <div className="flex items-center justify-between gap-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-8">ID AGE</span>
+                                                                    <span className="text-[10px] font-mono font-bold text-slate-700 max-w-[120px] truncate">
+                                                                        {isCeded ? activeAssignment.id : creator.id}
+                                                                    </span>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const targetId = isCeded ? activeAssignment.id : creator.id;
+                                                                        navigator.clipboard.writeText(targetId);
+                                                                        alert("✅ ID DE AGENCIA COPIADO:\n" + targetId);
+                                                                    }} 
+                                                                    className="text-gray-400 hover:text-indigo-600 transition-colors p-1 hover:bg-indigo-50 rounded-md" 
+                                                                    title="Copiar ID de la Agencia"
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                                                </button>
+                                                            </div>
+                                                            
+                                                            <div className="h-px w-full bg-gray-200/50"></div>
+
+                                                            {/* FILA GEO */}
+                                                            <div className="flex items-center justify-between gap-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest w-8">GEO</span>
+                                                                    <span className="text-[10px] font-mono font-bold text-indigo-600">
+                                                                        {prop.lng ?? prop.longitude ?? (prop.coordinates && prop.coordinates[0]) ?? "N/A"}, {prop.lat ?? prop.latitude ?? (prop.coordinates && prop.coordinates[1]) ?? "N/A"}
+                                                                    </span>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        const lng = prop.lng ?? prop.longitude ?? (prop.coordinates && prop.coordinates[0]) ?? "N/A";
+                                                                        const lat = prop.lat ?? prop.latitude ?? (prop.coordinates && prop.coordinates[1]) ?? "N/A";
+                                                                        navigator.clipboard.writeText(`lng: ${lng},\nlat: ${lat}`);
+                                                                        alert("✅ Coordenadas listas para pegar en el código");
+                                                                    }} 
+                                                                    className="text-gray-400 hover:text-indigo-600 transition-colors p-1 hover:bg-indigo-50 rounded-md" 
+                                                                    title="Copiar Coordenadas Formateadas"
+                                                                >
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -749,12 +851,64 @@ const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
                                         </td>
                                     </tr>
                                 );
-                            })}
+                     })}
                         </tbody>
                     </table>
                 </div>
             </div>
         )}
+
+        {/* ========================================================= */}
+        {/* 👑 PESTAÑA 4: ZONAS VIP / MARKET NETWORK (NUEVA) 👑 */}
+        {/* ========================================================= */}
+        {activeTab === 'ZONAS' as any && (
+            <div className="animate-fade-in-up">
+                <AdminZoneManager />
+            </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* 🕵️‍♂️ VISOR DE INTELIGENCIA VIP (MODAL B2B) */}
+        {/* ========================================================= */}
+        {showDossierModal && (
+            <div className="fixed inset-0 z-[110000] flex items-center justify-center p-4 animate-fade-in pointer-events-auto">
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDossierModal(false)}></div>
+                
+                <div className="relative bg-[#0F0F11] border border-white/10 w-full max-w-2xl rounded-[32px] shadow-[0_0_50px_rgba(245,158,11,0.2)] flex flex-col max-h-[85vh] overflow-hidden">
+                    
+                    {/* CABECERA DEL PANEL */}
+                    <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0 bg-gradient-to-r from-amber-900/30 to-black">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-amber-400/20 to-orange-500/20 rounded-2xl flex items-center justify-center border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
+                                <Crown size={24} className="text-amber-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-white font-black text-xl tracking-tight">Historial B2B</h3>
+                                <p className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.2em] mt-0.5">Dossier de Inteligencia Táctica</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowDossierModal(false)} className="text-white/40 hover:text-white bg-white/5 hover:bg-white/10 p-3 rounded-full transition-all">
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    {/* CUERPO DEL PANEL (CON SCROLL INFINITO Y DISEÑO TÁCTICO) */}
+                    <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-black">
+                        <div className="whitespace-pre-wrap text-[13px] text-emerald-400/90 font-mono leading-relaxed bg-[#050505] p-6 rounded-2xl border border-white/5 shadow-inner">
+                            {selectedDossier || "No hay datos de inteligencia registrados en el satélite."}
+                        </div>
+                    </div>
+
+                    {/* PIE DEL PANEL */}
+                    <div className="p-5 border-t border-white/5 bg-[#0F0F11] flex justify-end shrink-0">
+                        <button onClick={() => setShowDossierModal(false)} className="px-8 py-3 bg-white/5 hover:bg-white/10 text-white font-bold text-xs uppercase tracking-widest rounded-xl transition-all border border-white/5">
+                            Cerrar Expediente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
       </div>
     </div>
   );
