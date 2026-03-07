@@ -16,6 +16,7 @@ const USER_IDENTITY_SELECT = {
     email: true,
     avatar: true,          // Foto Personal
     companyName: true,     // Nombre Agencia
+    legalName: true,       // Razón Social
     companyLogo: true,     // Logo Agencia
     coverImage: true,      // Fondo Perfil
     phone: true,
@@ -46,6 +47,7 @@ const buildIdentity = (freshUser: any, snap: any) => {
       : (base.name || "Usuario"),
 
     companyName: base.companyName || null,
+   legalName: base.legalName || null,
     companyLogo: base.companyLogo || null,
 
     avatar: isAgency ? (base.companyLogo || null) : (base.avatar || null),
@@ -708,6 +710,7 @@ export async function updateUserAction(data: any) {
 
     // ✅ Campos Agencia (si los envías)
     if (data.companyName !== undefined) updateData.companyName = data.companyName;
+    if (data.legalName !== undefined) updateData.legalName = data.legalName;
     if (data.companyLogo !== undefined) updateData.companyLogo = data.companyLogo;
     if (data.tagline !== undefined) updateData.tagline = data.tagline;
     if (data.zone !== undefined) updateData.zone = data.zone;
@@ -728,6 +731,7 @@ export async function updateUserAction(data: any) {
         name: true,
         avatar: true,
         companyName: true,
+       legalName: true,
         companyLogo: true,
         coverImage: true,
         phone: true,

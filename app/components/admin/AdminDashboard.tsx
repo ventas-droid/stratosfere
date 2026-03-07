@@ -1,8 +1,9 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import AdminZoneManager from './AdminZoneManager';
+import AdminGeoLocator from './AdminGeoLocator';
 import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction, toggleUserSubscriptionAction, resetFreeTrialAction } from "@/app/components/admin/actions";import { 
-    ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, Crown, 
+    ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, Crown, Crosshair,
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2, Eye, EyeOff, Lock,
     Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
 } from "lucide-react";
@@ -15,8 +16,8 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM'>('USERS'); 
-  const [now, setNow] = useState<Date | null>(null);
+const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM' | 'ZONAS' | 'GEO'>('USERS');  
+const [now, setNow] = useState<Date | null>(null);
 // 🔥 MEMORIA RAM TÁCTICA PARA VELOCIDAD ZAS ZAS
   const [localProperties, setLocalProperties] = useState(properties);
  
@@ -198,8 +199,11 @@ if (!isAuthenticated) {
                 <button onClick={() => { setActiveTab('PROPERTIES'); sessionStorage.setItem('god_mode_tab', 'PROPERTIES'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'PROPERTIES' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}><Flame size={14} className={activeTab === 'PROPERTIES' ? "text-orange-500" : ""} /> Radar</button>
                 <button onClick={() => { setActiveTab('CRM'); sessionStorage.setItem('god_mode_tab', 'CRM'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'CRM' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-indigo-600'}`}><Target size={14}/> CRM Captación</button>
                
-                {/* 👑 NUEVO BOTÓN: ZONAS VIP */}
+               {/* 👑 NUEVO BOTÓN: ZONAS VIP */}
                 <button onClick={() => { setActiveTab('ZONAS' as any); sessionStorage.setItem('god_mode_tab', 'ZONAS'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'ZONAS' as any ? 'bg-amber-100 text-amber-700 shadow-sm border border-amber-200' : 'text-gray-500 hover:text-amber-600'}`}><Crown size={14}/> Market Network</button>
+
+                {/* 🎯 NUEVO BOTÓN: GEO SNIPER VIP */}
+                <button onClick={() => { setActiveTab('GEO' as any); sessionStorage.setItem('god_mode_tab', 'GEO'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'GEO' as any ? 'bg-emerald-100 text-emerald-700 shadow-sm border border-emerald-200' : 'text-gray-500 hover:text-emerald-600'}`}><Crosshair size={14}/> Geo Sniper</button>
             </div>
 
             <button onClick={() => { setIsAuthenticated(false); sessionStorage.removeItem("god_mode_auth"); }} className="text-gray-400 hover:text-red-600"><LogOut size={18} /></button>        
@@ -858,12 +862,21 @@ const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
             </div>
         )}
 
-        {/* ========================================================= */}
+       {/* ========================================================= */}
         {/* 👑 PESTAÑA 4: ZONAS VIP / MARKET NETWORK (NUEVA) 👑 */}
         {/* ========================================================= */}
         {activeTab === 'ZONAS' as any && (
             <div className="animate-fade-in-up">
                 <AdminZoneManager />
+            </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* 🎯 PESTAÑA 5: GEO SNIPER VIP (COORDENADAS) 🎯 */}
+        {/* ========================================================= */}
+        {activeTab === 'GEO' as any && (
+            <div className="animate-fade-in-up">
+                <AdminGeoLocator />
             </div>
         )}
 

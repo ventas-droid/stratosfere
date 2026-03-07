@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { Crown, X, MapPin, Target, Zap, Shield, CheckCircle2, Loader2, Send } from 'lucide-react';
+import { Crown, X, MapPin, Target, Zap, Shield, CheckCircle2, Loader2, Send, Gem } from 'lucide-react';
 // 🔥 IMPORTAMOS LA ACCIÓN
 import { createVanguardRequestAction } from '@/app/actions-zones';
 
@@ -126,13 +126,38 @@ export default function VanguardRequestModal({
                                         required 
                                     />
                                 </div>
-                                <button 
-                                    type="submit" 
-                                    disabled={loading} 
-                                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-black uppercase tracking-widest text-xs py-3.5 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
-                                >
-                                    {loading ? <><Loader2 size={16} className="animate-spin" /> Transmitiendo...</> : <><Send size={16} /> Solicitar Estrategia VIP</>}
-                                </button>
+                             
+                            <button 
+    type="submit" 
+    disabled={loading} 
+    className="relative w-full overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-black uppercase tracking-widest text-xs py-3 rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all disabled:opacity-50 mt-4 group cursor-pointer"
+>
+    {/* ✨ Efecto de destello premium al pasar el ratón (Shimmer) */}
+    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none"></div>
+
+    {/* 🔒 CONTENEDOR FLEX BLOQUEADO EN EL CENTRO 🔒 */}
+    <div className="relative z-10 flex items-center justify-center gap-3 px-4">
+        {loading ? (
+            <>
+                <Loader2 size={20} className="animate-spin" />
+                <span>Transmitiendo...</span>
+            </>
+        ) : (
+            <>
+               {/* 💎 Diamante encastrado (Tamaño refinado) */}
+                <div className="flex items-center justify-center bg-gradient-to-br from-white/40 to-white/5 p-1.5 rounded-md shadow-[inset_0_1px_3px_rgba(255,255,255,0.6)] border border-white/30 shrink-0">
+                    <Gem size={16} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" strokeWidth={2.5} />
+                </div>
+                
+                {/* Texto alineado y reducido para respirar mejor */}
+                <div className="flex flex-col text-left drop-shadow-md leading-tight">
+                    <span className="text-[8px] font-bold tracking-wider text-white/90 uppercase">Solicitar</span>
+                    <span className="text-xs font-black uppercase">Estrategia VIP</span>
+                </div>
+            </>
+        )}
+    </div>
+</button>
                             </form>
                         </>
                     )}

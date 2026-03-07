@@ -1,37 +1,33 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { getAdminZoneCampaignsAction, createZoneCampaignAction, updateZoneCampaignAction, deleteZoneCampaignAction, uploadLocalImageAction } from '@/app/actions-zones';
-// 🔥 Añadimos Eye (Clics) y Flame (Leads) a las importaciones
 import { Crown, MapPin, Trash2, Plus, Building2, Home, UploadCloud, X, Layout, Pencil, Loader2, CalendarClock, Clock4, TimerReset, Eye, Flame } from 'lucide-react';
 
 export default function AdminZoneManager() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [now, setNow] = useState(new Date()); // 🔥 TEMPORIZADOR MAESTRO
+  const [now, setNow] = useState(new Date()); 
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingCamp, setEditingCamp] = useState<any>(null); 
   const [specialLogoUrl, setSpecialLogoUrl] = useState<string | null>(null);
   const [specialMainImageUrl, setSpecialMainImageUrl] = useState<string | null>(null);
   
   const [form, setForm] = useState({
     postalCode: "", agencyId: "", propertyRef: "", subtitle: "", customBio: "",
-    durationDays: 15 // 🔥 DEFAULT DURACIÓN PARA NUEVAS
+    durationDays: "15" // 🔥 AHORA ES UN STRING PARA EVITAR CEROS FANTASMAS
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingType, setUploadingType] = useState<'LOGO' | 'CASA' | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
-  // EFECTO: TEMPORIZADOR MAESTRO (ACTUALIZA CADA SEGUNDO)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
+    const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // EFECTO: HIDRATACIÓN DE MEMORIA (sessionStorage)
   useEffect(() => {
     const savedForm = sessionStorage.getItem('vanguard_form_data');
     if (savedForm) {
@@ -42,7 +38,7 @@ export default function AdminZoneManager() {
             propertyRef: parsed.propertyRef || "", 
             subtitle: parsed.subtitle || "",
             customBio: parsed.customBio || "",
-            durationDays: parsed.durationDays || 15
+            durationDays: parsed.durationDays !== undefined ? String(parsed.durationDays) : "15"
         });
     }
     const savedLogo = sessionStorage.getItem('vanguard_form_logo');
@@ -54,7 +50,6 @@ export default function AdminZoneManager() {
     setIsHydrated(true);
   }, []);
 
-  // EFECTO: GUARDADO AUTOMÁTICO DE MEMORIA
   useEffect(() => { if (isHydrated) sessionStorage.setItem('vanguard_form_data', JSON.stringify(form)); }, [form, isHydrated]);
   useEffect(() => { if (isHydrated) specialLogoUrl ? sessionStorage.setItem('vanguard_form_logo', specialLogoUrl) : sessionStorage.removeItem('vanguard_form_logo'); }, [specialLogoUrl, isHydrated]);
   useEffect(() => { if (isHydrated) specialMainImageUrl ? sessionStorage.setItem('vanguard_form_image', specialMainImageUrl) : sessionStorage.removeItem('vanguard_form_image'); }, [specialMainImageUrl, isHydrated]);
@@ -69,13 +64,12 @@ export default function AdminZoneManager() {
 
   useEffect(() => { loadData(); }, []);
 
-  // CÁLCULO DE CUENTA REGRESIVA
   const calculateTimeLeft = (expiresAt: string | Date | null) => {
-    if (!expiresAt) return null; // Vitalicia
+    if (!expiresAt) return null; 
     const end = new Date(expiresAt);
     const diff = end.getTime() - now.getTime();
 
-    if (diff <= 0) return "Expirado"; // Debería anularse
+    if (diff <= 0) return "Expirado"; 
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -85,7 +79,6 @@ export default function AdminZoneManager() {
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
   };
 
-  // SUBIDA DE IMÁGENES
   const handleTriggerUpload = (type: 'LOGO' | 'CASA') => {
     setUploadingType(type);
     if (fileInputRef.current) fileInputRef.current.click();
@@ -107,44 +100,61 @@ export default function AdminZoneManager() {
     finally { setIsUploading(false); setUploadingType(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
-  // ENVÍO DE FORMULARIO (Desplegar)
+  // 🔥 ENVÍO ABSOLUTO: MACHACAMOS LA FECHA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.postalCode || !form.agencyId || !form.propertyRef) return alert("Faltan datos obligatorios");
     setLoading(true);
-    const { durationDays, ...restOfForm } = form; // Separamos duración para manejar update vs create
+    
+    const { durationDays, ...restOfForm } = form; 
+    const targetDays = parseInt(String(durationDays), 10) || 0;
+    
+    // 🔥 FECHA DE MUERTE EXACTA: Calculamos el momento en el futuro desde HOY
+    const absoluteDeathDate = new Date(now.getTime() + targetDays * 24 * 60 * 60 * 1000);
+
     let res;
-    if (editingId) {
-        // Al actualizar, durationDays es "durationToAdd"
-        res = await updateZoneCampaignAction(editingId, { ...restOfForm, campaignLogo: specialLogoUrl, campaignMainImage: specialMainImageUrl, durationToAdd: durationDays });
+   if (editingId) {
+        res = await updateZoneCampaignAction(editingId, { 
+            ...restOfForm, 
+            campaignLogo: specialLogoUrl, 
+            campaignMainImage: specialMainImageUrl, 
+            expiresAt: absoluteDeathDate, // 💥 MACHACAMOS LA FECHA DIRECTAMENTE
+            durationToAdd: 0              // Bloqueamos que el servidor intente "sumar"
+        });
     } else {
-        // Al crear, durationDays es la duración inicial
-        res = await createZoneCampaignAction({ ...form, campaignLogo: specialLogoUrl, campaignMainImage: specialMainImageUrl });
+        res = await createZoneCampaignAction({ ...restOfForm, durationDays: targetDays, campaignLogo: specialLogoUrl, campaignMainImage: specialMainImageUrl });
     }
+    
     if (res.success) {
-      alert(editingId ? "✅ Tiempo extendido y campaña actualizada" : "✅ Campaña desplegada con éxito");
+      alert(editingId ? "✅ Campaña actualizada con la fecha exacta" : "✅ Campaña desplegada con éxito");
       resetForm();
       loadData();
     } else { alert(res?.error || "Error"); }
     setLoading(false);
   };
 
-  // ENTRAR EN MODO EDICIÓN (Cargar datos)
   const handleEdit = (camp: any) => {
     setEditingId(camp.id);
+    setEditingCamp(camp);
+    
+    let currentDays = 0;
+    if (camp.expiresAt) {
+        const diff = new Date(camp.expiresAt).getTime() - new Date().getTime();
+        currentDays = diff > 0 ? Math.ceil(diff / (1000 * 60 * 60 * 24)) : 0;
+    }
+
     setForm({ 
         postalCode: camp.postalCode || "", 
         agencyId: camp.agencyId || "", 
         propertyRef: camp.property?.refCode || "", 
         subtitle: camp.subtitle || "", 
         customBio: camp.customBio || "",
-        durationDays: 0 // 🔥 RESET DURACIÓN PARA EDICIÓN: El usuario escribe cuántos días AÑADIR.
+        durationDays: currentDays > 0 ? String(currentDays) : ""
     });
     setSpecialLogoUrl(camp.campaignLogo || null);
     setSpecialMainImageUrl(camp.campaignMainImage || null);
   };
 
-  // ELIMINAR ZONA
   const handleDelete = async (id: string) => {
     if (!confirm("¿Liberar esta zona?")) return;
     setLoading(true);
@@ -153,10 +163,10 @@ export default function AdminZoneManager() {
     setLoading(false);
   };
 
-  // RESETEAR FORMULARIO
   const resetForm = () => {
     setEditingId(null);
-    setForm({ postalCode: "", agencyId: "", propertyRef: "", subtitle: "", customBio: "", durationDays: 15 });
+    setEditingCamp(null);
+    setForm({ postalCode: "", agencyId: "", propertyRef: "", subtitle: "", customBio: "", durationDays: "15" });
     setSpecialLogoUrl(null);
     setSpecialMainImageUrl(null);
     sessionStorage.removeItem('vanguard_form_data');
@@ -178,14 +188,11 @@ export default function AdminZoneManager() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* =============================================================== */}
-        {/* 🔥 FORMULARIO: ASIGNAR ZONA */}
-        {/* =============================================================== */}
         <div className="lg:col-span-1 bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 h-fit">
           <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-black flex items-center gap-2">
                 {editingId ? <Pencil size={18} className="text-indigo-600"/> : <Plus size={18}/>}
-                {editingId ? 'Editar y Extender Tiempo' : 'Asignar Nueva Zona'}
+                {editingId ? 'Editar y Ajustar Tiempo' : 'Asignar Nueva Zona'}
               </h2>
               {editingId && <button onClick={resetForm} className="text-slate-400 hover:text-red-500 bg-slate-100 p-1 rounded-md"><X size={16}/></button>}
           </div>
@@ -233,10 +240,10 @@ export default function AdminZoneManager() {
               <input type="text" value={form.subtitle || ""} onChange={e => setForm({...form, subtitle: e.target.value})} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold" placeholder="Ej: TU AGENTE DE CONFIANZA" />
             </div>
 
-            {/* 🔥 GÉNERADOR DE TIEMPO */}
+            {/* 🔥 GÉNERADOR DE TIEMPO CON ESCUDO ANTI-CEROS */}
             <div className="bg-[#1C1C1E] p-4 rounded-xl border border-[#3A3A3C] shadow-inner">
               <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-amber-400 mb-1.5 flex items-center gap-1.5">
-                  <CalendarClock size={12}/> {editingId ? 'Días adicionales de Campaña' : 'Duración de la Campaña (Días)'}
+                  <CalendarClock size={12}/> {editingId ? 'Nueva Duración Total (Días desde hoy)' : 'Duración de la Campaña (Días)'}
               </label>
               <div className="flex gap-2.5">
                 <input 
@@ -244,14 +251,23 @@ export default function AdminZoneManager() {
                     min={editingId ? 0 : 1}
                     max={365} 
                     value={form.durationDays} 
-                    onChange={e => setForm({...form, durationDays: parseInt(e.target.value) || 0})} 
+                    onChange={e => {
+                        let val = e.target.value;
+                        // 🔥 ESCUDO ANTI-CEROS: Transforma "030" en "30" en tiempo real
+                        if (val.length > 1 && val.startsWith('0')) {
+                            val = val.replace(/^0+/, '');
+                        }
+                        setForm({...form, durationDays: val});
+                    }}
                     className="w-full px-3 py-2 bg-black border border-[#3A3A3C] rounded-lg text-lg font-mono font-black text-amber-300 placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500" 
                     placeholder="Ej: 30" 
                     required 
                 />
                 <span className="flex items-center text-xs font-bold text-amber-500 bg-[#3A3A3C] px-3 rounded-lg">DÍAS</span>
               </div>
-              <p className="text-[9px] text-slate-500 mt-1.5 leading-tight font-medium">El dominio de zona no es eterno, General. Al clicar Desplegar, el temporizador comenzará su cuenta regresiva fatal.</p>
+              <p className="text-[9px] text-slate-500 mt-1.5 leading-tight font-medium">
+                  {editingId ? "El sistema machacará la fecha anterior y fijará la caducidad exactamente en los días que indique arriba contando desde este instante." : "El dominio de zona no es eterno, General. Al clicar Desplegar, el temporizador comenzará su cuenta regresiva."}
+              </p>
             </div>
 
             <button type="submit" disabled={loading || isUploading} className={`w-full text-white font-black tracking-widest uppercase text-xs py-3.5 rounded-xl transition-all shadow-lg mt-2 disabled:opacity-50 ${editingId ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-900 hover:bg-black'}`}>
@@ -260,9 +276,6 @@ export default function AdminZoneManager() {
           </form>
         </div>
 
-        {/* =============================================================== */}
-        {/* 🔥 LISTADO: ZONAS CONQUISTADAS */}
-        {/* =============================================================== */}
         <div className="lg:col-span-2 bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 overflow-hidden">
           <h2 className="text-lg font-black mb-4 flex items-center gap-2"><MapPin size={18}/> Zonas Conquistadas</h2>
           {loading ? <p className="text-sm font-bold text-slate-400">Escaneando satélite...</p> : campaigns.length === 0 ? <p className="text-sm font-bold text-slate-400 py-10 text-center">No hay agencias dominando zonas en este momento.</p> : (
@@ -286,7 +299,6 @@ export default function AdminZoneManager() {
                           </h4>
                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 truncate">REF ESTRELLA: {camp.property?.refCode || "Sin Ref"}</p>
                           
-                          {/* 🔥 LAS ESTADÍSTICAS DE GUERRA INYECTADAS AQUÍ 🔥 */}
                           <div className="flex items-center gap-2 mt-2">
                               <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100 text-[9px] font-black uppercase tracking-widest">
                                   <Eye size={12} className="text-blue-500" /> {camp.clicks || 0} Clics

@@ -49,13 +49,14 @@ const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VA
     );
   };
 
-   const [profile, setProfile] = useState({
-      name: "Nueva Agencia",
+  const [profile, setProfile] = useState({
+      name: "Nueva Agencia",    // 🔥 Nombre Público Comercial
+      legalName: "",            // 🔥 NUEVO: Razón Social para Facturar
       tagline: "Slogan de Agencia",
       zone: "Zona Operativa",
-      address: "", // <-- NUEVO
-      postalCode: "", // <-- NUEVO
-     cif: "",
+      address: "", 
+      postalCode: "", 
+      cif: "",
       web: "",
       email: "",
       phone: "",
@@ -63,7 +64,7 @@ const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VA
       avatar: "",
       cover: "",
       licenseType: null,
-      licenseNumber: "" // <-- NUEVO 
+      licenseNumber: "" 
   });
   // --- CARGA INTELIGENTE (PRIORIZA DATOS DE AGENCIA) ---
   useEffect(() => {
@@ -82,6 +83,7 @@ const loadRealData = async () => {
        setProfile(prev => ({
               ...prev,
               name: d.companyName || d.name || "Nueva Agencia",
+              legalName: d.legalName || "",
               email: d.email || "",
               avatar: d.companyLogo || "", 
               cover: d.coverImage || "",   
@@ -107,6 +109,26 @@ const loadRealData = async () => {
   } catch (e) { console.error("Error cargando perfil agencia:", e); }
 };
 
+// 📡 RADAR VIP: Escucha si alguien pide una zona desde el Diamante del Mapa (MarketPanel)
+  useEffect(() => {
+      const handleVipRequest = (e: any) => {
+          // El mapa nos manda el código postal en e.detail.zip (por si quiere usarlo en el futuro)
+          const zipCode = e.detail?.zip;
+          
+          // ABRIMOS EL MODAL OSCURO DE VANGUARD VIP
+          setShowVipModal(true); 
+      };
+
+      if (typeof window !== 'undefined') {
+          window.addEventListener('open-vip-request', handleVipRequest);
+      }
+      return () => {
+          if (typeof window !== 'undefined') {
+              window.removeEventListener('open-vip-request', handleVipRequest);
+          }
+      };
+  }, []);
+
 
 const handleSave = async () => {
   setIsSaving(true);
@@ -114,6 +136,7 @@ const handleSave = async () => {
   try {
      const result = await updateUserAction({
           companyName: profile.name,     
+        legalName: profile.legalName,
           companyLogo: profile.avatar,   
           coverImage: profile.cover,     
           tagline: profile.tagline,      
@@ -545,9 +568,16 @@ const creditPercentage = Math.min(
                       <div>
                           <div className="text-[10px] font-bold text-black/40 uppercase mb-1">Razón Social / Empresa</div>
                           {isEditing ? (
-                              <input value={profile.name} onChange={(e)=>setProfile({...profile, name: e.target.value})} className="w-full text-sm font-bold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-amber-500" placeholder="Ej: Bernabeu Realty S.L." /> 
+                              <input 
+                                  value={profile.legalName} // 🔥 AHORA USA LEGALNAME
+                                  onChange={(e)=>setProfile({...profile, legalName: e.target.value})} // 🔥 AHORA USA LEGALNAME
+                                  className="w-full text-sm font-bold text-slate-900 bg-gray-100 rounded border border-gray-200 p-2 outline-none focus:border-amber-500" 
+                                  placeholder="Ej: Bernabeu Realty S.L." 
+                              /> 
                           ) : (
-                              <div className="text-sm font-bold text-black leading-tight">{profile.name || 'No definida'}</div>
+                              <div className="text-sm font-bold text-black leading-tight">
+                                  {profile.legalName || 'No definida'} {/* 🔥 AHORA USA LEGALNAME */}
+                              </div>
                           )}
                       </div>
                       

@@ -1,10 +1,11 @@
+// @ts-nocheck
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, MapPin, Phone, Star, Crown, CheckCircle2, Home, ArrowRight, Mail, Building2, Bed, Bath, Maximize2 } from 'lucide-react';
+import { X, MapPin, Phone, Star, Crown, CheckCircle2, Home, ArrowRight, Mail, Building2, Bed, Bath, Maximize2, Gem, ShieldCheck } from 'lucide-react';
 
 // 🔥 IMPORTACIÓN CORREGIDA: Traemos la acción de la propiedad Y la acción de crear el Lead Fantasma
-import { getPropertyByIdAction, submitLeadAction } from '@/app/actions';
-
+import { getPropertyByIdAction, submitLeadAction, getUserMeAction } from '@/app/actions';
+import VanguardRequestModal from './VanguardRequestModal';
 // 🔥 IMPORTACIÓN AÑADIDA: Traemos el chivato de clics y la campaña
 import { getZoneCampaignAction, trackCampaignClickAction } from '@/app/actions-zones';
 
@@ -14,8 +15,21 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
   const [locationName, setLocationName] = useState("INICIALIZANDO RADAR...");
   const [postalCode, setPostalCode] = useState("00000");
   const [isScanning, setIsScanning] = useState(false);
-
   const [activeCampaign, setActiveCampaign] = useState<any>(null);
+
+  // 🔥 RADAR DE IDENTIDAD Y CONTROL DE MODAL
+  const [userRole, setUserRole] = useState("PARTICULAR");
+  const [userData, setUserData] = useState<any>(null); // Guardamos los datos para dárselos al modal
+  const [showVipModal, setShowVipModal] = useState(false); // Controla si el modal se ve o no
+
+  useEffect(() => {
+      getUserMeAction().then(res => {
+          if (res?.success && res?.data) {
+              setUserRole(res.data.role || "PARTICULAR");
+              setUserData(res.data); // Guardamos toda la info (email, teléfono, id)
+          }
+      });
+  }, []);
 
   useEffect(() => {
     let timeoutId: any; 
@@ -45,7 +59,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
              const agency = dbData.agency as any; 
 
              setActiveCampaign({
-                 id: dbData.id, // 🔥 AÑADIDO: Guardamos el ID de la campaña para poder rastrearla luego
+                 id: dbData.id, 
                  agencyId: agency?.id, 
                  agencyName: agency?.companyName || agency?.name || "Agencia VIP",
                  subtitle: dbData.subtitle || "ZONA VIP",
@@ -119,19 +133,17 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
       
       if (!targetLng || !targetLat || !propId) return;
 
-      // 🔥 1. SUMA +1 EN SU PANEL DE ADMIN (GOD MODE)
       if (campaign.id) {
           trackCampaignClickAction(campaign.id).catch(err => console.error(err));
       }
 
-      // 🔥 2. EL DISPARO FANTASMA: Crea el Lead en el buzón para que el agente vea la etiqueta VIP
       submitLeadAction({
           propertyId: propId,
           name: "👁️ Visita Ficha VIP",
           email: "Interés Anónimo",
           phone: "Posible llamada directa",
           message: "Un usuario ha accedido a la ficha 3D de esta propiedad a través de tu campaña VIP en el mapa. Es posible que haya contactado por teléfono.",
-          source: 'MARKET_NETWORK' // <--- LA PALABRA MÁGICA QUE ENCIENDE LA ETIQUETA
+          source: 'MARKET_NETWORK'
       }).catch(err => console.error("Error creando lead fantasma", err));
 
       try {
@@ -142,7 +154,6 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
               fullProperty = res.data;
           }
 
-          // 🔥 3. PAYLOAD BLINDADO PARA ABRIR LA FICHA (AgencyDetails)
           const richPayload = {
               ...fullProperty,
               id: String(propId),
@@ -210,8 +221,16 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                 
                 <div className="animate-fade-in flex flex-col gap-6" key={`campaign-${postalCode}`}>
                     
-                    {/* TARJETA DE EMPRESA */}
-                    <div className="bg-white rounded-[28px] overflow-hidden shadow-xl border border-slate-100">
+                    {/* TARJETA DE EMPRESA ACTUALIZADA CON DOBLE REALIDAD */}
+                    <div className="bg-white rounded-[28px] overflow-hidden shadow-xl border border-slate-100 relative">
+                        
+                        {/* 🚨 CHIVATO PARA AGENCIAS: Si eres agencia y ves esto, es territorio ocupado */}
+                        {userRole === 'AGENCIA' && (
+                            <div className="absolute top-4 right-4 z-20 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg uppercase tracking-widest border border-red-400/50">
+                                <ShieldCheck size={12} /> REFERENCIA EN ZONA
+                            </div>
+                        )}
+
                         <div className="h-40 w-full relative bg-slate-800">
                             {activeCampaign.cover && (
                                 <img src={activeCampaign.cover} alt="Cover" className="w-full h-full object-cover opacity-80" />
@@ -236,19 +255,32 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                                 {activeCampaign.bio}
                             </p>
 
-                            <div className="mt-6 space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                <div className="flex items-start gap-3 text-sm">
+                            {/* 📞 BOTONES INTERACTIVOS Y COPIABLES */}
+                            <div className="mt-6 space-y-2">
+                                <div className="flex items-start gap-3 text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
                                     <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5"/>
                                     <span className="text-slate-700 font-medium">{activeCampaign.address}</span>
                                 </div>
-                                <div className="flex items-center gap-3 text-sm">
-                                    <Phone size={16} className="text-slate-400 shrink-0"/>
-                                    <span className="text-slate-900 font-bold">{activeCampaign.phone}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-sm">
-                                    <Mail size={16} className="text-slate-400 shrink-0"/>
-                                    <span className="text-[#007AFF] font-medium">{activeCampaign.email}</span>
-                                </div>
+                                
+                                <a href={`tel:${activeCampaign.phone}`} className="flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl hover:bg-emerald-50 transition-colors group cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-white text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-sm shrink-0">
+                                            <Phone size={14}/>
+                                        </div>
+                                        <span className="text-slate-900 font-bold select-all">{activeCampaign.phone}</span>
+                                    </div>
+                                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity pr-2">Llamar</span>
+                                </a>
+                                
+                                <a href={`mailto:${activeCampaign.email}`} className="flex items-center justify-between p-3 bg-blue-50/50 border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors group cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-white text-[#007AFF] flex items-center justify-center border border-blue-100 shadow-sm shrink-0">
+                                            <Mail size={14}/>
+                                        </div>
+                                        <span className="text-[#007AFF] font-medium select-all truncate">{activeCampaign.email}</span>
+                                    </div>
+                                    <span className="text-[9px] font-black text-[#007AFF] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity pr-2">Escribir</span>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -319,27 +351,69 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                 </div>
             ) : (
                 
-                <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in px-6" key="free-zone">
-                    <div className="w-24 h-24 bg-gradient-to-tr from-slate-200 to-slate-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                        <MapPin size={40} className="text-slate-400" />
+               <div className="h-full flex flex-col items-center justify-center text-center animate-fade-in px-6" key="free-zone">
+                
+                {/* 💎 NÚCLEO DIAMANTE VIP CON ONDAS */}
+                <div className="relative flex items-center justify-center mb-8 mt-4 mx-auto w-24 h-24">
+                    {/* Onda expansiva exterior */}
+                    <div className="absolute inset-0 bg-amber-400/20 rounded-full animate-ping" style={{ animationDuration: '2s' }}></div>
+                    {/* Onda pulsante intermedia */}
+                    <div className="absolute inset-2 bg-orange-500/20 rounded-full animate-pulse"></div>
+                    {/* Núcleo Sólido */}
+                    <div className="relative w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.6)] border-2 border-amber-200 z-10 hover:scale-110 transition-transform cursor-default">
+                        <Gem size={28} className="text-white drop-shadow-lg" strokeWidth={2.5} />
                     </div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-3">Zona Estratégica Libre</h3>
-                    <p className="text-slate-500 text-sm leading-relaxed mb-8">
-                        El código postal <strong className="text-slate-800">{postalCode}</strong> actualmente no tiene ninguna Agencia Dominante asignada.
-                    </p>
+                </div>
+
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-3">Zona Estratégica Libre</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-8">
+                    El código postal <strong className="text-slate-800">{postalCode}</strong> actualmente no tiene ninguna Agencia Referente asignada.
+                </p>
                     
+             {userRole === 'AGENCIA' ? (
+                    // 🔴 REALIDAD AGENCIA: MODO EXCLUSIVIDAD B2B
                     <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 w-full max-w-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
-                        <h4 className="font-black text-slate-900 text-lg mb-2">Domina tu Mercado</h4>
+                        <h4 className="font-black text-slate-900 text-lg mb-2">Posiciónate en tu Mercado</h4>
                         <ul className="text-left text-xs text-slate-600 space-y-3 mb-6 font-medium">
                             <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-amber-500"/> Posición #1 Exclusiva en {postalCode}</li>
                             <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-amber-500"/> Nano Card VIP (Fuego)</li>
                             <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-amber-500"/> Leads y llamadas directas</li>
                         </ul>
-                        <button className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black tracking-widest text-[10px] py-4 rounded-xl transition-all shadow-lg shadow-amber-500/30 uppercase">
-                            Solicitar Dominio de Zona
+                        <button 
+                            onClick={() => {
+                                // 🔥 ABRIMOS EL MODAL DIRECTAMENTE AQUÍ (Sin cerrar el panel del mapa)
+                                setShowVipModal(true);
+                            }}
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black tracking-widest text-[10px] py-4 rounded-xl transition-all shadow-lg shadow-amber-500/30 uppercase cursor-pointer"
+                        >
+                            Solicitar Exclusividad
                         </button>
                     </div>
+                ) : (
+                    // 🟢 REALIDAD PARTICULAR: MODO PAZ Y CONFIANZA
+                    <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 w-full max-w-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
+                        <h4 className="font-black text-slate-900 text-lg mb-2">Zona Libre de Intermediarios</h4>
+                        <p className="text-sm text-slate-500 mb-6">
+                            Actualmente no hay agencias VIP asignadas en esta zona. Disfruta de un ecosistema limpio y operaciones de trato directo.
+                        </p>
+                        <button 
+                            onClick={() => { if (onClose) onClose(); }}
+                            className="w-full bg-slate-900 hover:bg-black text-white font-black tracking-widest text-[10px] py-4 rounded-xl transition-all shadow-lg uppercase cursor-pointer"
+                        >
+                            Continuar Explorando
+                        </button>
+                    </div>
+                )}
+                
+                {/* 🛡️ EL MODAL OSCURO INYECTADO DIRECTAMENTE AQUÍ 🛡️ */}
+                <VanguardRequestModal 
+                    isOpen={showVipModal} 
+                    onClose={() => setShowVipModal(false)} 
+                    agencyData={userData} 
+                />
+
                 </div>
             )}
         </div>

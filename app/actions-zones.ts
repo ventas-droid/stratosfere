@@ -164,7 +164,7 @@ export async function createZoneCampaignAction(data: {
   }
 }
 
-// ✏️ 5. ACTUALIZAR CAMPAÑA (Blindada contra errores)
+// ✏️ 5. ACTUALIZAR CAMPAÑA (Blindada contra errores + Modo Francotirador + Modo Dios del Tiempo)
 export async function updateZoneCampaignAction(id: string, incomingData: {
   postalCode?: string;
   agencyId?: string;
@@ -176,6 +176,9 @@ export async function updateZoneCampaignAction(id: string, incomingData: {
   campaignCover?: string | null;
   isActive?: boolean;
   durationToAdd?: number;
+  expiresAt?: Date | null;   // 🔥 LA LLAVE MAESTRA: Permiso para machacar la fecha
+  latitude?: number | null;  // 🔥 Cable de entrada de Latitud
+  longitude?: number | null; // 🔥 Cable de entrada de Longitud
 }) {
   try {
     let finalPropertyId = undefined;
@@ -190,7 +193,13 @@ export async function updateZoneCampaignAction(id: string, incomingData: {
     if (!current) return { success: false, error: "Campaña no encontrada." };
 
     let newExpiresAt: Date | null = current.expiresAt;
-    if (incomingData.durationToAdd && incomingData.durationToAdd > 0) {
+
+    // 🔥 PRIORIDAD ABSOLUTA: Si el panel de control manda una fecha exacta, MACHACAMOS.
+    if (incomingData.expiresAt !== undefined) {
+        newExpiresAt = incomingData.expiresAt;
+    } 
+    // ⚙️ PRIORIDAD SECUNDARIA: Si manda sumar días (modo antiguo), sumamos.
+    else if (incomingData.durationToAdd && incomingData.durationToAdd > 0) {
         if (newExpiresAt) {
             newExpiresAt = new Date(newExpiresAt);
             newExpiresAt.setDate(newExpiresAt.getDate() + incomingData.durationToAdd);
@@ -200,6 +209,7 @@ export async function updateZoneCampaignAction(id: string, incomingData: {
         }
     }
 
+    // 📦 CONSTRUCCIÓN DEL PAQUETE DE ACTUALIZACIÓN
     const updatePayload: any = {};
     if (incomingData.postalCode !== undefined) updatePayload.postalCode = incomingData.postalCode;
     if (incomingData.agencyId !== undefined) updatePayload.agencyId = incomingData.agencyId.trim();
@@ -210,7 +220,13 @@ export async function updateZoneCampaignAction(id: string, incomingData: {
     if (incomingData.campaignMainImage !== undefined) updatePayload.campaignMainImage = incomingData.campaignMainImage;
     if (incomingData.campaignCover !== undefined) updatePayload.campaignCover = incomingData.campaignCover;
     if (incomingData.isActive !== undefined) updatePayload.isActive = incomingData.isActive;
+    
+    // Asignamos la nueva fecha (ya sea machacada o sumada)
     updatePayload.expiresAt = newExpiresAt;
+
+    // 🔥 CONECTANDO LOS CABLES DEL MODO FRANCOTIRADOR A LA BASE DE DATOS
+    if (incomingData.latitude !== undefined) updatePayload.latitude = incomingData.latitude;
+    if (incomingData.longitude !== undefined) updatePayload.longitude = incomingData.longitude;
 
     const updatedCampaign = await prisma.zoneCampaign.update({
       where: { id },
@@ -367,4 +383,91 @@ NanoCards Fuego Activas: ${realFireProps}`;
         console.error("Error creando petición Vanguard:", error);
         return { success: false, error: error.message };
     }
+}
+// =========================================================
+// 👑 RADAR DE AGENCIAS VIP (CON GEOLOCALIZACIÓN AL VUELO Y MODO FRANCOTIRADOR)
+// =========================================================
+export async function getVipAgenciesAction() {
+  "use server";
+  try {
+    // 1. Buscamos SOLO las campañas Vanguard ACTIVAS
+    const activeCampaigns = await prisma.zoneCampaign.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } }
+        ]
+      },
+      include: {
+        agency: true // Traemos los datos de la agencia
+      }
+    });
+
+    // 2. Formateamos y Geolocalizamos (Mapeo Asíncrono)
+    const formattedAgencies = await Promise.all(activeCampaigns.map(async (campaign: any) => {
+      const agency = campaign.agency;
+      if (!agency) return null; 
+      
+      let finalCoords = null;
+
+      // 🎯 PRIORIDAD 1: MODO FRANCOTIRADOR (Coordenadas Manuales de su DB)
+      // Si usted metió a mano las coordenadas de la oficina de la agencia en el panel:
+      if (campaign.longitude && campaign.latitude) {
+          finalCoords = [campaign.longitude, campaign.latitude];
+      } 
+      // 📡 PRIORIDAD 2: PILOTO AUTOMÁTICO (Si no hay manuales, Mapbox busca el CP)
+      else if (campaign.postalCode) {
+          try {
+              const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
+              
+              const query = encodeURIComponent(`${campaign.postalCode}, Spain`);
+              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_TOKEN}&types=postcode&limit=1`;
+              
+              const response = await fetch(url);
+              const data = await response.json();
+
+              if (data.features && data.features.length > 0) {
+                  finalCoords = data.features[0].center; // [lng, lat]
+              }
+          } catch (e) {
+              console.error(`Fallo al geolocalizar CP ${campaign.postalCode}`, e);
+          }
+      }
+
+      // 🪂 PRIORIDAD 3: SALVAVIDAS FINAL (Por si el CP era falso o Mapbox falla)
+      if (!finalCoords || finalCoords.length !== 2) {
+          const baseLng = -3.6883; // Madrid Centro
+          const baseLat = 40.4280;
+          const randomLng = baseLng + (Math.random() * 0.04 - 0.02); 
+          const randomLat = baseLat + (Math.random() * 0.04 - 0.02);
+          finalCoords = [randomLng, randomLat];
+      }
+
+      return {
+        id: agency.id,
+        companyName: agency.companyName || agency.name || "Agencia VIP",
+        companyLogo: campaign.campaignLogo || agency.companyLogo || agency.avatar || null,
+        tagline: `Agencia Exclusiva en ${campaign.postalCode}`,
+        coordinates: finalCoords,
+        targetZone: campaign.postalCode,
+        
+        // 🔥 DATA FALTANTE AÑADIDA (ESTO ES LO QUE NO LLEGABA A LA TARJETA)
+        address: agency.address,
+        city: agency.city,
+        phone: agency.phone,
+        mobile: agency.mobile,
+        email: agency.email,
+        website: agency.website
+      };
+    }));
+
+    // Limpiamos los nulos que pudo dejar el Promise.all
+    const finalData = formattedAgencies.filter(Boolean);
+
+    return { success: true, data: finalData };
+  } catch (error: any) {
+    console.error("❌ Error en getVipAgenciesAction:", error);
+    return { success: false, error: error.message };
+  }
 }

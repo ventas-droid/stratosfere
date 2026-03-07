@@ -7,7 +7,8 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { parseOmniSearch, CONTEXT_CONFIG } from './smart-search';
 import MapNanoCard from './ui-panels/MapNanoCard';
-
+// 🔥 IMPORTAMOS EL MONOLITO DORADO PARA LAS AGENCIAS VIP
+import VipAgencyMarker from './ui-panels/VipAgencyMarker';
 // 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
 // import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
 const STRATOS_PROPERTIES : any[] = [];
@@ -15,6 +16,8 @@ const IMAGES : any[] = [];
 
 // AHORA:
 import { getGlobalPropertiesAction } from '@/app/actions';
+// 🔥 IMPORTACIÓN CORRECTA DEL RADAR VIP
+import { getVipAgenciesAction } from '@/app/actions-zones';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 
@@ -35,7 +38,7 @@ export const useMapLogic = () => {
   const map = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const markersRef = useRef({});
-
+const agencyMarkersRef = useRef<any>({});
   // --------------------------------------------------------------------
   // A. INICIALIZACIÓN DEL MAPA (MOTOR ELITE V2 - 3D REAL)
   // --------------------------------------------------------------------
@@ -55,19 +58,33 @@ export const useMapLogic = () => {
       projection: 'globe'
     });
 
-    // 🚀 CONFIGURACIÓN DE ALTO NIVEL (FUERZA BRUTA 3D)
+   // 🚀 CONFIGURACIÓN DE ALTO NIVEL (FUERZA BRUTA 3D)
     map.current.on('style.import.load', () => {
-        // 1. FORZAMOS EL RELIEVE (Esto es lo que levanta los edificios de 30 años)
+        // 1. FORZAMOS EL RELIEVE
         map.current.setConfigProperty('basemap', 'show3dObjects', true);
         map.current.setConfigProperty('basemap', 'showLandmarks', true);
         
-        // 2. LUZ DE DÍA (Para que no sea "de noche" y se vea todo nítido)
-        // Opciones: 'day' (Día), 'dawn' (Amanecer), 'dusk' (Atardecer)
-        map.current.setConfigProperty('basemap', 'lightPreset', 'day'); 
+        // 🔥 2. RELOJ BIOLÓGICO (SINCRONIZACIÓN CON EL MUNDO REAL)
+        const hour = new Date().getHours();
+        let currentLighting = 'day'; // Por defecto, día
         
-        console.log("⚡️ STRATOSFERE: EDIFICIOS 3D DESBLOQUEADOS");
+        if (hour >= 20 || hour < 7) {
+            currentLighting = 'night'; // Noche cerrada (20:00 a 06:59)
+        } else if (hour >= 18) {
+            currentLighting = 'dusk';  // Atardecer (18:00 a 19:59)
+        } else if (hour >= 7 && hour < 9) {
+            currentLighting = 'dawn';  // Amanecer (07:00 a 08:59)
+        }
+        
+        // Aplicamos la luz real
+        map.current.setConfigProperty('basemap', 'lightPreset', currentLighting); 
+        
+        // 🔥 3. LIMPIEZA COMERCIAL (Fuera la basura que no paga)
+        map.current.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
+        map.current.setConfigProperty('basemap', 'showTransitLabels', false);
+        
+        console.log(`⚡️ STRATOSFERE: RELOJ ACTIVO (${currentLighting.toUpperCase()}) Y MAPA LIMPIO`);
     });
-
     map.current.addControl(
       new mapboxgl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }),
       'bottom-left'
@@ -1134,6 +1151,79 @@ return {
     return () => window.removeEventListener('force-map-refresh', executeRadar);
 
   }, [isLoaded]); // Fin del useEffect
+ // --------------------------------------------------------------------
+  // 🏢 RADAR DE AGENCIAS VIP (MONETIZACIÓN ESPACIAL)
+  // --------------------------------------------------------------------
+  useEffect(() => {
+    if (!map.current || !isLoaded) return;
+
+    const loadVipAgencies = async () => {
+      try {
+        console.log("👑 RADAR VIP: Buscando Agencias Exclusivas...");
+        
+        // 1. Llamada al servidor a por las campañas Vanguard activas
+        const response = await getVipAgenciesAction(); 
+        const agencies = response?.success ? response.data : [];
+
+        // 🔥 PURGA TÁCTICA: Destruimos los monolitos viejos antes de pintar los nuevos 
+        // (Esto elimina el fallo del "Pin Doble")
+        if (agencyMarkersRef.current) {
+            Object.values(agencyMarkersRef.current).forEach((marker: any) => marker.remove());
+            agencyMarkersRef.current = {};
+        }
+
+        // 2. Pintar los marcadores en el mapa
+        agencies.forEach((agency: any) => {
+            // 🔥 LA CLAVE: Ahora el ID único combina la Agencia Y la Zona. 
+            // Así una misma agencia puede tener 10 pines en 10 ciudades distintas sin anularse.
+            const uniqueMarkerId = `${agency.id}-${agency.targetZone}`;
+            
+            // Si por algún motivo no hay coordenadas, no pintamos para no dar error
+            if (!agency.coordinates || !agency.coordinates[0] || !agency.coordinates[1]) return;
+
+            // Creamos el contenedor físico
+            const el = document.createElement("div");
+            el.className = "vip-agency-marker";
+            const root = createRoot(el);
+
+           // Inyectamos nuestro Monolito Dorado
+            root.render(
+                <VipAgencyMarker 
+                    agency={agency} 
+                    onClick={() => {
+                        // 🚁 Vuelo táctico: La cámara hace un barrido espectacular hacia la agencia
+                        map.current.flyTo({ center: agency.coordinates, zoom: 19, pitch: 70, duration: 2500 });
+                        
+                        // 🖥️ ABRIR EL PANEL DE MARKET NETWORK (PROMO VIP)
+                        if (typeof window !== 'undefined') {
+                            // 🔥 Frecuencia cambiada: Ahora llama al Market Panel
+                            window.dispatchEvent(new CustomEvent('open-market-panel', { detail: agency }));
+                        }
+                    }} 
+                />
+            );
+            // Lo clavamos en el suelo del mapa 3D
+            const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+                .setLngLat(agency.coordinates)
+                .addTo(map.current);
+
+            // Guardamos el marcador en la memoria con la nueva clave infalible
+            if (agencyMarkersRef.current) {
+                agencyMarkersRef.current[uniqueMarkerId] = marker;
+            }
+        });
+
+      } catch (e) { console.error("Error cargando Agencias VIP:", e); }
+    };
+
+    // Disparamos el radar
+    loadVipAgencies();
+    
+    // Lo dejamos a la escucha por si recargamos la página
+    window.addEventListener('reload-vip-agencies', loadVipAgencies);
+    return () => window.removeEventListener('reload-vip-agencies', loadVipAgencies);
+
+  }, [isLoaded]);
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
   // --------------------------------------------------------------------

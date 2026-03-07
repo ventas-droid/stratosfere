@@ -337,13 +337,22 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
   };
   
 // 🔥 HANDLER DE VUELO FINAL (Fuego Inmortal para Particulares)
-const handleFlyTo = (e: any, property: any) => {
+const handleFlyTo = async (e: any, property: any) => { // 👈 AÑADIDO 'async' AQUÍ
   if (e?.stopPropagation) e.stopPropagation();
   if (typeof soundEnabled !== "undefined" && playSynthSound) playSynthSound("click");
   if (typeof window === "undefined" || !property?.id) return;
 
-  // 1️⃣ CLONAMOS LA PROPIEDAD PARA NO MUTAR LA ORIGINAL
+  // 1️⃣ 🔥 EL CORTAFUEGOS: PEDIMOS EL EXPEDIENTE 100% COMPLETO AL SERVIDOR
   let targetProp = { ...property };
+  try {
+      const res = await getPropertyByIdAction(property.id);
+      if (res?.success && res.data) {
+          // Fusionamos los datos: La base de datos inyecta las estadísticas y características reales
+          targetProp = { ...targetProp, ...res.data };
+      }
+  } catch (err) {
+      console.error("Error al traer el expediente completo:", err);
+  }
 
   // 2️⃣ 🔥 DETECTAMOS Y FORZAMOS EL ESTADO PREMIUM
   // Comprobamos todas las posibles señales de que es una propiedad con fuego
@@ -404,7 +413,7 @@ const handleFlyTo = (e: any, property: any) => {
       }
   }
 
-  // 5️⃣ ✅ APERTURA INTELIGENTE (Envía la mochila "trucada" al mapa)
+  // 5️⃣ ✅ APERTURA INTELIGENTE (Envía la mochila "trucada" y COMPLETA al mapa)
   openDetailsSmart(targetProp);
 
   // 6️⃣ 🚁 SALTO RETARDADO ANTI-MADRID (150ms)

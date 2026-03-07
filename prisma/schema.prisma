@@ -18,6 +18,7 @@ model User {
   updatedAt     DateTime @updatedAt
   cif           String?
   companyName   String?
+  legalName     String?   // Razón Social de facturación
   licenseNumber String?
   password      String?
   surname       String?
@@ -675,6 +676,10 @@ expiresAt         DateTime?
   campaignLogo       String?  // Si se sube aquí, PISARÁ el companyLogo de la agencia
   campaignMainImage  String?  // Si se sube aquí, PISARÁ la mainImage de la casa
 
+// 🔥 MODO FRANCOTIRADOR: Coordenadas exactas de la oficina
+  latitude           Float?
+  longitude          Float?
+  
   // Relaciones
   agencyId    String
   agency      User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)

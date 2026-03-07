@@ -951,13 +951,25 @@ useEffect(() => {
 }, [map]);
 
   
-  useEffect(() => {
+ useEffect(() => {
       const handleEditMarket = (e: any) => {
           setMarketProp(e.detail);
           setActivePanel('MARKETPLACE');
       };
+
+      // 🔥 EL NUEVO CABLE: Escucha la bengala del Pin VIP
+      const handleOpenMarketPanel = (e: any) => {
+          setMarketProp(e.detail); // 1. Carga los datos de la Agencia VIP
+          setActivePanel('MARKETPLACE'); // 2. Da la orden de abrir el panel izquierdo
+      };
+
       window.addEventListener('edit-market-signal', handleEditMarket);
-      return () => { window.removeEventListener('edit-market-signal', handleEditMarket); };
+      window.addEventListener('open-market-panel', handleOpenMarketPanel); // 👈 Antena activada
+      
+      return () => { 
+          window.removeEventListener('edit-market-signal', handleEditMarket); 
+          window.removeEventListener('open-market-panel', handleOpenMarketPanel);
+      };
   }, []);
 
   // 🔥🔥🔥 NUEVO: ESCUCHA PARA ABRIR NANO CARD PREMIUM 🔥🔥🔥
@@ -1296,7 +1308,7 @@ useEffect(() => {
 
                            <div className="h-6 w-[1px] bg-white/10 mx-1"></div>
 
-                 {/* DERECHA: ARSENAL TÁCTICO DE AGENCIA (DOBLE CANAL) */}
+               {/* DERECHA: ARSENAL TÁCTICO DE AGENCIA (DOBLE CANAL) */}
 <div className="flex items-center gap-1">
   {/* 1. RADAR */}
   <button
@@ -1311,7 +1323,7 @@ useEffect(() => {
     <Crosshair size={18} />
   </button>
 
-  {/* 2. MERCADO GLOBAL (gated por plan) */}
+  {/* 2. MERCADO GLOBAL / SUSCRIPCIÓN SAAS (EL ESCUDO) */}
   <button
     onClick={() => {
       if (typeof playSynthSound === "function") playSynthSound("click");
@@ -1330,8 +1342,31 @@ useEffect(() => {
         ? "text-white bg-white/10"
         : "text-white/50 hover:text-white"
     }`}
+    title="Suscripción y Herramientas"
   >
     <Shield size={18} />
+  </button>
+
+  {/* 2.5. VANGUARD VIP MARKET (EL DIAMANTE) */}
+  <button
+    onClick={() => {
+      if (typeof playSynthSound === "function") playSynthSound("click");
+      // 🔥 Abre directamente la columna de Market para la conquista de zonas
+      setActivePanel(activePanel === "MARKETPLACE" ? "NONE" : "MARKETPLACE");
+    }}
+    className={`p-3 rounded-full transition-all duration-500 relative group cursor-pointer ${
+        vipZoneActive 
+          ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-[0_0_20px_rgba(245,158,11,0.6)] hover:scale-110 z-50'
+          : activePanel === 'MARKETPLACE' 
+              ? 'text-amber-400 bg-white/10 shadow-[0_0_15px_rgba(245,158,11,0.3)]' 
+              : 'text-white/50 hover:text-amber-400/70 hover:bg-white/10'
+    }`}
+    title={vipZoneActive ? "¡Zona VIP Libre Detectada!" : "Vanguard VIP Market"}
+  >
+    {/* Onda expansiva dorada si hay zona libre */}
+    {vipZoneActive && <span className="absolute inset-0 rounded-full border-2 border-amber-300 animate-ping opacity-75"></span>}
+    
+    <Gem size={18} className={`relative z-10 transition-transform ${vipZoneActive ? 'drop-shadow-md animate-pulse' : 'group-hover:scale-110'}`} />
   </button>
 
   {/* 3. COMUNICACIONES */}

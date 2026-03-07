@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb', // 💥 AUTORIZAMOS FOTOS DE HASTA 10 MEGAS
+      bodySizeLimit: '20mb', // 💥 ABRIMOS LA COMPUERTA HASTA 20 MEGAS
     },
   },
 };

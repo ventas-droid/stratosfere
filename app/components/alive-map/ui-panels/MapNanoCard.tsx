@@ -302,7 +302,7 @@ export default function MapNanoCard(props: any) {
                           {isFire && liveData?.title && <h3 className="text-xl font-black text-gray-900 truncate mb-1">{liveData.title}</h3>}
                           <div className="flex justify-between items-start items-center">
                               <span className={`font-black tracking-tight leading-none ${isFire ? 'text-4xl text-red-600 drop-shadow-sm' : 'text-xl text-gray-900'}`}>{displayLabel}</span>
-                              {floor && <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-wide"><ArrowUp size={12}/> <span>P.{floor}</span></div>}
+                              {floor && <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-wide"><ArrowUp size={12}/> <span>Planta: {floor}</span></div>}
                           </div>
                       </div>
 {/* 📍 DIRECCIÓN: Dos filas permitidas y cero comas */}
