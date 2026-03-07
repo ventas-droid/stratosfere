@@ -334,3 +334,16 @@ export async function resetFreeTrialAction(userId: string, days: number = 15) {
     return { success: false, error: "Fallo al manipular el tiempo" };
   }
 }
+
+// 🤫 MARCAR PETICIÓN VIP COMO GESTIONADA (Para que deje de parpadear)
+export async function resolveVipRequestAction(prospectId: string) {
+  try {
+    await prisma.agencyProspect.update({
+      where: { id: prospectId },
+      data: { status: 'VIP_RESOLVED' }
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}

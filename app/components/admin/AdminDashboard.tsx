@@ -2,7 +2,8 @@
 import { useState, useMemo, useEffect } from "react";
 import AdminZoneManager from './AdminZoneManager';
 import AdminGeoLocator from './AdminGeoLocator';
-import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction, toggleUserSubscriptionAction, resetFreeTrialAction } from "@/app/components/admin/actions";import { 
+import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction, toggleUserSubscriptionAction, resetFreeTrialAction, resolveVipRequestAction } from "@/app/components/admin/actions";
+import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, Crown, Crosshair,
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2, Eye, EyeOff, Lock,
     Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
@@ -18,6 +19,9 @@ export default function AdminDashboard({ users, properties = [], prospects = [] 
   const [searchTerm, setSearchTerm] = useState("");
 const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM' | 'ZONAS' | 'GEO'>('USERS');  
 const [now, setNow] = useState<Date | null>(null);
+// 🔥 SUB-NIVELES DEL CRM
+const [crmTab, setCrmTab] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
+
 // 🔥 MEMORIA RAM TÁCTICA PARA VELOCIDAD ZAS ZAS
   const [localProperties, setLocalProperties] = useState(properties);
  
@@ -240,50 +244,46 @@ if (!isAuthenticated) {
         </div>
 
         {/* ========================================================= */}
-        {/* 🔥 PESTAÑA 3: CRM DE CAPTACIÓN (NUEVA) 🔥 */}
+        {/* 🔥 PESTAÑA 3: CRM DE CAPTACIÓN (REDISEÑO ESCINDIDO) 🔥 */}
         {/* ========================================================= */}
         {activeTab === 'CRM' && (
             <div className="space-y-6">
-                 
-                 {/* FORMULARIO PARA AÑADIR AGENCIAS */}
-                 <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 shadow-sm">
-                    <h2 className="text-lg font-bold text-indigo-900 flex items-center gap-2 mb-4"><Target size={20}/> Añadir Objetivo (Nueva Agencia)</h2>
-                   <form onSubmit={handleAddProspect} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                        <input type="text" placeholder="Nombre de la Agencia *" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.companyName} onChange={e=>setNewProspect({...newProspect, companyName: e.target.value})} required/>
-                        <input type="email" placeholder="Email de contacto *" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.email} onChange={e=>setNewProspect({...newProspect, email: e.target.value})} required/>
-                        <input type="tel" placeholder="Teléfono" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.phone} onChange={e=>setNewProspect({...newProspect, phone: e.target.value})}/>
-                       <input type="text" placeholder="Ciudad / Zona" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.city} onChange={e=>setNewProspect({...newProspect, city: e.target.value})}/>
-                        
-                        <div className="flex gap-2">
-                            <button type="submit" disabled={isSending} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-50">
-                                {isSending ? 'Añadiendo...' : '+ Guardar Agencia'}
-                            </button>
-                            <button type="button" onClick={handleCargarTropas} className="w-full bg-black text-white font-bold py-3 rounded-lg text-sm hover:bg-gray-800 transition-colors shadow-md border border-gray-900">
-                                🔥 Importar (BD)
-                            </button>
-                        </div>
-                    </form>
-                 </div>
+                
+                {/* 🎛️ SUB-MENÚ DE NAVEGACIÓN TÁCTICA */}
+                <div className="flex gap-2 p-1.5 bg-gray-200/50 rounded-xl w-fit border border-gray-200 shadow-inner">
+                    <button
+                        onClick={() => setCrmTab('INBOUND')}
+                        className={`px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${crmTab === 'INBOUND' ? 'bg-white text-amber-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-amber-600'}`}
+                    >
+                        <Crown size={16}/> Peticiones VIP ({prospects.filter(p => p.status === 'VANGUARD_VIP').length})
+                    </button>
+                    <button
+                        onClick={() => setCrmTab('OUTBOUND')}
+                        className={`px-6 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${crmTab === 'OUTBOUND' ? 'bg-white text-indigo-600 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-indigo-600'}`}
+                    >
+                        <Target size={16}/> Base Outbound ({prospects.filter(p => p.status !== 'VANGUARD_VIP' && p.status !== 'VIP_RESOLVED').length})
+                    </button>
+                </div>
 
-                 {/* TABLA DE PROSPECTOS */}
-                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                            <tr>
-                                <th className="p-5 font-medium w-1/3">Agencia Objetivo</th>
-                                <th className="p-5 font-medium w-1/5">Localización</th>
-                                <th className="p-5 font-medium text-center w-1/5">Estado / Historial</th>
-                                <th className="p-5 font-medium text-center w-1/4">Lanzar Campaña</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm">
-                            {filteredProspects.length === 0 ? (
-                                <tr><td colSpan={4} className="p-10 text-center text-gray-400">No hay objetivos en la base de datos de captación. Añada una agencia arriba.</td></tr>
-                            ) : filteredProspects.map((prospect) => {
-                                const isContacted = prospect.status === 'CONTACTED';
-                                
-                                return (
-                                    <tr key={prospect.id} className="hover:bg-gray-50 transition-colors">
+                {/* --------------------------------------------------------- */}
+                {/* 👑 SUB-PESTAÑA: INBOUND VIP (Peticiones Calientes) */}
+                {/* --------------------------------------------------------- */}
+                {crmTab === 'INBOUND' && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in-up">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-amber-50/50 text-xs font-semibold text-amber-700 uppercase tracking-wider border-b border-amber-100">
+                                <tr>
+                                    <th className="p-5 font-medium w-1/3">Agencia Solicitante</th>
+                                    <th className="p-5 font-medium w-1/4">Zona Demandada</th>
+                                    <th className="p-5 font-medium text-center w-1/5">Estado de Petición</th>
+                                    <th className="p-5 font-medium text-center w-1/4">Acciones de Mando</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 text-sm">
+                                {filteredProspects.filter(p => p.status === 'VANGUARD_VIP' || p.status === 'VIP_RESOLVED').length === 0 ? (
+                                    <tr><td colSpan={4} className="p-10 text-center text-gray-400">No hay peticiones VIP en el radar.</td></tr>
+                                ) : filteredProspects.filter(p => p.status === 'VANGUARD_VIP' || p.status === 'VIP_RESOLVED').map((prospect) => (
+                                    <tr key={prospect.id} className={`transition-colors ${prospect.status === 'VIP_RESOLVED' ? 'bg-gray-50 opacity-70' : 'hover:bg-amber-50/30'}`}>
                                         <td className="p-5 border-r border-gray-100/50">
                                             <div className="flex flex-col gap-1">
                                                 <p className="font-bold text-gray-900 text-base">{prospect.companyName}</p>
@@ -293,88 +293,159 @@ if (!isAuthenticated) {
                                         </td>
                                         <td className="p-5 border-r border-gray-100/50">
                                             <div className="flex items-center gap-1.5 text-gray-700 font-medium">
-                                                <MapPin size={14} className="text-gray-400"/> {prospect.city || "Sin definir"}
+                                                <MapPin size={14} className="text-amber-500"/> {prospect.city || "Sin definir"}
                                             </div>
                                         </td>
-                                   {/* COLUMNA: ESTADO / HISTORIAL VIP */}
-                                     <td className="p-5 text-center border-r border-gray-100/50 relative overflow-hidden">
-                                            {/* 🔥 Línea LED lateral si es VIP */}
-                                            {prospect.status === 'VANGUARD_VIP' && (
-                                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-400 to-orange-500 shadow-[0_0_15px_rgba(245,158,11,1)]"></div>
-                                            )}
+                                        <td className="p-5 text-center border-r border-gray-100/50 relative overflow-hidden">
+                                            {prospect.status === 'VANGUARD_VIP' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-400 to-orange-500 shadow-[0_0_15px_rgba(245,158,11,1)]"></div>}
                                             
                                             {prospect.status === 'VANGUARD_VIP' ? (
-                                                <div className="flex flex-col items-center gap-2.5 bg-gradient-to-br from-amber-50 to-orange-50/30 p-3 rounded-xl border border-amber-200 relative">
-                                                    
-                                                    <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black text-[10px] uppercase tracking-widest rounded-lg shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-pulse">
-                                                        <Crown size={14} className="drop-shadow-md"/> ALERTA: PETICIÓN VIP
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-black text-[10px] uppercase tracking-widest rounded-lg shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse">
+                                                        <Crown size={12}/> ESPERANDO ZONA
                                                     </span>
-                                                    
-                                                   <button 
-                                                        onClick={() => {
-                                                            setSelectedDossier(prospect.notes);
-                                                            setShowDossierModal(true);
-                                                        }} 
-                                                        className="flex items-center gap-1.5 text-[10px] font-black text-amber-900 bg-white hover:bg-amber-100 px-3 py-1.5 rounded-md border border-amber-300 transition-all uppercase shadow-sm cursor-pointer"
-                                                    >
-                                                        <Eye size={12} className="text-amber-600" /> ABRIR DOSSIER
-                                                    </button>
-                                                </div>
-                                            ) : prospect.status === 'CONTACTED' ? (
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-blue-200"><CheckCircle2 size={12}/> Email Enviado</span>
-                                                    <span className="text-[10px] text-gray-400 font-medium">Envíos totales: {prospect.emailsSent}</span>
                                                 </div>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 font-bold text-[10px] uppercase tracking-wider rounded-full border border-gray-200">VIRGEN (Sin Tocar)</span>
+                                                <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-200 text-gray-600 font-bold text-[10px] uppercase tracking-wider rounded-full border border-gray-300">
+                                                    <CheckCircle2 size={12}/> YA GESTIONADO
+                                                </span>
                                             )}
                                         </td>
-                                       <td className="p-5 text-center">
+                                        <td className="p-5 text-center">
                                             <div className="flex flex-col gap-2">
-                                             {/* 📱 BOTÓN WHATSAPP (Con Aviso de Ordenador - Desktop First) */}
-                                                <button 
-                                                    onClick={() => {
-                                                        if(!prospect.phone) return alert("Esta agencia no tiene teléfono registrado.");
-                                                        
-                                                        // Limpiamos el teléfono y le ponemos el +34 de España si es necesario
-                                                        let cleanPhone = prospect.phone.replace(/\D/g, '');
-                                                        if(cleanPhone.length === 9) cleanPhone = '34' + cleanPhone;
-
-                                                        // EL MISIL DE TEXTO EXACTO (CON ADVERTENCIA DESKTOP)
-                                                        const message = `Hola, equipo de ${prospect.companyName}. Soy Alex, del Growth & Partnerships Team de Stratosfere.\n\nEstamos seleccionando e invitando en esta fase de lanzamiento a agencias con un sólido bagaje en el sector y producto en gestión en ${prospect.city || 'su zona'}. El objetivo es que sean de nuestros primeros colaboradores desde el 'Día 0', lo que a futuro les otorgará ventajas y extras exclusivos.\n\nConocemos que ya usan portales tradicionales para la promoción y conexión con el mercado. Por eso, hemos lanzado un modelo completamente distinto: un portal inmobiliario impulsado por un Sistema Operativo B2B (SaaS) en tiempo real, conectado a un mapa vía satélite en 3D. Aquí geolocalizarán su producto con una exposición que rompe las barreras tecnológicas y genera un atractivo visual innegable.\n\nLa tecnología está diseñada para multiplicar sus cierres: venta cruzada, captación de exclusivas sin levantar el teléfono, organización de eventos online, red de embajadores (leads) y una bolsa segura para compartir comisiones con otros profesionales... entre otras funciones que esperamos descubran ustedes mismos al testearla.\n\nLes dejo un breve vídeo operando el radar por dentro:\n🎥 [ENLACE-AL-VIDEO-AQUI]\n\nLo mejor es que lo comprueben ustedes mismos. Para ello, les hemos habilitado una invitación de 15 días de acceso total, 100% operativo. Si tras la prueba deciden quedarse en esta fase de lanzamiento, disfrutarán de una operatividad del 100% sin restricciones ni permanencia por una suscripción de mantenimiento de 49,90 €/mes.\n\n⚠️ IMPORTANTE: Stratosfere es una herramienta de alto rendimiento. Para desplegar todo el potencial del mapa 3D y de la edicion, es imprescindible abrir este enlace desde un ORDENADOR. Una vez registrados, les facilitaremos las instrucciones para descargar la App complementaria (iOS/Android) y mantener el control 24/7 desde el móvil.\n\nPueden activar su acceso VIP aquí:\n👉 https://stratosfere.com/vip?inv=${prospect.id}&src=wa\n\nCualquier duda, pueden escribirme por aquí o a info@stratosfere.com. Un saludo y bienvenidos.`;
-                                                        
-const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;                                                       
- window.open(waUrl, '_blank'); 
-                                                    }} 
-                                                    className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm ${prospect.phone ? 'bg-[#25D366] text-white hover:bg-[#128C7E]' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-                                                    title={prospect.phone ? "Abrir en WhatsApp Web" : "Falta Teléfono"}
-                                                >
-                                                    <MessageCircle size={14}/> WhatsApp
+                                                <button onClick={() => { setSelectedDossier(prospect.notes); setShowDossierModal(true); }} className="w-full flex justify-center items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all uppercase shadow-sm">
+                                                    <Eye size={14} className="text-amber-700"/> Ver Dossier
                                                 </button>
-
-                                                {/* 📩 BOTÓN EMAIL (Bombardeo Formal y Controlado) */}
-                                                <button 
-                                                    onClick={async () => {
-                                                        if(window.confirm(`¿Disparar email de invitación con 15 días gratis a ${prospect.companyName}?`)) {
-                                                            const res = await sendProspectEmailAction(prospect.id);
-                                                            if(res.success) {
-                                                                alert("¡Misil enviado con éxito!");
-                                                                window.location.reload();
-                                                            } else { alert("Error al enviar el correo."); }
-                                                        }
-                                                    }} 
-                                                    className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm ${isContacted ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}`}
-                                                >
-                                                    <Send size={14}/> {isContacted ? 'Reenviar Email' : 'Disparar Email'}
-                                                </button>
+                                                
+                                                {prospect.status === 'VANGUARD_VIP' && (
+                                                    <>
+                                                        <button onClick={() => setActiveTab('ZONAS' as any)} className="w-full flex justify-center items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black text-white bg-slate-900 hover:bg-black transition-all uppercase shadow-sm">
+                                                            <MapPin size={14}/> Ir a Desplegar Zona
+                                                        </button>
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if(window.confirm("¿Silenciar esta alerta? Se marcará como gestionada y dejará de parpadear.")) {
+                                                                    const res = await resolveVipRequestAction(prospect.id);
+                                                                    if(res.success) window.location.reload();
+                                                                }
+                                                            }} 
+                                                            className="w-full flex justify-center items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all uppercase shadow-sm"
+                                                        >
+                                                            <CheckCircle2 size={14}/> Marcar Resuelto
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                 </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* --------------------------------------------------------- */}
+                {/* 🎯 SUB-PESTAÑA: OUTBOUND (Base Fría de Captación) */}
+                {/* --------------------------------------------------------- */}
+                {crmTab === 'OUTBOUND' && (
+                    <div className="space-y-6 animate-fade-in-up">
+                        {/* FORMULARIO PARA AÑADIR AGENCIAS */}
+                        <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 shadow-sm">
+                            <h2 className="text-lg font-bold text-indigo-900 flex items-center gap-2 mb-4"><Target size={20}/> Añadir Objetivo (Nueva Agencia)</h2>
+                            <form onSubmit={handleAddProspect} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                <input type="text" placeholder="Nombre de la Agencia *" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.companyName} onChange={e=>setNewProspect({...newProspect, companyName: e.target.value})} required/>
+                                <input type="email" placeholder="Email de contacto *" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.email} onChange={e=>setNewProspect({...newProspect, email: e.target.value})} required/>
+                                <input type="tel" placeholder="Teléfono" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.phone} onChange={e=>setNewProspect({...newProspect, phone: e.target.value})}/>
+                                <input type="text" placeholder="Ciudad / Zona" className="bg-white text-gray-900 p-3 rounded-lg border border-indigo-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newProspect.city} onChange={e=>setNewProspect({...newProspect, city: e.target.value})}/>
+                                
+                                <div className="flex gap-2">
+                                    <button type="submit" disabled={isSending} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-50">
+                                        {isSending ? 'Añadiendo...' : '+ Guardar Agencia'}
+                                    </button>
+                                    <button type="button" onClick={handleCargarTropas} className="w-full bg-black text-white font-bold py-3 rounded-lg text-sm hover:bg-gray-800 transition-colors shadow-md border border-gray-900">
+                                        🔥 Importar (BD)
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* TABLA DE PROSPECTOS FRÍOS */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                    <tr>
+                                        <th className="p-5 font-medium w-1/3">Agencia Objetivo</th>
+                                        <th className="p-5 font-medium w-1/5">Localización</th>
+                                        <th className="p-5 font-medium text-center w-1/5">Estado Contacto</th>
+                                        <th className="p-5 font-medium text-center w-1/4">Lanzar Campaña</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-sm">
+                                    {filteredProspects.filter(p => p.status !== 'VANGUARD_VIP' && p.status !== 'VIP_RESOLVED').length === 0 ? (
+                                        <tr><td colSpan={4} className="p-10 text-center text-gray-400">No hay agencias en la base de datos fría.</td></tr>
+                                    ) : filteredProspects.filter(p => p.status !== 'VANGUARD_VIP' && p.status !== 'VIP_RESOLVED').map((prospect) => {
+                                        const isContacted = prospect.status === 'CONTACTED';
+                                        
+                                        return (
+                                            <tr key={prospect.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="p-5 border-r border-gray-100/50">
+                                                    <div className="flex flex-col gap-1">
+                                                        <p className="font-bold text-gray-900 text-base">{prospect.companyName}</p>
+                                                        <span className="text-xs text-gray-500 flex items-center gap-1.5"><Mail size={12}/> {prospect.email}</span>
+                                                        {prospect.phone && <span className="text-xs text-gray-500 flex items-center gap-1.5"><Phone size={12}/> {prospect.phone}</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="p-5 border-r border-gray-100/50">
+                                                    <div className="flex items-center gap-1.5 text-gray-700 font-medium">
+                                                        <MapPin size={14} className="text-gray-400"/> {prospect.city || "Sin definir"}
+                                                    </div>
+                                                </td>
+                                                <td className="p-5 text-center border-r border-gray-100/50">
+                                                    {isContacted ? (
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wider rounded-full border border-blue-200"><CheckCircle2 size={12}/> Email Enviado</span>
+                                                            <span className="text-[10px] text-gray-400 font-medium">Envíos: {prospect.emailsSent}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 font-bold text-[10px] uppercase tracking-wider rounded-full border border-gray-200">VIRGEN (Sin Tocar)</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-5 text-center">
+                                                    <div className="flex flex-col gap-2">
+                                                        <button 
+                                                            onClick={() => {
+                                                                if(!prospect.phone) return alert("Falta teléfono.");
+                                                                let cleanPhone = prospect.phone.replace(/\D/g, '');
+                                                                if(cleanPhone.length === 9) cleanPhone = '34' + cleanPhone;
+                                                                const message = `Hola, equipo de ${prospect.companyName}... [Mensaje Automático de Stratosfere]... 👉 https://stratosfere.com/vip?inv=${prospect.id}&src=wa`;
+                                                                window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`, '_blank'); 
+                                                            }} 
+                                                            className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm ${prospect.phone ? 'bg-[#25D366] text-white hover:bg-[#128C7E]' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                                        >
+                                                            <MessageCircle size={14}/> WhatsApp
+                                                        </button>
+
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if(window.confirm(`¿Disparar email a ${prospect.companyName}?`)) {
+                                                                    const res = await sendProspectEmailAction(prospect.id);
+                                                                    if(res.success) window.location.reload();
+                                                                }
+                                                            }} 
+                                                            className={`w-full flex justify-center items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase transition-all shadow-sm ${isContacted ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-black text-white hover:bg-gray-800'}`}
+                                                        >
+                                                            <Send size={14}/> {isContacted ? 'Reenviar Email' : 'Disparar Email'}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
 
@@ -442,8 +513,7 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                                     </div>
                                                     <span className="text-xs text-gray-600 flex items-center gap-1.5 font-medium truncate"><Mail size={12} className="text-gray-400 shrink-0"/> {user.email}</span>
                                                     <span className="text-xs text-gray-600 flex items-center gap-1.5 font-medium truncate"><Phone size={12} className="text-gray-400 shrink-0"/> {phones}</span>
-
-                                                    {/* 🔥 DOSSIER DE INTELIGENCIA: LICENCIA, CIF, ZONA Y DIRECCIÓN 🔥 */}
+{/* 🔥 DOSSIER DE INTELIGENCIA: LICENCIA, CIF, ZONA Y DIRECCIÓN 🔥 */}
                                                     {isAgency && (
                                                         <div className="mt-3 pt-3 border-t border-gray-100/80 flex flex-col gap-1.5 w-full">
                                                             
@@ -451,6 +521,14 @@ const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeUR
                                                                 <span className="text-gray-400 font-bold tracking-wider">LICENCIA SF:</span>
                                                                 <span className="font-mono font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
                                                                     SF-PRO-{String(user.id).slice(-6).toUpperCase()}
+                                                                </span>
+                                                            </div>
+
+                                                         {/* 🔥 AQUÍ ESTÁ EL CHIVATO DE LA RAZÓN SOCIAL (SIEMPRE VISIBLE) 🔥 */}
+                                                            <div className="flex items-center justify-between text-[10px]">
+                                                                <span className="text-gray-400 font-bold tracking-wider">R. SOCIAL:</span>
+                                                                <span className="font-bold text-gray-700 truncate ml-2 text-right" title={user.legalName}>
+                                                                    {user.legalName ? user.legalName : <span className="text-gray-400 italic font-normal">No definida</span>}
                                                                 </span>
                                                             </div>
                                                             

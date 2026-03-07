@@ -335,6 +335,7 @@ Teléfono Directo: ${data.phone}
 ID Agencia: ${data.agencyId}
 --- DOSSIER DE INTELIGENCIA ---
 Empresa: ${data.agencyName}
+Razón Social: ${data.agencyDataSnapshot?.legalName || 'No definida'}
 Email: ${data.agencyEmail}
 CIF: ${data.agencyDataSnapshot?.cif || "No registrado"}
 Licencia actual: ${data.agencyDataSnapshot?.licenseType || "STARTER"}
