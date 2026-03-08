@@ -863,7 +863,7 @@ export async function toggleFavoriteAction(propertyId: string, desired?: boolean
   }
 }
 
-// ❤️ 3. USUARIO Y FAVORITOS (PASO 2: BÓVEDA ENRIQUECIDA - CORREGIDO)
+// ❤️ 3. USUARIO Y FAVORITOS (PASO 2: BÓVEDA ENRIQUECIDA - BLINDADA)
 export async function getFavoritesAction() {
   try {
     const user = await getCurrentUser();
@@ -875,21 +875,13 @@ export async function getFavoritesAction() {
         property: {
           include: {
             images: true,
-            user: { select: USER_IDENTITY_SELECT }, // Dueño Original
-            
-            // 🔥 AÑADIDO: Necesario para contar cuántos "likes" tiene
+            user: { select: USER_IDENTITY_SELECT }, 
             favoritedBy: { select: { userId: true } },
-
-            // 🔥 TRANSMUTACIÓN (Identidad de Agencia asignada)
             assignment: {
                 where: { status: "ACTIVE" },
                 include: { agency: { select: USER_IDENTITY_SELECT } }
             },
-
-            // 🔥 CRÍTICO: Campaña para B2B y Captación
             campaigns: { where: { status: "ACCEPTED" }, take: 1 },
-
-            // 🔥 CRÍTICO: Eventos Open House
             openHouses: { where: { status: "SCHEDULED" }, orderBy: { startTime: 'asc' }, take: 1 }
           },
         },
@@ -900,10 +892,18 @@ export async function getFavoritesAction() {
         const p: any = f.property;
         if (!p) return null;
 
-        // 1. GESTIÓN DE IMÁGENES (PESO PLUMA)
-        let allImages = (p.images || []).map((img: any) => optimizeImage(img.url)).filter(Boolean);
-        if (allImages.length === 0 && p.mainImage) allImages = [optimizeImage(p.mainImage)];
-        const realImg = allImages[0] || null;
+        // 🛡️ 1. GESTIÓN DE IMÁGENES (EXTRACTOR BLINDADO ANTI-ROTURAS)
+        const rawImages = Array.isArray(p.images) ? p.images : [];
+        let allImages = rawImages.map((img: any) => {
+            // Inteligencia: Si es un texto, úsalo. Si es un objeto, saca la url.
+            const url = typeof img === 'string' ? img : img?.url;
+            return optimizeImage(url);
+        }).filter(Boolean);
+        
+        const realImg = optimizeImage(p.mainImage) || allImages[0] || null;
+        if (allImages.length === 0 && realImg) {
+            allImages = [realImg];
+        }
 
         // 2. IDENTIDAD DINÁMICA (Transmutación)
         let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
