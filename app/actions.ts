@@ -74,14 +74,10 @@ const buildRefCode = () => {
   return `SF-${out}`; // ejemplo: SF-8K3Q7M
 };
 
-// 🔥 OPTIMIZADOR DE IMÁGENES CLOUDINARY (PESO PLUMA)
+// 🔥 OPTIMIZADOR DE IMÁGENES (DESACTIVADO POR SEGURIDAD)
 const optimizeImage = (url: string | null | undefined) => {
-  if (!url || typeof url !== 'string') return url;
-  // Si es de Cloudinary y no está optimizada ya, le inyectamos la IA de compresión
-  if (url.includes('cloudinary.com') && !url.includes('f_auto')) {
-      return url.replace('/upload/', '/upload/f_auto,q_auto/w_1200,c_limit/');
-  }
-  return url;
+  // 🛑 RETIRADA TÁCTICA: Devolvemos la foto original intacta para no romper nada.
+  return url || null; 
 };
 
 // =========================================================
