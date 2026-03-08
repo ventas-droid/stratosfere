@@ -350,9 +350,9 @@ export async function getPropertyByIdAction(propertyId: string) {
     });
 
     if (!p) return { success: false, error: "NOT_FOUND" };
-    // --- IMÁGENES ---
-    const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
-    const realImg = allImages?.[0] || p.mainImage || null;
+    // --- IMÁGENES (PESO PLUMA) ---
+    const allImages = (p.images || []).map((img: any) => optimizeImage(img?.url)).filter(Boolean);
+    const realImg = optimizeImage(p.mainImage) || allImages?.[0] || null;
     const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
     // --- IDENTIDAD ---
@@ -904,9 +904,9 @@ export async function getFavoritesAction() {
         const p: any = f.property;
         if (!p) return null;
 
-        // 1. GESTIÓN DE IMÁGENES
-        let allImages = (p.images || []).map((img: any) => img.url);
-        if (allImages.length === 0 && p.mainImage) allImages = [p.mainImage];
+        // 1. GESTIÓN DE IMÁGENES (PESO PLUMA)
+        let allImages = (p.images || []).map((img: any) => optimizeImage(img.url)).filter(Boolean);
+        if (allImages.length === 0 && p.mainImage) allImages = [optimizeImage(p.mainImage)];
         const realImg = allImages[0] || null;
 
         // 2. IDENTIDAD DINÁMICA (Transmutación)
@@ -1113,8 +1113,8 @@ export async function getAgencyPortfolioAction() {
             isOwner: p.userId === user.id, 
             isCaptured: isManaged, 
             
-            images: (p.images || []).map((img: any) => (typeof img === 'string' ? img : img.url)),
-            img: (p.images && p.images.length > 0) ? (p.images[0].url || p.images[0]) : (p.mainImage || null),
+           images: (p.images || []).map((img: any) => optimizeImage(typeof img === 'string' ? img : img.url)).filter(Boolean),
+            img: optimizeImage((p.images && p.images.length > 0) ? (p.images[0].url || p.images[0]) : (p.mainImage || null)),
             
             // Precio formateado para la UI de Cartera
             price: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(p.price || 0)),
@@ -1219,11 +1219,11 @@ export async function getPropertiesAction() {
     });
 
     const mappedProps = properties.map((p: any) => {
-      // 1. GESTIÓN DE IMAGEN PRINCIPAL
-      const realImg =
-        (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
+    // 1. GESTIÓN DE IMAGEN PRINCIPAL (PESO PLUMA)
+      const rawRealImg = (p.images && p.images.length > 0) ? p.images[0].url : p.mainImage;
+      const realImg = optimizeImage(rawRealImg);
 
-      let allImages = (p.images || []).map((img: any) => img.url);
+      let allImages = (p.images || []).map((img: any) => optimizeImage(img.url)).filter(Boolean);
       if (allImages.length === 0 && realImg) allImages = [realImg];
 
       // 2. IDENTIDAD
@@ -1523,8 +1523,8 @@ export async function getMyConversationsAction() {
     // 🧠 Procesamos la matemática pesada aquí en el servidor, no en el ordenador del usuario
     const propMap = new Map();
     rawProps.forEach((p: any) => {
-        const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
-        const realImg = allImages?.[0] || p.mainImage || null;
+        const allImages = (p.images || []).map((img: any) => optimizeImage(img?.url)).filter(Boolean);
+        const realImg = optimizeImage(p.mainImage) || allImages?.[0] || null;
         const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
         let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
@@ -3742,10 +3742,9 @@ export async function getMyReceivedLeadsAction() {
                     title: p.title || "Sin Título",
                     refCode: p.refCode,
                     ref: p.refCode, 
-                    
-                    // Imágenes
-                    img: (p.images && p.images.length > 0) ? p.images[0].url : (p.mainImage || "/placeholder.jpg"),
-                    images: (p.images || []).map((i: any) => i.url),
+             // Imágenes (PESO PLUMA)
+                    img: optimizeImage((p.images && p.images.length > 0) ? p.images[0].url : (p.mainImage || "/placeholder.jpg")),
+                    images: (p.images || []).map((i: any) => optimizeImage(i.url)).filter(Boolean),
                     
                     // Datos Físicos (Aquí ya no dará error porque p es 'any')
                     price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
