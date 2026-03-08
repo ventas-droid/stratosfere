@@ -89,24 +89,16 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
     const loadData = async () => {
         setLoading(true);
         try {
+            // 🔥 AHORA EL SERVIDOR DEVUELVE TODO LISTO Y EMPAQUETADO EN 1 VIAJE 🔥
             const res: any = await getMyConversationsAction();
+            
             if (res.success && res.data) {
                 // 1. Filtramos conversaciones de negocio (con propiedad vinculada)
                 const businessChats = res.data.filter((c: any) => c.property || c.propertyRef);
                 
-                // 2. Enriquecimiento: Traemos datos frescos de la propiedad
-                const enrichedChats = await Promise.all(businessChats.map(async (chat: any) => {
-                    const propId = chat.property?.id || chat.propertyId;
-                    if (propId) {
-                        const propRes = await getPropertyByIdAction(propId);
-                        if (propRes.success && propRes.data) {
-                            return { ...chat, property: propRes.data };
-                        }
-                    }
-                    return chat;
-                }));
-
-                setCollabs(enrichedChats);
+                // 2. Inyección directa: Como el servidor ya trae todo (fotos, precios, B2B), 
+                // ya no hacemos peticiones extra. Lo metemos directo al radar.
+                setCollabs(businessChats);
             }
         } catch (e) {
             console.error("Error cargando B2B:", e);

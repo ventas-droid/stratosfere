@@ -1465,7 +1465,6 @@ export async function getMyConversationsAction() {
               companyName: true,
               companyLogo: true,
               coverImage: true,
-              // 🔥 AÑADA ESTAS 4 LÍNEAS AQUÍ TAMBIÉN:
               phone: true, 
               mobile: true,
               website: true,
@@ -1487,15 +1486,90 @@ export async function getMyConversationsAction() {
       )
     );
 
-   const props = propIds.length
+    // 🔥 EL GOLPE TÁCTICO: Traemos toda la info de la casa en la misma consulta 🔥
+    const rawProps = propIds.length
       ? await prisma.property.findMany({
           where: { id: { in: propIds } },
-          // 🔥 AÑADIMOS LAS COORDENADAS PARA QUE EL MAPA PUEDA VOLAR 🔥
-          select: { id: true, title: true, refCode: true, longitude: true, latitude: true, mainImage: true },
+          include: {
+            images: true,
+            user: { select: USER_IDENTITY_SELECT },
+            assignment: {
+                where: { status: "ACTIVE" },
+                include: { agency: { select: USER_IDENTITY_SELECT } }
+            },
+            campaigns: {
+                where: { status: "ACCEPTED" },
+                take: 1
+            },
+            openHouses: {
+                where: { status: "SCHEDULED" },
+                orderBy: { startTime: 'asc' },
+                take: 1
+            }
+          }
         })
       : [];
 
-    const propMap = new Map(props.map((p: any) => [String(p.id), p]));
+    // 🧠 Procesamos la matemática pesada aquí en el servidor, no en el ordenador del usuario
+    const propMap = new Map();
+    rawProps.forEach((p: any) => {
+        const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
+        const realImg = allImages?.[0] || p.mainImage || null;
+        const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
+
+        let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
+        const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
+
+        if (p.assignment?.agency) {
+            finalIdentity = buildIdentity(p.assignment.agency, null);
+            finalIdentity.role = 'AGENCIA';
+        }
+
+        if (activeCampaign) {
+            activeCampaign.commissionPct = Number(activeCampaign.commissionPct || 0);
+            activeCampaign.commissionSharePct = Number(activeCampaign.commissionSharePct || 0);
+            const price = Number(p.price || 0);
+            const comm = activeCampaign.commissionPct;
+            const base = (price * comm) / 100;
+            const iva = base * 0.21;
+            const total = base + iva;
+            activeCampaign.financials = { base, ivaAmount: iva, total };
+        }
+
+        let b2bData = null;
+        if (activeCampaign) {
+             b2bData = {
+                sharePct: Number(activeCampaign.commissionSharePct || 0),
+                visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
+             };
+        } else {
+             b2bData = {
+                sharePct: Number(p.sharePct || 0),
+                visibility: p.shareVisibility || 'PRIVATE'
+             };
+        }
+
+        const lng = Number(p.longitude);
+        const lat = Number(p.latitude);
+        const validCoords = (lng && lat && lng !== 0) ? [lng, lat] : null;
+        const rawPrice = Number(p.price || 0);
+
+        propMap.set(String(p.id), {
+            ...p,
+            id: p.id,
+            user: finalIdentity,
+            b2b: b2bData,
+            activeCampaign: activeCampaign,
+            coordinates: validCoords,
+            longitude: lng || null,
+            latitude: lat || null,
+            images: imagesFinal,
+            img: realImg,
+            price: new Intl.NumberFormat("es-ES").format(rawPrice),
+            rawPrice: rawPrice,
+            priceValue: rawPrice,
+        });
+    });
 
     const normalized = (items || []).map((c: any) => {
       const pid = c?.propertyId ? String(c.propertyId) : null;
