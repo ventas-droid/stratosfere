@@ -345,13 +345,23 @@ export async function getPropertyByIdAction(propertyId: string) {
       },
     });
 
-    if (!p) return { success: false, error: "NOT_FOUND" };
-    // --- IMÁGENES (PESO PLUMA) ---
-    const allImages = (p.images || []).map((img: any) => optimizeImage(img?.url)).filter(Boolean);
-    const realImg = optimizeImage(p.mainImage) || allImages?.[0] || null;
-    const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
-
+   if (!p) return { success: false, error: "NOT_FOUND" };
+    
+    // 🛡️ EXTRACTOR BLINDADO (Igual que en Favoritos)
+    const rawImages = Array.isArray(p.images) ? p.images : [];
+    let allImages = rawImages.map((img: any) => {
+        const url = typeof img === 'string' ? img : img?.url;
+        return optimizeImage(url);
+    }).filter(Boolean);
+    
+    const realImg = optimizeImage(p.mainImage) || allImages[0] || null;
+    if (allImages.length === 0 && realImg) {
+        allImages = [realImg];
+    }
+    const imagesFinal = allImages;
+  
     // --- IDENTIDAD ---
+
     let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
     const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
@@ -1516,12 +1526,21 @@ export async function getMyConversationsAction() {
         })
       : [];
 
-    // 🧠 Procesamos la matemática pesada aquí en el servidor, no en el ordenador del usuario
+   // 🧠 Procesamos la matemática pesada aquí en el servidor, no en el ordenador del usuario
     const propMap = new Map();
     rawProps.forEach((p: any) => {
-        const allImages = (p.images || []).map((img: any) => optimizeImage(img?.url)).filter(Boolean);
-        const realImg = optimizeImage(p.mainImage) || allImages?.[0] || null;
-        const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
+        // 🛡️ EXTRACTOR BLINDADO (Igual que en Favoritos)
+        const rawImages = Array.isArray(p.images) ? p.images : [];
+        let allImages = rawImages.map((img: any) => {
+            const url = typeof img === 'string' ? img : img?.url;
+            return optimizeImage(url);
+        }).filter(Boolean);
+        
+        const realImg = optimizeImage(p.mainImage) || allImages[0] || null;
+        if (allImages.length === 0 && realImg) {
+            allImages = [realImg];
+        }
+        const imagesFinal = allImages;
 
         let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
         const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
