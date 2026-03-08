@@ -49,11 +49,11 @@ export default function CookieConsent() {
                                 Entendido
                             </button>
                             <a 
-                                href="/privacidad" 
-                                className="text-xs text-slate-500 hover:text-white transition-colors cursor-pointer"
-                            >
-                                Leer más
-                            </a>
+    href="/privacy" 
+    className="text-xs text-slate-500 hover:text-white transition-colors cursor-pointer"
+>
+    Leer más
+</a>
                         </div>
                     </div>
 
