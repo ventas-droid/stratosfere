@@ -5,6 +5,7 @@ import { prisma } from './lib/prisma';
 import { cookies } from "next/headers";
 import { Resend } from 'resend';
 import { buildStratosfereEmailHtml } from "@/app/utils/email-template"; // Ajuste la ruta si es necesario
+import { pusherServer } from '@/app/utils/pusher';
 // ... imports ...
 
 // 🔥 PEGAR ESTO AL PRINCIPIO DEL ARCHIVO (DESPUÉS DE LOS IMPORTS)
@@ -1598,6 +1599,20 @@ export async function sendMessageAction(a: any, b?: any) {
         data: { updatedAt: new Date() } as any,
       });
     } catch {}
+
+    // 🔥🔥🔥 EL GATILLO DE WEB-SOCKETS (LA MAGIA EN TIEMPO REAL) 🔥🔥🔥
+    try {
+      const payload = {
+        ...msg,
+        content: msg?.text ?? text,
+        text: msg?.text ?? text,
+      };
+      
+      await pusherServer.trigger(`chat-${conversationId}`, 'new-message', payload);
+      console.log(`📡 [PUSHER] Mensaje disparado al canal: chat-${conversationId}`);
+    } catch (pusherError) {
+      console.error("⚠️ Error disparando Pusher:", pusherError);
+    }
 
     return {
       success: true,

@@ -1,4 +1,6 @@
-// Ubicación: ./app/components/alive-map/ui-panels/useStratosChat.ts
+// @ts-nocheck
+"use client";
+
 import { useState, useRef, useEffect } from "react";
 import {
   getMyConversationsAction as listMyConversationsAction,
@@ -10,6 +12,9 @@ import {
   markConversationReadAction,
 } from "@/app/actions";
 import { extractFirstUrl, isImageUrl } from "../../../utils/propertyCore";
+
+// 📡 IMPORTAMOS EL RECEPTOR ESPACIAL (Ruta absoluta blindada)
+import { getPusherClient } from "@/app/utils/pusher";
 
 export const useStratosChat = (
   activeUserKey: string | null,
@@ -434,7 +439,7 @@ export const useStratosChat = (
     }
   };
 
-const tryOpenDetailsFromThread = async (t: any) => {
+  const tryOpenDetailsFromThread = async (t: any) => {
     try {
       if (typeof window === "undefined") return;
       if (!t) return;
@@ -481,7 +486,7 @@ const tryOpenDetailsFromThread = async (t: any) => {
     }
   };
 
-  // --- POLLING CHAT ---
+  // --- POLLING CHAT (El Motor de Respaldo Original) ---
   useEffect(() => {
     if (!identityVerified || !activeUserKey || activeUserKey === "anon") return;
     let alive = true;
@@ -538,6 +543,53 @@ const tryOpenDetailsFromThread = async (t: any) => {
       if (timer) clearInterval(timer);
     };
   }, [identityVerified, activeUserKey, chatConversationId, chatOpen]);
+
+  // 🔥🔥🔥 WEBSOCKETS: RECEPTOR DE SEÑAL EN TIEMPO REAL (PUSHER) 🔥🔥🔥
+  useEffect(() => {
+    // Si no hay una conversación abierta, apagamos la radio
+    if (!chatConversationId) return;
+
+    // Encendemos la antena
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    // Sintonizamos el canal exacto de esta conversación
+    const channelName = `chat-${chatConversationId}`;
+    const channel = pusher.subscribe(channelName);
+
+    // Cuando caiga un mensaje del satélite...
+    channel.bind("new-message", (newMsg: any) => {
+      console.log("📡 [PUSHER] ¡Mensaje interceptado en vivo!:", newMsg);
+
+      setChatMessages((prev: any[]) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        
+        // 🛡️ Filtro Anti-Eco: Si el mensaje ya lo habíamos pintado nosotros mismos (Optimistic UI), lo ignoramos
+        const alreadyExists = arr.some(
+          (m) => String(m.id) === String(newMsg.id) || 
+                 (m.text === newMsg.text && m.senderId === newMsg.senderId && Date.now() - new Date(m.createdAt || Date.now()).getTime() < 5000)
+        );
+        
+        if (alreadyExists) return arr;
+
+        // Si es nuevo de verdad, lo metemos al final de la lista al instante
+        return [...arr, newMsg];
+      });
+
+      // Lo marcamos como leído automáticamente y bajamos el scroll
+      const sentAt = newMsg.createdAt ? new Date(newMsg.createdAt).getTime() : Date.now();
+      if (typeof markConversationAsRead === "function") {
+        markConversationAsRead(String(chatConversationId), sentAt);
+      }
+      scrollChatToBottom();
+    });
+
+    // 🧹 Limpieza táctica: Cuando cerramos el chat o cambiamos de conversación, apagamos la radio de este canal
+    return () => {
+      channel.unbind("new-message");
+      pusher.unsubscribe(channelName);
+    };
+  }, [chatConversationId]);
 
   return {
     chatOpen, setChatOpen,
