@@ -74,6 +74,16 @@ const buildRefCode = () => {
   return `SF-${out}`; // ejemplo: SF-8K3Q7M
 };
 
+// 🔥 OPTIMIZADOR DE IMÁGENES CLOUDINARY (PESO PLUMA)
+const optimizeImage = (url: string | null | undefined) => {
+  if (!url || typeof url !== 'string') return url;
+  // Si es de Cloudinary y no está optimizada ya, le inyectamos la IA de compresión
+  if (url.includes('cloudinary.com') && !url.includes('f_auto')) {
+      return url.replace('/upload/', '/upload/f_auto,q_auto/w_1200,c_limit/');
+  }
+  return url;
+};
+
 // =========================================================
 // 🔐 1. IDENTIFICACIÓN Y SESIÓN (CON RADAR ACTIVADO)
 // =========================================================
@@ -178,9 +188,9 @@ export async function getGlobalPropertiesAction() {
     });
 
     const mappedProps = (properties || []).map((p: any) => {
-      // 1. GESTIÓN DE IMÁGENES
-      const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
-      const realImg = allImages?.[0] || p.mainImage || null;
+     // 1. GESTIÓN DE IMÁGENES (CON OPTIMIZACIÓN DE PESO PLUMA)
+      const allImages = (p.images || []).map((img: any) => optimizeImage(img?.url)).filter(Boolean);
+      const realImg = optimizeImage(p.mainImage) || allImages?.[0] || null;
       const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
       // 2. ESTADO DE FAVORITO (Preparado para la caché)
