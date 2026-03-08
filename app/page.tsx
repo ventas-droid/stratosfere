@@ -3,8 +3,19 @@
 
 import React, { useMemo, useState, Suspense } from "react";
 
-import AliveMap from "@/app/components/alive-map/AliveMap";
-import UIPanels from "@/app/components/alive-map/ui-panels";
+import dynamic from 'next/dynamic';
+
+// ⚡ CÁPSULAS DE DESPLIEGUE RETARDADO (next/dynamic)
+// El mapa 3D no se renderiza en el servidor (ssr: false), ahorrando memoria y tiempo.
+const AliveMap = dynamic(() => import('@/app/components/alive-map/AliveMap'), { 
+    ssr: false,
+    loading: () => <div className="absolute inset-0 bg-[#050505] flex items-center justify-center"><div className="text-white text-xs font-bold tracking-widest uppercase animate-pulse">Iniciando Radar 3D...</div></div>
+});
+
+// Los paneles de interfaz también se envuelven para que no bloqueen la carga inicial.
+const UIPanels = dynamic(() => import('@/app/components/alive-map/ui-panels'), { 
+    ssr: false 
+});
 
 // --- CONTENIDO DE LA PÁGINA (CEREBRO LIMPIO) ---
 function PageContent() {

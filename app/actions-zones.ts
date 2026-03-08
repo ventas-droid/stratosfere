@@ -5,6 +5,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { Resend } from 'resend';
+import { revalidatePath } from 'next/cache';
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 
@@ -153,10 +155,12 @@ export async function createZoneCampaignAction(data: {
                     </div>
                 `
             });
-        } catch (e) {
+      } catch (e) {
             console.error("Fallo al enviar el email de bienvenida:", e);
         }
     }
+
+    revalidatePath('/'); // 🔥 EL DESTRUCTOR DE CACHÉ VA AQUÍ
 
     return { success: true, data: newCampaign };
   } catch (error) {
@@ -228,11 +232,13 @@ export async function updateZoneCampaignAction(id: string, incomingData: {
     if (incomingData.latitude !== undefined) updatePayload.latitude = incomingData.latitude;
     if (incomingData.longitude !== undefined) updatePayload.longitude = incomingData.longitude;
 
-    const updatedCampaign = await prisma.zoneCampaign.update({
+   const updatedCampaign = await prisma.zoneCampaign.update({
       where: { id },
       data: updatePayload,
     });
     
+    revalidatePath('/'); // 🔥 EL DESTRUCTOR DE CACHÉ VA AQUÍ
+
     return { success: true, data: updatedCampaign };
   } catch (error) {
     return { success: false, error: "Fallo al actualizar la campaña" };
@@ -243,6 +249,9 @@ export async function updateZoneCampaignAction(id: string, incomingData: {
 export async function deleteZoneCampaignAction(id: string) {
   try {
     await prisma.zoneCampaign.delete({ where: { id } });
+
+    revalidatePath('/'); // 🔥 EL DESTRUCTOR DE CACHÉ VA AQUÍ
+
     return { success: true };
   } catch (error) {
     return { success: false, error: "Error al liberar la zona" };

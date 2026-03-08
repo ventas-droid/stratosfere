@@ -140,7 +140,7 @@ export default function AdminGeoLocator() {
       setIsSearchingGeo(false);
   };
 
-  // 🔥 ENVÍO CON MOTOR MATEMÁTICO ABSOLUTO (IGUAL QUE EL OTRO PANEL)
+  // 🔥 ENVÍO CON MOTOR MATEMÁTICO ABSOLUTO Y RAYO MCQUEEN
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.postalCode || !form.agencyId || !form.propertyRef) return alert("Faltan datos obligatorios");
@@ -155,7 +155,7 @@ export default function AdminGeoLocator() {
     const latNum = latitude ? parseFloat(String(latitude).replace(',', '.')) : undefined;
     const lngNum = longitude ? parseFloat(String(longitude).replace(',', '.')) : undefined;
 
-    let res;
+    let res: any; // 🛡️ BLINDAJE TYPESCRIPT: Evita que la app colapse al compilar
     if (editingId) {
         res = await updateZoneCampaignAction(editingId, { 
             ...restOfForm, 
@@ -180,13 +180,20 @@ export default function AdminGeoLocator() {
 
     if (res.success) {
       alert(editingId ? "✅ Campaña Geolocalizada Actualizada" : "✅ Campaña Geolocalizada Desplegada");
+      
+      // 🏎️💨 LAS BENGALAS DE RAYO MCQUEEN AL MAPA
+      if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('reload-vip-agencies'));
+          window.dispatchEvent(new CustomEvent('force-map-refresh'));
+      }
+
       resetForm();
       loadData();
     } else { alert(res?.error || "Error"); }
     setLoading(false);
   };
 
-  // 🔥 EDICIÓN Y CÁLCULO DE DÍAS (IGUAL QUE EL OTRO PANEL)
+  // 🔥 EDICIÓN Y CÁLCULO DE DÍAS
   const handleEdit = (camp: any) => {
     setEditingId(camp.id);
     
@@ -214,7 +221,13 @@ export default function AdminGeoLocator() {
     if (!confirm("¿Liberar esta zona?")) return;
     setLoading(true);
     const res = await deleteZoneCampaignAction(id);
-    if (res.success) loadData();
+    if (res.success) {
+        // 🏎️💨 BENGALA DE BORRADO INSTANTÁNEO
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('reload-vip-agencies'));
+        }
+        loadData();
+    }
     setLoading(false);
   };
 

@@ -16,7 +16,7 @@ export default function AdminZoneManager() {
   
   const [form, setForm] = useState({
     postalCode: "", agencyId: "", propertyRef: "", subtitle: "", customBio: "",
-    durationDays: "15" // 🔥 AHORA ES UN STRING PARA EVITAR CEROS FANTASMAS
+    durationDays: "15"
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -100,7 +100,6 @@ export default function AdminZoneManager() {
     finally { setIsUploading(false); setUploadingType(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
-  // 🔥 ENVÍO ABSOLUTO: MACHACAMOS LA FECHA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.postalCode || !form.agencyId || !form.propertyRef) return alert("Faltan datos obligatorios");
@@ -108,18 +107,16 @@ export default function AdminZoneManager() {
     
     const { durationDays, ...restOfForm } = form; 
     const targetDays = parseInt(String(durationDays), 10) || 0;
-    
-    // 🔥 FECHA DE MUERTE EXACTA: Calculamos el momento en el futuro desde HOY
     const absoluteDeathDate = new Date(now.getTime() + targetDays * 24 * 60 * 60 * 1000);
 
-    let res;
+    let res: any; // 🔥 Fix TypeScript blindado
    if (editingId) {
         res = await updateZoneCampaignAction(editingId, { 
             ...restOfForm, 
             campaignLogo: specialLogoUrl, 
             campaignMainImage: specialMainImageUrl, 
-            expiresAt: absoluteDeathDate, // 💥 MACHACAMOS LA FECHA DIRECTAMENTE
-            durationToAdd: 0              // Bloqueamos que el servidor intente "sumar"
+            expiresAt: absoluteDeathDate, 
+            durationToAdd: 0              
         });
     } else {
         res = await createZoneCampaignAction({ ...restOfForm, durationDays: targetDays, campaignLogo: specialLogoUrl, campaignMainImage: specialMainImageUrl });
@@ -127,6 +124,13 @@ export default function AdminZoneManager() {
     
     if (res.success) {
       alert(editingId ? "✅ Campaña actualizada con la fecha exacta" : "✅ Campaña desplegada con éxito");
+      
+      // 🏎️💨 LAS BENGALAS DE RAYO MCQUEEN 
+      if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('reload-vip-agencies'));
+          window.dispatchEvent(new CustomEvent('force-map-refresh'));
+      }
+
       resetForm();
       loadData();
     } else { alert(res?.error || "Error"); }
@@ -159,7 +163,13 @@ export default function AdminZoneManager() {
     if (!confirm("¿Liberar esta zona?")) return;
     setLoading(true);
     const res = await deleteZoneCampaignAction(id);
-    if (res.success) loadData();
+    if (res.success) {
+        // 🏎️💨 BENGALA PARA BORRADO INSTANTÁNEO
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('reload-vip-agencies'));
+        }
+        loadData();
+    }
     setLoading(false);
   };
 
@@ -240,7 +250,6 @@ export default function AdminZoneManager() {
               <input type="text" value={form.subtitle || ""} onChange={e => setForm({...form, subtitle: e.target.value})} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold" placeholder="Ej: TU AGENTE DE CONFIANZA" />
             </div>
 
-            {/* 🔥 GÉNERADOR DE TIEMPO CON ESCUDO ANTI-CEROS */}
             <div className="bg-[#1C1C1E] p-4 rounded-xl border border-[#3A3A3C] shadow-inner">
               <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-amber-400 mb-1.5 flex items-center gap-1.5">
                   <CalendarClock size={12}/> {editingId ? 'Nueva Duración Total (Días desde hoy)' : 'Duración de la Campaña (Días)'}
@@ -253,7 +262,6 @@ export default function AdminZoneManager() {
                     value={form.durationDays} 
                     onChange={e => {
                         let val = e.target.value;
-                        // 🔥 ESCUDO ANTI-CEROS: Transforma "030" en "30" en tiempo real
                         if (val.length > 1 && val.startsWith('0')) {
                             val = val.replace(/^0+/, '');
                         }

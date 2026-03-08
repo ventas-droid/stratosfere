@@ -9,7 +9,32 @@ import {
     Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
 } from "lucide-react";
 
-const MASTER_PASSWORD = "GENERAL_ISIDRO"; 
+const MASTER_PASSWORD = process.env.NEXT_PUBLIC_GOD_MODE_PASS;
+
+// 🔥 MOTOR DE RELOJ AISLADO (Mejora de Rendimiento Extremo)
+const LiveTimer = ({ endDate }: { endDate: string | Date }) => {
+    const [timeLeft, setTimeLeft] = useState<string>("Calculando...");
+
+    useEffect(() => {
+        if (!endDate) return;
+        const updateTimer = () => {
+            const diff = new Date(endDate).getTime() - new Date().getTime();
+            if (diff <= 0) return setTimeLeft("¡CADUCADO!");
+            
+            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const m = Math.floor((diff / 1000 / 60) % 60);
+            const s = Math.floor((diff / 1000) % 60);
+            setTimeLeft(`${d}d ${h}h ${m}m ${s}s`);
+        };
+        
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [endDate]);
+
+    return <>{timeLeft}</>;
+};
 
 export default function AdminDashboard({ users, properties = [], prospects = [], activeZones = [] }: { users: any[], properties?: any[], prospects?: any[], activeZones?: any[] }) {  
     const [isMounted, setIsMounted] = useState(false);
@@ -17,7 +42,8 @@ export default function AdminDashboard({ users, properties = [], prospects = [],
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM' | 'ZONAS' | 'GEO'>('USERS');  
+const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM' | 'ZONAS' | 'GEO'>('USERS');  
 const [now, setNow] = useState<Date | null>(null);
 // 🔥 SUB-NIVELES DEL CRM
 const [crmTab, setCrmTab] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
@@ -32,6 +58,14 @@ const [crmTab, setCrmTab] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
   const [selectedDossier, setSelectedDossier] = useState<string | null>(null);
   const [showDossierModal, setShowDossierModal] = useState(false);
 
+// 🔥 MOTOR DE BÚSQUEDA SILENCIADO (Debounce táctico)
+  useEffect(() => {
+      const handler = setTimeout(() => {
+          setDebouncedSearch(searchTerm);
+      }, 350); // 350ms de espera desde la última pulsación
+      return () => clearTimeout(handler);
+  }, [searchTerm]);
+
   useEffect(() => { setLocalProperties(properties); }, [properties]);
  
 useEffect(() => {
@@ -42,10 +76,8 @@ useEffect(() => {
     const savedTab = sessionStorage.getItem("god_mode_tab");
     if (savedTab) setActiveTab(savedTab as 'USERS' | 'PROPERTIES' | 'CRM');
 
-    setNow(new Date());
-    // 🔥 EL RELOJ AHORA LATE CADA 1 SEGUNDO (1000ms) EN VEZ DE CADA MINUTO 🔥
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+   setNow(new Date());
+    // 🔥 Reloj gigante apagado para liberar la memoria RAM
   }, []);
 
   const stats = useMemo(() => {
@@ -57,9 +89,9 @@ useEffect(() => {
     return { totalUsers, activeSubs, activeTrials, indecisos };
   }, [users, localProperties]); // 👇 CAMBIADO A localProperties
 
-  const search = searchTerm.toLowerCase().trim();
-
-  const filteredUsers = users.filter(u => {
+const search = debouncedSearch.toLowerCase().trim();
+ 
+const filteredUsers = users.filter(u => {
     if (!search) return true;
     return (u.name || "").toLowerCase().includes(search) || (u.companyName || "").toLowerCase().includes(search) || (u.email || "").toLowerCase().includes(search) || (u.phone || "").toLowerCase().includes(search) || (u.mobile || "").toLowerCase().includes(search);
   });
@@ -82,17 +114,10 @@ useEffect(() => {
     return (p.companyName || "").toLowerCase().includes(search) || (p.email || "").toLowerCase().includes(search) || (p.city || "").toLowerCase().includes(search);
   });
 
-  // 🔥 NUEVO CÁLCULO DE TIEMPO CON SEGUNDOS Y FECHA EXACTA
+  // 🔥 CONEXIÓN AL MICRO-RELOJ TÁCTICO
   const getTimeRemaining = (endDate: string | Date | null) => {
-    if (!endDate || !now) return null;
-    const end = new Date(endDate);
-    const diff = end.getTime() - now.getTime();
-    if (diff <= 0) return "¡CADUCADO!";
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    const minutes = Math.floor((diff / 1000 / 60) % 60);
-    const seconds = Math.floor((diff / 1000) % 60);
-    return `${days}d ${hours}h ${minutes}m ${seconds}s`; 
+    if (!endDate) return null;
+    return <LiveTimer endDate={endDate} />;
   };
 
   const formatDateExact = (date: any) => {
@@ -517,8 +542,7 @@ if (!isAuthenticated) {
                                 const isTrial = subStatus === "TRIAL" || (!isActive && !isBlocked && isAgency);
 
                                 const lastActive = user.lastLoginAt ? new Date(user.lastLoginAt) : new Date(user.updatedAt);
-                                const isOnline = now && (now.getTime() - lastActive.getTime()) / 36e5 < 0.5;
-
+const isOnline = (new Date().getTime() - lastActive.getTime()) / 36e5 < 0.5;
                                 const phoneList = [user.phone, user.mobile].filter(Boolean);
                                 const phones = phoneList.length > 0 ? phoneList.join(" / ") : "Sin tlf registrado";
 
