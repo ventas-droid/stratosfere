@@ -1,4 +1,5 @@
 import Link from "next/link";
+import React from 'react';
 
 export const metadata = {
   title: "Privacidad — Stratosfere",
@@ -11,7 +12,7 @@ export default function PrivacyPage() {
       <div className="mx-auto max-w-3xl px-6 py-16">
         <header className="flex items-center justify-between gap-4">
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-            Política de privacidad
+            Política de Privacidad
           </h1>
           <Link
             href="/terms"
@@ -29,44 +30,49 @@ export default function PrivacyPage() {
               info@stratosfere.com
             </a>
           </p>
-          <p className="mt-2">Última actualización: 25/01/2026</p>
+          <p className="mt-2">Última actualización: 08/03/2026</p>
         </div>
 
         <section className="mt-10 space-y-8 text-sm text-zinc-700 leading-6">
           <Block title="1. Datos que recopilamos">
-            Datos de cuenta (email, nombre si lo proporcionas), datos técnicos (dispositivo, logs) y datos de uso
-            (interacciones en la plataforma) para operar y mejorar el servicio.
+            Para ofrecer nuestros servicios, recopilamos datos de identificación (nombre, apellidos), datos de contacto (email, teléfono), datos profesionales (licencia de agencia, empresa) y datos de navegación (dirección IP, cookies técnicas). También procesamos la información de las propiedades inmobiliarias publicadas.
           </Block>
 
-          <Block title="2. Finalidades">
-            Proveer el servicio, autenticar usuarios, atención al cliente, seguridad, analítica y mejoras del producto.
+          <Block title="2. Finalidades y Base Legitimadora">
+            Tratamos tus datos bajo las siguientes bases legales (RGPD):<br/>
+            <strong>Ejecución de contrato:</strong> Para gestionar tu cuenta, suscripciones y operar la plataforma.<br/>
+            <strong>Consentimiento:</strong> Para el envío de comunicaciones comerciales y el uso del formulario de contacto.<br/>
+            <strong>Interés legítimo:</strong> Para mantener la seguridad de la plataforma, prevenir el fraude y analizar métricas de uso para mejorar el software.
           </Block>
 
-          <Block title="3. Pagos">
-            Los pagos se procesan mediante <strong className="text-black">Paddle</strong>. Stratosfere no almacena
-            directamente los datos completos de tu tarjeta.
+          <Block title="3. Cesión a Terceros">
+            Stratosfere no vende tus datos. Solo compartimos la información estrictamente necesaria con proveedores de servicios que actúan como encargados del tratamiento, tales como infraestructura en la nube (ej. Vercel), bases de datos (ej. Supabase/Upstash) y pasarelas de pago. <br/><br/>
+            Los pagos se procesan de forma segura mediante <strong className="text-black">Paddle</strong>. Stratosfere no procesa ni almacena directamente los datos completos de tu tarjeta de crédito.
           </Block>
 
-          <Block title="4. Conservación">
-            Conservamos datos mientras exista la cuenta o sea necesario para cumplir obligaciones legales y de seguridad.
+          <Block title="4. Política de Cookies">
+            Utilizamos cookies técnicas de sesión para mantener tu acceso seguro, recordar tus preferencias (como Favoritos) y prevenir ataques automatizados (Rate Limiting). Puedes gestionar la eliminación de cookies desde las opciones de tu navegador.
           </Block>
 
-          <Block title="5. Derechos">
-            Puedes solicitar acceso, rectificación o supresión escribiendo a{" "}
+          <Block title="5. Conservación de los Datos">
+            Conservaremos tus datos personales mientras tu cuenta permanezca activa. Una vez cancelada, los datos serán bloqueados y conservados únicamente durante los plazos legales exigibles (obligaciones fiscales y prevención de blanqueo de capitales) antes de su destrucción total.
+          </Block>
+
+          <Block title="6. Tus Derechos (ARCO-POL)">
+            Tienes derecho a solicitar el <strong>Acceso, Rectificación, Supresión (Olvido), Oposición, Limitación y Portabilidad</strong> de tus datos en cualquier momento. Para ejercer estos derechos, envía un correo electrónico indicando tu petición a{" "}
             <a className="underline text-black" href="mailto:info@stratosfere.com">
               info@stratosfere.com
-            </a>
-            .
+            </a>. También tienes derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD).
           </Block>
 
-          <Block title="6. Más información">
-            Consulta también:{" "}
+          <Block title="7. Más información">
+            Consulta también nuestra documentación legal complementaria:{" "}
             <Link href="/terms" className="underline text-black">
-              Términos
+              Términos y Condiciones
             </Link>{" "}
             y{" "}
             <Link href="/refunds" className="underline text-black">
-              Reembolsos
+              Política de Reembolsos
             </Link>
             .
           </Block>
@@ -74,10 +80,10 @@ export default function PrivacyPage() {
 
         {/* Footer legal (navegación clara para Paddle) */}
         <footer className="mt-12 border-t border-zinc-200 pt-6 text-sm text-zinc-600">
-          <Link href="/terms" className="underline text-black">Términos</Link>{" "}
-          · <Link href="/privacy" className="underline text-black">Privacidad</Link>{" "}
-          · <Link href="/refunds" className="underline text-black">Reembolsos</Link>{" "}
-          · <Link href="/pricing" className="underline text-black">Pricing</Link>
+          <Link href="/terms" className="underline text-black hover:text-indigo-600 transition-colors">Términos</Link>{" "}
+          · <Link href="/privacy" className="underline text-black hover:text-indigo-600 transition-colors">Privacidad</Link>{" "}
+          · <Link href="/refunds" className="underline text-black hover:text-indigo-600 transition-colors">Reembolsos</Link>{" "}
+          · <Link href="/pricing" className="underline text-black hover:text-indigo-600 transition-colors">Pricing</Link>
         </footer>
       </div>
     </main>
