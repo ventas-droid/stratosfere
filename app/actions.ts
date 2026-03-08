@@ -4,9 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from './lib/prisma'; 
 import { cookies } from "next/headers";
 import { Resend } from 'resend';
-import { buildStratosfereEmailHtml } from "@/app/utils/email-template"; // Ajuste la ruta si es necesario
+import { buildStratosfereEmailHtml } from "@/app/utils/email-template"; 
 import { pusherServer } from '@/app/utils/pusher';
-// ... imports ...
+// ⚡️ LA NUEVA TURBINA: MOTOR DE MEMORIA RAM (UPSTASH)
+import { redis } from '@/app/utils/redis';
 
 // 🔥 PEGAR ESTO AL PRINCIPIO DEL ARCHIVO (DESPUÉS DE LOS IMPORTS)
 const USER_IDENTITY_SELECT = {
@@ -112,13 +113,39 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN BLINDADA & ESTADÍSTICAS
+// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN ULTRA-RÁPIDA (REDIS CACHE)
 export async function getGlobalPropertiesAction() {
   try {
     const user = await getCurrentUser();
     const currentUserId = user?.id || null;
 
-  const properties = await prisma.property.findMany({
+    // ⚡️ FASE 1: ATAQUE A LA MEMORIA RAM (REDIS)
+    const CACHE_KEY = "stratos_global_map_cache";
+    try {
+      console.log("⚡️ [REDIS] Buscando mapa en la caché...");
+      const cachedData = await redis.get(CACHE_KEY);
+      
+      if (cachedData) {
+        console.log("⚡️ [REDIS] ¡Impacto directo! Sirviendo mapa desde la RAM en 20ms.");
+        // Si hay usuario logueado, tenemos que recalcular los corazones (favoritos), 
+        // porque la caché es para todos igual, pero tus likes son tuyos.
+        if (currentUserId) {
+          const personalizedData = (cachedData as any[]).map((p: any) => ({
+            ...p,
+            isFavorited: p.favoritedByList?.includes(currentUserId) || false
+          }));
+          return { success: true, data: personalizedData };
+        }
+        
+        return { success: true, data: cachedData };
+      }
+    } catch (cacheError) {
+      console.error("⚠️ [REDIS] Fallo en la memoria RAM, bajando a la base de datos...", cacheError);
+    }
+
+    console.log("🗄️ [PRISMA] Bajando a la base de datos profunda...");
+    // 🗄️ FASE 2: BÚSQUEDA TRADICIONAL EN PRISMA (Su código original, intocable)
+    const properties = await prisma.property.findMany({
       // 🔥 EL MURO SE ABRE PARA LAS PREMIUM Y GESTIONADAS 🔥
       where: { 
         status: {
@@ -150,16 +177,15 @@ export async function getGlobalPropertiesAction() {
       },
     });
 
-   const mappedProps = (properties || []).map((p: any) => {
+    const mappedProps = (properties || []).map((p: any) => {
       // 1. GESTIÓN DE IMÁGENES
       const allImages = (p.images || []).map((img: any) => img?.url).filter(Boolean);
       const realImg = allImages?.[0] || p.mainImage || null;
       const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-      // 2. ESTADO DE FAVORITO
-      const isFavoritedByMe = currentUserId
-        ? (p.favoritedBy || []).some((fav: any) => fav?.userId === currentUserId)
-        : false;
+      // 2. ESTADO DE FAVORITO (Preparado para la caché)
+      const favoritedByList = (p.favoritedBy || []).map((fav: any) => fav?.userId);
+      const isFavoritedByMe = currentUserId ? favoritedByList.includes(currentUserId) : false;
 
       // 3. IDENTIDAD Y TIER (Lógica de Transmutación de Agencia)
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
@@ -241,8 +267,9 @@ export async function getGlobalPropertiesAction() {
         img: realImg,
         price: priceFormatted,    
         rawPrice: rawPrice,                  
-        priceValue: rawPrice,       
+        priceValue: rawPrice,        
         isFavorited: isFavoritedByMe,
+        favoritedByList: favoritedByList, // 🔥 Guardamos esto oculto para que la RAM sepa quién dio like
         
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
@@ -259,13 +286,22 @@ export async function getGlobalPropertiesAction() {
       };
     });
 
+    // ⚡️ FASE 3: GUARDAR FOTOCOPIA EN LA MESA DEL RECEPCIONISTA
+    try {
+      // Guardamos el mapa durante 1 hora (3600 segundos).
+      // Si nadie sube una casa, el servidor no bajará a la BD en 1 hora entera.
+      await redis.set(CACHE_KEY, mappedProps, { ex: 3600 });
+      console.log("⚡️ [REDIS] Nueva fotocopia guardada en la memoria RAM.");
+    } catch (cacheError) {
+      console.error("⚠️ [REDIS] Error guardando en RAM, pero el sistema sigue en pie.", cacheError);
+    }
+
     return { success: true, data: mappedProps };
   } catch (error) {
     console.error("Error crítico en mapa global:", error);
     return { success: false, data: [] };
   }
 }
-
 // ✅ Obtener UNA propiedad completa (CORREGIDO: Con Estadísticas y Datos Financieros)
 export async function getPropertyByIdAction(propertyId: string) {
   cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché de Next.js. Garantiza privacidad total.
@@ -642,12 +678,20 @@ export async function savePropertyAction(data: any) {
         };
     }
 
-    // 🔥🔥🔥 GATILLO GLOBAL: AVISAR A TODOS LOS MAPAS DEL MUNDO 🔥🔥🔥
+   // 🔥🔥🔥 GATILLO GLOBAL: AVISAR A TODOS LOS MAPAS DEL MUNDO 🔥🔥🔥
     try {
         await pusherServer.trigger('stratos-global', 'new-property', finalProperty);
         console.log(`📡 [PUSHER] Nueva propiedad disparada al radar global: ${finalProperty.id}`);
     } catch (pusherError) {
         console.error("⚠️ Error disparando mapa en vivo:", pusherError);
+    }
+
+    // ⚡️ GATILLO REDIS: Romper fotocopia vieja porque hay una casa nueva/editada
+    try {
+        await redis.del("stratos_global_map_cache");
+        console.log("⚡️ [REDIS] Caché del mapa global eliminada. Se regenerará en la próxima visita.");
+    } catch(e) {
+        console.error("⚠️ [REDIS] Error borrando caché:", e);
     }
 
     revalidatePath("/");
