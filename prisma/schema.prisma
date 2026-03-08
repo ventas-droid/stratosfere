@@ -664,31 +664,31 @@ model StratosDocument {
 // 👑 VANGUARD MARKET NETWORK (DOMINIO DE ZONA B2B)
 // =========================================================================
 model ZoneCampaign {
-  id          String   @id @default(cuid())
-  postalCode  String   @unique
-  subtitle    String?
-  customBio   String?
-  isActive    Boolean  @default(true)
-expiresAt         DateTime?
- warning48hSent    Boolean   @default(false) 
- 
+  id                 String    @id @default(cuid())
+  postalCode         String    @unique
+  subtitle           String?
+  customBio          String?
+  isActive           Boolean   @default(true)
+  expiresAt          DateTime?
+  warning48hSent     Boolean   @default(false) 
+
   // 🛡️ NUEVOS CAMPOS DE SOBREESCRITURA (OVERRIDES)
   campaignLogo       String?  // Si se sube aquí, PISARÁ el companyLogo de la agencia
   campaignMainImage  String?  // Si se sube aquí, PISARÁ la mainImage de la casa
 
-// 🔥 MODO FRANCOTIRADOR: Coordenadas exactas de la oficina
+  // 🔥 MODO FRANCOTIRADOR: Coordenadas exactas de la oficina
   latitude           Float?
   longitude          Float?
   
   // Relaciones
-  agencyId    String
-  agency      User     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  propertyId  String
-  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  agencyId           String
+  agency             User      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  propertyId         String
+  property           Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  clicks            Int       @default(0) // Cuenta cuántas veces abren la tarjeta
-  leads             Int       @default(0) // Cuenta cuántas veces pulsan contactar
+  clicks             Int       @default(0) // Cuenta cuántas veces abren la tarjeta
+  leads              Int       @default(0) // Cuenta cuántas veces pulsan contactar
 }

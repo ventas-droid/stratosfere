@@ -41,9 +41,10 @@ export default function StratosChatWindow({
           </div>
         </div>
 
+       {/* 🔥 BOTÓN X (Mini-Tornillo Consola Chat) 🔥 */}
         <button
           onClick={() => setChatOpen(false)}
-          className="text-white/30 hover:text-white transition-colors p-2"
+          className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 hover:rotate-90 flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-md shrink-0"
           title="Cerrar"
         >
           <X size={16} />

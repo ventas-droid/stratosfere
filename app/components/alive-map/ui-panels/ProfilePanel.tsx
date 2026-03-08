@@ -242,11 +242,12 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
         } as any);
       }
 
-      // 2. Cargar Propiedades (CON INTELIGENCIA SAAS)
+    // 2. Cargar Propiedades (CON INTELIGENCIA SAAS)
       const response = await getMyPropertiesAction();
-      
+      let processedProperties: any[] = []; // 🔥 Guardamos esto en memoria para el cortafuegos
+
       if (response.success && response.data) {
-        const dbProperties = response.data.map((p: any) => ({
+        processedProperties = response.data.map((p: any) => ({
           ...p, // Mantiene activeCampaign, financials, isManaged, agencyName
           
           // Imagen: Si no hay, null (para mostrar placeholder gris)
@@ -265,7 +266,7 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
             : (typeof p.price === 'number' ? new Intl.NumberFormat('es-ES').format(p.price) : p.price),
           coordinates: [p.longitude, p.latitude]
         }));
-        setMyProperties(dbProperties);
+        setMyProperties(processedProperties);
       } else {
         setMyProperties([]);
       }
@@ -275,9 +276,35 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
       if (ticketsRes.success && ticketsRes.data) {
           setMyTickets(ticketsRes.data);
       }
-// 4. 🔥 CARGAR MENSAJES (PEGAR ESTO AQUÍ)
+
+      // 4. 🔥 CARGAR MENSAJES (CORTAFUEGOS ANTI-FILTRACIONES)
       const leadsRes = await getMyReceivedLeadsAction();
-      if (leadsRes.success) setMyLeads(leadsRes.data);
+      if (leadsRes.success && leadsRes.data) {
+          // 🛡️ Filtramos los leads para que el particular NO reciba los de la agencia
+          const safeLeads = leadsRes.data.filter((lead: any) => {
+              const propId = String(lead.propertyId || lead.property?.id);
+              
+              // 1. Buscamos la propiedad en la lista que acabamos de cargar
+              const knownProp = processedProperties.find((p: any) => String(p.id) === propId);
+              
+              if (knownProp) {
+                  // Si la propiedad existe en su cuenta, miramos si está cedida a una agencia
+                  const isManaged = knownProp.isManaged === true || knownProp.isManaged === "true" || (knownProp.activeCampaign && knownProp.activeCampaign.status === "ACCEPTED");
+                  return !isManaged; // Si está cedida (true), devuelve false y oculta el mensaje.
+              }
+              
+              // 2. Si no está en su lista (por seguridad), miramos los datos directos del mensaje
+              const p = lead.property;
+              if (p) {
+                  const isManagedFallback = p.isManaged === true || p.isManaged === "true" || (p.activeCampaign && p.activeCampaign.status === "ACCEPTED");
+                  return !isManagedFallback;
+              }
+              
+              return true; // Por defecto, dejar pasar
+          });
+          
+          setMyLeads(safeLeads);
+      }
 
     } catch (e) {
       console.error("Error cargando perfil:", e);
@@ -287,7 +314,7 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
   useEffect(() => {
     if (rightPanel === 'PROFILE') loadData();
   }, [rightPanel]);
-
+  
   // --- HANDLERS ---
   const startEditing = () => {
       setEditForm({ name: user.name, avatar: user.avatar, cover: user.cover, phone: user.phone, mobile: user.mobile });
@@ -462,8 +489,12 @@ const handleFlyTo = async (e: any, property: any) => { // 👈 AÑADIDO 'async' 
              )}
          </div>
 
-         <button onClick={() => toggleRightPanel('NONE')} className="absolute top-6 right-6 p-2 rounded-full bg-black/30 text-white hover:bg-black/60 transition-all z-30 backdrop-blur-md border border-white/10 shadow-lg cursor-pointer">
-            <X size={20}/>
+        {/* 🔥 BOTÓN X (Cerebro original + Cuerpo Tornillo Giratorio) 🔥 */}
+         <button 
+             onClick={() => toggleRightPanel('NONE')} 
+             className="absolute top-6 right-6 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50"
+         >
+             <X size={20}/>
          </button>
 
          {(internalView === 'PROPERTIES' || internalView === 'TICKETS') && (

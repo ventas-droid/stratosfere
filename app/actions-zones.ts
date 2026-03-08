@@ -328,7 +328,29 @@ export async function createVanguardRequestAction(data: {
             hour: '2-digit', minute: '2-digit' 
         });
 
-        // 3. Preparamos el Dossier inyectando la fecha en el título
+   // 1. 🔥 RADAR DE ZONAS PREVIAS (Red de Arrastre Expandida)
+        let zonasActivasTexto = "Ninguna (Sería su primer dominio)";
+        try {
+            const zonasPrevias = await prisma.zoneCampaign.findMany({
+                where: { agencyId: data.agencyId } 
+            });
+            
+            // 🎣 Buscamos en todas las posibles columnas de su base de datos
+            const codigos = zonasPrevias.map((z: any) => 
+                z.targetZone || z.zone || z.postalCode || z.zipCode || z.cp
+            ).filter(Boolean);
+
+            // Filtramos la que acaba de pedir para ver solo el historial pasado
+            const zonasReales = codigos.filter((c: string) => String(c).trim() !== String(data.targetZone).trim());
+            
+            if (zonasReales.length > 0) {
+                zonasActivasTexto = zonasReales.join(', ');
+            }
+        } catch (error) {
+            zonasActivasTexto = "[Error al leer base de datos de Zonas]";
+        }
+
+        // 2. 📝 REDACCIÓN DEL DOSSIER (Aquí empieza el texto verde con las comillas ` )
         const notes = `👑 PETICIÓN LIDERAZGO VIP [${timeStamp}]
 Zona Objetivo: ${data.targetZone}
 Teléfono Directo: ${data.phone}
@@ -336,6 +358,7 @@ ID Agencia: ${data.agencyId}
 --- DOSSIER DE INTELIGENCIA ---
 Empresa: ${data.agencyName}
 Razón Social: ${data.agencyDataSnapshot?.legalName || 'No definida'}
+Zonas Ya Conquistadas: ${zonasActivasTexto}
 Email: ${data.agencyEmail}
 CIF: ${data.agencyDataSnapshot?.cif || "No registrado"}
 Licencia actual: ${data.agencyDataSnapshot?.licenseType || "STARTER"}
@@ -471,4 +494,25 @@ export async function getVipAgenciesAction() {
     console.error("❌ Error en getVipAgenciesAction:", error);
     return { success: false, error: error.message };
   }
+}
+
+// 🔥 ESCÁNER DE ESTATUS VANGUARD VIP (CON RASTREADOR)
+export async function checkVanguardVipStatusAction(agencyId: string) {
+    try {
+        console.log("🔍 [GOD MODE] Buscando zonas VIP para ID:", agencyId);
+        
+        // Buscamos todas las zonas de esta agencia
+        const activeZones = await prisma.zoneCampaign.findMany({
+            where: { agencyId: agencyId }
+        });
+        
+        console.log(`🎯 [GOD MODE] Encontradas ${activeZones.length} zonas para esta agencia.`);
+        
+        // Comprobamos si alguna está activa
+        const hasActive = activeZones.some(z => z.isActive);
+        return { success: true, isVip: hasActive, total: activeZones.length }; 
+    } catch (error) {
+        console.error("❌ [GOD MODE] Error crítico en el radar VIP:", error);
+        return { success: false, isVip: false };
+    }
 }

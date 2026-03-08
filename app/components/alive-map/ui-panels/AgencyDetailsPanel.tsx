@@ -10,7 +10,7 @@ import {
     incrementStatsAction,
     submitLeadAction
 } from "@/app/actions";
-
+import { checkVanguardVipStatusAction } from '@/app/actions-zones';
 // 🔔 NOTIFICACIONES
 import { Toaster, toast } from 'sonner';
 
@@ -21,7 +21,7 @@ import {
     Camera, Globe, Plane, Hammer, Ruler, Handshake, Coins,
     TrendingUp, Share2, Mail, FileCheck, Activity, MessageCircle,
     Sofa, Droplets, Paintbrush, Truck, Bed, Bath, Copy, Check, Building2, Eye, ChevronDown,
-    FileDown, PlayCircle, MapPin, 
+    FileDown, PlayCircle, MapPin, Crown,
     Loader2, Send
 } from 'lucide-react';
 
@@ -83,7 +83,26 @@ const [showB2BModal, setShowB2BModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
-// 🔥 ESTADO PARA EL BOTÓN VIP
+// 🔥 1. INTENTO DE CARGA INSTANTÁNEA (Lee de la memoria en 0 milisegundos)
+    const [isVip, setIsVip] = useState(() => {
+        return activeOwner?.isVanguardVip === true || initialAgencyData?.isVanguardVip === true || false;
+    });
+
+    // 🔥 2. RADAR DE RESPALDO (Solo dispara si la memoria venía vacía)
+    useEffect(() => {
+        // Si ya cargó al instante, abortamos el radar para ahorrar recursos y tiempo
+        if (isVip) return; 
+
+        if (activeOwner?.id) {
+            checkVanguardVipStatusAction(String(activeOwner.id))
+                .then(vipRes => {
+                    if (vipRes?.success && vipRes.isVip) setIsVip(true);
+                })
+                .catch(() => {});
+        }
+    }, [activeOwner?.id, isVip]);
+    
+    // 🔥 ESTADO PARA EL BOTÓN VIP
     const [copiedVip, setCopiedVip] = useState(false);
 
     // 🔥 FUNCIÓN PARA COPIAR EL ENLACE VIP
@@ -222,7 +241,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                         finalOwner = data.activeCampaign.agency;
                     }
 
-                    // Actualizamos el estado visual con el Avatar, Portada, Teléfono, etc. de la Agencia
+                 // Actualizamos el estado visual con el Avatar, Portada, Teléfono, etc. de la Agencia
                     if (Object.keys(finalOwner).length > 0) {
                         setActiveOwner((prev: any) => ({ ...prev, ...finalOwner }));
                     }
@@ -404,15 +423,18 @@ const [showB2BModal, setShowB2BModal] = useState(false);
 
             <div className="relative z-10 flex flex-col h-full text-slate-900">
                 
-                {/* CABECERA */}
-                <div className="relative shrink-0 z-20 h-72 overflow-hidden bg-gray-100">
+             {/* CABECERA (Diseño Oxigenado - Código Original Protegido) */}
+                <div className="relative shrink-0 z-20 h-[340px] overflow-hidden bg-gray-100">
                     <div className="absolute inset-0">
                         {cover ? ( 
                             <img src={cover} className="w-full h-full object-cover" alt="Fondo" /> 
                         ) : ( 
                             <div className="w-full h-full bg-slate-200" /> 
                         )}
+                        {/* 🔥 Seguro de contraste: Oscurece solo la parte baja para que el texto respire y se lea bien siempre */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
                     </div>
+                    
                     <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col justify-between h-full">
                          <div className="flex justify-between items-start">
                             <div className="relative group">
@@ -432,28 +454,49 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                     </div>
                                 )}
                             </div>
-                            <button 
-                                onClick={onClose} 
-                                className="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center transition-all cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-lg"
-                            >
-                                <X size={20} />
-                            </button>
+                            {/* 🔥 BOTÓN X (Idéntico a DetailsPanel + Efecto Giro) 🔥 */}
+         <button onClick={onClose} className="absolute top-12 right-8 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50">
+             <X size={20}/>
+         </button>
                          </div>
 
-                         <div>
-                            <h2 className="text-3xl font-black text-white leading-none mb-2 tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                         {/* 🔥 Bloque de textos empujado hacia abajo para separar del logo */}
+                         <div className="mt-8">
+                            <h2 className="text-4xl font-black text-white leading-none mb-3 tracking-tight drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
                                 {name}
                             </h2>
                             {activeOwner.tagline && ( 
-                                <p className="text-white/90 text-xs font-bold italic tracking-wide mb-4 drop-shadow-md border-l-2 border-emerald-400 pl-3">
+                                <p className="text-white/90 text-[13px] font-bold italic tracking-wide mb-5 drop-shadow-md border-l-2 border-emerald-400 pl-3">
                                     "{activeOwner.tagline}"
                                 </p> 
                             )}
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2.5">
+                                
+                         {/* 🔥 LA INSIGNIA VANGUARD VIP PÚBLICA (#AVV - BRILLO LUMINOSO NÍTIDO) 🔥 */}
+{isVip && (
+    <span className="px-3 py-1.5 rounded-lg border border-[#262F44] bg-[#1B2234] text-[#E0B253] text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 relative overflow-hidden ring-1 ring-[#F59E0B]/90 shadow-[0_1px_2px_rgba(0,0,0,0.5)] animate-in fade-in zoom-in-75 slide-in-from-right-4 duration-700 ease-out">
+        
+        {/* Luz de fondo palpitante (Efecto "Sistema Online") */}
+        <div className="absolute inset-0 bg-[#E0B253]/10 animate-pulse pointer-events-none"></div>
+
+        {/* Hilo de cristal superior más brillante (Mantenemos, es interno) */}
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E0B253]/60 to-transparent"></div>
+        
+        {/* Corona y Texto con resplandor dorado propio (Mantenemos, es interno) */}
+        <Crown size={12} strokeWidth={2.5} className="drop-shadow-[0_0_6px_rgba(224,178,83,0.8)] z-10" />
+        <span className="pt-[1px] drop-shadow-[0_0_6px_rgba(224,178,83,0.8)] z-10">
+            AVV
+        </span>
+    </span>
+)}
+
+                                {/* 🔥 INSIGNIA 2: ROL (Intacta) 🔥 */}
                                 <span className={`px-3 py-1.5 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg ${isAgency ? 'bg-black/60 text-emerald-300' : 'bg-black/40 text-white'}`}>
                                     {isAgency ? <Briefcase size={12} className="text-emerald-400"/> : <User size={12} className="text-white"/>} 
                                     {roleLabel}
                                 </span>
+                               
+                                {/* 🔥 INSIGNIA 3: ZONA (Intacta) 🔥 */}
                                {activeOwner.zone && (
                                     <span className="px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/30 text-blue-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg">
                                         <Globe size={12} className="text-blue-400"/> {activeOwner.zone}

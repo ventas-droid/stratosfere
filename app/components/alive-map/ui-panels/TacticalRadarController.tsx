@@ -787,7 +787,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-all"
+            className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 hover:rotate-90 flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-md shrink-0"
           >
             <X size={16} />
           </button>

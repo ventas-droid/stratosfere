@@ -177,12 +177,14 @@ if (typeof window !== 'undefined') {
                        <span className="text-xs font-bold text-slate-400">{localFavorites.length} Activos</span>
                     </div>
                 </div>
-                <button 
-                    onClick={() => toggleRightPanel('NONE')} 
-                    className="w-10 h-10 rounded-full bg-white hover:bg-slate-200 text-slate-500 transition-all shadow-sm flex items-center justify-center cursor-pointer border border-black/5 shrink-0"
-                >
-                    <X size={20} />
-                </button>
+              {/* 🔥 BOTÓN X (Cerebro original + Cuerpo Tornillo Giratorio) 🔥 */}
+         <button 
+             onClick={() => toggleRightPanel('NONE')} 
+             className="absolute top-6 right-6 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50"
+         >
+             <X size={20}/>
+         </button>
+         
             </div>
         </div>
 

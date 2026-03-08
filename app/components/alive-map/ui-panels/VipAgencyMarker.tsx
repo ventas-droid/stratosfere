@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Crown, MapPin, Phone, Mail, Globe, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Crown, MapPin, Phone, Mail, Globe, ArrowRight, ShieldCheck, X } from 'lucide-react';
 
 export default function VipAgencyMarker({ agency, onClick }: { agency: any, onClick: () => void }) {
     const displayPhone = agency.mobile || agency.phone;
@@ -88,6 +88,7 @@ export default function VipAgencyMarker({ agency, onClick }: { agency: any, onCl
                     
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-700 via-yellow-400 to-amber-700"></div>
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
 
                     <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3 relative z-10">
                         <div className="flex items-center gap-2">

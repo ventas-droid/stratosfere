@@ -113,12 +113,12 @@ export default function PremiumUpgradePanel({ onClose, property }: any) {
                   </h1>
               </div>
               
-              {/* BOTÓN CERRAR (Z-Index alto para garantizar clic) */}
+             {/* 🔥 BOTÓN CERRAR (Efecto Tornillo Unificado) 🔥 */}
               <button 
                   onClick={(e) => { e.stopPropagation(); onClose(); }} 
-                  className="w-10 h-10 bg-slate-800 hover:bg-slate-700 rounded-full flex items-center justify-center transition-colors border border-slate-700 cursor-pointer relative z-50"
+                  className="relative z-50 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl"
               >
-                  <X size={20} className="text-slate-400"/>
+                  <X size={20} />
               </button>
           </div>
           

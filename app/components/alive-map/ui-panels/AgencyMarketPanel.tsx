@@ -70,13 +70,10 @@ export default function AgencyMarketPanel({ isOpen, onClose }: any) {
         <div className="px-8 pt-10 pb-6 bg-white/60 backdrop-blur-md border-b border-black/5">
           <div className="flex justify-between items-center mb-2">
             <h1 className="text-2xl font-black tracking-tight">Suscripción</h1>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-black/5 hover:bg-black/10 flex items-center justify-center"
-              aria-label="Cerrar"
-            >
-              <X size={16} />
-            </button>
+            {/* 🔥 BOTÓN X (Idéntico a DetailsPanel + Efecto Giro) 🔥 */}
+         <button onClick={onClose} className="absolute top-12 right-8 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50">
+             <X size={20}/>
+         </button>
           </div>
 
           <div className="flex items-center gap-2">

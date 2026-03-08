@@ -34,8 +34,14 @@ export default async function AdminPage() {
         orderBy: { createdAt: 'desc' }
     });
 
-    // Se lo pasamos todo al panel
-    return <AdminDashboard users={users} properties={properties} prospects={prospects} />;
+    // ⏱️ NUEVO RADAR: CARGAMOS LAS ZONAS ACTIVAS (Totalmente independiente, no rompe nada)
+    const activeZones = await prisma.zoneCampaign.findMany({
+        where: { isActive: true }
+    });
+
+    // Se lo pasamos todo al panel añadiendo 'activeZones' al final
+    return <AdminDashboard users={users} properties={properties} prospects={prospects} activeZones={activeZones} />;
+    
   } catch (error) {
     console.error("❌ ERROR CARGANDO DATOS EN ADMIN:", error);
     return <div className="p-10 text-red-500 font-bold">Error cargando el radar del God Mode. Revise la consola.</div>;

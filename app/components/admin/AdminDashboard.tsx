@@ -11,8 +11,8 @@ import {
 
 const MASTER_PASSWORD = "GENERAL_ISIDRO"; 
 
-export default function AdminDashboard({ users, properties = [], prospects = [] }: { users: any[], properties?: any[], prospects?: any[] }) {
-  const [isMounted, setIsMounted] = useState(false);
+export default function AdminDashboard({ users, properties = [], prospects = [], activeZones = [] }: { users: any[], properties?: any[], prospects?: any[], activeZones?: any[] }) {  
+    const [isMounted, setIsMounted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -264,8 +264,7 @@ if (!isAuthenticated) {
                         <Target size={16}/> Base Outbound ({prospects.filter(p => p.status !== 'VANGUARD_VIP' && p.status !== 'VIP_RESOLVED').length})
                     </button>
                 </div>
-
-                {/* --------------------------------------------------------- */}
+{/* --------------------------------------------------------- */}
                 {/* 👑 SUB-PESTAÑA: INBOUND VIP (Peticiones Calientes) */}
                 {/* --------------------------------------------------------- */}
                 {crmTab === 'INBOUND' && (
@@ -284,6 +283,8 @@ if (!isAuthenticated) {
                                     <tr><td colSpan={4} className="p-10 text-center text-gray-400">No hay peticiones VIP en el radar.</td></tr>
                                 ) : filteredProspects.filter(p => p.status === 'VANGUARD_VIP' || p.status === 'VIP_RESOLVED').map((prospect) => (
                                     <tr key={prospect.id} className={`transition-colors ${prospect.status === 'VIP_RESOLVED' ? 'bg-gray-50 opacity-70' : 'hover:bg-amber-50/30'}`}>
+                                        
+                                        {/* COLUMNA 1: AGENCIA */}
                                         <td className="p-5 border-r border-gray-100/50">
                                             <div className="flex flex-col gap-1">
                                                 <p className="font-bold text-gray-900 text-base">{prospect.companyName}</p>
@@ -291,11 +292,52 @@ if (!isAuthenticated) {
                                                 {prospect.phone && <span className="text-xs text-gray-500 flex items-center gap-1.5"><Phone size={12}/> {prospect.phone}</span>}
                                             </div>
                                         </td>
+                                        
+                                        {/* COLUMNA 2: ZONA DEMANDADA + RELOJES EN VIVO */}
                                         <td className="p-5 border-r border-gray-100/50">
-                                            <div className="flex items-center gap-1.5 text-gray-700 font-medium">
-                                                <MapPin size={14} className="text-amber-500"/> {prospect.city || "Sin definir"}
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-start gap-1.5 text-gray-700 font-medium text-xs">
+                                                    <MapPin size={14} className="text-amber-500 shrink-0 mt-0.5"/> 
+                                                    <span className="leading-relaxed">{prospect.city || "Sin definir"}</span>
+                                                </div>
+                                                
+                                                {/* ⏱️ RADAR DE TIEMPO REAL (ZONAS ACTIVAS CON RELOJ) ⏱️ */}
+                                                {(() => {
+                                                    // 1. Extraemos el ID de la agencia del dossier
+                                                    const agencyIdMatch = prospect.notes?.match(/ID Agencia:\s*([^\n]+)/);
+                                                    const agencyId = agencyIdMatch ? agencyIdMatch[1].trim() : null;
+                                                    if (!agencyId) return null;
+                                                    
+                                                    // 2. Buscamos sus zonas en la base de datos viva (Blindaje anti-errores)
+                                                    const susZonas = activeZones?.filter((z: any) => z.agencyId === agencyId && z.isActive) || [];
+                                                    if (susZonas.length === 0) return null;
+
+                                                    // 3. Pintamos las medallas con el reloj
+                                                    return (
+                                                        <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                                                            <span className="text-[9px] font-black uppercase text-amber-600 tracking-widest flex items-center gap-1">
+                                                                <Crown size={10}/> DOMINIOS ACTIVOS ({susZonas.length})
+                                                            </span>
+                                                            <div className="flex flex-col gap-1.5 mt-1">
+                                                                {susZonas.map((zona: any) => (
+                                                                    <div key={zona.id} className="flex items-center gap-1.5 bg-gradient-to-r from-amber-100 to-orange-50 px-2 py-1.5 rounded-md border border-amber-300 shadow-sm w-fit">
+                                                                        <MapPin size={10} className="text-amber-600"/>
+                                                                        <span className="text-[10px] font-black text-amber-900">{zona.postalCode}</span>
+                                                                        <div className="h-3 w-px bg-amber-300 mx-0.5"></div>
+                                                                        <Timer size={10} className="text-orange-500"/>
+                                                                        <span className="text-[9px] font-mono font-bold text-orange-700">
+                                                                            {getTimeRemaining(zona.expiresAt) || "Ilimitado"}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </td>
+
+                                        {/* COLUMNA 3: ESTADO */}
                                         <td className="p-5 text-center border-r border-gray-100/50 relative overflow-hidden">
                                             {prospect.status === 'VANGUARD_VIP' && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-400 to-orange-500 shadow-[0_0_15px_rgba(245,158,11,1)]"></div>}
                                             
@@ -311,6 +353,8 @@ if (!isAuthenticated) {
                                                 </span>
                                             )}
                                         </td>
+
+                                        {/* COLUMNA 4: ACCIONES */}
                                         <td className="p-5 text-center">
                                             <div className="flex flex-col gap-2">
                                                 <button onClick={() => { setSelectedDossier(prospect.notes); setShowDossierModal(true); }} className="w-full flex justify-center items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-all uppercase shadow-sm">
@@ -337,13 +381,13 @@ if (!isAuthenticated) {
                                                 )}
                                             </div>
                                         </td>
+
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
                 )}
-
                 {/* --------------------------------------------------------- */}
                 {/* 🎯 SUB-PESTAÑA: OUTBOUND (Base Fría de Captación) */}
                 {/* --------------------------------------------------------- */}

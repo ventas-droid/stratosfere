@@ -15,6 +15,7 @@ import { getBillingGateAction } from "@/app/actions";
 import AgencyEventManager from "./AgencyEventManager"; 
 import CollaborationManager from "./CollaborationManager"; // <--- NUEVO FICHAJE
 import VanguardRequestModal from './VanguardRequestModal';
+import { checkVanguardVipStatusAction } from '@/app/actions-zones';
 // --- CONSTANTES DE LICENCIA ---
 const LICENSE_LEVELS = {
   AGENCY: { name: "Agency SF PRO", credits: 50, maxCredits: 50, rank: "Agencia profesional", color: "emerald" },
@@ -72,42 +73,56 @@ const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VA
   }, [isOpen]);
 
 const loadRealData = async () => {
-  try {
-      // 1. Cargar Perfil de Usuario
-      const userRes = await getUserMeAction();
-      
-      if (userRes.success && userRes.data) {
-          const d = userRes.data;
-          setUserId(d?.id ? String(d.id) : null);
+      try {
+          // 1. Cargar Perfil de Usuario
+          const userRes = await getUserMeAction();
+          
+          if (userRes.success && userRes.data) {
+              const d = userRes.data;
+              setUserId(d?.id ? String(d.id) : null);
 
-       setProfile(prev => ({
-              ...prev,
-              name: d.companyName || d.name || "Nueva Agencia",
-              legalName: d.legalName || "",
-              email: d.email || "",
-              avatar: d.companyLogo || "", 
-              cover: d.coverImage || "",   
-              tagline: d.tagline || "",
-              zone: d.zone || "",
-              address: d.address || "",       // <-- NUEVO
-              postalCode: d.postalCode || "", // <-- NUEVO
-              cif: d.cif || "",
-              phone: d.phone || "",      
-              mobile: d.mobile || "",    
-              web: d.website || "",
-              licenseType: d.licenseType || 'STARTER',
-              licenseNumber: d.licenseNumber || "", // <-- NUEVO
-          }));
+              setProfile(prev => ({
+                  ...prev,
+                  name: d.companyName || d.name || "Nueva Agencia",
+                  legalName: d.legalName || "",
+                  email: d.email || "",
+                  avatar: d.companyLogo || "", 
+                  cover: d.coverImage || "",   
+                  tagline: d.tagline || "",
+                  zone: d.zone || "",
+                  address: d.address || "",       
+                  postalCode: d.postalCode || "", 
+                  cif: d.cif || "",
+                  phone: d.phone || "",      
+                  mobile: d.mobile || "",    
+                  web: d.website || "",
+                  licenseType: d.licenseType || 'STARTER',
+                  licenseNumber: d.licenseNumber || "", 
+              }));
+
+              // 🔥 2. CARGAR LA VERDAD DE LA LICENCIA (EL JUEZ) 🔥
+              const billingRes = await getBillingGateAction();
+              if (billingRes?.success && billingRes?.data) {
+                  setBillingInfo(billingRes.data);
+              }
+
+              // 🔥 3. EL CABLE REAL: ESCÁNER VANGUARD VIP (CON RASTREADOR) 🔥
+              try {
+                  console.log("📡 [FRONTEND] Enviando señal VIP al servidor con ID:", d.id);
+                  const vipRes = await checkVanguardVipStatusAction(String(d.id));
+                  console.log("👑 [FRONTEND] Respuesta del servidor VIP:", vipRes);
+                  
+                  if (vipRes.success) {
+                      setProfile(prev => ({ ...prev, isVanguardVip: vipRes.isVip }));
+                  }
+              } catch(vipErr) { 
+                  console.error("❌ [FRONTEND] Cable VIP roto:", vipErr); 
+              }
+          }
+      } catch (e) { 
+          console.error("Error cargando perfil agencia:", e); 
       }
-
-      // 🔥 2. CARGAR LA VERDAD DE LA LICENCIA (EL JUEZ) 🔥
-      const billingRes = await getBillingGateAction();
-      if (billingRes?.success && billingRes?.data) {
-          setBillingInfo(billingRes.data);
-      }
-
-  } catch (e) { console.error("Error cargando perfil agencia:", e); }
-};
+  };
 
 // 📡 RADAR VIP: Escucha si alguien pide una zona desde el Diamante del Mapa (MarketPanel)
   useEffect(() => {
@@ -292,18 +307,21 @@ const creditPercentage = Math.min(
 
 
   return (
-    <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
-      
-      {/* CABECERA (COVER + LOGO AGENCIA) */}
-      <div className="relative h-72 shrink-0 group bg-black">
+<div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">      
+     {/* CABECERA (COVER + LOGO AGENCIA SIMÉTRICA) */}
+      <div className="relative h-[340px] shrink-0 group bg-black">
          <div className="absolute inset-0 overflow-hidden">
              {profile.cover ? (
                  <img src={profile.cover} className="w-full h-full object-cover opacity-70 transition-opacity group-hover:opacity-50" alt="Cover" />
              ) : (
                  <div className="w-full h-full bg-gradient-to-br from-gray-900 via-black to-emerald-950 opacity-80" />
              )}
+             
+             {/* 🔥 Degradado de seguridad para que los textos siempre respiren y se lean perfectos */}
+             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
              {isEditing && (
-                 <label className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:bg-black/80 transition-colors border border-white/20 z-30 shadow-lg">
+                 <label className="absolute top-12 left-8 flex items-center gap-2 bg-black/60 text-white px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:bg-black/80 transition-colors border border-white/20 z-50 shadow-xl backdrop-blur-md">
                      {isUploading.cover ? <span className="animate-spin">⏳</span> : <ImageIcon size={14}/>}
                      <span>{isUploading.cover ? "Subiendo..." : profile.cover ? "Cambiar Fondo" : "Subir Fondo"}</span>
                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'cover')} disabled={isUploading.cover}/>
@@ -311,12 +329,15 @@ const creditPercentage = Math.min(
              )}
          </div>
          
-         <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white hover:bg-white/20 transition-all z-30 backdrop-blur-md border border-white/10"><X size={18}/></button>
+       {/* 🔥 BOTÓN X (Idéntico a DetailsPanel + Efecto Giro) 🔥 */}
+         <button onClick={onClose} className="absolute top-12 right-8 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50">
+             <X size={20}/>
+         </button>
          
-         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-8 pt-4">
+         <div className="absolute inset-0 flex flex-col items-center justify-end z-10 px-8 pb-8 pt-12">
              {/* LOGO DE AGENCIA */}
-             <div className="w-28 h-28 rounded-full p-1.5 bg-white/10 backdrop-blur-md shadow-2xl relative group/avatar cursor-pointer">
-                 <div className="w-full h-full rounded-full overflow-hidden relative border-2 border-white/20 bg-black/40 flex items-center justify-center">
+             <div className="w-24 h-24 rounded-full p-1 bg-white/10 backdrop-blur-md shadow-2xl shadow-black/40 relative group/avatar cursor-pointer mb-5 transition-transform duration-500 hover:scale-105">
+                 <div className="w-full h-full rounded-full overflow-hidden relative border border-white/20 bg-black/40 flex items-center justify-center">
                     {profile.avatar ? (
                         <img src={profile.avatar} className="w-full h-full object-cover" alt="Logo Agencia" />
                     ) : (
@@ -324,41 +345,46 @@ const creditPercentage = Math.min(
                     )}
                     
                     {isEditing && (
-                        <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-100 transition-opacity backdrop-blur-[2px]">
+                        <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-100 transition-opacity backdrop-blur-[2px] cursor-pointer">
                            {isUploading.avatar ? <span className="animate-spin text-white">⏳</span> : <Camera className="text-white drop-shadow-lg" size={24}/>}
                            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'avatar')} disabled={isUploading.avatar}/>
                         </label>
                     )}
                  </div>
-                 <div className="absolute bottom-1 right-1 bg-emerald-500 text-white p-1.5 rounded-full border-[3px] border-[#1c1c1e] shadow-lg" title="Verificado"><ShieldCheck size={14} strokeWidth={3} /></div>
+                 {/* Escudo centrado en la parte inferior */}
+                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-500 text-white p-1.5 rounded-full border-[3px] border-[#1c1c1e] shadow-lg flex items-center justify-center" title="Verificado">
+                     <ShieldCheck size={14} strokeWidth={3} />
+                 </div>
              </div>
 
-             <div className="mt-5 text-center w-full space-y-3">
+             <div className="text-center w-full space-y-3 mt-2">
                  {isEditing ? (
                      <>
-                        <div className="relative">
+                        <div className="relative max-w-md mx-auto">
                             <input 
                                 value={profile.name} 
                                 onChange={(e) => setProfile({...profile, name: e.target.value})} 
-                                className="w-full text-center bg-black/40 backdrop-blur-md text-white font-black text-2xl border border-white/20 rounded-xl py-2 px-4 outline-none focus:bg-black/60 transition-colors placeholder-white/30" 
+                                className="w-full text-center bg-black/40 backdrop-blur-md text-white font-black text-3xl tracking-tight border border-white/20 rounded-xl py-2 px-4 outline-none focus:bg-black/60 transition-colors placeholder-white/30 shadow-lg" 
                                 placeholder="Nombre Agencia" 
                             />
-                            <Edit2 size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"/>
+                            <Edit2 size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"/>
                         </div>
-                        <div className="relative w-3/4 mx-auto">
+                        <div className="relative max-w-xs mx-auto mt-2">
                             <input 
                                 value={profile.tagline} 
                                 onChange={(e) => setProfile({...profile, tagline: e.target.value})} 
-                                className="w-full text-center bg-black/40 backdrop-blur-md text-emerald-400 text-xs font-bold tracking-widest uppercase border border-emerald-500/30 rounded-lg py-1.5 px-3 outline-none focus:bg-black/60 transition-colors placeholder-emerald-600" 
+                                className="w-full text-center bg-black/40 backdrop-blur-md text-emerald-400 text-[10px] font-black tracking-widest uppercase border border-emerald-500/30 rounded-lg py-1.5 px-3 outline-none focus:bg-black/60 transition-colors placeholder-emerald-600/50 shadow-lg" 
                                 placeholder="Tu Slogan Aquí" 
                             />
                         </div>
                      </>
                  ) : (
                      <>
-                        <h2 className="text-white font-black text-3xl tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{profile.name}</h2>
-                        <div className="text-emerald-400 text-xs font-bold tracking-[0.2em] uppercase drop-shadow-md flex items-center justify-center gap-2 bg-black/30 py-1 px-3 rounded-full mx-auto w-fit border border-emerald-500/20">
-                            <Zap size={12} className="fill-emerald-400"/> {profile.tagline}
+                        <h2 className="text-white font-black text-4xl leading-none tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                            {profile.name}
+                        </h2>
+                        <div className="text-emerald-300 text-[10px] font-black tracking-widest uppercase drop-shadow-md flex items-center justify-center gap-1.5 bg-emerald-500/10 backdrop-blur-md py-1.5 px-3 rounded-lg mx-auto w-fit border border-emerald-500/30 shadow-lg">
+                            <Zap size={12} className="text-emerald-400"/> {profile.tagline}
                         </div>
                      </>
                  )}
@@ -390,16 +416,52 @@ const creditPercentage = Math.min(
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-end justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Créditos Disponibles</span>
-                    <div className="flex items-baseline gap-1 tabular-nums">
-                      <span className="text-lg font-black text-slate-900 leading-none">{license?.credits ?? 0}</span>
-                      <span className="text-[11px] font-semibold text-slate-400 leading-none">/ {license?.maxCredits ?? 0}</span>
-                    </div>
-                  </div>
-                  <div className="h-2.5 w-full bg-slate-100/80 rounded-full overflow-hidden border border-white/50 shadow-inner">
-                    <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 shadow-[0_0_10px_rgba(79,70,229,0.3)] transition-all duration-700 ease-out" style={{ width: `${creditPercentage || 0}%` }} />
+          {/* 🎯 TRAMPA PSICOLÓGICA REDISEÑADA (ESQUEMA EXACTO DEL GENERAL) 🎯 */}
+                <div className="w-full pt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                      Créditos Disponibles
+                  </span>
+                  
+                  <div className="flex items-center gap-3 w-full">
+                      
+                      {/* TRAMO 1: Barra de Créditos acortada + Texto 50/50 pegado a ella */}
+                      <div className="flex items-center gap-2 flex-1">
+                          <div className="h-2.5 w-full bg-slate-100/80 rounded-full overflow-hidden border border-slate-200 shadow-inner">
+                            <div 
+                                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 shadow-[0_0_10px_rgba(79,70,229,0.3)] transition-all duration-700 ease-out" 
+                                style={{ width: `${creditPercentage || 0}%` }} 
+                            />
+                          </div>
+                          {/* 🔥 Aquí el 50/50 ha retrocedido y se pega a la barra 🔥 */}
+                          <div className="flex items-baseline gap-0.5 tabular-nums shrink-0">
+                            <span className="text-sm font-black text-slate-900 leading-none">{license?.credits ?? 0}</span>
+                            <span className="text-[10px] font-semibold text-slate-400 leading-none">/{license?.maxCredits ?? 0}</span>
+                          </div>
+                      </div>
+
+                      {/* DIVISOR VISUAL */}
+                      <div className="w-px h-5 bg-slate-200 shrink-0"></div>
+
+              {/* TRAMO 2: Pegatina Agency Vanguard VIP (Estilo Deep Navy & Oro Exacto) */}
+                      <div 
+                          className={`shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-700 relative overflow-hidden ${
+                              profile.isVanguardVip 
+                              ? 'bg-[#1B2234] border-[#262F44] shadow-md scale-[1.02]' 
+                              : 'bg-slate-50 border-slate-200/80 grayscale opacity-80'
+                          }`}
+                      >
+                          {/* 🔥 Hilo de cristal superior (Efecto relieve premium oscuro) 🔥 */}
+                          {profile.isVanguardVip && <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E0B253]/30 to-transparent"></div>}
+                          
+                          <Crown size={12} className={profile.isVanguardVip ? 'text-[#E0B253] drop-shadow-sm z-10' : 'text-slate-400'} strokeWidth={2.5}/>
+                          
+                          <span className={`z-10 text-[9px] font-black uppercase tracking-widest pt-[1px] ${
+                              profile.isVanguardVip ? 'text-[#E0B253]' : 'text-slate-400'
+                          }`}>
+                              VANGUARD VIP
+                          </span>
+                      </div>
+
                   </div>
                 </div>
 
@@ -432,18 +494,34 @@ const creditPercentage = Math.min(
                         rightText = "DESACTIVADA";
                     }
 
-                    return (
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-200/40">
-                          <div className={`px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-sm ${badgeBg}`}>
-                            <span className="text-[9px] font-black uppercase tracking-widest">{badgeText}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="relative flex h-2 w-2">
-                              {dotPing && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dotColor}`}></span>}
-                              <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
+                return (
+                        <div className="flex flex-col gap-2 pt-3 border-t border-slate-200/40">
+                            
+                            {/* FILA SUPERIOR: ETIQUETA AZUL Y PUNTO VERDE */}
+                            <div className="flex items-center justify-between">
+                              <div className={`px-2.5 py-1 rounded-full border flex items-center gap-1.5 shadow-sm w-fit ${badgeBg}`}>
+                                <span className="text-[9px] font-black uppercase tracking-widest">{badgeText}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <div className="relative flex h-2 w-2">
+                                  {dotPing && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dotColor}`}></span>}
+                                  <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
+                                </div>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{rightText}</span>
+                              </div>
                             </div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{rightText}</span>
-                          </div>
+                  {/* 🔥 FILA INFERIOR: ETIQUETA VIP (Clon exacto de la Ficha Pública) 🔥 */}
+                            {profile.isVanguardVip && (
+                                <div className="px-3 py-1.5 rounded-lg border border-[#262F44] bg-[#1B2234] text-[#E0B253] text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-lg w-fit animate-fade-in-up relative overflow-hidden group">
+                                    {/* Hilo de cristal superior */}
+                                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E0B253]/30 to-transparent"></div>
+                                    
+                                    <Crown size={12} strokeWidth={2.5} className="drop-shadow-md z-10" />
+                                    <span className="z-10 pt-[1px]">
+                                        AVV
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     );
                 })()}

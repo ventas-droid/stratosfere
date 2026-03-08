@@ -205,12 +205,10 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                         </span>
                     </div>
                 </div>
-                <button 
-                    onClick={() => onClose ? onClose() : (toggleRightPanel && toggleRightPanel('NONE'))}                    
-                    className="w-10 h-10 rounded-full bg-white hover:bg-slate-100 text-slate-500 transition-all shadow-sm flex items-center justify-center cursor-pointer border border-slate-200 shrink-0"
-                >
-                    <X size={20} />
-                </button>
+                 {/* 🔥 BOTÓN X (Idéntico a DetailsPanel + Efecto Giro) 🔥 */}
+                     <button onClick={onClose} className="absolute top-12 right-8 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50">
+                         <X size={20}/>
+                     </button>
             </div>
         </div>
 
