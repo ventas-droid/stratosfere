@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from './lib/prisma'; 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Resend } from 'resend';
 import { buildStratosfereEmailHtml } from "@/app/utils/email-template"; 
 import { pusherServer } from '@/app/utils/pusher';
@@ -3518,16 +3518,30 @@ export async function submitLeadAction(data: {
     email: string;
     phone: string;
     message: string;
-    source?: string; // 🔥 1. ABRIMOS LA PUERTA AL CHIVATO VIP
+    source?: string; 
 }) {
     try {
+        // 🛡️ CÚPULA DE HIERRO: RATE LIMITING (Max 3 leads por minuto)
+        const headersList = await headers();
+        const ip = headersList.get("x-forwarded-for") || "unknown_ip";
+        const rateLimitKey = `ratelimit:lead:${ip}`;
+
+        const requestsCount = await redis.incr(rateLimitKey);
+        if (requestsCount === 1) {
+            await redis.expire(rateLimitKey, 60); // La ventana de castigo dura 60 segundos
+        }
+
+        if (requestsCount > 3) {
+            console.warn(`🛡️ [CÚPULA DE HIERRO] Bloqueado ataque de SPAM en leads desde IP: ${ip}`);
+            return { success: false, error: "Demasiadas peticiones. Por favor, espera 1 minuto." };
+        }
+
         // 1. RASTREO TÁCTICO
         const cookieStore = await cookies();
         const ambassadorId = cookieStore.get('stratos_ref')?.value;
         const currentUser = await getCurrentUser(); 
 
         console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO", "| ORIGEN:", data.source || "ORGÁNICO");
-
         // 2. GUARDAR EN LA BASE DE DATOS
         const newLead = await prisma.lead.create({
             data: {
@@ -3614,6 +3628,21 @@ export async function submitLeadAction(data: {
 // =========================================================
 export async function registerPhoneRevealAction(propertyId: string) {
     try {
+        // 🛡️ CÚPULA DE HIERRO: RATE LIMITING (Max 5 clicks por minuto)
+        const headersList = await headers();
+        const ip = headersList.get("x-forwarded-for") || "unknown_ip";
+        const rateLimitKey = `ratelimit:phone:${ip}`;
+
+        const requestsCount = await redis.incr(rateLimitKey);
+        if (requestsCount === 1) {
+            await redis.expire(rateLimitKey, 60); // 60 segundos de vigilancia
+        }
+
+        if (requestsCount > 5) {
+            console.warn(`🛡️ [CÚPULA DE HIERRO] Bloqueado abuso de botón 'Ver Teléfono' desde IP: ${ip}`);
+            return { success: false }; // Devolvemos false silenciosamente
+        }
+
         const user = await getCurrentUser();
         // Solo funciona si el usuario está registrado
         if (!user) return { success: false, error: "No identificado" };
@@ -3745,7 +3774,7 @@ export async function getMyReceivedLeadsAction() {
              // Imágenes (PESO PLUMA)
                     img: optimizeImage((p.images && p.images.length > 0) ? p.images[0].url : (p.mainImage || "/placeholder.jpg")),
                     images: (p.images || []).map((i: any) => optimizeImage(i.url)).filter(Boolean),
-                    
+
                     // Datos Físicos (Aquí ya no dará error porque p es 'any')
                     price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
                     rawPrice: Number(p.price || 0),
