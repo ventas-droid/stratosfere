@@ -120,7 +120,7 @@ const agencyMarkersRef = useRef<any>({});
       // se ejecuta EXCLUSIVAMENTE en el 'executeRadar' (más abajo)
       // para asegurar una única fuente de verdad y evitar conflictos.
 
-      // 1. FUENTE DE DATOS (INICIALIZACIÓN ESTRUCTURAL)
+     // 1. FUENTE DE DATOS (INICIALIZACIÓN ESTRUCTURAL)
       if (map.current.getSource('properties')) {
         (map.current.getSource('properties') as any).setData({
           type: 'FeatureCollection',
@@ -135,8 +135,6 @@ const agencyMarkersRef = useRef<any>({});
           clusterRadius: 80
         });
       }
-
-      
 
       // =================================================================
       // 🎨 DISEÑO VISUAL Y CAPAS (MANTENIDO AL 100%)
@@ -181,71 +179,93 @@ const agencyMarkersRef = useRef<any>({});
       }
 
       // =================================================================
-      // 🖱️ INTERACTIVIDAD (CLICS Y MOVIMIENTO)
+      // 🖱️ INTERACTIVIDAD (CLICS Y MOVIMIENTO AZULES)
       // =================================================================
-      
-      // Evento: Click en Cluster -> Zoom Suave (Cinemática)
-      map.current.on('click', 'clusters', (e) => {
+      map.current.on('click', 'clusters', (e: any) => {
         const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         const clusterId = features[0].properties.cluster_id;
-        map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err, zoom) => {
+        map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err: any, zoom: any) => {
           if (err) return;
           map.current.flyTo({ 
-              center: features[0].geometry.coordinates, 
+              center: features[0].geometry.coordinates as [number, number], 
               zoom: zoom + 1, 
               speed: 0.5 
           });
         });
       });
 
-      // Cursor Pointer (Mano) al pasar por encima
-      map.current.on('mouseenter', 'clusters', () => { 
-          map.current.getCanvas().style.cursor = 'pointer'; 
-      });
-      
-      map.current.on('mouseleave', 'clusters', () => { 
-          map.current.getCanvas().style.cursor = ''; 
-      });
+      map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
+      map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
-     // =================================================================
-      // 🖱️ INTERACTIVIDAD (CLICS Y MOVIMIENTO)
       // =================================================================
-      
-      // Evento: Click en Cluster -> Zoom Suave (Cinemática)
-      map.current.on('click', 'clusters', (e) => {
-        const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+      // 🔥 1. EL BOTE DE CACAHUETES DORADO (Capas VIP) 🔥
+      // =================================================================
+      if (!map.current.getSource('vip-agencies')) {
+        map.current.addSource('vip-agencies', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+          cluster: true,
+          clusterMaxZoom: 14, // A partir de zoom 14 se rompe el bote
+          clusterRadius: 60
+        });
+      }
+
+      if (!map.current.getLayer('vip-clusters')) {
+        map.current.addLayer({
+          id: 'vip-clusters',
+          type: 'circle',
+          source: 'vip-agencies',
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': '#eab308', // Dorado VIP
+            'circle-radius': ['step', ['get', 'point_count'], 30, 10, 40, 50, 50],
+            'circle-stroke-width': 3,
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 0.95
+          }
+        });
+      }
+
+      if (!map.current.getLayer('vip-cluster-count')) {
+        map.current.addLayer({
+          id: 'vip-cluster-count',
+          type: 'symbol',
+          source: 'vip-agencies',
+          filter: ['has', 'point_count'],
+          layout: { 'text-field': '{point_count_abbreviated}', 'text-font': ['Arial Unicode MS Bold'], 'text-size': 16 },
+          paint: { 'text-color': '#ffffff' }
+        });
+      }
+
+      // Cinemática al hacer clic en el orbe dorado
+      map.current.on('click', 'vip-clusters', (e: any) => {
+        const features = map.current.queryRenderedFeatures(e.point, { layers: ['vip-clusters'] });
         const clusterId = features[0].properties.cluster_id;
-        map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err, zoom) => {
+        map.current.getSource('vip-agencies').getClusterExpansionZoom(clusterId, (err: any, zoom: any) => {
           if (err) return;
-          map.current.flyTo({ 
-              center: features[0].geometry.coordinates, 
-              zoom: zoom + 1, 
-              speed: 0.5 
-          });
+          map.current.flyTo({ center: features[0].geometry.coordinates as [number, number], zoom: zoom + 1.5, speed: 0.8 });
         });
       });
+      map.current.on('mouseenter', 'vip-clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
+      map.current.on('mouseleave', 'vip-clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
-      // Cursor Pointer (Mano) al pasar por encima
-      map.current.on('mouseenter', 'clusters', () => { 
-          map.current.getCanvas().style.cursor = 'pointer'; 
-      });
-      
-      map.current.on('mouseleave', 'clusters', () => { 
-          map.current.getCanvas().style.cursor = ''; 
-      });
-
-      // Sincronización de Nanocards al terminar de mover el mapa
+      // =================================================================
+      // ⚙️ MOVIMIENTO Y SINCRONIZACIÓN FINAL
+      // =================================================================
       map.current.on('moveend', () => {
           updateMarkers();
           
-          // 🔥 SEÑAL DE RADAR: Avisamos al buscador lateral de dónde estamos
+          // 🔥 LLAMAMOS AL DESPARRAMADOR VIP AL MOVER EL MAPA
+          if (typeof updateVipMarkers === 'function') {
+              updateVipMarkers();
+          }
+          
           const center = map.current.getCenter();
           window.dispatchEvent(new CustomEvent('map-center-updated', { 
               detail: { lng: center.lng, lat: center.lat } 
           }));
       });
 
-      // 🔥 SEÑAL EN TIEMPO REAL: (Para que los km se actualicen "en vivo" mientras arrastra el dedo)
       map.current.on('move', () => {
           const center = map.current.getCenter();
           window.dispatchEvent(new CustomEvent('map-center-updated', { 
@@ -253,10 +273,8 @@ const agencyMarkersRef = useRef<any>({});
           }));
       });
 
-      // Primera llamada (Prepara el terreno para el Radar)
       updateMarkers();
 
-      // 🔥 NUEVO: EL MAPA GRITA SUS COORDENADAS NADA MÁS NACER (Solo 1 vez)
       setTimeout(() => {
           if (map.current) {
               const initialCenter = map.current.getCenter();
@@ -267,7 +285,7 @@ const agencyMarkersRef = useRef<any>({});
       }, 500);
       
     }); // <--- CIERRE DEL .on('load')
-  }, []); // <--- CIERRE DEL useEffect (ESTO ES LO QUE FALTABA)
+  }, []); // <--- CIERRE DEL useEffect
  // ----------------------------------------------------------------------
   // 3. LÓGICA DE FILTRADO INTELIGENTE V2
   // ----------------------------------------------------------------------
@@ -605,6 +623,62 @@ const agencyMarkersRef = useRef<any>({});
         .addTo(mapInstance);
 
       markersRef.current[id] = marker;
+    });
+  };
+
+  // --------------------------------------------------------------------
+  // 🔥 2. EL DESPARRAMADOR VIP (Dibuja los HTML sueltos) 🔥
+  // --------------------------------------------------------------------
+  const updateVipMarkers = () => {
+    const mapInstance = map.current;
+    if (!mapInstance || !(mapInstance as any).getSource("vip-agencies")) return;
+
+    // Solo busca cacahuetes SUELTOS (los que ya no están agrupados)
+    const features = (mapInstance as any).querySourceFeatures("vip-agencies", { filter: ["!", ["has", "point_count"]] });
+    const visibleIds = new Set(features.map((f: any) => String(f.properties.uniqueMarkerId)));
+
+    // Limpia los que ya no se ven
+    Object.keys(agencyMarkersRef.current).forEach((id) => {
+      if (!visibleIds.has(id)) {
+        agencyMarkersRef.current[id].remove();
+        delete agencyMarkersRef.current[id];
+      }
+    });
+
+    // Dibuja los nuevos
+    features.forEach((feature: any) => {
+      const id = String(feature.properties.uniqueMarkerId);
+      if (agencyMarkersRef.current[id]) return;
+
+      const el = document.createElement("div");
+      el.className = "vip-agency-marker";
+      const root = createRoot(el);
+      
+      const agencyData = JSON.parse(feature.properties.agencyRawData);
+
+      // 🍿 CÁLCULO DEL RETRASO ALEATORIO (Efecto metralleta de 0 a 0.25 seg)
+      const popDelay = (Math.random() * 0.25).toFixed(2);
+
+      root.render(
+          // 🔥 ENVOLTORIO GREMLIN POP CON TAILWIND PURE
+          <div className="animate-gremlin-pop" style={{ animationDelay: `${popDelay}s` }}>
+              <VipAgencyMarker 
+                  agency={agencyData} 
+                  onClick={() => {
+                      (mapInstance as any).flyTo({ center: agencyData.coordinates, zoom: 19, pitch: 70, duration: 2500 });
+                      if (typeof window !== 'undefined') {
+                          window.dispatchEvent(new CustomEvent('open-market-panel', { detail: agencyData }));
+                      }
+                  }} 
+              />
+          </div>
+      );
+
+      const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+        .setLngLat(feature.geometry.coordinates)
+        .addTo(mapInstance as any);
+      
+      agencyMarkersRef.current[id] = marker;
     });
   };
  // --------------------------------------------------------------------
@@ -1161,74 +1235,45 @@ return {
 
   }, [isLoaded]); // Fin del useEffect
  // --------------------------------------------------------------------
-  // 🏢 RADAR DE AGENCIAS VIP (MONETIZACIÓN ESPACIAL)
+  // 🏢 3. RADAR DE AGENCIAS VIP (AHORA EN EL MOTOR DE GRAVEDAD)
   // --------------------------------------------------------------------
   useEffect(() => {
     if (!map.current || !isLoaded) return;
 
     const loadVipAgencies = async () => {
       try {
-        console.log("👑 RADAR VIP: Buscando Agencias Exclusivas...");
-        
-        // 1. Llamada al servidor a por las campañas Vanguard activas
+        console.log("👑 RADAR VIP: Metiendo cacahuetes en el bote dorado...");
         const response = await getVipAgenciesAction(); 
         const agencies = response?.success ? response.data : [];
 
-        // 🔥 PURGA TÁCTICA: Destruimos los monolitos viejos antes de pintar los nuevos 
-        // (Esto elimina el fallo del "Pin Doble")
-        if (agencyMarkersRef.current) {
-            Object.values(agencyMarkersRef.current).forEach((marker: any) => marker.remove());
-            agencyMarkersRef.current = {};
-        }
+        // Empaquetado GeoJSON para el motor físico
+        const features = agencies.map((agency: any) => {
+            if (!agency.coordinates || !agency.coordinates[0] || !agency.coordinates[1]) return null;
+            return {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: agency.coordinates },
+                properties: {
+                    uniqueMarkerId: `${agency.id}-${agency.targetZone}`,
+                    agencyRawData: JSON.stringify(agency) 
+                }
+            };
+        }).filter(Boolean);
 
-        // 2. Pintar los marcadores en el mapa
-        agencies.forEach((agency: any) => {
-            // 🔥 LA CLAVE: Ahora el ID único combina la Agencia Y la Zona. 
-            // Así una misma agencia puede tener 10 pines en 10 ciudades distintas sin anularse.
-            const uniqueMarkerId = `${agency.id}-${agency.targetZone}`;
+        const source: any = map.current.getSource('vip-agencies');
+        if (source) {
+            source.setData({ type: 'FeatureCollection', features: features });
             
-            // Si por algún motivo no hay coordenadas, no pintamos para no dar error
-            if (!agency.coordinates || !agency.coordinates[0] || !agency.coordinates[1]) return;
-
-            // Creamos el contenedor físico
-            const el = document.createElement("div");
-            el.className = "vip-agency-marker";
-            const root = createRoot(el);
-
-           // Inyectamos nuestro Monolito Dorado
-            root.render(
-                <VipAgencyMarker 
-                    agency={agency} 
-                    onClick={() => {
-                        // 🚁 Vuelo táctico: La cámara hace un barrido espectacular hacia la agencia
-                        map.current.flyTo({ center: agency.coordinates, zoom: 19, pitch: 70, duration: 2500 });
-                        
-                        // 🖥️ ABRIR EL PANEL DE MARKET NETWORK (PROMO VIP)
-                        if (typeof window !== 'undefined') {
-                            // 🔥 Frecuencia cambiada: Ahora llama al Market Panel
-                            window.dispatchEvent(new CustomEvent('open-market-panel', { detail: agency }));
-                        }
-                    }} 
-                />
-            );
-            // Lo clavamos en el suelo del mapa 3D
-            const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-                .setLngLat(agency.coordinates)
-                .addTo(map.current);
-
-            // Guardamos el marcador en la memoria con la nueva clave infalible
-            if (agencyMarkersRef.current) {
-                agencyMarkersRef.current[uniqueMarkerId] = marker;
-            }
-        });
-
+            // ⏳ Forzamos repintado de los marcadores sueltos asegurando que el mapa esté listo
+            map.current.once('idle', () => {
+                if (typeof updateVipMarkers === 'function') {
+                    updateVipMarkers();
+                }
+            }); 
+        }
       } catch (e) { console.error("Error cargando Agencias VIP:", e); }
     };
 
-    // Disparamos el radar
     loadVipAgencies();
-    
-    // Lo dejamos a la escucha por si recargamos la página
     window.addEventListener('reload-vip-agencies', loadVipAgencies);
     return () => window.removeEventListener('reload-vip-agencies', loadVipAgencies);
 

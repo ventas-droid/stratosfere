@@ -35,6 +35,9 @@ const config: Config = {
         'scale-up': 'scaleUp 0.3s ease-out',
         'bounce-small': 'bounceSmall 1s infinite',
         'spin-slow': 'spin 3s linear infinite',
+        
+        // 🍿 NUEVO: EFECTO GREMLIN POP (Inyectado sin romper nada)
+        'gremlin-pop': 'gremlinPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both',
       },
       keyframes: {
         fadeIn: {
@@ -64,6 +67,13 @@ const config: Config = {
         bounceSmall: {
           '0%, 100%': { transform: 'translateY(-5%)' },
           '50%': { transform: 'translateY(0)' },
+        },
+        
+        // 🍿 NUEVO: FÍSICA DEL SALTO GREMLIN (Inyectado sin romper nada)
+        gremlinPop: {
+          '0%': { opacity: '0', transform: 'scale(0.1) translateY(60px)' },
+          '60%': { opacity: '1', transform: 'scale(1.15) translateY(-10px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
         }
       }
     },

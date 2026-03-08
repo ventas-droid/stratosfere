@@ -9,8 +9,7 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-[#FAFAFA] text-zinc-900 font-sans selection:bg-black selection:text-white">
-      {/* HEADER HERO SECTION */}
+<main className="h-[100dvh] overflow-y-auto bg-[#FAFAFA] text-zinc-900 font-sans selection:bg-black selection:text-white">      {/* HEADER HERO SECTION */}
       <div className="bg-white border-b border-zinc-200 pt-20 pb-16 px-6">
         <div className="mx-auto max-w-4xl">
           <Link
