@@ -1,14 +1,19 @@
 // @ts-nocheck
 "use client";
 
+// @ts-nocheck
+"use client";
+
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { parseOmniSearch, CONTEXT_CONFIG } from './smart-search';
 import MapNanoCard from './ui-panels/MapNanoCard';
+
 // 🔥 IMPORTAMOS EL MONOLITO DORADO PARA LAS AGENCIAS VIP
 import VipAgencyMarker from './ui-panels/VipAgencyMarker';
+
 // 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
 // import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
 const STRATOS_PROPERTIES : any[] = [];
@@ -16,8 +21,12 @@ const IMAGES : any[] = [];
 
 // AHORA:
 import { getGlobalPropertiesAction } from '@/app/actions';
+
 // 🔥 IMPORTACIÓN CORRECTA DEL RADAR VIP
 import { getVipAgenciesAction } from '@/app/actions-zones';
+
+// 📡 LA NUEVA ANTENA: IMPORTAMOS EL RECEPTOR ESPACIAL (Pusher)
+import { getPusherClient } from '@/app/utils/pusher';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 
@@ -1224,6 +1233,31 @@ return {
     return () => window.removeEventListener('reload-vip-agencies', loadVipAgencies);
 
   }, [isLoaded]);
+
+  // 🔥🔥🔥 WEBSOCKETS: RADAR DE MAPA EN VIVO 🔥🔥🔥
+  useEffect(() => {
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    // Nos suscribimos al canal global donde aterrizan las propiedades
+    const channel = pusher.subscribe('stratos-global');
+
+    // Escuchamos si cae un misil con una nueva propiedad
+    channel.bind('new-property', (newProp: any) => {
+      console.log("🛸 [PUSHER] ¡Nueva propiedad detectada en el espacio aéreo!", newProp.id);
+      
+      // Disparamos la misma señal interna que ya usaba su sistema para añadir propiedades sin recargar
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('add-property-signal', { detail: newProp }));
+      }
+    });
+
+    return () => {
+      channel.unbind('new-property');
+      pusher.unsubscribe('stratos-global');
+    };
+  }, []);
+
   // --------------------------------------------------------------------
   // RETORNO FINAL (Cierre del Hook)
   // --------------------------------------------------------------------

@@ -633,13 +633,21 @@ export async function savePropertyAction(data: any) {
         }
     });
 
-    // 🌟 LA MAGIA DE LA TRANSMUTACIÓN: 
+  // 🌟 LA MAGIA DE LA TRANSMUTACIÓN: 
     // Si la agencia gestiona la casa, sobreescribimos al "user" para que el mapa crea que es de la Agencia.
     if (finalProperty && finalProperty.assignment && finalProperty.assignment.agency) {
         finalProperty.user = {
             ...finalProperty.assignment.agency,
             role: 'AGENCIA' // Forzamos el rol para que el modal se pinte de negro
         };
+    }
+
+    // 🔥🔥🔥 GATILLO GLOBAL: AVISAR A TODOS LOS MAPAS DEL MUNDO 🔥🔥🔥
+    try {
+        await pusherServer.trigger('stratos-global', 'new-property', finalProperty);
+        console.log(`📡 [PUSHER] Nueva propiedad disparada al radar global: ${finalProperty.id}`);
+    } catch (pusherError) {
+        console.error("⚠️ Error disparando mapa en vivo:", pusherError);
     }
 
     revalidatePath("/");
