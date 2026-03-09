@@ -167,13 +167,13 @@ const handlePark = (e: any) => {
                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
                     <Search className="text-blue-500 transition-colors" size={20} />
                 </div>
-             <input 
-                    type="text" 
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Ej: Madrid hasta 12.000.000..."
-                    className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl py-4 pl-12 pr-4 text-sm text-slate-800 font-bold placeholder-blue-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                />
+          <input 
+    type="text" 
+    value={query}
+    onChange={(e) => setQuery(e.target.value)}
+    placeholder="Ej: Madrid hasta 12.000.000..."
+    className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl py-4 pl-12 pr-4 text-sm text-slate-800 font-bold placeholder-blue-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+/>
             </div>
 
             {/* 🔥 EL FALDÓN DE DESAMBIGUACIÓN 🔥 */}

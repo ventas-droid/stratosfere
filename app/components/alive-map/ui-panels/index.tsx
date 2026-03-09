@@ -686,6 +686,7 @@ const handleDayNight = () => {
     setDataVersion((v) => v + 1);
   };
 
+
  // ✅ NUEVO: Perfil agencia actualizado (logo/cover) -> refresca UI + Details + cache RAM
 const handleAgencyProfileUpdated = (e: any) => {
   const u = e?.detail;
@@ -906,6 +907,8 @@ window.addEventListener("reload-profile-assets", handleReload);
 window.addEventListener("agency-profile-updated", handleAgencyProfileUpdated);
 // 📡 ANTENA DEL NUEVO RADAR LATERAL
 window.addEventListener("stratos-property-selected", handleOpenDetails);
+
+
 // ✅ CHAT
 window.addEventListener("open-chat-signal", handleOpenChatSignal as any);
 window.addEventListener("open-chat-with-user", handleOpenChatSignal as any); 
@@ -922,6 +925,11 @@ return () => {
   window.removeEventListener("toggle-fav-signal", handleToggleFavSignal);
   window.removeEventListener("reload-profile-assets", handleReload);
   window.removeEventListener("agency-profile-updated", handleAgencyProfileUpdated);
+
+  //  AÑADA ESTAS  LÍNEA 
+  window.removeEventListener("stratos-property-selected", handleOpenDetails);
+
+
 
   // ✅ CHAT STANDARD
   window.removeEventListener("open-chat-signal", handleOpenChatSignal as any);
