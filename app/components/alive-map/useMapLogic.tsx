@@ -197,7 +197,7 @@ const agencyMarkersRef = useRef<any>({});
       map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
       map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
-      // =================================================================
+     // =================================================================
       // 🔥 1. EL BOTE DE CACAHUETES DORADO (Capas VIP) 🔥
       // =================================================================
       if (!map.current.getSource('vip-agencies')) {
@@ -237,7 +237,7 @@ const agencyMarkersRef = useRef<any>({});
         });
       }
 
-      // Cinemática al hacer clic en el orbe dorado
+      // Cinemática al hacer clic en el orbe dorado (GremlinsPop)
       map.current.on('click', 'vip-clusters', (e: any) => {
         const features = map.current.queryRenderedFeatures(e.point, { layers: ['vip-clusters'] });
         const clusterId = features[0].properties.cluster_id;
@@ -1055,21 +1055,36 @@ const agencyMarkersRef = useRef<any>({});
   };
 
 // --------------------------------------------------------------------
-  // D. RADAR GLOBAL (CARGA PURE CLOUD - CERO LOCAL STORAGE)
+  // D. RADAR GLOBAL DINÁMICO (BOUNDING BOX + ANTI-SPAM) 🛡️
   // --------------------------------------------------------------------
   useEffect(() => {
     // 1. Si el mapa no existe físicamente, abortamos.
     if (!map.current) return;
+    
+    let debounceTimer: any = null; // ⏱️ El seguro del arma (Anti-Spam)
 
     const executeRadar = async () => {
       try {
-        console.log("📡 RADAR: Conectando con Base de Datos Global...");
+        if (!map.current) return;
+
+        // 1. LEER EL PERÍMETRO DE LA PANTALLA (El Bounding Box)
+        const b = map.current.getBounds();
         
-        // --- FASE 1: OBTENCIÓN DE DATOS (SOLO SERVIDOR) ---
-        const response = await getGlobalPropertiesAction();
+        // Ampliamos un 10% el margen de búsqueda para que al mover no haya huecos blancos en los bordes
+        const bounds = {
+            minLng: b.getWest() - 0.02,
+            maxLng: b.getEast() + 0.02,
+            minLat: b.getSouth() - 0.02,
+            maxLat: b.getNorth() + 0.02
+        };
+
+        console.log("📡 RADAR: Escaneando sector actual...", bounds);
+        
+        // --- FASE 1: OBTENCIÓN DE DATOS (SOLO LO QUE SE VE EN PANTALLA) ---
+        const response = await getGlobalPropertiesAction(bounds);
         const rawData = response.success ? response.data : [];
 
-     // 🔥🔥🔥 CORTAFUEGOS TÁCTICO BLINDADO (FRONTEND) 🔥🔥🔥
+        // 🔥🔥🔥 CORTAFUEGOS TÁCTICO BLINDADO (FRONTEND) 🔥🔥🔥
         const serverData = rawData.filter((p: any) => {
             const status = String(p.status || "").toUpperCase();
             const isPremium = p.promotedTier === 'PREMIUM' || p.isPromoted === true;
@@ -1078,53 +1093,36 @@ const agencyMarkersRef = useRef<any>({});
             // REGLA DE ORO: Pasan Publicadas, Gestionadas, y Premium
             return status === "PUBLICADO" || status === "MANAGED" || status === "ACCEPTED" || isPremium || isManaged;
         });
-        // 🗑️ REMOVIDO: Ya no leemos localStorage. Solo existe la verdad del servidor.
 
         // --- FASE 2: NORMALIZACIÓN Y ANTI-DUPLICADOS ---
-        // Usamos un Map para garantizar que cada ID sea único.
         const uniqueMap = new Map();
-
-        // AHORA 'serverData' YA ESTÁ LIMPIO
         serverData.forEach((p: any) => {
-            // Aseguramos ID como String para evitar conflictos "123" vs 123
-            const sId = String(p.id);
-            
-            // Si ya existe, lo sobrescribimos (la última versión del servidor manda)
-            uniqueMap.set(sId, { 
-                ...p, 
-                source: 'CLOUD_DB' 
-            });
+            uniqueMap.set(String(p.id), { ...p, source: 'CLOUD_DB' });
         });
-
         const unifiedList = Array.from(uniqueMap.values());
-// 🔥 CABLE DE COMUNICACIÓN AL RADAR LATERAL 🔥
+
+        // 🔥 CABLE DE COMUNICACIÓN AL RADAR LATERAL 🔥
         if (typeof window !== 'undefined') {
-            // 1. Disparo inmediato por si el radar ya está abierto
             window.dispatchEvent(new CustomEvent('stratos-inventory-ready', { detail: unifiedList }));
             
-            // 2. Contestador automático (Si el radar se abre más tarde, gritará pidiendo las casas. Esto le responde).
+            // 2. Contestador automático
             window.addEventListener('request-stratos-inventory', () => {
                 window.dispatchEvent(new CustomEvent('stratos-inventory-ready', { detail: unifiedList }));
-            });
+            }, { once: true }); // Usamos once:true para no acumular listeners al mover el mapa
         }
        
-// --- FASE 3: GEOMETRÍA (Espirales para evitar superposición) ---
+        // --- FASE 3: GEOMETRÍA (Espirales para evitar superposición) ---
         const coordTracker = new Map<string, number>(); 
 
         const features = unifiedList.map((p: any) => {
-            // 🔥 CAZA DE COORDENADAS BLINDADA
             let lng = Number(p.coordinates ? p.coordinates[0] : (p.lng ?? p.longitude));
             let lat = Number(p.coordinates ? p.coordinates[1] : (p.lat ?? p.latitude));
             
-            // 🚫 PROTOCOLO DE EXTERMINIO: Sin coordenadas, NO HAY CHINCHETA. 
-            // Adiós al falso Madrid. Devolvemos 'null' y lo ignoramos.
             if (!lng || !lat || isNaN(lng) || isNaN(lat)) return null;
 
-            // Clave de posición para detectar colisiones
             const coordKey = `${lng.toFixed(4)},${lat.toFixed(4)}`;
             const count = coordTracker.get(coordKey) || 0;
             
-            // Si hay colisión, aplicamos espiral matemática
             if (count > 0) {
                 const angle = count * (Math.PI * 2 / 5); 
                 const separation = 0.0003; 
@@ -1134,20 +1132,18 @@ const agencyMarkersRef = useRef<any>({});
             }
             coordTracker.set(coordKey, count + 1);
 
-            // Preparación de Imagen Real
             const safeImage = p.mainImage || (p.images && p.images.length > 0 ? (p.images[0].url || p.images[0]) : null);
             const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
 
-            // ✅ Mapbox no preserva objetos anidados -> serializamos identidad
             const identityObj = (p?.user && typeof p.user === "object" ? p.user : null) || (p?.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null);
             const identityJson = identityObj ? JSON.stringify(identityObj) : null;
             const ownerSnapJson = (p?.ownerSnapshot && typeof p.ownerSnapshot === "object") ? JSON.stringify(p.ownerSnapshot) : identityJson;
 
-            // 🔥 SALVAVIDAS ANTI-AMNESIA
             const openHouseJson = p.openHouse ? JSON.stringify(p.openHouse) : (p.openHouses && p.openHouses[0] ? JSON.stringify(p.openHouses[0]) : null);
             const activeCampaignJson = p.activeCampaign ? JSON.stringify(p.activeCampaign) : (p.campaigns && p.campaigns[0] ? JSON.stringify(p.campaigns[0]) : null);
             const b2bJson = p.b2b ? JSON.stringify(p.b2b) : null;
-return {
+
+            return {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
                 properties: {
@@ -1158,14 +1154,10 @@ return {
                     m2: finalM2,       
                     mBuilt: finalM2,   
                     elevator: isYes(p.elevator),
-                    
-                // 🔥 SELLANDO LA FUGA: Inyectamos los datos físicos explícitamente
                     address: p.address || null,
                     city: p.city || null,
                     postcode: p.postcode || null,
                     region: p.region || null,
-                    // -------------------------------------------------------------
-
                     communityFees: p.communityFees,
                     energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions,
@@ -1179,59 +1171,55 @@ return {
                     b2b: b2bJson
                 }
             };
-        }).filter(Boolean); // 🧹 ESTA ES LA MAGIA: El '.filter(Boolean)' borra del mapa todos los 'null' generados arriba.
+        }).filter(Boolean); 
        
         // --- FASE 4: INYECCIÓN SEGURA (Bucle de reintento) ---
         const injectSafely = (attempts = 0) => {
             if (!map.current) return;
-
             const source: any = map.current.getSource('properties');
 
             if (source) {
-                // Reemplazo TOTAL de datos (Adiós duplicados)
-                source.setData({
-                    type: 'FeatureCollection',
-                    features: features
-                });
+                source.setData({ type: 'FeatureCollection', features: features });
+                console.log(`✅ RADAR: ${features.length} activos cargados en la zona actual.`);
 
-                console.log(`✅ RADAR: ${features.length} activos cargados desde la Nube.`);
-
-                // Forzar actualización visual de marcadores (React Portal)
                 if (map.current) {
-                    map.current.once('idle', () => {
-                        try { updateMarkers(); } catch (e) { console.error(e); }
-                    });
+                    map.current.once('idle', () => { try { updateMarkers(); } catch (e) {} });
                 }
-                
-                // Doble check por si el mapa estaba en movimiento
-                setTimeout(() => {
-                    try { updateMarkers(); } catch (e) {}
-                }, 350);
-
-            } else {
-                if (attempts < 10) {
-                    // Si el estilo del mapa no cargó, reintentamos un poco
-                    setTimeout(() => injectSafely(attempts + 1), 500);
-                }
+                setTimeout(() => { try { updateMarkers(); } catch (e) {} }, 350);
+            } else if (attempts < 10) {
+                setTimeout(() => injectSafely(attempts + 1), 500);
             }
         };
 
-        // Ejecutar inyección
         injectSafely();
 
       } catch (e) { console.error("❌ Fallo crítico en radar:", e); }
     };
 
-    // DISPARADORES
+    // 🎯 DISPARADORES
     if (isLoaded) {
         executeRadar();
     } else {
         map.current.once('load', executeRadar);
     }
 
-    // Escuchar peticiones de recarga forzosa (desde ArchitectHud o Botón de Refresco)
+    // 🎯 GATILLO INTELIGENTE AL MOVER EL MAPA (El verdadero Bounding Box)
+    const onMapMoveEnd = () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            executeRadar();
+        }, 600); // Espera 0.6 seg tras dejar de mover el mapa
+    };
+
+    map.current.on('moveend', onMapMoveEnd);
     window.addEventListener('force-map-refresh', executeRadar);
-    return () => window.removeEventListener('force-map-refresh', executeRadar);
+    
+    // Limpieza al desmontar
+    return () => {
+        if (map.current) map.current.off('moveend', onMapMoveEnd);
+        window.removeEventListener('force-map-refresh', executeRadar);
+        if (debounceTimer) clearTimeout(debounceTimer);
+    };
 
   }, [isLoaded]); // Fin del useEffect
  // --------------------------------------------------------------------

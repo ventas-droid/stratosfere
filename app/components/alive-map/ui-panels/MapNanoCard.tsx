@@ -273,7 +273,8 @@ export default function MapNanoCard(props: any) {
     <div ref={cardRef} className={`pointer-events-auto flex flex-col items-center group relative ${isFire ? 'z-[200]' : 'z-[50]'}`} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       
       {/* 🚀 1. EL POPUP (TARJETA FLOTANTE) - AHORA CONECTADA CORRECTAMENTE A 'isFire' */}
-<div className={`absolute bottom-[100%] origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isFire ? 'w-[500px] z-[250] pb-14' : 'w-[280px] z-[100] pb-5'} ${isHovered ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'}`} onClick={(e) => handleAction(e, 'open')}>          <div className={`flex flex-col rounded-[24px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isFire ? 'shadow-[0_0_60px_rgba(239,68,68,0.5)] border-4 border-red-500' : 'shadow-2xl border border-white/80'}`}>
+<div className={`absolute bottom-[100%] origin-bottom duration-300 ease-out transform transition-[opacity,transform] ${isFire ? 'w-[500px] z-[250] pb-14 scale-[0.80]' : 'w-[280px] z-[100] pb-5 scale-100'} ${isHovered ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'}`} onClick={(e) => handleAction(e, 'open')}>   
+  <div className={`flex flex-col rounded-[24px] overflow-hidden cursor-pointer bg-white transition-all duration-300 ${isFire ? 'shadow-[0_0_60px_rgba(239,68,68,0.5)] border-4 border-red-500' : 'shadow-2xl border border-white/80'}`}>
               <div className="relative">
                   <div className={`relative overflow-hidden group/img ${isFire ? 'h-80' : 'h-44'}`}>
 <Image 
@@ -297,50 +298,187 @@ export default function MapNanoCard(props: any) {
                           </button>
                       </div>
                   </div>
-                  <div className={`p-6 pt-5 ${isFire ? 'bg-gradient-to-b from-[#FEF2F2] to-white' : 'bg-white'}`}>
-                      <div className="mb-2">
-                          {isFire && liveData?.title && <h3 className="text-xl font-black text-gray-900 truncate mb-1">{liveData.title}</h3>}
-                          <div className="flex justify-between items-start items-center">
-                              <span className={`font-black tracking-tight leading-none ${isFire ? 'text-4xl text-red-600 drop-shadow-sm' : 'text-xl text-gray-900'}`}>{displayLabel}</span>
-                              {floor && <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-wide"><ArrowUp size={12}/> <span>Planta: {floor}</span></div>}
-                          </div>
-                      </div>
-{/* 📍 DIRECCIÓN: Dos filas permitidas y cero comas */}
-                      <div className="flex items-start gap-1.5 text-gray-500 mb-5">
-                          <Navigation size={12} className="mt-0.5 shrink-0" style={{ color: style.hex }}/>
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 line-clamp-2 leading-snug">
-                              {locationText}
-                          </span>
-                      </div>                      
+        {/* Datos de Texto Clickables (NANO CARD REFINADA: Fuego Gigante, Normal Compacta) */}
+<div className={`p-5 ${isFire ? 'bg-gradient-to-b from-[#FFF1F1] via-[#FFF8F6] to-white' : 'bg-white'}`}>
+    
+    {/* 1. TÍTULO Y REFERENCIA */}
+    <div className="flex justify-between items-start gap-3 mb-2">
+        <div className="flex-1 min-w-0">
+            <h3
+                className={`font-black text-slate-900 line-clamp-2 tracking-[-0.03em] ${
+                    isFire ? 'text-[24px] leading-[1.02]' : 'text-lg leading-tight'
+                }`}
+            >
+                {liveData?.title || type}
+            </h3>
 
-                      {/* Habitación y Baños */}
-                      <div className="flex justify-between items-center py-3 px-4 bg-white rounded-xl border-2 border-gray-100 shadow-sm">
-                          {showOnlyM2 ? ( 
-                              <div className="flex items-center gap-2 w-full justify-center text-gray-700">
-                                  <Maximize2 size={18} className="text-gray-400"/>
-                                  <span className="text-sm font-bold">{mBuilt} m²</span>
-                              </div> 
-                          ) : ( 
-                              <>
-                                  <div className="flex items-center gap-2 text-gray-700"><Bed size={18} className="text-gray-400"/><span className="text-sm font-bold">{rooms}</span></div>
-                                  <div className="w-px h-5 bg-gray-200"></div>
-                                  <div className="flex items-center gap-2 text-gray-700"><Bath size={18} className="text-gray-400"/><span className="text-sm font-bold">{baths}</span></div>
-                                  <div className="w-px h-5 bg-gray-200"></div>
-                                  <div className="flex items-center gap-2 text-gray-700"><Maximize2 size={18} className="text-gray-400"/><span className="text-sm font-bold">{mBuilt}m²</span></div>
-                              </> 
-                          )}
-                      </div>
-                  </div>
-              </div>
-          </div>
-      </div>
+            {isFire ? (
+                <div className="mt-2 flex items-center gap-2">
+                    <div className="h-[3px] rounded-full w-12 bg-gradient-to-r from-red-500 via-orange-400 to-amber-300"></div>
+                    <span className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-red-500">
+                        Premium
+                    </span>
+                </div>
+            ) : (
+                <div className="mt-1 h-[3px] rounded-full w-6 bg-slate-200"></div>
+            )}
+        </div>
 
-     {/* 🎯 2. EL MARCADOR (PASTILLA) - TOTALMENTE ESTÁTICO Y SÓLIDO PARA TODOS */}
+        {liveData?.refCode && (
+            <div
+                className={`shrink-0 rounded-xl border ${
+                    isFire
+                        ? 'mt-1 px-2.5 py-1.5 bg-white border-red-100 shadow-sm'
+                        : 'px-2 py-1 bg-slate-50 border-slate-200'
+                }`}
+            >
+                <span
+                    className={`font-black uppercase tracking-[0.18em] block leading-none ${
+                        isFire ? 'text-[9px] text-red-500' : 'text-[8px] text-slate-400'
+                    }`}
+                >
+                    {liveData.refCode}
+                </span>
+            </div>
+        )}
+    </div>
+
+    {/* 2. PRECIO Y PLANTA */}
+    <div className="flex justify-between items-end gap-3 mb-4">
+        <div className="min-w-0">
+            {isFire ? (
+                <>
+                    <span className="block font-black tracking-[-0.06em] leading-none text-[42px] bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
+                        {displayLabel}
+                    </span>
+                    <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-red-400">
+                        Selección destacada
+                    </span>
+                </>
+            ) : (
+                <>
+                    <span className="block font-black tracking-[-0.04em] leading-none text-2xl text-slate-900 mt-1">
+                        {displayLabel}
+                    </span>
+                    <span className="mt-1 block text-[8px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                        Propiedad verificada
+                    </span>
+                </>
+            )}
+        </div>
+
+        {floor && (
+            <div
+                className={`flex items-center font-bold uppercase tracking-wide border ${
+                    isFire
+                        ? 'gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] bg-white border-red-100 text-red-500 mb-1'
+                        : 'gap-1 px-2 py-1 rounded-lg text-[9px] bg-slate-50 border-slate-200 text-slate-500'
+                }`}
+            >
+                <ArrowUp size={isFire ? 12 : 10} />
+                <span>Planta: {floor}</span>
+            </div>
+        )}
+    </div>
+
+    {/* 3. DIRECCIÓN */}
+    <div
+        className={`flex items-start rounded-2xl border ${
+            isFire
+                ? 'gap-2 mb-5 px-3 py-2.5 bg-white/80 border-red-100'
+                : 'gap-1.5 mb-4 px-2 py-2 bg-slate-50 border-slate-100'
+        }`}
+    >
+        <div
+            className={`shrink-0 rounded-full flex items-center justify-center ${
+                isFire ? 'mt-[2px] w-6 h-6 bg-red-50 text-red-400' : 'mt-[1px] w-5 h-5 bg-white text-slate-400 shadow-sm'
+            }`}
+        >
+            <Navigation size={isFire ? 13 : 11} />
+        </div>
+
+        <span
+            className={`font-bold uppercase tracking-[0.16em] line-clamp-2 leading-relaxed ${
+                isFire ? 'text-[10px] text-slate-600' : 'text-[8.5px] text-slate-500'
+            }`}
+        >
+            {locationText}
+        </span>
+    </div>
+
+  {/* 4. CAJA DE CARACTERÍSTICAS (Fuego intacta, Normal fina y apaisada) */}
+    <div
+        className={`relative flex justify-between items-center overflow-hidden ${
+            isFire
+                ? 'py-3.5 px-4 bg-white border border-red-100 shadow-sm rounded-[18px]'
+                : 'py-2 px-3 bg-white border border-slate-200 shadow-sm rounded-[12px]'
+        }`}
+    >
+        {isFire && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-red-500 via-orange-400 to-amber-300"></div>
+        )}
+
+        {showOnlyM2 ? (
+            <div className="flex items-center gap-2 w-full justify-center text-slate-800">
+                <Maximize2 size={isFire ? 16 : 14} className={isFire ? "text-red-400" : "text-slate-400"} />
+                <span className={`font-black ${isFire ? 'text-[16px]' : 'text-[13px]'}`}>{mBuilt} m²</span>
+            </div>
+        ) : (
+            <>
+                {/* HABITACIONES */}
+                <div className="flex items-center gap-1.5 text-slate-800">
+                    <Bed size={isFire ? 16 : 14} className={isFire ? "text-red-400" : "text-slate-400"} />
+                    <div className={`${isFire ? 'flex flex-col leading-none' : 'flex items-baseline gap-1'}`}>
+                        <span className={`font-black ${isFire ? 'text-[15px]' : 'text-[13px]'}`}>{rooms}</span>
+                        {isFire && (
+                            <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 mt-1">
+                                Habit.
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <div className={`w-px ${isFire ? 'h-8 bg-red-100' : 'h-4 bg-slate-200'}`}></div>
+
+                {/* BAÑOS */}
+                <div className="flex items-center gap-1.5 text-slate-800">
+                    <Bath size={isFire ? 16 : 14} className={isFire ? "text-red-400" : "text-slate-400"} />
+                    <div className={`${isFire ? 'flex flex-col leading-none' : 'flex items-baseline gap-1'}`}>
+                        <span className={`font-black ${isFire ? 'text-[15px]' : 'text-[13px]'}`}>{baths}</span>
+                        {isFire && (
+                            <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 mt-1">
+                                Baños
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                <div className={`w-px ${isFire ? 'h-8 bg-red-100' : 'h-4 bg-slate-200'}`}></div>
+
+                {/* METROS CUADRADOS (Con espacio de sobra para 15000m2) */}
+                <div className="flex items-center gap-1.5 text-slate-800">
+                    <Maximize2 size={isFire ? 16 : 14} className={isFire ? "text-red-400" : "text-slate-400"} />
+                    <div className={`${isFire ? 'flex flex-col leading-none' : 'flex items-baseline gap-0.5'}`}>
+                        <span className={`font-black ${isFire ? 'text-[15px]' : 'text-[13px]'}`}>{mBuilt}</span>
+                        <span className={`font-bold uppercase tracking-[0.16em] text-slate-400 ${isFire ? 'text-[9px] mt-1' : 'text-[10px]'}`}>
+                            m²
+                        </span>
+                    </div>
+                </div>
+            </>
+        )}
+    </div>
+</div>
+</div>
+</div>
+</div>
+
+    {/* 🎯 2. EL MARCADOR (PASTILLA) - TOTALMENTE ESTÁTICO Y SÓLIDO PARA TODOS */}
       <div 
         // Eliminado el "transition-all" y el hover. Ahora son inamovibles.
         className={`relative rounded-full shadow-lg flex flex-col items-center justify-center z-20 cursor-pointer border-[3px] border-white origin-bottom
         ${isFire 
-            ? 'scale-[1.35] z-[300] px-5 py-2 border-orange-200 shadow-2xl' 
+            ? 'scale-105 z-[300] px-4 py-1.5 border-orange-200 shadow-[0_0_20px_rgba(239,68,68,0.6)]' 
             : 'scale-100 z-[100] px-3 py-1.5'
         }`} 
         style={{ background: isFire ? 'linear-gradient(to bottom right, #fbbf24, #ef4444)' : style.hex }} 

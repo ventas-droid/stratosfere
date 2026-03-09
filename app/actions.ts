@@ -119,66 +119,69 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN ULTRA-RÁPIDA (REDIS CACHE)
-export async function getGlobalPropertiesAction() {
+// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN ULTRA-RÁPIDA Y BLINDADA (BOUNDING BOX)
+export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLat: number; minLng: number; maxLng: number }) {
   try {
     const user = await getCurrentUser();
     const currentUserId = user?.id || null;
 
-    // ⚡️ FASE 1: ATAQUE A LA MEMORIA RAM (REDIS)
     const CACHE_KEY = "stratos_global_map_cache";
-    try {
-      console.log("⚡️ [REDIS] Buscando mapa en la caché...");
-      const cachedData = await redis.get(CACHE_KEY);
-      
-      if (cachedData) {
-        console.log("⚡️ [REDIS] ¡Impacto directo! Sirviendo mapa desde la RAM en 20ms.");
-        // Si hay usuario logueado, tenemos que recalcular los corazones (favoritos), 
-        // porque la caché es para todos igual, pero tus likes son tuyos.
-        if (currentUserId) {
-          const personalizedData = (cachedData as any[]).map((p: any) => ({
-            ...p,
-            isFavorited: p.favoritedByList?.includes(currentUserId) || false
-          }));
-          return { success: true, data: personalizedData };
+
+    // 🛡️ ESCUDO 1: Si hay "bounds" (el mapa pide una zona concreta), SALTAMOS Redis.
+    // Esto evita que una búsqueda de Madrid machaque la caché global de toda España.
+    if (!bounds) {
+        try {
+          console.log("⚡️ [REDIS] Buscando mapa global en la caché...");
+          const cachedData = await redis.get(CACHE_KEY);
+          
+          if (cachedData) {
+            console.log("⚡️ [REDIS] ¡Impacto directo! Sirviendo mapa desde la RAM en 20ms.");
+            if (currentUserId) {
+              const personalizedData = (cachedData as any[]).map((p: any) => ({
+                ...p,
+                isFavorited: p.favoritedByList?.includes(currentUserId) || false
+              }));
+              return { success: true, data: personalizedData };
+            }
+            return { success: true, data: cachedData };
+          }
+        } catch (cacheError) {
+          console.error("⚠️ [REDIS] Fallo en la memoria RAM, bajando a la base de datos...", cacheError);
         }
-        
-        return { success: true, data: cachedData };
-      }
-    } catch (cacheError) {
-      console.error("⚠️ [REDIS] Fallo en la memoria RAM, bajando a la base de datos...", cacheError);
     }
 
-    console.log("🗄️ [PRISMA] Bajando a la base de datos profunda...");
+    console.log(`🗄️ [PRISMA] Bajando a la base de datos profunda... ${bounds ? '[MODO ZONA EXACTA]' : '[MODO GLOBAL]'}`);
+
+    // 🔥 ESCUDO 2: EL FILTRO MATEMÁTICO INVISIBLE 🔥
+    // Si pasamos coordenadas, Prisma solo buscará ahí. Si no, busca en todo el mundo.
+    const geoFilter = bounds ? {
+        latitude: { gte: bounds.minLat, lte: bounds.maxLat },
+        longitude: { gte: bounds.minLng, lte: bounds.maxLng }
+    } : {};
+
     // 🗄️ FASE 2: BÚSQUEDA TRADICIONAL EN PRISMA (Su código original, intocable)
     const properties = await prisma.property.findMany({
-      // 🔥 EL MURO SE ABRE PARA LAS PREMIUM Y GESTIONADAS 🔥
       where: { 
-        status: {
-          in: ["PUBLICADO", "MANAGED", "ACCEPTED"]
-        }
+        status: { in: ["PUBLICADO", "MANAGED", "ACCEPTED"] },
+        ...geoFilter // <--- EL BISTURÍ SE APLICA AQUÍ
       },
       orderBy: { createdAt: "desc" },
       include: {
         images: true,
-        // 🔥 AÑADIDO: Necesario para contar los corazones en el mapa
         favoritedBy: { select: { userId: true } },
         user: { select: USER_IDENTITY_SELECT },
-
-        // Relaciones clave para el "Paquete Rico"
         assignment: {
-            where: { status: "ACTIVE" },
-            include: { agency: { select: USER_IDENTITY_SELECT } }
+          where: { status: "ACTIVE" },
+          include: { agency: { select: USER_IDENTITY_SELECT } }
         },
-        // Capturamos la campaña aceptada para inyectar B2B real
         campaigns: { 
-            where: { status: "ACCEPTED" }, 
-            take: 1 
+          where: { status: "ACCEPTED" }, 
+          take: 1 
         }, 
         openHouses: { 
-            where: { status: "SCHEDULED" }, 
-            orderBy: { startTime: 'asc' }, 
-            take: 1 
+          where: { status: "SCHEDULED" }, 
+          orderBy: { startTime: 'asc' }, 
+          take: 1 
         }
       },
     });
@@ -242,29 +245,23 @@ export async function getGlobalPropertiesAction() {
       // 8. DATOS DE OPEN HOUSE
       let openHouseObj = null;
       if (p.openHouses && p.openHouses.length > 0) {
-         openHouseObj = { ...p.openHouses[0], enabled: true };
+          openHouseObj = { ...p.openHouses[0], enabled: true };
       }
 
      // RETORNO DEL PAQUETE RICO (ESTADÍSTICAS INCLUIDAS)
       return {
         ...p,
         id: p.id,
-        // Inyectamos datos calculados
         b2b: b2bData,
         activeCampaign: activeCampaign,
         isCaptured: !!activeCampaign,
-
         promotedTier: realTier,
         isPromoted: realTier === 'PREMIUM',
-        
         user: finalIdentity, 
         ownerSnapshot: p.ownerSnapshot ?? null,
-        
         coordinates: validCoords,
         longitude: lng,
         latitude: lat,
-        
-      // 🔥 DATOS PUROS (Sin lavar, incluyendo Código Postal)
         address: p.address || null,
         city: p.city || null,
         postcode: p.postcode || null,
@@ -275,31 +272,28 @@ export async function getGlobalPropertiesAction() {
         rawPrice: rawPrice,                  
         priceValue: rawPrice,        
         isFavorited: isFavoritedByMe,
-        favoritedByList: favoritedByList, // 🔥 Guardamos esto oculto para que la RAM sepa quién dio like
-        
+        favoritedByList: favoritedByList,
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: Number(p.communityFees || 0),
-        
         openHouse: openHouseObj,        
         open_house_data: openHouseObj,
-
-        // 🔥 LA PIEZA FINAL: ESTADÍSTICAS EN EL MAPA
         views: p.views || 0,
         photoViews: p.photoViews || 0,
         shareCount: p.shareCount || 0,
-        favoritedCount: p.favoritedBy?.length || 0  // <--- AHORA EL MAPA SABE LA VERDAD
+        favoritedCount: p.favoritedBy?.length || 0 
       };
     });
 
     // ⚡️ FASE 3: GUARDAR FOTOCOPIA EN LA MESA DEL RECEPCIONISTA
-    try {
-      // Guardamos el mapa durante 1 hora (3600 segundos).
-      // Si nadie sube una casa, el servidor no bajará a la BD en 1 hora entera.
-      await redis.set(CACHE_KEY, mappedProps, { ex: 3600 });
-      console.log("⚡️ [REDIS] Nueva fotocopia guardada en la memoria RAM.");
-    } catch (cacheError) {
-      console.error("⚠️ [REDIS] Error guardando en RAM, pero el sistema sigue en pie.", cacheError);
+    // 🛡️ ESCUDO 3: Solo guardamos la fotocopia si hemos pedido TODA la base de datos (Sin Bounds)
+    if (!bounds) {
+        try {
+          await redis.set(CACHE_KEY, mappedProps, { ex: 3600 });
+          console.log("⚡️ [REDIS] Nueva fotocopia global guardada en la memoria RAM.");
+        } catch (cacheError) {
+          console.error("⚠️ [REDIS] Error guardando en RAM, pero el sistema sigue en pie.", cacheError);
+        }
     }
 
     return { success: true, data: mappedProps };
