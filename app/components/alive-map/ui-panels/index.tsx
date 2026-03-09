@@ -1858,14 +1858,7 @@ useEffect(() => {
   pricingHref="/pricing"
   landingHref="/"
 />
-{/* 👇👇👇 PEGUE EL PASO 3 AQUÍ (PANEL PREMIUM) 👇👇👇 */}
-{premiumProp && (
-   <PremiumUpgradePanel 
-       property={premiumProp}
-       onClose={() => setPremiumProp(null)}
-   />
-)}
-{/* 👆👆👆 FIN DEL PEGADO 👆👆👆 */}
+
 {/* ======================================================== */}
            {/* 🔥 ZONA DE DESPLIEGUE: PANELES NUEVOS (AGENCIA Y PREMIUM) */}
            {/* ======================================================== */}
