@@ -202,16 +202,30 @@ export default function AgencyPortfolioPanel({
                           </div>
                       </div>
 
-                   {/* ========================================== */}
+                 {/* ========================================== */}
                       {/* 🌟 ZONA SAAS UNIFICADA (PARA TODAS LAS PROPIEDADES) 🌟 */}
                       {/* ========================================== */}
                       <div className="mt-4 pt-3 border-t border-indigo-50">
+                          
+                          {/* 🔥 INYECCIÓN: DETECTOR Y BADGE DE FUEGO 🔥 */}
+                          {(() => {
+                              const isFire = p.isFire === true || p.promotedTier === 'PREMIUM' || p.isPromoted === true;
+                              if (isFire) {
+                                  return (
+                                      <div className="mb-2 flex items-center gap-1.5 w-max px-2.5 py-1 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg shadow-sm shadow-red-200">
+                                          <Crown size={12} className="text-white fill-white/20 animate-pulse" />
+                                          <span className="text-[9px] font-black text-white uppercase tracking-[0.2em] leading-none mt-[1px]">Fuego</span>
+                                      </div>
+                                  );
+                              }
+                              return null;
+                          })()}
+
                           <div className="bg-indigo-50/40 rounded-xl p-3 border border-indigo-100/50">
                               <div className="flex justify-between items-center mb-3">
                                   <div className="flex items-center gap-2">
-                                      {/* 🔥 LÓGICA INTELIGENTE DE EXCLUSIVIDAD (EL JUEZ) 🔥 */}
+                                      {/* LÓGICA INTELIGENTE DE EXCLUSIVIDAD (EL JUEZ) */}
                                       {(() => {
-                                          // 1. Pruebas: Miramos en la propiedad, en la campaña y en el radar
                                           const rawMandate = p.mandateType || p.activeCampaign?.mandateType || p.radarType || "";
                                           const isAbierto = String(rawMandate).toUpperCase().includes("ABIERTO") || String(rawMandate).toUpperCase().includes("SIMPLE");
                                           const isExclusive = String(rawMandate).toUpperCase().includes("EXCLUSIV") || (p.activeCampaign?.exclusiveMandate === true && !isAbierto);

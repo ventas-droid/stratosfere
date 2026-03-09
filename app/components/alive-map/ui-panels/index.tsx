@@ -97,19 +97,20 @@ export default function UIPanels({
       }
   }, []);
 // ========================================================
-  // 🎰 MOTOR "LAS VEGAS": SONAR ACTIVO DE ZONAS VIP
+  // 🎰 MOTOR "LAS VEGAS": SONAR ACTIVO DE ZONAS VIP (BLINDADO)
   // ========================================================
   const [vipZoneActive, setVipZoneActive] = useState(false);
 
   useEffect(() => {
       let lastZip: string | null = null;
+      let lastCheckedCoords = { lng: 0, lat: 0 }; // 🧠 Memoria táctica de posición
       let isAlive = true;
 
       const sonarInterval = setInterval(async () => {
           if (!map?.current) return;
           
           try {
-              // Obtenemos coordenadas exactas
+              // 1. Obtenemos coordenadas exactas
               let lng, lat;
               if (typeof map.current.getCenter === 'function') {
                   const center = map.current.getCenter();
@@ -122,7 +123,15 @@ export default function UIPanels({
               
               if (!lng || !lat) return;
 
-              // 🔥 AQUÍ ESTABA EL FALLO: Ahora usamos la misma fórmula que en su MarketPanel
+              // 🛑 ESCUDO FINANCIERO: Si el mapa no se ha movido, no gastamos saldo de API
+              const diffLng = Math.abs(lng - lastCheckedCoords.lng);
+              const diffLat = Math.abs(lat - lastCheckedCoords.lat);
+              if (diffLng < 0.0005 && diffLat < 0.0005) return; // Retirada silenciosa
+
+              // Actualizamos la memoria con la nueva posición
+              lastCheckedCoords = { lng, lat };
+
+              // 2. Disparamos a Mapbox (solo cuando hay movimiento real)
               const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=postcode,locality,place&language=es`;
               const res = await fetch(url);
               const data = await res.json();
@@ -134,7 +143,7 @@ export default function UIPanels({
                   });
               }
 
-              // Consultamos la Base de Datos solo si el código ha cambiado
+              // 3. Consultamos la Base de Datos solo si el código postal ha cambiado
               if (currentZip !== lastZip) {
                   lastZip = currentZip;
                   if (currentZip) {
@@ -147,13 +156,14 @@ export default function UIPanels({
           } catch (error) {
               // Silencioso para no molestar
           }
-      }, 1500); // Pulso cada 1.5 segundos
+      }, 1500); // Pulso letal cada 1.5 segundos
 
       return () => {
           isAlive = false;
           clearInterval(sonarInterval);
       };
   }, [map]); // 🔥 Recuperamos el [map] de forma segura
+  // ========================================================
   // ========================================================
 
   // 🔥 MOVIDO AQUÍ (ANTES DE USARSE EN EL EFECTO DE GATE)
