@@ -31,13 +31,25 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
       });
   }, []);
 
-  useEffect(() => {
+ useEffect(() => {
     let timeoutId: any; 
+    let isRequestInProgress = false; // 🔥 NUEVO: Semáforo para no saturar a Safari
 
     const scanArea = async (lng: number, lat: number) => {
+      // Si ya hay un escaneo en marcha, abortamos este para no ahogar a Safari
+      if (isRequestInProgress) return;
+      isRequestInProgress = true;
+
       try {
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=postcode,locality,place&language=es`;
-        const res = await fetch(url);
+        
+        // 🔥 NUEVO: Safari a veces necesita un poco más de tiempo de respuesta (AbortController)
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 8000); // 8 segundos max
+        
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(fetchTimeout);
+        
         const data = await res.json();
         
         let zip = "00000", city = "Área Local";
@@ -57,7 +69,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
              const dbData = dbCampaign.data;
              const prop = dbData.property as any; 
              const agency = dbData.agency as any; 
-             const agencyProps = agency?.properties || []; // 🚀 Extraemos el arsenal completo
+             const agencyProps = agency?.properties || []; 
 
              setActiveCampaign({
                  id: dbData.id, 
@@ -88,7 +100,6 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                  lng: prop?.longitude || lng,
                  lat: prop?.latitude || lat,
                  
-                 // 🚀 EL ARSENAL INMOBILIARIO (Filtramos la estrella para que no se repita)
                  agencyProperties: agencyProps
                     .filter((p: any) => p.id !== prop?.id)
                     .map((p: any) => ({
@@ -107,10 +118,15 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
              setActiveCampaign(null); 
         }
 
-      } catch (error) {
-        setLocationName("SEÑAL DÉBIL");
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+             console.log("Safari abortó por tardar demasiado");
+        }
+        setLocationName("SEÑAL DÉBIL - MOVER MAPA");
+      } finally {
+        setIsScanning(false);
+        isRequestInProgress = false; // Liberamos el semáforo
       }
-      setIsScanning(false);
     };
 
     const handleMapMovement = (e: any) => {
@@ -118,12 +134,14 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
         if (lng && lat) {
             clearTimeout(timeoutId);
             setIsScanning(true); 
-            timeoutId = setTimeout(() => scanArea(lng, lat), 10); 
+            // 🔥 RETARDO TÁCTICO DE 600ms (A prueba de balas para Safari)
+            timeoutId = setTimeout(() => scanArea(lng, lat), 600); 
         }
     };
 
     window.addEventListener('map-center-updated', handleMapMovement);
 
+    // ... (El resto del useEffect se mantiene igual)
     if (currentCenter) {
         let lng = null, lat = null;
         if (Array.isArray(currentCenter) && currentCenter.length >= 2) { lng = currentCenter[0]; lat = currentCenter[1]; } 

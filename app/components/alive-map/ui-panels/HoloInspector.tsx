@@ -50,6 +50,11 @@ export default function HoloInspector({
               window.matchMedia("(prefers-reduced-motion: reduce)").matches
           );
       }
+      
+      // 🔥 LIMPIEZA TÁCTICA: Evita fugas de memoria si se cierra rápido
+      return () => {
+          if (hidePrevTimer.current) clearTimeout(hidePrevTimer.current);
+      };
   }, []);
 
   useEffect(() => {
@@ -190,7 +195,7 @@ export default function HoloInspector({
           clearTimeout(hidePrevTimer.current);
           hidePrevTimer.current = setTimeout(() => {
               setShowPrevLayer(false);
-          }, 400); // Sincronizado con Tailwind duration-500
+          }, 400); 
       }
 
       setIdx((p) => (p + dir + unique.length) % unique.length);
@@ -201,44 +206,45 @@ export default function HoloInspector({
   if (!mounted || !isOpen || !prop || unique.length === 0 || !current) return null;
 
   const ui = (
-      // 💎 CONTENEDOR RAIZ (CRISTAL ÓPTICO VISION PRO)
+      // 💎 CONTENEDOR RAIZ (VACUNA SAFARI: bg sólido en vez de backdrop-blur)
       <div
-          className="fixed inset-0 z-[999999] bg-zinc-950/40 backdrop-blur-[40px] animate-fade-in flex flex-col items-center justify-center overflow-hidden"
+          className="fixed inset-0 z-[999999] bg-zinc-950/95 animate-fade-in flex flex-col items-center justify-center overflow-hidden"
           onClick={onClose}
       >
           {/* Capa de refracción de cristal global (Brillo diagonal) */}
           <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(105deg,rgba(255,255,255,0.05)_0%,transparent_30%,transparent_70%,rgba(255,255,255,0.02)_100%)]" />
           
           {/* Sombra de viñeta para dar profundidad a la pantalla */}
-          <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.4)_100%)]" />
-         {/* FONDOS (Visuales puros) - VISIÓN ORBITAL REPARADA */}
+          <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.6)_100%)]" />
+         
+          {/* FONDOS (Visuales puros) - VISIÓN ORBITAL */}
           {showOrbitalFx && showChrome && (
               <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
                   {current && !isVideo && !isPdf ? (
                       <img 
                           src={String(current)} 
-                          className="absolute min-w-[120vw] min-h-[120vh] object-cover blur-[120px] opacity-50 saturate-200 animate-pulse" 
+                          className="absolute min-w-[120vw] min-h-[120vh] object-cover blur-[120px] opacity-40 saturate-200 animate-pulse transform-gpu" 
                           alt="ambilight" 
                       />
                   ) : (
-                      <div className="absolute w-[90vw] h-[80vh] bg-gradient-to-r from-cyan-500/40 via-fuchsia-500/40 to-blue-500/40 blur-[100px] animate-pulse" />
+                      <div className="absolute w-[90vw] h-[80vh] bg-gradient-to-r from-cyan-500/40 via-fuchsia-500/40 to-blue-500/40 blur-[100px] animate-pulse transform-gpu" />
                   )}
               </div>
           )}
 
-{/* EFECTO STUDIO HDR (Mejora Fotográfica Premium) */}
-                  {ultraMode && showChrome && (
-                      <div className="pointer-events-none absolute inset-0 z-[25]">
-                          {/* 1. Filtro de Contraste y Saturación (Realza los colores) */}
-                          <div className="absolute inset-0 backdrop-contrast-125 backdrop-saturate-150" />
-                          
-                          {/* 2. Viñeta Cinematográfica (Oscurece bordes elegantemente) */}
-                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.5)_100%)] mix-blend-multiply" />
-                          
-                          {/* 3. Fuga de luz volumétrica (Lens Flare suave) */}
-                          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.15)_0%,transparent_50%)] mix-blend-overlay" />
-                      </div>
-                  )}
+          {/* EFECTO STUDIO HDR (Mejora Fotográfica Premium) */}
+          {ultraMode && showChrome && (
+              <div className="pointer-events-none absolute inset-0 z-[25]">
+                  {/* 1. Filtro de Contraste y Saturación (Realza los colores) */}
+                  <div className="absolute inset-0 backdrop-contrast-125 backdrop-saturate-150" />
+                  
+                  {/* 2. Viñeta Cinematográfica (Oscurece bordes elegantemente) */}
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.5)_100%)] mix-blend-multiply" />
+                  
+                  {/* 3. Fuga de luz volumétrica (Lens Flare suave) */}
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.15)_0%,transparent_50%)] mix-blend-overlay" />
+              </div>
+          )}
 
           <div className="pointer-events-none absolute inset-0 z-[3] bg-[radial-gradient(circle_at_center,transparent_36%,rgba(0,0,0,0.16)_100%)]" />
 
@@ -256,9 +262,10 @@ export default function HoloInspector({
               H · HUD
           </div>
 
-          {/* CONTENEDOR PRINCIPAL: Detiene los clics para no cerrar al tocar la foto */}
+          {/* CONTENEDOR PRINCIPAL: Blindado con transform-gpu para Safari */}
           <div
-              className="relative w-full h-full flex items-center justify-center p-0 md:p-6 z-10"
+              className="relative w-full h-full flex items-center justify-center p-0 md:p-6 z-10 transform-gpu"
+              style={{ WebkitTransform: 'translateZ(0)' }}
               onClick={(e) => e.stopPropagation()}
           >
               {/* CAJA DE LA PROPIEDAD */}
@@ -280,12 +287,12 @@ export default function HoloInspector({
                       </div>
                   )}
 
-                  {/* ⚡ TRANSICIÓN CROSSFADE PURA TAILWIND (Sustituye al <style jsx>) */}
+                  {/* ⚡ TRANSICIÓN CROSSFADE PURA TAILWIND */}
                   {prevSrc && !isVideo && !isPdf && (
                       <img
                           src={prevSrc}
                           alt="prev-media"
-                          className={`absolute inset-0 w-full h-full object-cover z-[9] transition-opacity duration-500 ease-out ${showPrevLayer ? 'opacity-100' : 'opacity-0'}`}
+                          className={`absolute inset-0 w-full h-full object-cover z-[9] transition-opacity duration-500 ease-out transform-gpu ${showPrevLayer ? 'opacity-100' : 'opacity-0'}`}
                       />
                   )}
 
@@ -329,7 +336,7 @@ export default function HoloInspector({
                           src={String(current)}
                           alt="Detalle Activo"
                           onLoad={() => setIsLoaded(true)}
-                          className={`w-full h-full object-cover bg-gray-50 relative z-10 transition-transform ease-out will-change-transform ${reducedMotion ? "duration-700" : "duration-[5200ms]"} ${isZooming ? "scale-[1.04]" : "scale-100"}`}
+                          className={`w-full h-full object-cover bg-gray-50 relative z-10 transition-transform ease-out will-change-transform transform-gpu ${reducedMotion ? "duration-700" : "duration-[5200ms]"} ${isZooming ? "scale-[1.04]" : "scale-100"}`}
                       />
                   )}
 
@@ -389,8 +396,8 @@ export default function HoloInspector({
                                       onClick={(e) => { e.stopPropagation(); setUltraMode((v) => !v); }}
                                       className={`hidden md:flex px-4 py-2 rounded-full backdrop-blur-xl border text-[10px] font-bold tracking-[0.24em] uppercase items-center gap-2 transition-all ${ultraMode ? "bg-white/10 border-white/10 text-white" : "bg-white/8 border-white/10 text-white/60"}`}
                                   >
-<Eye size={12} /> STUDIO HDR                                 
- </button>
+                                      <Sparkles size={12} /> STUDIO HDR                                 
+                                  </button>
 
                                   {/* 💎 LA GUINDA: CONTADOR DE CRISTAL ZAFIRO */}
                                   {hasMultiplePhotos && (
