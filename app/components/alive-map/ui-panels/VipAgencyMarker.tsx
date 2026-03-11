@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Crown, MapPin, Phone, Mail, Globe, ArrowRight, ShieldCheck, X } from 'lucide-react';
 
 export default function VipAgencyMarker({ agency, onClick }: { agency: any, onClick: () => void }) {
@@ -6,6 +6,21 @@ export default function VipAgencyMarker({ agency, onClick }: { agency: any, onCl
     const targetCP = agency.targetZone || agency.postalCode;
     
     const [cityName, setCityName] = useState<string>(agency.city || "");
+
+    // 1. 🔥 CREAMOS EL RADAR PARA APUNTAR A LA ENVOLTURA DE MAPBOX
+    const markerRef = useRef<HTMLDivElement>(null);
+
+    // 2. 🔥 EL MARTILLO SUPREMO: Hackeamos el motor de Mapbox al instante
+    useEffect(() => {
+        if (markerRef.current) {
+            // Buscamos la caja invisible que Mapbox crea alrededor de nuestro componente
+            const mapboxParent = markerRef.current.closest('.mapboxgl-marker') as HTMLElement;
+            if (mapboxParent) {
+                // Le forzamos un rango militar inamovible para que jamás sea aplastado
+                mapboxParent.style.setProperty('z-index', '999999', 'important');
+            }
+        }
+    }, []);
 
     useEffect(() => {
         if (agency.city) {
@@ -58,9 +73,10 @@ export default function VipAgencyMarker({ agency, onClick }: { agency: any, onCl
 
     return (
         <div 
+            ref={markerRef} // 🔥 3. CONECTAMOS EL RADAR AL COMPONENTE
             onClick={fireMarketPanel}
             onPointerDown={(e) => e.stopPropagation()} // Blindaje extra contra el motor 3D
-            className="group relative cursor-pointer z-[40] flex items-center justify-center transition-all duration-500 hover:z-[60]"
+            className="group relative cursor-pointer z-[40] flex items-center justify-center transition-all duration-500 hover:z-[99999]"
         >
             {/* 1. EL PIN FÍSICO */}
             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 p-[3px] shadow-[0_0_25px_rgba(245,158,11,0.6)] group-hover:shadow-[0_0_40px_rgba(245,158,11,0.9)] group-hover:scale-110 transition-all duration-300">
