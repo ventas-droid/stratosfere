@@ -309,22 +309,48 @@ const creditPercentage = Math.min(
 );
 
 
-  // 🔥 MODO DE CARGA ELEGANTE (Evita el salto visual)
+ // 🍏 MODO DE CARGA: ESTILO CUPERTINO (APPLE)
   if (isLoading) {
       return (
-          <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
-              <div className="relative h-[340px] shrink-0 bg-slate-900 animate-pulse flex flex-col items-center justify-end px-8 pb-8 pt-12">
-                  <div className="w-24 h-24 rounded-full bg-slate-800 mb-5"></div>
-                  <div className="w-48 h-8 bg-slate-800 rounded-md mb-3"></div>
-                  <div className="w-32 h-6 bg-slate-800/50 rounded-lg"></div>
-              </div>
-              <div className="flex-1 p-6 space-y-6">
-                  <div className="h-32 bg-white rounded-[28px] animate-pulse"></div>
-                  <div className="space-y-3">
-                      <div className="h-16 bg-white rounded-2xl animate-pulse"></div>
-                      <div className="h-16 bg-white rounded-2xl animate-pulse"></div>
-                      <div className="h-16 bg-white rounded-2xl animate-pulse"></div>
+          <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F5F5F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto overflow-hidden">
+              {/* Estilos inyectados para la animación de la barra sin tocar el CSS global */}
+              <style>{`
+                @keyframes cupertino-load {
+                  0% { transform: translateX(-100%); }
+                  100% { transform: translateX(250%); }
+                }
+                .animate-cupertino {
+                  animation: cupertino-load 1.5s infinite cubic-bezier(0.65, 0, 0.35, 1);
+                }
+              `}</style>
+
+              {/* Fondo sutil */}
+              <div className="absolute inset-0 bg-gradient-to-b from-white via-[#F5F5F7] to-[#E5E5EA] z-0 opacity-80" />
+              
+              <div className="relative z-10 flex flex-col items-center justify-center h-full px-12 animate-fade-in">
+                  
+                  {/* Icono central minimalista */}
+                  <div className="w-20 h-20 bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-black/5 flex items-center justify-center mb-8 relative">
+                      <div className="absolute inset-0 bg-black/5 rounded-[24px] animate-pulse"></div>
+                      <ShieldCheck size={32} className="text-slate-800 relative z-10" strokeWidth={1.5} />
                   </div>
+                  
+                  {/* Textos elegantes y espaciados */}
+                  <h3 className="text-xl font-semibold text-slate-900 tracking-tight mb-2 text-center">
+                      Preparando entorno
+                  </h3>
+                  <p className="text-sm text-slate-500 font-medium text-center mb-10 max-w-[260px] leading-relaxed">
+                      Sincronizando credenciales, estado VIP y herramientas de gestión...
+                  </p>
+                  
+                  {/* Barra de progreso infinita estilo MacOS */}
+                  <div className="w-full max-w-[200px] h-[3px] bg-black/5 rounded-full overflow-hidden relative shadow-inner">
+                      <div className="absolute top-0 left-0 h-full w-[40%] bg-slate-800 rounded-full animate-cupertino" />
+                  </div>
+                  
+                  <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 mt-6 animate-pulse">
+                      Stratosfere Pro
+                  </p>
               </div>
           </div>
       );
