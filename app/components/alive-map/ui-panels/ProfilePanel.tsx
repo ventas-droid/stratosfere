@@ -1050,9 +1050,9 @@ openDetailsSmart(fullProp);    }
 
        {/* --- VISTA: BUZÓN DE MENSAJES (DISEÑO PREMIUM + DATOS VISIBLES) --- */}
         {internalView === 'LEADS' && (
-           <div className="animate-fade-in-right h-full flex flex-col bg-[#E5E5EA]"> 
-              
-              {/* 1. CABECERA CON NAVEGACIÓN */}
+<div className="animate-fade-in-right h-full flex flex-col pt-4">             
+    
+     {/* 1. CABECERA CON NAVEGACIÓN */}
               <div className="flex items-center gap-4 p-8 pb-4 shrink-0">
                  <button 
                     onClick={() => setInternalView('MAIN')} 
@@ -1069,8 +1069,9 @@ openDetailsSmart(fullProp);    }
               </div>
               
               {/* 2. ÁREA DE CONTENIDO */}
-              <div className="flex-1 overflow-y-auto px-8 pb-10 custom-scrollbar">
-                  {loadingLeads ? (
+<div className="flex-1 overflow-y-auto px-6 pb-12 custom-scrollbar">              
+    
+        {loadingLeads ? (
                       <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3 opacity-60">
                           <Loader2 className="animate-spin" size={32}/>
                           <span className="text-[10px] font-black uppercase tracking-[0.2em]">Sincronizando...</span>
@@ -1254,20 +1255,31 @@ openDetailsSmart(fullProp);    }
                               <h3 className="text-3xl font-black truncate">{contractModalProp.title}</h3>
                               <p className="text-indigo-200 text-xs font-medium mt-1 uppercase tracking-wide">REF: {contractModalProp.refCode || "---"}</p>
                           </div>
-                          
-                        {/* BOTONES BLINDADOS CON LÓGICA DEFINITIVA (EL JUEZ) */}
+                   {/* BOTONES BLINDADOS CON LÓGICA DEFINITIVA (EL JUEZ SUPREMO) */}
                           {(() => {
-                              // 1. Recopilamos las pruebas (miramos tanto en la raíz como en la campaña)
-                              const rawMandate = contractModalProp.mandateType || contractModalProp.activeCampaign?.mandateType || "";
+                              const ac = contractModalProp.activeCampaign || {};
                               
-                              // 2. Sentencia: ¿Dice que es abierto/simple en algún lado?
-                              const isAbierto = String(rawMandate).toUpperCase().includes("ABIERTO") || String(rawMandate).toUpperCase().includes("SIMPLE");
+                              // 1. Desencriptador: A veces 'terms' viene como texto desde la BBDD
+                              let safeTerms = ac.terms || {};
+                              if (typeof safeTerms === 'string') {
+                                  try { safeTerms = JSON.parse(safeTerms); } catch(e) { safeTerms = {}; }
+                              }
+
+                              const mandate1 = String(contractModalProp.mandateType || "").toUpperCase();
+                              const mandate2 = String(ac.mandateType || "").toUpperCase();
                               
-                              // 3. Resolución final: Es exclusiva SOLO si no es abierto.
-                              const isExclusive = String(rawMandate).toUpperCase().includes("EXCLUSIV") || (contractModalProp.activeCampaign?.exclusiveMandate === true && !isAbierto);
+                              // 2. Sentencia Implacable: Buscamos la exclusividad en TODOS los formatos posibles
+                              const isExclusive = 
+                                  safeTerms.exclusive === true || 
+                                  safeTerms.exclusive === "true" ||
+                                  ac.exclusive === true || 
+                                  ac.exclusive === "true" || 
+                                  ac.exclusiveMandate === true || 
+                                  mandate1.includes("EXCLUSIV") || 
+                                  mandate2.includes("EXCLUSIV");
                               
-                              // 4. Meses
-                              const months = contractModalProp.exclusiveMonths || contractModalProp.activeCampaign?.exclusiveMonths || 6;
+                              // 3. Meses (buscando en el objeto seguro)
+                              const months = safeTerms.months || ac.exclusiveMonths || contractModalProp.exclusiveMonths || 6;
 
                               return (
                                   <div className="flex gap-2 shrink-0">
@@ -1284,7 +1296,6 @@ openDetailsSmart(fullProp);    }
                                   </div>
                               );
                           })()}
-                          
                       </div>
                   </div>
 
@@ -1437,10 +1448,9 @@ openDetailsSmart(fullProp);    }
                         </div>
                     )}
 
-          {/* 3. Tarjeta de Organizador (SMART + DATOS VISIBLES) */}
+ {/* 3. Tarjeta de Organizador (ZONA Y OFICINA SEPARADAS) */}
                     {(() => {
-                        const evtProp = selectedTicket.openHouse.property;
-                        // Detector de Agencia Gestora vs Particular
+                        const evtProp = selectedTicket.openHouse.property || {};
                         const isMng = evtProp.isManaged === true || evtProp.isManaged === "true" || (evtProp.activeCampaign && evtProp.activeCampaign.status === "ACCEPTED");
                         const org = isMng && evtProp.activeCampaign?.agency ? evtProp.activeCampaign.agency : evtProp.user || {};
                         
@@ -1448,17 +1458,18 @@ openDetailsSmart(fullProp);    }
                         const oAvatar = org.companyLogo || org.avatar || org.image;
                         const oPhone = org.mobile || org.phone;
                         
-                        // 🔥 Búsqueda ampliada: Mira en address, location, city y zone.
-                        const addressParts = [org.address, org.location, org.city, org.zone].filter(Boolean);
-                        const cleanParts = addressParts.filter(p => p.trim().toLowerCase() !== 'españa');
+                        // 1. Extraemos TODO sin prohibiciones ni bloqueos
+                        const street = org.address || org.companyAddress || "";
+                        const zip = org.postalCode || "";
+                        const opZone = org.zone || "";
                         
-                        // Si después de limpiar no queda nada, devolvemos NULL para que se oculte.
-                        const oAddress = cleanParts.length > 0 ? cleanParts.join(', ') : null;
+                        // 2. Formateamos la Oficina Central ("Plaza de España 10 - 29878")
+                        const centralOffice = [street, zip].filter(Boolean).join(" - ");
 
                         return (
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm mt-2">
-                                <div className="flex items-center gap-4 min-w-0">
-                                    <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 border border-slate-200 overflow-hidden shrink-0 shadow-inner relative">
+                            <div className="flex flex-col sm:flex-row justify-between gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm mt-3">
+                                <div className="flex items-start gap-4 min-w-0">
+                                    <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center font-bold text-slate-500 border border-slate-200 overflow-hidden shrink-0 shadow-sm relative">
                                         {oAvatar ? (
                                             <img src={oAvatar} alt={oName} className="w-full h-full object-cover" />
                                         ) : (
@@ -1467,41 +1478,60 @@ openDetailsSmart(fullProp);    }
                                     </div>
                                     <div className="min-w-0 flex flex-col justify-center">
                                         <div className="flex items-center gap-2 mb-0.5">
-                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Organizado por</span>
-                                            {isMng && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase tracking-widest">Agencia</span>}
+                                            <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Organizado por</span>
                                         </div>
-                                        <p className="text-sm font-black text-slate-900 leading-tight truncate mb-1.5">
+                                        <p className="text-sm font-black text-slate-900 leading-tight truncate mb-3">
                                             {oName}
                                         </p>
                                         
-                                        {/* 🔥 DATOS DE CONTACTO (Solo se muestran si existen) */}
-                                        <div className="flex flex-col gap-1">
-                                            {oAddress && (
-                                                <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5 truncate" title={oAddress}>
-                                                    <MapPin size={12} className="shrink-0 text-slate-400" /> 
-                                                    <span className="truncate">{oAddress}</span>
-                                                </p>
+                                        {/* 🔥 DATOS CLAROS Y SEPARADOS */}
+                                        <div className="flex flex-col gap-2.5">
+                                            
+                                            {/* ZONA OPERATIVA */}
+                                            {opZone && (
+                                                <div className="flex items-start gap-2" title="Zona Operativa">
+                                                    <Globe size={12} className="shrink-0 mt-[2px] text-slate-400" /> 
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Zona Operativa</span>
+                                                        <span className="text-[10px] text-slate-700 font-medium leading-tight">{opZone}</span>
+                                                    </div>
+                                                </div>
                                             )}
+
+                                            {/* OFICINA CENTRAL */}
+                                            {centralOffice && (
+                                                <div className="flex items-start gap-2" title="Oficina Central">
+                                                    <MapPin size={12} className="shrink-0 mt-[2px] text-slate-400" /> 
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5">Oficina Central</span>
+                                                        <span className="text-[10px] text-slate-700 font-medium leading-tight">{centralOffice}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* TELÉFONO */}
                                             {oPhone && (
-                                                <p className="text-[10px] text-slate-600 font-mono font-bold flex items-center gap-1.5 select-all">
+                                                <div className="flex items-center gap-2 mt-0.5">
                                                     <Phone size={12} className="shrink-0 text-slate-400" /> 
-                                                    <span>{oPhone}</span>
-                                                </p>
+                                                    <span className="text-[11px] text-slate-800 font-mono font-black select-all">{oPhone}</span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
                                 </div>
                                 
-                                {/* 🔥 BOTÓN DE LLAMAR CLÁSICO Y ELEGANTE */}
+                                {/* BOTÓN DE LLAMAR */}
                                 {oPhone && (
-                                    <a 
-                                        href={`tel:${oPhone.replace(/\s/g, '')}`} 
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shrink-0 shadow-sm hover:shadow-md cursor-pointer"
-                                    >
-                                        <Phone size={14} className="animate-pulse" /> 
-                                        <span>LLAMAR</span>
-                                    </a>
+                                    <div className="shrink-0 flex items-center sm:items-end sm:pb-1">
+                                        <a 
+                                            href={`tel:${oPhone.replace(/\s/g, '')}`} 
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+                                        >
+                                            <Phone size={14} className="animate-pulse" /> 
+                                            <span>LLAMAR</span>
+                                        </a>
+                                    </div>
                                 )}
                             </div>
                         );

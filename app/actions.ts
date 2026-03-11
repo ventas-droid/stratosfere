@@ -28,7 +28,10 @@ const USER_IDENTITY_SELECT = {
     zone: true,            // Zona
     cif: true,
     licenseNumber: true,
-    licenseType: true      // <--- ESTE FALTABA EN EL MAPA (CRÍTICO)
+    licenseType: true,      // <--- ESTE FALTABA EN EL MAPA (CRÍTICO)
+// 🛡️ EL BLINDAJE FINAL (1001% SEGURIDAD):
+    address: true,         // <-- ASEGURA LA CALLE EN TODA LA APP
+    postalCode: true       // <-- ASEGURA EL CP EN TODA LA APP
 };
 
 const buildIdentity = (freshUser: any, snap: any) => {
@@ -49,7 +52,7 @@ const buildIdentity = (freshUser: any, snap: any) => {
       : (base.name || "Usuario"),
 
     companyName: base.companyName || null,
-   legalName: base.legalName || null,
+    legalName: base.legalName || null,
     companyLogo: base.companyLogo || null,
 
     avatar: isAgency ? (base.companyLogo || null) : (base.avatar || null),
@@ -64,8 +67,13 @@ const buildIdentity = (freshUser: any, snap: any) => {
     licenseType: base.licenseType || null,
     licenseNumber: base.licenseNumber || null,
     cif: base.cif || null,
+    
+    // 🛡️ BÚNKER DE ADUANAS: ORDEN DE PASO PARA LA DIRECCIÓN
+    address: base.address || null,
+    postalCode: base.postalCode || null,
   };
 };
+
 // ✅ REF CODE corto y legible (sin 0/O/I/1)
 const buildRefCode = () => {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -2919,7 +2927,7 @@ export async function checkOpenHouseStatusAction(eventId: string) {
     }
 }
 
-// G. OBTENER MIS TICKETS (AHORA SÍ TRAE LAS FOTOS)
+// G. OBTENER MIS TICKETS (AHORA SÍ TRAE LAS FOTOS Y LA DIRECCIÓN COMPLETA)
 export async function getUserTicketsAction() {
   try {
     const user = await getCurrentUser();
@@ -2933,7 +2941,6 @@ export async function getUserTicketsAction() {
             _count: { select: { attendees: true } },
             property: {
               include: {
-                // 🔥 AQUÍ FALTABAN LOS CAMPOS DE IMAGEN
                 user: {
                   select: {
                     id: true,
@@ -2944,14 +2951,19 @@ export async function getUserTicketsAction() {
                     
                     // DATOS DE AGENCIA
                     companyName: true,
-                    companyLogo: true, // <--- FALTABA ESTE (Avatar Agencia)
-                    coverImage: true,  // <--- FALTABA ESTE (Fondo)
+                    companyLogo: true, 
+                    coverImage: true,  
                     
-                    // CONTACTO
+               // CONTACTO
                     phone: true,
                     mobile: true,
                     website: true,
-                    licenseNumber: true
+                    licenseNumber: true,
+
+                    // 🔥 LA MUNICIÓN EXACTA Y VERIFICADA 🔥
+                    address: true,       
+                    postalCode: true,    
+                    zone: true           
                   }
                 }
               }

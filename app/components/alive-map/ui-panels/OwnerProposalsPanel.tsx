@@ -15,6 +15,7 @@ import {
   Loader2,
   Globe,
   Key,
+  Copy
 } from "lucide-react";
 
 // 🔥 IMPORTANTE: La acción del servidor para aceptar/rechazar propuesta
@@ -421,11 +422,10 @@ export default function OwnerProposalsPanel({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                   <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
                       <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                        {p?.agency?.avatar ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.agency.avatar} alt="" className="w-full h-full object-cover" />
+                        {(p?.agency?.companyLogo || p?.agency?.avatar || (p?.agency as any)?.image) ? (
+                          <img src={p.agency.companyLogo || p.agency.avatar || (p.agency as any).image} alt="" className="w-full h-full object-cover bg-white" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center"><Building2 size={14} className="text-slate-400" /></div>
                         )}
@@ -472,54 +472,115 @@ export default function OwnerProposalsPanel({
             </div>
 
              
-             {/* 1. Tarjeta Agencia (CORREGIDA PARA LOGOS) */}
-              <div className="bg-white rounded-[28px] overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-white/50 relative">
-                <div className="h-32 bg-slate-100 relative overflow-hidden">
-                  {selected.agency?.coverImage ? (
-                    <img src={selected.agency.coverImage} className="w-full h-full object-cover" alt="Cover" />
+          {/* 1. Tarjeta Agencia (REDISEÑO PREMIUM SAAS) */}
+              <div className="bg-white rounded-[32px] overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 relative group">
+                
+                {/* FONDO COVER DE ALTA GAMA */}
+                <div className="h-32 relative overflow-hidden bg-slate-900">
+                  {(selected.agency?.coverImage || (selected.agency as any)?.cover) ? (
+                    <img src={selected.agency.coverImage || (selected.agency as any).cover} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" alt="Cover" />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300" />
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900" />
                   )}
-                  <div className="absolute inset-0 bg-black/10" />
+                  {/* Degradado para transición suave hacia el contenido blanco */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
                 </div>
 
                 <div className="px-6 pb-6 relative">
-                  <div className="flex justify-between items-end -mt-10 mb-4">
-                    <div className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg">
-                      <div className="w-full h-full rounded-xl overflow-hidden bg-slate-50 relative">
-                        {/* 🔥 AQUÍ ESTÁ EL CAMBIO: Miramos avatar O companyLogo */}
-                        {(selected.agency?.avatar || selected.agency?.companyLogo) ? (
+                  {/* ZONA SUPERIOR: LOGO Y BOTÓN CHAT */}
+                  <div className="flex justify-between items-end -mt-12 mb-5">
+                    
+                    {/* LOGO ENCAPSULADO TIPO APPLE */}
+                    <div className="w-24 h-24 rounded-[22px] bg-white p-1.5 shadow-xl shadow-black/5 ring-1 ring-slate-100 relative z-10">
+                      <div className="w-full h-full rounded-[16px] overflow-hidden bg-slate-50 relative flex items-center justify-center">
+                        {(selected.agency?.companyLogo || selected.agency?.avatar || (selected.agency as any)?.image) ? (
                           <img 
-                            src={selected.agency.avatar || selected.agency.companyLogo} 
-                            className="w-full h-full object-cover" 
+                            src={selected.agency.companyLogo || selected.agency.avatar || (selected.agency as any).image} 
+                            className="w-full h-full object-cover bg-white" 
                             alt="Logo" 
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center"><Building2 className="text-slate-400" /></div>
+                          <Building2 size={32} className="text-slate-300" />
                         )}
                       </div>
+                      {/* Insignia Verificado Mini */}
+                      <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-full ring-4 ring-white shadow-sm">
+                        <Check size={12} strokeWidth={4} />
+                      </div>
                     </div>
+
+                    {/* BOTÓN CHAT DE ACCIÓN RÁPIDA */}
                     <button
                       onClick={(e) => openChat(e, selected)}
-                      className="bg-black text-white px-5 py-2.5 rounded-full text-xs font-bold tracking-wide uppercase shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                      className="h-10 px-5 bg-slate-900 text-white rounded-full text-[11px] font-black tracking-widest uppercase shadow-lg shadow-slate-900/20 hover:bg-indigo-600 hover:shadow-indigo-600/30 transition-all flex items-center gap-2 active:scale-95 mb-1"
                     >
-                      <MessageCircle size={14} /> Chat
+                      <MessageCircle size={14} /> Iniciar Chat
                     </button>
                   </div>
 
-                  <h2 className="text-2xl font-bold text-slate-900 leading-tight">
-                    {selected.agency?.companyName || selected.agency?.name || "Agencia"}
-                  </h2>
+                  {/* INFO PRINCIPAL DE LA AGENCIA */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                        Agencia Candidata
+                      </span>
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 leading-tight tracking-tight">
+                      {selected.agency?.companyName || selected.agency?.name || "Agencia Oficial"}
+                    </h2>
+                  </div>
 
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1"><Phone size={10} /> Móvil</div>
-                      <div className="text-sm font-semibold text-slate-800 truncate">{selected.agency?.mobile || selected.agency?.phone || "—"}</div>
+                 {/* GRID DE CONTACTO TÁCTICO */}
+                  <div className="grid grid-cols-2 gap-3 bg-slate-50/50 p-1.5 rounded-3xl border border-slate-100">
+                    
+                    {/* Botón Teléfono Copiable */}
+                    <div 
+                      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/50 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group/contact flex flex-col justify-between min-h-[90px]"
+                      title="Copiar teléfono"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const phone = selected.agency?.mobile || selected.agency?.phone;
+                        if (phone) navigator.clipboard.writeText(phone);
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover/contact:bg-emerald-500 group-hover/contact:text-white transition-colors shrink-0">
+                          <Phone size={10} />
+                        </div>
+                        <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Teléfono</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-2 mt-auto">
+                        <p className="text-xs font-bold text-slate-700 break-all font-mono select-all leading-tight">
+                          {selected.agency?.mobile || selected.agency?.phone || "—"}
+                        </p>
+                        <Copy size={14} className="text-slate-300 group-hover/contact:text-emerald-500 transition-colors shrink-0" />
+                      </div>
                     </div>
-                    <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1"><Mail size={10} /> Email</div>
-                      <div className="text-sm font-semibold text-slate-800 truncate">{selected.agency?.email || "—"}</div>
+
+                    {/* Botón Email Copiable */}
+                    <div 
+                      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/50 hover:border-blue-200 hover:shadow-md transition-all cursor-pointer group/contact flex flex-col justify-between min-h-[90px]"
+                      title="Copiar email"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const email = selected.agency?.email;
+                        if (email) navigator.clipboard.writeText(email);
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover/contact:bg-blue-500 group-hover/contact:text-white transition-colors shrink-0">
+                          <Mail size={10} />
+                        </div>
+                        <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Email</span>
+                      </div>
+                      <div className="flex items-end justify-between gap-2 mt-auto">
+                        <p className="text-[11px] font-bold text-slate-700 break-all select-all leading-tight">
+                          {selected.agency?.email || "—"}
+                        </p>
+                        <Copy size={14} className="text-slate-300 group-hover/contact:text-blue-500 transition-colors shrink-0" />
+                      </div>
                     </div>
+
                   </div>
                 </div>
               </div>

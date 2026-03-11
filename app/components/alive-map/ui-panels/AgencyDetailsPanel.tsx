@@ -508,9 +508,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                 </div>
 
                 {/* CONTENIDO PRINCIPAL */}
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-40 bg-[#F5F5F7]">
-                    
-                    <div className="relative aspect-video w-full bg-slate-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white group">
+<div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-[50px] bg-[#F5F5F7]">                    <div className="relative aspect-video w-full bg-slate-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white group">
                         <img 
                             src={img} 
                             onClick={handleMainPhotoClick} 
@@ -732,7 +730,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                         )}
                     </div>
 
-                  <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
+               <div className="bg-white p-5 rounded-[24px] shadow-sm border border-white mt-3 animate-fade-in-up">
                         <div className="flex items-center gap-2 mb-4">
                             <Activity size={16} className="text-blue-600"/>
                             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900">Métricas de Interés</h3>
@@ -767,35 +765,34 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                 </div>
                             </div>
                         </div>
-
-                        {/* 🔥 NUEVO BOTÓN VIP PASS 🔥 */}
-                        <div className="mt-5 border-t border-slate-100 pt-5">
-                            <button
-                                type="button"
-                                onClick={handleCopyVipLink}
-                                className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 p-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group cursor-pointer shadow-lg"
-                            >
-                                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform">
-                                    {copiedVip ? <Check size={18} className="text-emerald-400" /> : <Link size={18} />}
-                                </div>
-                                <div className="text-left flex flex-col justify-center">
-                                    <p className="text-[12px] font-black text-white uppercase tracking-wide">
-                                        {copiedVip ? "¡Copiado con éxito!" : "Copiar Invitación"}
-                                    </p>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                        {copiedVip ? "Pégalo en WhatsApp o Email" : "Acceso VIP Universal"}
-                                    </p>
-                                </div>
-                            </button>
-                        </div>
-
-                        <div className="mt-3 text-[9px] text-slate-400 font-medium text-center bg-slate-50 py-1 rounded-lg">
+                        
+                        <div className="mt-4 text-[9px] text-slate-400 font-medium text-center bg-slate-50 py-1.5 rounded-lg border border-slate-100">
                             Datos actualizados en tiempo real por Stratos Intelligence™
                         </div>
                     </div>
                     
-                    <div className="h-32 w-full shrink-0"></div>
-                </div>
+              {/* 🔥 BOTÓN VIP PASS PERFECTAMENTE CENTRADO 🔥 */}
+                    <div className="pt-6 animate-fade-in-up" style={{ animationDelay: '150ms' }}>
+                        <button
+                            type="button"
+                            onClick={handleCopyVipLink}
+                            className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-700 p-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 group cursor-pointer shadow-lg"
+                        >
+                            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform">
+                                {copiedVip ? <Check size={18} className="text-emerald-400" /> : <Link size={18} />}
+                            </div>
+                            <div className="text-left flex flex-col justify-center">
+                                <p className="text-[12px] font-black text-white uppercase tracking-wide">
+                                    {copiedVip ? "¡Copiado con éxito!" : "Copiar Invitación"}
+                                </p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                    {copiedVip ? "Pégalo en WhatsApp o Email" : "Acceso VIP Universal"}
+                                </p>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    </div>
 
                 {/* FOOTER */}
                 <div className="absolute bottom-0 left-0 w-full p-5 bg-white/90 backdrop-blur-xl border-t border-slate-200 flex gap-3 z-20 relative">
