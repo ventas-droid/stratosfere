@@ -71,7 +71,7 @@ export async function createStratosDocumentAction(data: {
 }
 
 export async function getInboxDocumentsAction(userId: string, userEmail?: string) {
-  cookies(); // 💥 DISIPA LA NIEBLA DE GUERRA: Obliga a Next.js a mirar los datos reales, no la caché.
+  await cookies(); // 💥 DISIPA LA NIEBLA DE GUERRA: Obliga a Next.js a mirar los datos reales...
 
   try {
     // 🛡️ BLINDAJE ABSOLUTO: Limpiamos el email antes de buscar para que coincida al 1000%

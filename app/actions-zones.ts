@@ -6,31 +6,26 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { Resend } from 'resend';
 import { revalidatePath } from 'next/cache';
+import { uploadToCloudinary } from '@/app/utils/upload';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 
-// 🚀 1. SUBIDA DE FOTOS
+// 🚀 1. // 🚀 1. SUBIDA DE FOTOS (VERSIÓN BLINDADA PARA NUBE/VERCEL)
 export async function uploadLocalImageAction(formData: FormData, type: 'LOGO' | 'CASA' | 'COVER') {
   try {
     const file = formData.get('file') as File;
     if (!file) return { success: false, error: "No se ha recibido ningún archivo." };
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // 🔥 Disparamos el archivo directamente a su base segura en Cloudinary
+    const cloudUrl = await uploadToCloudinary(file);
 
-    const cleanName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '');
-    const fileName = `${Date.now()}_${cleanName}`;
-    
-    const folder = type === 'LOGO' ? 'logo' : type === 'CASA' ? 'fotos' : 'cover';
-    const folderPath = path.join(process.cwd(), 'public', folder);
+    if (!cloudUrl) {
+        return { success: false, error: "La nube de Cloudinary rechazó el archivo." };
+    }
 
-    if (!existsSync(folderPath)) await mkdir(folderPath, { recursive: true });
-
-    const filepath = path.join(folderPath, fileName);
-    await writeFile(filepath, buffer);
-
-    return { success: true, url: `/${folder}/${fileName}` };
+    // El panel recibe la URL segura y la guarda en la base de datos
+    return { success: true, url: cloudUrl };
   } catch (error: any) {
     return { success: false, error: `Fallo interno: ${error.message}` };
   }
@@ -39,7 +34,7 @@ export async function uploadLocalImageAction(formData: FormData, type: 'LOGO' | 
 // 📡 2. EL CEREBRO VIP (Con Auto-Destrucción por Tiempo y blindaje TypeScript)
 export async function getZoneCampaignAction(postalCode: string) {
   try {
-    const campaign = await prisma.zoneCampaign.findFirst({
+  const campaign = await prisma.zoneCampaign.findFirst({
       where: { 
         postalCode: postalCode, 
         isActive: true,
@@ -48,7 +43,14 @@ export async function getZoneCampaignAction(postalCode: string) {
           { expiresAt: { gt: new Date() } }
         ]
       },
-      include: { agency: true, property: true }
+      include: { 
+        property: true,
+        agency: {
+            include: {
+                properties: true // 🚀 AQUÍ ESTÁ LA MAGIA: Cargamos el arsenal de la agencia
+            }
+        } 
+      }
     });
 
     if (!campaign) return { success: false, data: null };

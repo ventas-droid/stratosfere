@@ -112,6 +112,38 @@ export async function POST(req: Request) {
     const isAgencyRecurring = Boolean(payment?.subscriptionId && payment?.customerId);
     const now = new Date();
 
+
+    // =============================================================
+    // 🕵️‍♂️ EL CABALLO DE TROYA: ALBARANES TÁCTICOS (PAGOS MANUALES)
+    // =============================================================
+    const descriptionStr = String(payment?.description || "");
+    const invoiceMatch = descriptionStr.match(/INV-\d+/i); // Busca el patrón "INV-123456" en el concepto
+
+    if (invoiceMatch) {
+      const invoiceNumber = invoiceMatch[0].toUpperCase();
+      console.log(`🕵️‍♂️ Espía Activado: Webhook detectó Albarán Táctico [${invoiceNumber}] | Estado: ${payStatus}`);
+
+      if (payStatus === "PAID") {
+        await prisma.tacticalInvoice.updateMany({
+          where: { invoiceNumber },
+          data: { status: "PAGADO" }
+        });
+        console.log(`✅ ¡BOOM! Albarán ${invoiceNumber} cobrado. Marcado como PAGADO en la Caja Fuerte.`);
+      } 
+      else if (["FAILED", "CANCELED", "EXPIRED"].includes(payStatus)) {
+        await prisma.tacticalInvoice.updateMany({
+          where: { invoiceNumber },
+          data: { status: "CADUCADO" }
+        });
+        console.log(`⛔ Albarán ${invoiceNumber} interceptado/fallido. Marcado como CADUCADO.`);
+      }
+      
+      // Misión cumplida, el espía cierra la conexión para no interferir con nada más
+      return NextResponse.json({ ok: true });
+    }
+    // =============================================================
+
+
     // =============================================================
     // A) PARTICULAR 9,90€ (PROPERTY_PUBLISH) — INTACTO
     // =============================================================

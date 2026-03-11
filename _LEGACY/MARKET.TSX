@@ -1,7 +1,7 @@
 // @ts-nocheck
 "use client";
 import React, { useState, useEffect } from 'react';
-import { X, MapPin, Phone, Navigation, Star, Crown, CheckCircle2, Home, ArrowRight, Mail, Building2, Bed, Bath, Maximize2, Gem, ShieldCheck } from 'lucide-react';
+import { X, MapPin, Phone, Star, Crown, CheckCircle2, Home, ArrowRight, Mail, Building2, Bed, Bath, Maximize2, Gem, ShieldCheck } from 'lucide-react';
 
 // 🔥 IMPORTACIÓN CORREGIDA: Traemos la acción de la propiedad Y la acción de crear el Lead Fantasma
 import { getPropertyByIdAction, submitLeadAction, getUserMeAction } from '@/app/actions';
@@ -19,14 +19,14 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
 
   // 🔥 RADAR DE IDENTIDAD Y CONTROL DE MODAL
   const [userRole, setUserRole] = useState("PARTICULAR");
-  const [userData, setUserData] = useState<any>(null); 
-  const [showVipModal, setShowVipModal] = useState(false); 
+  const [userData, setUserData] = useState<any>(null); // Guardamos los datos para dárselos al modal
+  const [showVipModal, setShowVipModal] = useState(false); // Controla si el modal se ve o no
 
   useEffect(() => {
       getUserMeAction().then(res => {
           if (res?.success && res?.data) {
               setUserRole(res.data.role || "PARTICULAR");
-              setUserData(res.data);
+              setUserData(res.data); // Guardamos toda la info (email, teléfono, id)
           }
       });
   }, []);
@@ -57,7 +57,6 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
              const dbData = dbCampaign.data;
              const prop = dbData.property as any; 
              const agency = dbData.agency as any; 
-             const agencyProps = agency?.properties || []; // 🚀 Extraemos el arsenal completo
 
              setActiveCampaign({
                  id: dbData.id, 
@@ -86,22 +85,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                      ]
                  },
                  lng: prop?.longitude || lng,
-                 lat: prop?.latitude || lat,
-                 
-                 // 🚀 EL ARSENAL INMOBILIARIO (Filtramos la estrella para que no se repita)
-                 agencyProperties: agencyProps
-                    .filter((p: any) => p.id !== prop?.id)
-                    .map((p: any) => ({
-                        id: p.id,
-                        title: p.title || "Propiedad",
-                        price: p.price,
-                        image: p.mainImage || "",
-                        rooms: p.rooms || p.bedrooms || 0,
-                        baths: p.baths || p.bathrooms || 0,
-                        mBuilt: p.mBuilt || p.surface || 0,
-                        lng: p.longitude,
-                        lat: p.latitude
-                    }))
+                 lat: prop?.latitude || lat
              });
         } else {
              setActiveCampaign(null); 
@@ -118,7 +102,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
         if (lng && lat) {
             clearTimeout(timeoutId);
             setIsScanning(true); 
-            timeoutId = setTimeout(() => scanArea(lng, lat), 10); 
+            timeoutId = setTimeout(() => scanArea(lng, lat), 150); 
         }
     };
 
@@ -140,18 +124,16 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
     };
   }, [currentCenter]);
 
-  // 🔥 FRANCOTIRADOR CINEMÁTICO ADAPTADO PARA MÚLTIPLES OBJETIVOS
-  const executeCinematicStrike = async (campaign: any, targetProperty: any = null) => {
-      const activeProp = targetProperty || campaign?.property;
-      if (!campaign || !activeProp) return;
+  const executeCinematicStrike = async (campaign: any) => {
+      if (!campaign || !campaign.property) return;
       
-      const targetLng = targetProperty ? targetProperty.lng : campaign.lng;
-      const targetLat = targetProperty ? targetProperty.lat : campaign.lat;
-      const propId = activeProp.id;
+      const targetLng = campaign.lng;
+      const targetLat = campaign.lat;
+      const propId = campaign.property.id;
       
       if (!targetLng || !targetLat || !propId) return;
 
-      if (campaign.id && !targetProperty) {
+      if (campaign.id) {
           trackCampaignClickAction(campaign.id).catch(err => console.error(err));
       }
 
@@ -160,13 +142,13 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
           name: "👁️ Visita Ficha VIP",
           email: "Interés Anónimo",
           phone: "Posible llamada directa",
-          message: "Un usuario ha accedido a la ficha 3D a través del arsenal de la agencia en el mapa.",
+          message: "Un usuario ha accedido a la ficha 3D de esta propiedad a través de tu campaña VIP en el mapa. Es posible que haya contactado por teléfono.",
           source: 'MARKET_NETWORK'
       }).catch(err => console.error("Error creando lead fantasma", err));
 
       try {
           const res = await getPropertyByIdAction(propId);
-          let fullProperty = activeProp;
+          let fullProperty = campaign.property;
 
           if (res?.success && res?.data) {
               fullProperty = res.data;
@@ -223,7 +205,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                         </span>
                     </div>
                 </div>
-                 {/* 🔥 BOTÓN X */}
+                 {/* 🔥 BOTÓN X (Idéntico a DetailsPanel + Efecto Giro) 🔥 */}
                      <button onClick={onClose} className="absolute top-12 right-8 w-10 h-10 bg-black/40 hover:bg-black/60 hover:rotate-90 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-xl z-50">
                          <X size={20}/>
                      </button>
@@ -237,8 +219,10 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                 
                 <div className="animate-fade-in flex flex-col gap-6" key={`campaign-${postalCode}`}>
                     
-                    {/* TARJETA DE EMPRESA */}
+                    {/* TARJETA DE EMPRESA ACTUALIZADA CON DOBLE REALIDAD */}
                     <div className="bg-white rounded-[28px] overflow-hidden shadow-xl border border-slate-100 relative">
+                        
+                        {/* 🚨 CHIVATO PARA AGENCIAS: Si eres agencia y ves esto, es territorio ocupado */}
                         {userRole === 'AGENCIA' && (
                             <div className="absolute top-4 right-4 z-20 bg-red-600/90 backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg uppercase tracking-widest border border-red-400/50">
                                 <ShieldCheck size={12} /> REFERENCIA EN ZONA
@@ -269,7 +253,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                                 {activeCampaign.bio}
                             </p>
 
-                            {/* 📞 BOTONES INTERACTIVOS */}
+                            {/* 📞 BOTONES INTERACTIVOS Y COPIABLES */}
                             <div className="mt-6 space-y-2">
                                 <div className="flex items-start gap-3 text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
                                     <MapPin size={16} className="text-slate-400 shrink-0 mt-0.5"/>
@@ -326,6 +310,11 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                                 <div className="flex items-end gap-3 mt-2">
                                     <span className="text-3xl font-black text-amber-400 drop-shadow-lg">{activeCampaign.property.price}</span>
                                 </div>
+                                {activeCampaign.property.discount && (
+                                    <span className="inline-block mt-2 bg-red-500/20 backdrop-blur-md text-red-100 border border-red-500/30 text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider">
+                                        {activeCampaign.property.discount}
+                                    </span>
+                                )}
                             </div>
                         </div>
 
@@ -348,7 +337,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                             <button 
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    executeCinematicStrike(activeCampaign, null);
+                                    executeCinematicStrike(activeCampaign);
                                 }}
                                 className="w-full bg-slate-900 hover:bg-black text-white font-bold tracking-widest text-[11px] py-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
                             >
@@ -356,56 +345,6 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                             </button>
                         </div>
                     </div>
-
-                   {/* 🚀 NUEVO: ARSENAL INMOBILIARIO (Resto de propiedades) 🚀 */}
-                    {activeCampaign.agencyProperties && activeCampaign.agencyProperties.length > 0 && (
-                        <div className="mt-4 flex flex-col gap-3 animate-fade-in">
-                            <div className="flex items-center gap-2 px-2 pt-2 border-t border-slate-200/60">
-                                <Building2 size={16} className="text-slate-400" />
-                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Propiedades Destacadas</h4>
-                            </div>
-
-                            <div className="flex flex-col gap-3">
-                                {activeCampaign.agencyProperties.map((prop: any) => (
-                                    <div 
-                                        key={prop.id} 
-                                        onClick={() => {
-                                            executeCinematicStrike(activeCampaign, prop);
-                                            if (onClose) onClose();
-                                        }} 
-                                        className="relative flex items-center bg-white rounded-[20px] border border-slate-100 shadow-sm hover:shadow-lg hover:border-amber-200 transition-all duration-300 cursor-pointer p-2 gap-3 group overflow-hidden"
-                                    >
-                                        {/* Foto de la Propiedad */}
-                                        <div className="w-24 h-24 rounded-2xl bg-slate-100 overflow-hidden shrink-0 relative">
-                                            <img 
-                                                src={prop.image || '/placeholder.jpg'} 
-                                                alt={prop.title} 
-                                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                                            />
-                                        </div>
-                                        
-                                        {/* Información y Datos */}
-                                        <div className="flex flex-col justify-center py-1 flex-1 min-w-0 pr-12">
-                                            <h5 className="text-xs font-black text-slate-800 line-clamp-2 mb-1.5 leading-snug">{prop.title}</h5>
-                                            <span className="text-sm font-black text-slate-900 mb-2">
-                                                {prop.price ? `${new Intl.NumberFormat("es-ES").format(prop.price)} €` : 'Consultar'}
-                                            </span>
-                                            <div className="flex items-center gap-2.5 text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                                                <span className="flex items-center gap-1"><Bed size={10} className="text-amber-500"/> {prop.rooms}</span>
-                                                <span className="flex items-center gap-1"><Bath size={10} className="text-amber-500"/> {prop.baths}</span>
-                                                <span className="flex items-center gap-1"><Maximize2 size={10} className="text-amber-500"/> {prop.mBuilt}m²</span>
-                                            </div>
-                                        </div>
-
-                                        {/* 🔥 ICONO DE VUELO (Aparece a la derecha) 🔥 */}
-                                        <div className="absolute right-4 w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-all duration-300 shadow-sm group-hover:shadow-md group-hover:scale-110">
-                                            <Navigation size={14} className="group-hover:rotate-45 transition-transform duration-300" />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                     
                 </div>
             ) : (
@@ -414,8 +353,11 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                 
                 {/* 💎 NÚCLEO DIAMANTE VIP CON ONDAS */}
                 <div className="relative flex items-center justify-center mb-8 mt-4 mx-auto w-24 h-24">
+                    {/* Onda expansiva exterior */}
                     <div className="absolute inset-0 bg-amber-400/20 rounded-full animate-ping" style={{ animationDuration: '2s' }}></div>
+                    {/* Onda pulsante intermedia */}
                     <div className="absolute inset-2 bg-orange-500/20 rounded-full animate-pulse"></div>
+                    {/* Núcleo Sólido */}
                     <div className="relative w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.6)] border-2 border-amber-200 z-10 hover:scale-110 transition-transform cursor-default">
                         <Gem size={28} className="text-white drop-shadow-lg" strokeWidth={2.5} />
                     </div>
@@ -427,6 +369,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                 </p>
                     
              {userRole === 'AGENCIA' ? (
+                    // 🔴 REALIDAD AGENCIA: MODO EXCLUSIVIDAD B2B
                     <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 w-full max-w-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
                         <h4 className="font-black text-slate-900 text-lg mb-2">Posiciónate en tu Mercado</h4>
@@ -436,13 +379,17 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                             <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-amber-500"/> Leads y llamadas directas</li>
                         </ul>
                         <button 
-                            onClick={() => setShowVipModal(true)}
+                            onClick={() => {
+                                // 🔥 ABRIMOS EL MODAL DIRECTAMENTE AQUÍ (Sin cerrar el panel del mapa)
+                                setShowVipModal(true);
+                            }}
                             className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black tracking-widest text-[10px] py-4 rounded-xl transition-all shadow-lg shadow-amber-500/30 uppercase cursor-pointer"
                         >
                             Solicitar Exclusividad
                         </button>
                     </div>
                 ) : (
+                    // 🟢 REALIDAD PARTICULAR: MODO PAZ Y CONFIANZA
                     <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100 w-full max-w-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
                         <h4 className="font-black text-slate-900 text-lg mb-2">Zona Libre de Intermediarios</h4>
@@ -458,6 +405,7 @@ export default function MarketPanel({ toggleRightPanel, onClose, currentCenter }
                     </div>
                 )}
                 
+                {/* 🛡️ EL MODAL OSCURO INYECTADO DIRECTAMENTE AQUÍ 🛡️ */}
                 <VanguardRequestModal 
                     isOpen={showVipModal} 
                     onClose={() => setShowVipModal(false)} 

@@ -91,18 +91,12 @@ export async function getCurrentUser() {
   if (!sessionEmail) return null;
 
   try {
-    // 📡 RADAR: Detectamos movimiento y actualizamos la hora
-    // Esto hace que el punto verde del Admin funcione
-    await prisma.user.update({
-        where: { email: sessionEmail },
-        data: { 
-            lastLoginAt: new Date(),
-            loginCount: { increment: 1 } 
-        }
+    // 🛑 CIRUGÍA: HEMORRAGIA CORTADA. 
+    // Hemos eliminado el update() que saturaba la base de datos y costaba dinero.
+    // Ahora solo leemos quién es, a coste cero.
+    const user = await prisma.user.findUnique({ 
+        where: { email: sessionEmail } 
     });
-
-    // Buscamos al usuario para devolverlo
-    const user = await prisma.user.findUnique({ where: { email: sessionEmail } });
     return user;
   } catch (e) {
     return null;
@@ -119,7 +113,7 @@ export async function logoutAction() {
 export async function loginUser(formData: FormData) { 
     return { success: true };
 }
-// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN ULTRA-RÁPIDA Y BLINDADA (BOUNDING BOX)
+// 🌍 2. PROPIEDADES GLOBALES (MAPA) - VERSIÓN ULTRA-RÁPIDA, BLINDADA Y CACHÉ NEUTRAL
 export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLat: number; minLng: number; maxLng: number }) {
   try {
     const user = await getCurrentUser();
@@ -127,48 +121,58 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
 
     const CACHE_KEY = "stratos_global_map_cache";
 
+    // 🎯 TÁCTICA FRANCOTIRADOR: Obtenemos SOLO los favoritos del usuario actual ultrarrápido
+    let myFavIds: string[] = [];
+    if (currentUserId) {
+        const myFavs = await prisma.favorite.findMany({
+            where: { userId: currentUserId },
+            select: { propertyId: true }
+        });
+        myFavIds = myFavs.map(f => f.propertyId);
+    }
+
     // 🛡️ ESCUDO 1: Si hay "bounds" (el mapa pide una zona concreta), SALTAMOS Redis.
-    // Esto evita que una búsqueda de Madrid machaque la caché global de toda España.
     if (!bounds) {
         try {
           console.log("⚡️ [REDIS] Buscando mapa global en la caché...");
           const cachedData = await redis.get(CACHE_KEY);
           
           if (cachedData) {
-            console.log("⚡️ [REDIS] ¡Impacto directo! Sirviendo mapa desde la RAM en 20ms.");
-            if (currentUserId) {
-              const personalizedData = (cachedData as any[]).map((p: any) => ({
-                ...p,
-                isFavorited: p.favoritedByList?.includes(currentUserId) || false
-              }));
-              return { success: true, data: personalizedData };
-            }
-            return { success: true, data: cachedData };
+            console.log("⚡️ [REDIS] ¡Impacto directo! Sirviendo mapa desde la RAM.");
+            // 🔥 MAGIA: Sellamos los favoritos personales sobre la caché genérica
+            const personalizedData = (cachedData as any[]).map((p: any) => ({
+              ...p,
+              isFavorited: myFavIds.includes(p.id)
+            }));
+            return { success: true, data: personalizedData };
           }
         } catch (cacheError) {
-          console.error("⚠️ [REDIS] Fallo en la memoria RAM, bajando a la base de datos...", cacheError);
+          console.error("⚠️ [REDIS] Fallo en la RAM, bajando a la base de datos...", cacheError);
         }
     }
 
     console.log(`🗄️ [PRISMA] Bajando a la base de datos profunda... ${bounds ? '[MODO ZONA EXACTA]' : '[MODO GLOBAL]'}`);
 
     // 🔥 ESCUDO 2: EL FILTRO MATEMÁTICO INVISIBLE 🔥
-    // Si pasamos coordenadas, Prisma solo buscará ahí. Si no, busca en todo el mundo.
     const geoFilter = bounds ? {
         latitude: { gte: bounds.minLat, lte: bounds.maxLat },
         longitude: { gte: bounds.minLng, lte: bounds.maxLng }
     } : {};
 
-    // 🗄️ FASE 2: BÚSQUEDA TRADICIONAL EN PRISMA (Su código original, intocable)
+    // 🗄️ FASE 2: BÚSQUEDA TRADICIONAL EN PRISMA (100% NEUTRAL)
     const properties = await prisma.property.findMany({
       where: { 
         status: { in: ["PUBLICADO", "MANAGED", "ACCEPTED"] },
-        ...geoFilter // <--- EL BISTURÍ SE APLICA AQUÍ
+        ...geoFilter 
       },
       orderBy: { createdAt: "desc" },
       include: {
-        images: true,
-        favoritedBy: { select: { userId: true } },
+        // 🛑 BISTURÍ APLICADO: Solo traemos la PRIMERA foto.
+        images: { take: 1 }, 
+        
+        // 🔥 EL PARCHE VITAL: Contar TODOS los likes en el servidor a coste cero.
+        _count: { select: { favoritedBy: true } },
+        
         user: { select: USER_IDENTITY_SELECT },
         assignment: {
           where: { status: "ACTIVE" },
@@ -192,11 +196,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
       const realImg = optimizeImage(p.mainImage) || allImages?.[0] || null;
       const imagesFinal = allImages.length > 0 ? allImages : (realImg ? [realImg] : []);
 
-      // 2. ESTADO DE FAVORITO (Preparado para la caché)
-      const favoritedByList = (p.favoritedBy || []).map((fav: any) => fav?.userId);
-      const isFavoritedByMe = currentUserId ? favoritedByList.includes(currentUserId) : false;
-
-      // 3. IDENTIDAD Y TIER (Lógica de Transmutación de Agencia)
+      // 2. IDENTIDAD Y TIER (Lógica de Transmutación de Agencia)
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
       let realTier = p.promotedTier || "FREE";
       
@@ -208,7 +208,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
           if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
       }
 
-      // 4. CÁLCULO B2B
+      // 3. CÁLCULO B2B
       let b2bData = null;
       if (activeCampaign) {
            b2bData = {
@@ -222,14 +222,14 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
            };
       }
 
-      // 5. COORDENADAS
+      // 4. COORDENADAS
       const lng = Number(p.longitude);
       const lat = Number(p.latitude);
       const validCoords = (lng !== 0 && lat !== 0 && Number.isFinite(lng) && Number.isFinite(lat)) 
           ? [lng, lat] 
           : null;
 
-      // 6. FORMATEO DE PRECIO VIVO
+      // 5. FORMATEO DE PRECIO VIVO
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES", {
           style: "currency",
@@ -237,12 +237,12 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
           maximumFractionDigits: 0
       }).format(rawPrice);
 
-      // 7. VERIFICACIÓN DE EXPIRACIÓN PREMIUM
+      // 6. VERIFICACIÓN DE EXPIRACIÓN PREMIUM
       const now = new Date();
       const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
       if (expiryDate && expiryDate < now) realTier = "FREE";
       
-      // 8. DATOS DE OPEN HOUSE
+      // 7. DATOS DE OPEN HOUSE
       let openHouseObj = null;
       if (p.openHouses && p.openHouses.length > 0) {
           openHouseObj = { ...p.openHouses[0], enabled: true };
@@ -271,8 +271,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
         price: priceFormatted,    
         rawPrice: rawPrice,                  
         priceValue: rawPrice,        
-        isFavorited: isFavoritedByMe,
-        favoritedByList: favoritedByList,
+        isFavorited: myFavIds.includes(p.id), // 🔥 APLICAMOS EL SELLO PERSONAL
         m2: Number(p.mBuilt || 0),
         mBuilt: Number(p.mBuilt || 0),
         communityFees: Number(p.communityFees || 0),
@@ -281,16 +280,17 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
         views: p.views || 0,
         photoViews: p.photoViews || 0,
         shareCount: p.shareCount || 0,
-        favoritedCount: p.favoritedBy?.length || 0 
+        favoritedCount: p._count?.favoritedBy || 0     
       };
     });
 
     // ⚡️ FASE 3: GUARDAR FOTOCOPIA EN LA MESA DEL RECEPCIONISTA
-    // 🛡️ ESCUDO 3: Solo guardamos la fotocopia si hemos pedido TODA la base de datos (Sin Bounds)
     if (!bounds) {
         try {
-          await redis.set(CACHE_KEY, mappedProps, { ex: 3600 });
-          console.log("⚡️ [REDIS] Nueva fotocopia global guardada en la memoria RAM.");
+          // 🛡️ CORTAFUEGOS DEFINITIVO: Guardamos la caché 100% libre de favoritos personales
+          const neutralPropsForCache = mappedProps.map(p => ({ ...p, isFavorited: false }));
+          await redis.set(CACHE_KEY, neutralPropsForCache, { ex: 3600 });
+          console.log("⚡️ [REDIS] Nueva fotocopia global GUARDADA NEUTRALMENTE en la memoria RAM.");
         } catch (cacheError) {
           console.error("⚠️ [REDIS] Error guardando en RAM, pero el sistema sigue en pie.", cacheError);
         }
@@ -304,7 +304,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
 }
 // ✅ Obtener UNA propiedad completa (CORREGIDO: Con Estadísticas y Datos Financieros)
 export async function getPropertyByIdAction(propertyId: string) {
-  cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché de Next.js. Garantiza privacidad total.
+  await cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché de Next.js...
 
   try {
     const id = String(propertyId || "").trim();
@@ -3872,7 +3872,7 @@ export async function getUnreadCountAction() {
 
 // ✅ RESOLVER EXPEDIENTE VIP POR REFCODE (SF-XXXX)
 export async function getPropertyByRefCodeAction(refCode: string) {
-  cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché cruzada de Next.js aquí
+  await cookies(); // 🛡️ BÚNKER ACTIVADO: Rompe la caché cruzada...
 
   try {
     // 1. Normalización estricta

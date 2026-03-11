@@ -78,7 +78,10 @@ ambassadorProfile AmbassadorProfile?
   ambassadorStats AmbassadorStats?
   affiliateClicks AffiliateClick[]
   commissions     Commission[]
-  
+  demands         B2bDemand[]
+sentProposals     B2bProposal[] @relation("SentProposals")     
+  receivedProposals B2bProposal[] @relation("ReceivedProposals") 
+
   // 👑 VANGUARD MARKET NETWORK
   zoneCampaigns   ZoneCampaign[]
 }
@@ -177,10 +180,16 @@ model Property {
 isPremium  Boolean  @default(false)
   isFire     Boolean  @default(false)
 
-  // 👑 VANGUARD MARKET NETWORK
+ // 👑 VANGUARD MARKET NETWORK
   zoneCampaigns   ZoneCampaign[]
-}
 
+  // ⭐ COMANDO TOP 10 (NUEVO)
+  isTop10          Boolean?  @default(false)
+  top10City        String?
+  top10ExpiresAt   DateTime?
+  top10CustomLogo  String?   // 🔥 NUEVO: Para machacar el logo automático
+  top10CustomImage String?   // 🔥 NUEVO: Para machacar la foto de la casa
+}
 model Image {
   id         String   @id @default(cuid())
   url        String
@@ -691,4 +700,67 @@ model ZoneCampaign {
 
   clicks             Int       @default(0) // Cuenta cuántas veces abren la tarjeta
   leads              Int       @default(0) // Cuenta cuántas veces pulsan contactar
+}
+
+// ==========================================
+// 💶 CAJA FUERTE: ALBARANES TÁCTICOS
+// ==========================================
+model TacticalInvoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique // Ej: INV-448963
+  agencyId      String?  // ID de la agencia (por si queremos enlazarla)
+  agencyName    String   // Nombre de la agencia en el momento del disparo
+  targetRef     String?  // Referencia de la propiedad (Ej: SF-NP7UE2)
+  serviceType   String   // Ej: MARKET NETWORK VIP
+  amount        Float    // Importe (Ej: 600)
+  status        String   @default("PENDIENTE") // Estados: PENDIENTE, PAGADO, CADUCADO
+  mollieLink    String?  // Guardamos el link por si hay que reenviarlo
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+
+// 📌 TABLA DE DEMANDAS B2B (MERCADO INVERSO)
+model B2bDemand {
+  id          String   @id @default(cuid())
+  userId      String   // El ID del agente/embajador que la publica
+  title       String
+  location    String
+  budget      String   // Ej: "Hasta 15.000.000 €"
+  totalComm   String?
+  split       String   // Ej: "50% / 50%"
+  urgent      Boolean  @default(false)
+  mandate     Boolean  @default(false)
+  description String   @db.Text
+  isActive    Boolean  @default(true) // Por si queremos pausarlas
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relación con el usuario que la crea (Asegúrese de que su modelo de usuarios se llame 'User')
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proposals   B2bProposal[]
+}
+
+// 📌 BUZÓN DE PROPUESTAS B2B (EL CHIVATO)
+model B2bProposal {
+  id          String    @id @default(cuid())
+  demandId    String    // A qué demanda responde
+  senderId    String    // Quién envía la propuesta (El cazador)
+  receiverId  String    // Quién la recibe (El dueño de la demanda)
+
+  mode        String    // "REF" o "OFF_MARKET"
+  reference   String?   // Si usó el modo Plataforma
+  phone       String?   // Si usó el modo Off-Market
+  notes       String?   @db.Text // El mensaje secreto
+
+  status      String    @default("UNREAD") // UNREAD, READ, CONTACTED
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relaciones
+  demand      B2bDemand @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  sender      User      @relation("SentProposals", fields: [senderId], references: [id])
+  receiver    User      @relation("ReceivedProposals", fields: [receiverId], references: [id])
 }

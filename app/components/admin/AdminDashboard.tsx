@@ -2,11 +2,13 @@
 import { useState, useMemo, useEffect } from "react";
 import AdminZoneManager from './AdminZoneManager';
 import AdminGeoLocator from './AdminGeoLocator';
+import AdminTop10Panel from './AdminTop10Panel'; // Ajuste ruta si es necesario
+import AdminBillingManager from './AdminBillingManager';
 import { togglePropertyPremiumAction, togglePropertyFireAction, togglePropertyStatusAction, toggleUserStatusAction, deletePropertyAction, deleteUserAction, createProspectAction, sendProspectEmailAction, importarBaseDeDatosAction, toggleUserSubscriptionAction, resetFreeTrialAction, resolveVipRequestAction } from "@/app/components/admin/actions";
 import { 
     ShieldCheck, Ban, User, Search, Home, Clock, CreditCard, Building2, Crown, Crosshair,
     MapPin, BarChart3, Users, Gem, LayoutDashboard, LogOut, Trash2, Eye, EyeOff, Lock,
-    Flame, Timer, ArrowRightLeft, Briefcase, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
+    Flame, Timer, ArrowRightLeft, Briefcase, FileText,  Star, Phone, Mail, AlertTriangle, CheckCircle2, Power, PowerOff, Target, Send, MessageCircle, X
 } from "lucide-react";
 
 const MASTER_PASSWORD = process.env.NEXT_PUBLIC_GOD_MODE_PASS;
@@ -43,8 +45,7 @@ export default function AdminDashboard({ users, properties = [], prospects = [],
   const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM' | 'ZONAS' | 'GEO'>('USERS');  
-const [now, setNow] = useState<Date | null>(null);
+const [activeTab, setActiveTab] = useState<'USERS' | 'PROPERTIES' | 'CRM' | 'ZONAS' | 'GEO' | 'TOP10' | 'BILLING'>('USERS');const [now, setNow] = useState<Date | null>(null);
 // 🔥 SUB-NIVELES DEL CRM
 const [crmTab, setCrmTab] = useState<'INBOUND' | 'OUTBOUND'>('INBOUND');
 
@@ -231,14 +232,19 @@ if (!isAuthenticated) {
                {/* 👑 NUEVO BOTÓN: ZONAS VIP */}
                 <button onClick={() => { setActiveTab('ZONAS' as any); sessionStorage.setItem('god_mode_tab', 'ZONAS'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'ZONAS' as any ? 'bg-amber-100 text-amber-700 shadow-sm border border-amber-200' : 'text-gray-500 hover:text-amber-600'}`}><Crown size={14}/> Market Network</button>
 
-                {/* 🎯 NUEVO BOTÓN: GEO SNIPER VIP */}
+               {/* 🎯 NUEVO BOTÓN: GEO SNIPER VIP */}
                 <button onClick={() => { setActiveTab('GEO' as any); sessionStorage.setItem('god_mode_tab', 'GEO'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'GEO' as any ? 'bg-emerald-100 text-emerald-700 shadow-sm border border-emerald-200' : 'text-gray-500 hover:text-emerald-600'}`}><Crosshair size={14}/> Geo Sniper</button>
+
+            {/* ⭐ NUEVO BOTÓN: COMANDO TOP 10 */}
+                <button onClick={() => { setActiveTab('TOP10' as any); sessionStorage.setItem('god_mode_tab', 'TOP10'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'TOP10' as any ? 'bg-amber-100 text-amber-700 shadow-sm border border-amber-200' : 'text-gray-500 hover:text-amber-500'}`}><Star size={14} className={activeTab === 'TOP10' as any ? 'fill-amber-600' : ''}/> Top 10</button>
+
+                {/* 💶 NUEVO BOTÓN: ALBARANES TÁCTICOS */}
+                <button onClick={() => { setActiveTab('BILLING' as any); sessionStorage.setItem('god_mode_tab', 'BILLING'); }} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'BILLING' as any ? 'bg-black text-white shadow-sm border border-gray-800' : 'text-gray-500 hover:text-black'}`}><FileText size={14}/> Albaranes</button>
             </div>
 
-            <button onClick={() => { setIsAuthenticated(false); sessionStorage.removeItem("god_mode_auth"); }} className="text-gray-400 hover:text-red-600"><LogOut size={18} /></button>        
+            <button onClick={() => { setIsAuthenticated(false); sessionStorage.removeItem("god_mode_auth"); }} className="text-gray-400 hover:text-red-600" title="Cerrar Sesión"><LogOut size={18} /></button>        
         </div>
       </nav>
-
       <div className="max-w-7xl mx-auto p-6 md:p-8 pb-20">
         
         {/* KPI CARDS (Solo en Usuarios y Propiedades) */}
@@ -1023,6 +1029,23 @@ const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
         {activeTab === 'GEO' as any && (
             <div className="animate-fade-in-up">
                 <AdminGeoLocator />
+            </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* ⭐ PESTAÑA 6: COMANDO TOP 10 ⭐ */}
+        {/* ========================================================= */}
+        {activeTab === 'TOP10' as any && (
+            <div className="animate-fade-in-up">
+                <AdminTop10Panel />
+            </div>
+        )}
+{/* ========================================================= */}
+        {/* 💶 PESTAÑA 7: ALBARANES TÁCTICOS (BILLING) 💶 */}
+        {/* ========================================================= */}
+       {activeTab === 'BILLING' as any && (
+            <div className="animate-fade-in-up">
+                <AdminBillingManager /> {/* ✅ CORREGIDO */}
             </div>
         )}
 

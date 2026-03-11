@@ -77,108 +77,108 @@ export default function VipAgencyMarker({ agency, onClick }: { agency: any, onCl
                 </div>
             </div>
 
-            {/* 2. LA TARJETA BLACK CARD */}
-            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 translate-y-6 group-hover:translate-y-0 transition-all duration-500 pointer-events-none group-hover:pointer-events-auto flex flex-col items-center w-[320px] cursor-default">
+   {/* 2. LA TARJETA BLACK CARD (FOTO TIPO DNI + C.P. DIRECTO) */}
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500 pointer-events-none group-hover:pointer-events-auto flex flex-col items-center cursor-default z-50">
                 
                 {/* 🔥 EL PUENTE INVISIBLE DE CRISTAL 🔥 */}
-                {/* Este bloque transparente une el pin con la tarjeta. Al pasar el ratón por aquí, el menú no se cierra. */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-24 h-10 bg-transparent cursor-pointer"></div>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-28 h-8 bg-transparent cursor-pointer"></div>
 
-                <div className="bg-slate-950/95 backdrop-blur-xl border border-amber-500/50 p-5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] w-full flex flex-col relative overflow-hidden">
+                {/* CONTENEDOR PRINCIPAL RECALIBRADO (w-[360px]) */}
+                <div className="bg-slate-950/95 backdrop-blur-xl border border-amber-500/40 p-1.5 rounded-[18px] shadow-[0_15px_40px_rgba(0,0,0,0.8)] w-[360px] flex flex-col relative overflow-hidden">
                     
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-700 via-yellow-400 to-amber-700"></div>
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    {/* Efectos de luz premium */}
+                    <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-amber-700 via-yellow-400 to-amber-700"></div>
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3 relative z-10">
-                        <div className="flex items-center gap-2">
-                            <div className="p-1.5 bg-amber-500/20 rounded-md">
-                                <Crown size={14} className="text-amber-400" />
-                            </div>
-                            <span className="text-[10px] font-black text-amber-400 tracking-[0.2em] uppercase">Vanguard VIP</span>
-                        </div>
-                        {targetCP && (
-                            <span className="bg-gradient-to-r from-amber-600 to-amber-400 text-slate-950 text-[10px] px-2.5 py-1 rounded-sm font-black tracking-widest shadow-lg">
-                                CP {targetCP}
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="relative z-10 mb-4 text-center">
-                        <h3 className="text-white font-black text-xl leading-tight truncate tracking-tight">
-                            {agency.companyName || agency.name || "Agencia VIP"}
-                        </h3>
-                        <p className="text-amber-400/80 text-[11px] mt-1.5 tracking-widest uppercase truncate font-semibold">
-                            Agencia Exclusiva en {cityName || 'Cargando...'}
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 relative z-10">
-                        <div className="flex items-start gap-3 text-white/80 text-xs bg-white/5 p-2.5 rounded-lg border border-white/5">
-                            <MapPin size={16} className="shrink-0 mt-0.5 text-amber-500" />
-                            <div className="flex flex-col">
-                                {agency.address && (
-                                    <span className="leading-relaxed font-medium text-white/80">
-                                        {agency.address}
-                                    </span>
+                    {/* CUERPO DE LA TARJETA: 2 COLUMNAS */}
+                    <div className="flex gap-1.5 relative z-10">
+                        
+                        {/* COLUMNA IZQUIERDA: AVATAR DNI GIGANTE (45%) */}
+                        <div className="w-[45%] bg-slate-900/50 rounded-xl p-3 flex flex-col items-center justify-center border border-white/5 text-center relative overflow-hidden">
+                            {/* Corona de fondo decorativa */}
+                            <Crown size={100} className="absolute text-amber-500/5 rotate-12 -right-3 -bottom-3 pointer-events-none" />
+                            
+                            {/* 🔥 LOGO TIPO DNI (Sin caja dentro de caja, full cover) 🔥 */}
+                            <div className="w-20 h-20 mb-3 rounded-xl border-2 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.3)] bg-slate-950 flex items-center justify-center shrink-0 overflow-hidden">
+                                {agency.companyLogo || agency.avatar ? (
+                                    <img src={agency.companyLogo || agency.avatar} alt="Logo" className="w-full h-full object-cover" />
+                                ) : (
+                                    <Crown size={36} className="text-amber-500" />
                                 )}
-                                <span className="font-bold text-white uppercase tracking-wider mt-0.5 text-[10px]">
-                                    {cityName || `C.P. ${targetCP}`}
+                            </div>
+
+                            <div className="mb-2">
+                                <span className="px-2 py-1 rounded-sm text-[8px] font-black tracking-[0.25em] uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30 leading-none shadow-sm">
+                                    Vanguard VIP
                                 </span>
                             </div>
+
+                            <h3 className="text-white font-black text-[15px] leading-tight tracking-tight w-full truncate px-1">
+                                {agency.companyName || agency.name || "Agencia VIP"}
+                            </h3>
                         </div>
-                        
-                        {(displayPhone || agency.email) && (
-                            <div className="grid grid-cols-1 gap-2">
-                                {displayPhone && (
-                                    <div className="flex items-center gap-3 text-white/80 text-xs bg-white/5 p-2.5 rounded-lg border border-white/5">
-                                        <Phone size={16} className="shrink-0 text-amber-500" />
-                                        <span className="font-bold tracking-wide">{displayPhone}</span>
-                                    </div>
-                                )}
-                                {agency.email && (
-                                    <div className="flex items-center gap-3 text-white/80 text-xs bg-white/5 p-2.5 rounded-lg border border-white/5">
-                                        <Mail size={16} className="shrink-0 text-amber-500" />
-                                        <span className="truncate font-medium">{agency.email}</span>
-                                    </div>
-                                )}
+
+                        {/* COLUMNA DERECHA: DATOS CLAROS Y DIRECTOS (55%) */}
+                        <div className="w-[55%] flex flex-col justify-center gap-1.5 p-1">
+                            
+                            {/* Dirección + Ciudad */}
+                            {agency.address && (
+                                <div className="flex items-center gap-2 text-white/90 text-[11px] bg-white/5 px-2.5 py-2.5 rounded-lg border border-white/5">
+                                    <MapPin size={14} className="shrink-0 text-amber-500" />
+                                    <span className="truncate font-medium">{agency.address}{cityName ? `, ${cityName}` : ''}</span>
+                                </div>
+                            )}
+                            
+                            {/* Teléfono Solitario y Gigante */}
+                            {displayPhone && (
+                                <div className="flex items-center justify-center gap-2.5 text-white text-[12px] bg-white/5 px-3 py-2.5 rounded-lg border border-white/5">
+                                    <Phone size={14} className="shrink-0 text-amber-500" />
+                                    <span className="font-black tracking-widest">{displayPhone}</span>
+                                </div>
+                            )}
+
+                            {/* Website */}
+                            {agency.website && (
+                                <a 
+                                    href={agency.website.startsWith('http') ? agency.website : `https://${agency.website}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()} 
+                                    className="flex items-center justify-center gap-1.5 text-amber-400 text-[10px] bg-amber-500/10 hover:bg-amber-500/20 px-2 py-2 rounded-lg border border-amber-500/20 transition-colors"
+                                >
+                                    <Globe size={12} className="shrink-0" />
+                                    <span className="truncate font-bold tracking-wider uppercase">{agency.website.replace(/^https?:\/\//, '')}</span>
+                                </a>
+                            )}
+
+                            {/* Licencia Inferior */}
+                            <div className="mt-0.5 bg-indigo-950/40 border border-indigo-500/30 py-1.5 px-2.5 rounded-lg flex items-center justify-between gap-1 shadow-inner">
+                                <div className="flex items-center gap-1.5">
+                                    <ShieldCheck size={12} className="text-indigo-400 shrink-0" />
+                                    <span className="text-[7px] font-bold text-indigo-300/70 uppercase tracking-widest leading-none mt-[1px]">Licencia Stratosfere</span>
+                                </div>
+                                <span className="text-[8.5px] font-mono font-black text-indigo-400 tracking-[0.1em] leading-none mt-[1px]">{licenseKey}</span>
                             </div>
-                        )}
 
-                        {agency.website && (
-                            <a 
-                                href={agency.website.startsWith('http') ? agency.website : `https://${agency.website}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()} 
-                                className="flex items-center justify-center gap-2 text-amber-400 text-xs bg-amber-500/10 hover:bg-amber-500/20 p-2.5 rounded-lg border border-amber-500/20 mt-1 transition-colors relative z-20"
-                            >
-                                <Globe size={14} className="shrink-0" />
-                                <span className="truncate font-bold tracking-wide">{agency.website.replace(/^https?:\/\//, '')}</span>
-                            </a>
-                        )}
-                    </div>
-
-                    <div className="mt-3 bg-indigo-900/30 border border-indigo-500/30 p-2 rounded-lg flex items-center justify-center gap-2 relative z-10 shadow-inner">
-                        <ShieldCheck size={14} className="text-indigo-400 shrink-0" />
-                        <div className="flex flex-col items-center">
-                            <span className="text-[8px] font-bold text-indigo-300/70 uppercase tracking-widest leading-none mb-0.5">Licencia Certificada Stratosfere</span>
-                            <span className="text-[11px] font-mono font-black text-indigo-400 tracking-[0.1em] leading-none">{licenseKey}</span>
                         </div>
                     </div>
 
-                    {/* 🔥 BOTÓN INFERIOR DE REDIRECCIÓN 🔥 */}
+                    {/* 🔥 FALDÓN DE AUTORIDAD: DIRECTO AL GRANO 🔥 */}
                     <div 
                         onClick={fireMarketPanel}
-                        className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-white/40 hover:text-amber-400 transition-colors cursor-pointer group/btn relative z-20"
+                        className="mt-1.5 bg-gradient-to-r from-amber-500/5 via-amber-500/10 to-amber-500/5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/15 rounded-xl py-2 px-3 flex items-center justify-center text-amber-400 transition-all cursor-pointer group/btn relative z-20 shadow-inner"
                     >
-                        <span className="text-[10px] font-black tracking-widest uppercase">Click para ver propiedades</span>
-                        <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
+                        <span className="text-[11px] font-black tracking-[0.2em] uppercase truncate">
+                           Agencia de Referencia en  C.P: {targetCP || 'NO ASIGNADO'}
+                        </span>
                     </div>
+
                 </div>
 
-                <div className="relative z-10 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[12px] border-t-amber-500/50 mt-[1px]"></div>
+                {/* Piquito inferior */}
+                <div className="relative z-10 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-amber-500/40 mt-[1px]"></div>
             </div>
+            
         </div>
     );
 }

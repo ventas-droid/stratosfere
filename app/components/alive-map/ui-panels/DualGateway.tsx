@@ -65,7 +65,7 @@ export default function DualGateway({ onSelectMode, userRole }: any) {
             icon={Award} // Icono de Premio/Medalla
             color="amber" // Color Dorado/Ámbar
             badge="Programa Abierto" // Badge de éxito
-            title="SF Ambassador."
+            title="B2B Realty."
             desc="Tu red es tu activo. Monetiza tus contactos y gestiona comisiones."
             action="Acceso Dashboard" // Texto de acción claro
             

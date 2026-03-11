@@ -1,8 +1,6 @@
 // @ts-nocheck
 "use client";
 
-// @ts-nocheck
-"use client";
 
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -47,7 +45,10 @@ export const useMapLogic = () => {
   const map = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const markersRef = useRef({});
-const agencyMarkersRef = useRef<any>({});
+  const agencyMarkersRef = useRef<any>({});
+  
+  // 🔥 BÚNKER TÁCTICO: Almacena las tropas originales para no borrarlas al filtrar
+  const masterRadarDataRef = useRef<any[]>([]);
   // --------------------------------------------------------------------
   // A. INICIALIZACIÓN DEL MAPA (MOTOR ELITE V2 - 3D REAL)
   // --------------------------------------------------------------------
@@ -103,15 +104,7 @@ const agencyMarkersRef = useRef<any>({});
       console.log("🟢 SISTEMA CARGADO");
       setIsLoaded(true);
 
-      // 🔥 BALIZA RADAR (Su código original)
-      setInterval(() => {
-          if (map.current) {
-              const center = map.current.getCenter();
-              window.dispatchEvent(new CustomEvent('map-center-updated', { 
-                  detail: { lng: center.lng, lat: center.lat } 
-              }));
-          }
-      }, 1000);
+     
       // =================================================================
       // 🛑 ESTRATEGIA CERO PARPADEOS (ESTRUCTURA VISUAL)
       // =================================================================
@@ -298,13 +291,13 @@ const agencyMarkersRef = useRef<any>({});
       const priceRange = { min: 0, max: priceMax || 999999999 }; // Adaptamos el precio
       console.log(`🔍 FILTRANDO AVANZADO:`, { priceRange, type, specs, premiumOnly });
    
-      // 1. RECONSTRUIR EJÉRCITO (MAPA + LOCAL) PARA FILTRAR
-      // ✅ FIX: ya NO usamos STRATOS_PROPERTIES (está vacío). Usamos la fuente real del mapa.
-      const source: any = map.current.getSource('properties');
+     // 🛡️ 1. RECONSTRUIR EJÉRCITO (DESDE EL BÚNKER DE RAM)
+      let masterFeatures: any[] = masterRadarDataRef.current || [];
 
-      // Features actuales reales (server + local ya inyectado por RADAR)
-      const sourceFeaturesRaw = (source as any)?._data?.features;
-      let masterFeatures: any[] = Array.isArray(sourceFeaturesRaw) ? sourceFeaturesRaw : [];
+      if (masterFeatures.length === 0) {
+          console.warn("⏳ Filtro recibido pero el Búnker está vacío. El radar aún no ha escaneado la zona.");
+          return;
+      }
 
       // Normalizamos (sin perder elevator/specs/selectedServices ni la memoria de Agencia)
       masterFeatures = masterFeatures.map((f: any) => {
@@ -374,11 +367,11 @@ const agencyMarkersRef = useRef<any>({});
         return;
       }
 
-      // 2. APLICAR LÓGICA DE FILTRADO
-      const filteredFeatures = allData.filter(f => {
+      // 2. APLICAR LÓGICA DE FILTRADO BASE (Precio, Superficie, Extras)
+      const baseFilteredFeatures = allData.filter(f => {
         const p = f.properties;
 
-        // 🔥 FILTRO VIP (MODO FUEGO BLINDADO): Tolerancia a mayúsculas
+        // 🔥 FILTRO VIP (MODO FUEGO BLINDADO)
         if (premiumOnly === true || String(premiumOnly) === "true") {
            const tier = String(p.promotedTier || "").toUpperCase();
            const isPremium = tier === 'PREMIUM' || p.isPromoted === true || p.premium === true;
@@ -388,7 +381,7 @@ const agencyMarkersRef = useRef<any>({});
         // A. Precio
         if (p.priceValue < priceRange.min || p.priceValue > priceRange.max) return false;
 
-        // B. Superficie (🚨 LÍMITE INFINITO PARA NO BORRAR LA VILLA DE 15.000m2)
+        // B. Superficie 
         const m2 = p.m2 || Math.floor(p.priceValue / 4000);
         if (m2 < (surfaceRange?.min || 0) || m2 > (surfaceRange?.max || 99999999)) return false;
 
@@ -397,59 +390,69 @@ const agencyMarkersRef = useRef<any>({});
           if (specs.beds > 0 && (p.rooms || 0) < specs.beds) return false;
           if (specs.baths > 0 && (p.baths || 0) < specs.baths) return false;
 
-          // D. Extras (Piscina, Garaje...) - 🔥 FILTRO DE PRECISIÓN LÁSER 🔥
+          // D. Extras (Piscina, Garaje...)
           if (specs.features && specs.features.length > 0) {
-            // 1. Array de servicios seguro
             const safeServices = Array.isArray(p.selectedServices) ? p.selectedServices : [];
-            // 2. Texto de búsqueda seguro (SOLO miramos en título y descripción)
             const safeText = ` ${(p.title || '')} ${(p.description || '')} `.toUpperCase();
 
             const hasAllFeatures = specs.features.every((feat) => {
-              // Comprobamos la variable booleana, el array de servicios y el texto seguro
               if (feat === 'pool') return p.pool === true || safeServices.includes('pool') || safeText.includes('PISCINA');
               if (feat === 'garage') return p.garage === true || safeServices.includes('garage') || safeText.includes('GARAJE') || safeText.includes('PARKING');
               if (feat === 'garden') return p.garden === true || safeServices.includes('garden') || safeText.includes('JARDÍN') || safeText.includes('GARDEN');
               if (feat === 'security') return p.security === true || safeServices.includes('security') || safeText.includes('SEGURIDAD') || safeText.includes('VIGILANCIA');
-              
-              // 🔥 Nuevos extras del ArchitectHud (Listos para el futuro)
               if (feat === 'terrace') return p.terrace === true || safeServices.includes('terrace') || safeText.includes('TERRAZA');
               if (feat === 'balcony') return p.balcony === true || safeServices.includes('balcony') || safeText.includes('BALCÓN');
               if (feat === 'storage') return p.storage === true || safeServices.includes('storage') || safeText.includes('TRASTERO');
               if (feat === 'ac') return p.ac === true || safeServices.includes('ac') || safeText.includes('AIRE');
               if (feat === 'heating') return p.heating === true || safeServices.includes('heating') || safeText.includes('CALEFACCIÓN');
               if (feat === 'furnished') return p.furnished === true || safeServices.includes('furnished') || safeText.includes('AMUEBLADO');
-              
               return true; 
             });
             if (!hasAllFeatures) return false;
           }
         }
-       // -------------------------------------------------------------
-        // E. FILTRO DE TIPO (QUIRÚRGICO) 🔪 
-        // -------------------------------------------------------------
-        const pType = String(p.type || "").toLowerCase().trim();
-        const targetType = String(type || "all").toLowerCase().trim();
-
-        // Si en la consola no está seleccionado "all" (Todos), exigimos coincidencia
-        if (targetType !== "all" && targetType !== "") {
-            // El usuario ha pulsado "Villa" -> Buscamos que diga "villa"
-            if (!pType.includes(targetType)) return false; 
-        }
-
-        return true;
+        return true; 
       });
 
-      // 3. ACTUALIZAR MAPA
+      // 3. APLICAR FILTRO DE TIPO (El cirujano)
+      let finalFeatures = baseFilteredFeatures.filter(f => {
+          const pType = String(f.properties.type || "").toLowerCase().trim();
+          const targetType = String(type || "all").toLowerCase().trim();
+          
+          if (targetType !== "all" && targetType !== "") {
+              const typeDict: Record<string, string[]> = {
+                  'flat': ['piso', 'apartamento', 'vivienda', 'planta baja', 'bajo'],
+                  'penthouse': ['atico', 'penthouse', 'ático'],
+                  'duplex': ['duplex', 'dúplex'],
+                  'loft': ['loft', 'estudio'],
+                  'villa': ['villa', 'chalet', 'casa', 'adosado', 'pareado', 'finca', 'mansion', 'mansión'],
+                  'office': ['oficina', 'despacho', 'local'],
+                  'land': ['suelo', 'terreno', 'parcela'],
+                  'industrial': ['nave', 'industrial']
+              };
+              const validWords = typeDict[targetType] || [targetType];
+              return validWords.some(w => pType.includes(w));
+          }
+          return true;
+      });
+
+      // 🐎🧠 LA MAGIA EN EL MAPA: MODO CABALLO VS BICICLETA
+      if (finalFeatures.length === 0 && String(type || "all").toLowerCase() !== "all") {
+          console.log("⚠️ Radar: Cero coincidencias exactas de tipología. Desplegando alternativas de la zona.");
+          finalFeatures = baseFilteredFeatures; // Restauramos las tropas alternativas
+      }
+
+      // 4. ACTUALIZAR MAPA (Inyectamos finalFeatures)
       Object.values(markersRef.current).forEach((marker: any) => marker.remove());
       markersRef.current = {};
 
-     const src: any = map.current.getSource('properties');
+      const src: any = map.current.getSource('properties');
       if (src) {
-        src.setData({ type: 'FeatureCollection', features: filteredFeatures });
+        src.setData({ type: 'FeatureCollection', features: finalFeatures });
       }
 
       map.current.once('idle', () => {
-        console.log(`✅ Filtro aplicado: ${filteredFeatures.length} activos encontrados.`);
+        console.log(`✅ Filtro aplicado: ${finalFeatures.length} activos encontrados.`);
         updateMarkers();
       });
     };
@@ -457,7 +460,6 @@ const agencyMarkersRef = useRef<any>({});
     window.addEventListener('apply-filter-signal', handleFilterSignal);
     return () => window.removeEventListener('apply-filter-signal', handleFilterSignal);
   }, []);
-
   // --------------------------------------------------------------------
   // C. SISTEMA DE TELETRANSPORTE (GIROSCOPIO BLINDADO)
   // --------------------------------------------------------------------
@@ -530,6 +532,7 @@ const agencyMarkersRef = useRef<any>({});
       
       const root = createRoot(el);
       const p = feature.properties;
+     
       // 1. RECUPERACIÓN DE IMAGEN
       let safeImages: any[] = [];
       if (Array.isArray(p.images)) {
@@ -697,9 +700,23 @@ const agencyMarkersRef = useRef<any>({});
   const searchCity = async (rawQuery: any) => {
     if (!rawQuery || !map.current) return;
 
-    let query = String(rawQuery).toLowerCase().trim();
-    query = query.replace(/quiero|buscar|piso en|casa en|chalet en|villa en|comprar en/gi, "").trim();
+   let query = String(rawQuery || "").toLowerCase().trim();
 
+query = query
+  // números y presupuestos
+  .replace(/[0-9.,]+\s*(€|euros|euro|k|m|millon|millones)?/gi, " ")
+  // habitaciones, baños, metros
+  .replace(/\b\d+\s*(hab|habitacion|habitaciones|dorm|dormitorio|dormitorios|ban|baño|baños|aseo|aseos|m2|metros|mts)\b/gi, " ")
+  // intención de búsqueda
+  .replace(/\b(quiero|buscar|busco|necesito|comprar|alquilar|ver|encontrar|zona|cerca de)\b/gi, " ")
+  // tipologías inmobiliarias
+  .replace(/\b(piso|casa|chalet|villa|atico|ático|penthouse|duplex|dúplex|loft|oficina|local|suelo|terreno|parcela|nave|industrial)\b/gi, " ")
+  // conectores basura
+  .replace(/\b(con|sin|para|de|del|la|el|los|las|un|una|y|o)\b/gi, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+if (query.length < 2) return;
     if (query.length < 2) return;
 
     // 🛑 EL DICCIONARIO SALVAVIDAS (ARSENAL AMPLIADO) 🛑
@@ -784,10 +801,16 @@ const agencyMarkersRef = useRef<any>({});
             return scoreB - scoreA;
         });
 
-        const bestMatch = sortedFeatures[0];
+       const bestMatch = sortedFeatures[0];
         const type = bestMatch.place_type[0];
 
         console.log(`✅ ATERRIZANDO EN: ${bestMatch.place_name} (Tipo: ${type})`);
+
+        // 🔥🔥🔥 EL CABLE VITAL QUE FALTABA 🔥🔥🔥
+        // Esto le dice a la barra lateral: "Toma las coordenadas planas de la ciudad para medir la distancia"
+        window.dispatchEvent(new CustomEvent('set-epicenter', { 
+            detail: { lng: bestMatch.center[0], lat: bestMatch.center[1] } 
+        }));
 
       // 🚁 MANIOBRAS DE VUELO
         if (bestMatch.bbox && ['country', 'region', 'place', 'district', 'locality'].includes(type)) {
@@ -1080,13 +1103,20 @@ const agencyMarkersRef = useRef<any>({});
         // 1. LEER EL PERÍMETRO DE LA PANTALLA (El Bounding Box)
         const b = map.current.getBounds();
         
-        // Ampliamos un 10% el margen de búsqueda para que al mover no haya huecos blancos en los bordes
-        const bounds = {
-            minLng: b.getWest() - 0.02,
-            maxLng: b.getEast() + 0.02,
-            minLat: b.getSouth() - 0.02,
-            maxLat: b.getNorth() + 0.02
-        };
+       // Abrimos el radar según zoom para no dejar fuera municipios pegados
+const zoom = map.current.getZoom();
+const pad =
+  zoom >= 15 ? 0.035 :
+  zoom >= 13 ? 0.06 :
+  zoom >= 11 ? 0.1 :
+  0.16;
+
+const bounds = {
+  minLng: b.getWest() - pad,
+  maxLng: b.getEast() + pad,
+  minLat: b.getSouth() - pad,
+  maxLat: b.getNorth() + pad
+};
 
         console.log("📡 RADAR: Escaneando sector actual...", bounds);
         
@@ -1183,6 +1213,10 @@ const agencyMarkersRef = useRef<any>({});
             };
         }).filter(Boolean); 
        
+// 🔥 PEGAR AQUÍ EL PASO C: GUARDAMOS EN EL BÚNKER LA COPIA MAESTRA INTACTA
+       masterRadarDataRef.current = features;
+
+
        // --- FASE 4: INYECCIÓN SEGURA (Aceleración Extrema) ---
         const injectSafely = (attempts = 0) => {
             if (!map.current) return;
@@ -1289,6 +1323,21 @@ const agencyMarkersRef = useRef<any>({});
     return () => window.removeEventListener('reload-vip-agencies', loadVipAgencies);
 
   }, [isLoaded]);
+
+// --------------------------------------------------------------------
+  // 🎯 ANTENA DEL BUSCADOR LATERAL (Conexión Directa)
+  // --------------------------------------------------------------------
+  useEffect(() => {
+    const handleSearchSignal = (e: any) => {
+      if (e.detail) {
+        console.log("🛸 Orden de vuelo recibida desde el Sidebar:", e.detail);
+        searchCity(e.detail);
+      }
+    };
+    window.addEventListener('stratos-search-city', handleSearchSignal);
+    return () => window.removeEventListener('stratos-search-city', handleSearchSignal);
+  }, []);
+
 
   // 🔥🔥🔥 WEBSOCKETS: RADAR DE MAPA EN VIVO 🔥🔥🔥
   useEffect(() => {
