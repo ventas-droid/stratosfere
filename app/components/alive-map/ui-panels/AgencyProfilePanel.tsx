@@ -25,7 +25,7 @@ const LICENSE_LEVELS = {
 
 
 export default function AgencyProfilePanel({ isOpen, onClose, soundEnabled, playSynthSound }: any) {
-  
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState({ avatar: false, cover: false });
@@ -50,11 +50,11 @@ const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VA
     );
   };
 
-  const [profile, setProfile] = useState({
-      name: "Nueva Agencia",    // 🔥 Nombre Público Comercial
-      legalName: "",            // 🔥 NUEVO: Razón Social para Facturar
-      tagline: "Slogan de Agencia",
-      zone: "Zona Operativa",
+ const [profile, setProfile] = useState({
+      name: "",            // 🔥 Ya no pone "Nueva Agencia"
+      legalName: "",            
+      tagline: "",         // 🔥 Ya no pone "Slogan..."
+      zone: "",            // 🔥 Ya no pone "Zona Operativa"
       address: "", 
       postalCode: "", 
       cif: "",
@@ -67,14 +67,16 @@ const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VA
       licenseType: null,
       licenseNumber: "" 
   });
+
   // --- CARGA INTELIGENTE (PRIORIZA DATOS DE AGENCIA) ---
   useEffect(() => {
       if (isOpen) loadRealData();
   }, [isOpen]);
 
 const loadRealData = async () => {
+      setIsLoading(true); // 🔥 Empezamos a cargar
       try {
-          // 1. Cargar Perfil de Usuario
+          // 1. Cargar Perfil de Usuario (Esto es lo principal)
           const userRes = await getUserMeAction();
           
           if (userRes.success && userRes.data) {
@@ -83,7 +85,7 @@ const loadRealData = async () => {
 
               setProfile(prev => ({
                   ...prev,
-                  name: d.companyName || d.name || "Nueva Agencia",
+                  name: d.companyName || d.name || "",
                   legalName: d.legalName || "",
                   email: d.email || "",
                   avatar: d.companyLogo || "", 
@@ -100,27 +102,28 @@ const loadRealData = async () => {
                   licenseNumber: d.licenseNumber || "", 
               }));
 
-              // 🔥 2. CARGAR LA VERDAD DE LA LICENCIA (EL JUEZ) 🔥
-              const billingRes = await getBillingGateAction();
-              if (billingRes?.success && billingRes?.data) {
-                  setBillingInfo(billingRes.data);
-              }
-
-              // 🔥 3. EL CABLE REAL: ESCÁNER VANGUARD VIP (CON RASTREADOR) 🔥
+              // 🔥 2. CARGAMOS BILLING Y VIP EN PARALELO PARA IR MÁS RÁPIDO 🔥
               try {
-                  console.log("📡 [FRONTEND] Enviando señal VIP al servidor con ID:", d.id);
-                  const vipRes = await checkVanguardVipStatusAction(String(d.id));
-                  console.log("👑 [FRONTEND] Respuesta del servidor VIP:", vipRes);
+                  const [billingRes, vipRes] = await Promise.all([
+                      getBillingGateAction(),
+                      checkVanguardVipStatusAction(String(d.id))
+                  ]);
+
+                  if (billingRes?.success && billingRes?.data) {
+                      setBillingInfo(billingRes.data);
+                  }
                   
-                  if (vipRes.success) {
+                  if (vipRes?.success) {
                       setProfile(prev => ({ ...prev, isVanguardVip: vipRes.isVip }));
                   }
-              } catch(vipErr) { 
-                  console.error("❌ [FRONTEND] Cable VIP roto:", vipErr); 
+              } catch(e) {
+                  console.error("Error en las cargas secundarias:", e);
               }
           }
       } catch (e) { 
           console.error("Error cargando perfil agencia:", e); 
+      } finally {
+          setIsLoading(false); // 🔥 Terminamos de cargar, pase lo que pase
       }
   };
 
@@ -305,6 +308,27 @@ const creditPercentage = Math.min(
   100
 );
 
+
+  // 🔥 MODO DE CARGA ELEGANTE (Evita el salto visual)
+  if (isLoading) {
+      return (
+          <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
+              <div className="relative h-[340px] shrink-0 bg-slate-900 animate-pulse flex flex-col items-center justify-end px-8 pb-8 pt-12">
+                  <div className="w-24 h-24 rounded-full bg-slate-800 mb-5"></div>
+                  <div className="w-48 h-8 bg-slate-800 rounded-md mb-3"></div>
+                  <div className="w-32 h-6 bg-slate-800/50 rounded-lg"></div>
+              </div>
+              <div className="flex-1 p-6 space-y-6">
+                  <div className="h-32 bg-white rounded-[28px] animate-pulse"></div>
+                  <div className="space-y-3">
+                      <div className="h-16 bg-white rounded-2xl animate-pulse"></div>
+                      <div className="h-16 bg-white rounded-2xl animate-pulse"></div>
+                      <div className="h-16 bg-white rounded-2xl animate-pulse"></div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
 
   return (
 <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">      

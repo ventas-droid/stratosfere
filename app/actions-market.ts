@@ -53,10 +53,20 @@ export async function getMarketRadarAction(lat: number, lng: number, baseType: s
         mBuilt: { gt: 0 }, // Fundamental para no dividir entre 0
         price: { gt: 0 }
       },
-      select: { 
+   select: { 
           id: true, title: true, price: true, mBuilt: true, type: true, 
           views: true, createdAt: true, mainImage: true, images: true, 
-          latitude: true, longitude: true, address: true, isFire: true 
+          latitude: true, longitude: true, address: true, 
+          
+          promotedTier: true, 
+          promotedUntil: true, // Para saber si caducó
+          
+       // 🔥 AHORA TRAEMOS EL TELÉFONO TAMBIÉN
+          user: { select: { role: true, companyLogo: true, avatar: true, companyName: true, name: true, licenseType: true, phone: true } },
+          assignment: { 
+              where: { status: 'ACTIVE' }, 
+              select: { agency: { select: { companyLogo: true, avatar: true, companyName: true, name: true, licenseType: true, phone: true } } } 
+          }
       }
     });
 
@@ -144,21 +154,56 @@ export async function getMarketRadarAction(lat: number, lng: number, baseType: s
     if (exactMatchesCount >= 5) confidence = "ALTA";
     if (validWitnesses.length < 3) confidence = "BAJA";
 
-    // Formateo para el Frontend
-    const formattedRivals = validWitnesses.map(p => ({
-        id: p.id,
-        name: p.title || "Activo Similar",
-        type: p.type,
-        price: p.price,
-        mBuilt: p.mBuilt,
-        pricePerM2: p.pricePerM2,
-        distanceKm: p.distanceKm,
-        affinityScore: p.affinityScore,
-        tags: p.matchTags,
-        img: p.mainImage || (p.images && p.images.length > 0 ? p.images[0].url : null),
-        isFire: p.isFire
-    }));
+ // 4. Formateo para el Frontend (Datos reales y Agencia blindada)
+    const formattedRivals = validWitnesses.map(p => {
+        // 🕵️ DETECTOR DE AGENCIA INFALIBLE (Acepta mayúsculas, minúsculas, etc.)
+        const activeAssignment = p.assignment && p.assignment.length > 0 ? p.assignment[0] : null;
+        const isUserAgency = String(p.user?.role || '').toUpperCase().includes('AGEN');
+        const agencyData = activeAssignment ? activeAssignment.agency : (isUserAgency ? p.user : null);
 
+        // 🔥 LÓGICA DE IGNICIÓN REAL
+        const tier = String(p.promotedTier || '').toUpperCase().trim();
+        let isPremium = tier === 'PREMIUM';
+
+        if (isPremium && p.promotedUntil) {
+            const expiryDate = new Date(p.promotedUntil);
+            if (expiryDate < new Date()) {
+                isPremium = false;
+            }
+        }
+
+        if (agencyData && agencyData.licenseType) {
+            const license = String(agencyData.licenseType).toUpperCase().trim();
+            if (license === 'PRO' || license === 'PREMIUM') {
+                isPremium = true;
+            }
+        }
+
+        return {
+            id: p.id,
+            name: p.title || "Activo Similar",
+            type: p.type,
+            price: p.price,
+            mBuilt: p.mBuilt, // 📏 METROS CUADRADOS
+            pricePerM2: p.pricePerM2,
+            distanceKm: p.distanceKm,
+            affinityScore: p.affinityScore,
+            tags: p.matchTags,
+            img: p.mainImage || (p.images && p.images.length > 0 ? p.images[0].url : null),
+            
+            isFire: isPremium, // ✅ FUEGO REAL
+            
+            // 🏢 DATOS VIP DE LA AGENCIA
+            agency: agencyData ? {
+                name: agencyData.companyName || agencyData.name || "Agencia",
+                logo: agencyData.companyLogo || agencyData.avatar || null,
+                phone: agencyData.phone || null
+            } : null,
+            
+            days: Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24)),
+            visits: p.views || 0
+        };
+    });
     return { 
         success: true, 
         rivals: formattedRivals, 

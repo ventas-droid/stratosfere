@@ -11,13 +11,32 @@ export default function AgencyExtrasViewer({ property, onOpenHouseClick }: any) 
   const openHouse = property?.openHouse || property?.open_house_data;
   const hasOpenHouse = openHouse && (openHouse.enabled === true || openHouse.enabled === "true");
 
-  // 3. EL CEREBRO SILENCIOSO: Pregunta a la base de datos si ya tenemos entrada
+  // 3. EL CEREBRO SILENCIOSO: Pregunta a la DB y ESCUCHA cambios en tiempo real 📡
   useEffect(() => {
-      if (hasOpenHouse && openHouse?.id) {
+      if (!hasOpenHouse || !openHouse?.id) return;
+
+      const fetchStatus = () => {
           checkOpenHouseStatusAction(openHouse.id)
-              .then(res => { if (res?.isJoined) setIsRegistered(true); })
+              .then(res => { setIsRegistered(res?.isJoined || false); })
               .catch(e => console.log("Silencio...", e));
+      };
+
+      // 1. Chequeo inicial al cargar la ficha
+      fetchStatus();
+
+      // 2. RADAR ACTIVADO: Escucha si cancelamos o reservamos desde otro lado
+      if (typeof window !== 'undefined') {
+          window.addEventListener('refresh-open-house-status', fetchStatus);
+          window.addEventListener('refresh-user-tickets', fetchStatus);
       }
+
+      // Limpieza del radar
+      return () => {
+          if (typeof window !== 'undefined') {
+              window.removeEventListener('refresh-open-house-status', fetchStatus);
+              window.removeEventListener('refresh-user-tickets', fetchStatus);
+          }
+      };
   }, [hasOpenHouse, openHouse?.id]);
 
   // 4. REGLAS DE REPLIEGUE ORIGINALES

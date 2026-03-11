@@ -315,6 +315,48 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
     if (rightPanel === 'PROFILE') loadData();
   }, [rightPanel]);
   
+// 📡 RADAR DE TICKETS: Escucha en silencio si nos hemos apuntado a un evento nuevo
+  useEffect(() => {
+      const handleRefreshTickets = async () => {
+          try {
+              const ticketsRes = await getUserTicketsAction();
+              if (ticketsRes?.success && ticketsRes?.data) {
+                  setMyTickets(ticketsRes.data);
+              }
+          } catch (e) {
+              console.error("Error recargando tickets silenciosamente:", e);
+          }
+      };
+
+      if (typeof window !== 'undefined') {
+          window.addEventListener('refresh-user-tickets', handleRefreshTickets);
+      }
+      return () => {
+          if (typeof window !== 'undefined') {
+              window.removeEventListener('refresh-user-tickets', handleRefreshTickets);
+          }
+      };
+  }, []);
+
+// 📡 RADAR DE APERTURA AUTOMÁTICA: Escucha la orden de desplegar la columna
+  useEffect(() => {
+      const handleForceOpen = () => {
+          // 1. Abre el panel lateral derecho (Perfil)
+          if (toggleRightPanel) toggleRightPanel('PROFILE');
+          // 2. Navega directamente a la pestaña de Mis Entradas
+          setInternalView('TICKETS');
+      };
+
+      if (typeof window !== 'undefined') {
+          window.addEventListener('force-open-tickets', handleForceOpen);
+      }
+      return () => {
+          if (typeof window !== 'undefined') {
+              window.removeEventListener('force-open-tickets', handleForceOpen);
+          }
+      };
+  }, [toggleRightPanel]);
+
   // --- HANDLERS ---
   const startEditing = () => {
       setEditForm({ name: user.name, avatar: user.avatar, cover: user.cover, phone: user.phone, mobile: user.mobile });
@@ -344,7 +386,7 @@ const [myTickets, setMyTickets] = useState<any[]>([]);
     } finally { setIsSaving(false); }
   };
 
-  const handleDelete = async (e: any, id: any) => {
+ const handleDelete = async (e: any, id: any) => {
       e.stopPropagation();
       if(confirm('⚠️ ¿ELIMINAR PROPIEDAD?\nEsta acción es irreversible.')) {
           const backup = [...myProperties];
@@ -461,14 +503,24 @@ const handleFlyTo = async (e: any, property: any) => { // 👈 AÑADIDO 'async' 
       if(!confirm("¿Cancelar asistencia?")) return;
       const backup = [...myTickets];
       setMyTickets(prev => prev.filter(t => t.id !== ticketId));
+      
       const res = await cancelTicketAction(ticketId);
-      if (!res.success) { alert("Error al cancelar."); setMyTickets(backup); }
+      if (!res.success) { 
+          alert("Error al cancelar."); 
+          setMyTickets(backup); 
+      } else {
+          // 🔥 BENGALA MILITAR: Da la orden DIRECTA de apagar el botón sin preguntar a la base de datos
+          if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('refresh-open-house-status', { detail: { joined: false } }));
+          }
+      }
+      
       // Cerrar modal si estaba abierto
       if (selectedTicket && selectedTicket.id === ticketId) setSelectedTicket(null);
   };
 
   if (rightPanel !== 'PROFILE') return null;
-
+ 
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[450px] z-[60000] flex flex-col pointer-events-auto animate-slide-in-right bg-[#E5E5EA] shadow-2xl">
       
@@ -743,8 +795,7 @@ const handleFlyTo = async (e: any, property: any) => { // 👈 AÑADIDO 'async' 
         })()}
     </span>
 </div>
-                                    <p className={`text-lg font-black mt-1 ${isPremium ? 'text-amber-600' : 'text-slate-900'}`}>{prop.price}</p>
-                                </div>
+<p className={`text-lg font-black mt-1 ${isPremium ? 'text-amber-600' : 'text-slate-900'}`}>{prop.price} €</p>                                </div>
                             </div>
 
                          {isManaged && activeCampaign ? (
@@ -1386,18 +1437,75 @@ openDetailsSmart(fullProp);    }
                         </div>
                     )}
 
-                    {/* 3. Tarjeta de Organizador */}
-                    <div className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 border border-slate-200">
-                            {selectedTicket.openHouse.property.user?.companyName?.[0] || "A"}
-                        </div>
-                        <div>
-                            <p className="text-[9px] font-bold text-slate-400 uppercase">Organizado por</p>
-                            <p className="text-sm font-black text-slate-900 leading-tight">
-                                {selectedTicket.openHouse.property.user?.companyName || selectedTicket.openHouse.property.user?.name || "Agencia"}
-                            </p>
-                        </div>
-                    </div>
+          {/* 3. Tarjeta de Organizador (SMART + DATOS VISIBLES) */}
+                    {(() => {
+                        const evtProp = selectedTicket.openHouse.property;
+                        // Detector de Agencia Gestora vs Particular
+                        const isMng = evtProp.isManaged === true || evtProp.isManaged === "true" || (evtProp.activeCampaign && evtProp.activeCampaign.status === "ACCEPTED");
+                        const org = isMng && evtProp.activeCampaign?.agency ? evtProp.activeCampaign.agency : evtProp.user || {};
+                        
+                        const oName = org.companyName || org.name || "Organizador";
+                        const oAvatar = org.companyLogo || org.avatar || org.image;
+                        const oPhone = org.mobile || org.phone;
+                        
+                        // 🔥 Búsqueda ampliada: Mira en address, location, city y zone.
+                        const addressParts = [org.address, org.location, org.city, org.zone].filter(Boolean);
+                        const cleanParts = addressParts.filter(p => p.trim().toLowerCase() !== 'españa');
+                        
+                        // Si después de limpiar no queda nada, devolvemos NULL para que se oculte.
+                        const oAddress = cleanParts.length > 0 ? cleanParts.join(', ') : null;
+
+                        return (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm mt-2">
+                                <div className="flex items-center gap-4 min-w-0">
+                                    <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 border border-slate-200 overflow-hidden shrink-0 shadow-inner relative">
+                                        {oAvatar ? (
+                                            <img src={oAvatar} alt={oName} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span className="text-xl">{oName[0]?.toUpperCase() || "A"}</span>
+                                        )}
+                                    </div>
+                                    <div className="min-w-0 flex flex-col justify-center">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Organizado por</span>
+                                            {isMng && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded uppercase tracking-widest">Agencia</span>}
+                                        </div>
+                                        <p className="text-sm font-black text-slate-900 leading-tight truncate mb-1.5">
+                                            {oName}
+                                        </p>
+                                        
+                                        {/* 🔥 DATOS DE CONTACTO (Solo se muestran si existen) */}
+                                        <div className="flex flex-col gap-1">
+                                            {oAddress && (
+                                                <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5 truncate" title={oAddress}>
+                                                    <MapPin size={12} className="shrink-0 text-slate-400" /> 
+                                                    <span className="truncate">{oAddress}</span>
+                                                </p>
+                                            )}
+                                            {oPhone && (
+                                                <p className="text-[10px] text-slate-600 font-mono font-bold flex items-center gap-1.5 select-all">
+                                                    <Phone size={12} className="shrink-0 text-slate-400" /> 
+                                                    <span>{oPhone}</span>
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* 🔥 BOTÓN DE LLAMAR CLÁSICO Y ELEGANTE */}
+                                {oPhone && (
+                                    <a 
+                                        href={`tel:${oPhone.replace(/\s/g, '')}`} 
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full sm:w-auto px-5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shrink-0 shadow-sm hover:shadow-md cursor-pointer"
+                                    >
+                                        <Phone size={14} className="animate-pulse" /> 
+                                        <span>LLAMAR</span>
+                                    </a>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Footer Botones */}

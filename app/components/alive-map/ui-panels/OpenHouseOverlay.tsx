@@ -1,28 +1,25 @@
+// @ts-nocheck
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, Calendar, Clock, Ticket, MapPin, Check, Star, Users, LogOut, AlertCircle } from "lucide-react";
+import { createPortal } from "react-dom"; // 🔥 EL TELETRANSPORTADOR DE REACT
+import { X, Calendar, Clock, Ticket, MapPin, Check, Loader2,  Star, Users, LogOut, AlertCircle, CalendarX } from "lucide-react";
 // Importamos todas las acciones necesarias
 import { joinOpenHouseAction, leaveOpenHouseAction, checkOpenHouseStatusAction, getUserMeAction } from "@/app/actions";
 import GuestList from "./GuestList"; 
 
-// Añadimos isOrganizer a los parámetros recibidos
 export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any) {
+  const [mounted, setMounted] = useState(false); // 🔥 Para activar el teletransporte
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
   const [parsedOH, setParsedOH] = useState<any>(null);
-  
-  // 🔥 AHORA OBEDECE A LO QUE LE DICTA EL PANEL PRINCIPAL
   const [isOwner, setIsOwner] = useState(isOrganizer || false);
-  
-  // ESTADOS NUEVOS PARA INTELIGENCIA DE AFORO
   const [occupancy, setOccupancy] = useState(0);
   const [isSoldOut, setIsSoldOut] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
+    setMounted(true); // Avisamos que estamos listos para renderizar en el body
     if (!property) return;
-    
-    // 1. PARSEAR DATOS
     let rawData = property.openHouse || property.open_house_data || property.open_house;
     if (typeof rawData === 'string') {
         try { rawData = JSON.parse(rawData); } catch (e) {}
@@ -30,15 +27,11 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
     setParsedOH(rawData);
 
     if (rawData?.id) {
-       
-        // 3. CHECK: ¿YA ESTOY DENTRO?
         checkOpenHouseStatusAction(rawData.id).then(res => {
             setIsRegistered(res.isJoined);
         });
 
-        // 4. CHECK: AFORO INICIAL
         const capacity = rawData.capacity || 0;
-        // Intentamos obtener el conteo actual si viene en la propiedad
         const current = property.openHouseAttendeesCount || rawData._count?.attendees || 0; 
         setOccupancy(current);
         if (capacity > 0 && current >= capacity) {
@@ -50,24 +43,24 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
   if (!parsedOH || (parsedOH.enabled !== true && String(parsedOH.enabled) !== "true")) return null;
 
   const oh = parsedOH;
-  // Calcular fechas
   const start = oh.startTime ? new Date(oh.startTime) : null;
   const dayNumber = start ? start.getDate() : "";
   const monthName = start ? start.toLocaleDateString('es-ES', { month: 'short' }) : "";
   const weekDay = start ? start.toLocaleDateString('es-ES', { weekday: 'long' }) : "";
   const timeStr = start ? start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : "--:--";
 
-// --- MANIOBRA DE RESERVA (VERSIÓN PRODUCCIÓN) ---
-  const handleRegister = async () => {
-    // Capturamos el ID de forma segura sin dejar logs en la consola
-    const targetId = oh.id || oh._id || property.id;
+  const durationMs = (oh.duration || 120) * 60000;
+  const isPast = start ? (start.getTime() + durationMs) < Date.now() : false;
 
+  const handleRegister = async () => {
+    if (isPast) return; 
+
+    const targetId = oh.id || oh._id || property.id;
     setLoading(true);
     setErrorMsg("");
     
     try {
         const res = await joinOpenHouseAction(targetId);
-
         if (!res.success) {
             if (res.error === "SOLD_OUT") {
                 setIsSoldOut(true);
@@ -79,9 +72,22 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
             } else {
                 setErrorMsg(res.error || res.message || "Error al intentar registrarse.");
             }
-        } else {
+       } else {
             setIsRegistered(true);
+            // 🔥 BENGALAS TÁCTICAS
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('refresh-user-tickets'));
+                window.dispatchEvent(new CustomEvent('refresh-open-house-status', { detail: { joined: true } }));
+                
+                // 🎬 COREOGRAFÍA HOLLYWOOD (1.5 segundos de gloria)
+                setTimeout(() => {
+                    // ¡DISPARAMOS LA BENGALA ANTES DE CERRAR!
+                    window.dispatchEvent(new CustomEvent('force-open-tickets'));
+                    onClose(); // Ahora cerramos el modal
+                }, 1500);
+            }
         }
+        
     } catch (e) {
         setErrorMsg("Error de conexión con el servidor.");
     } finally {
@@ -89,16 +95,19 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
     }
   };
 
-  // --- MANIOBRA DE RETIRADA (CANCELAR) ---
-  const handleLeave = async () => {
+ const handleLeave = async () => {
       if(!confirm("¿Seguro que quieres liberar tu plaza? Perderás tu entrada.")) return;
-      
       setLoading(true);
       try {
           const res = await leaveOpenHouseAction(oh.id);
           if (res.success) {
               setIsRegistered(false);
-              setIsSoldOut(false); // Optimismo: si salgo yo, hay sitio
+              setIsSoldOut(false);
+              // 🔥 BENGALAS TÁCTICAS: Avisan a toda la pantalla que hemos cancelado
+              if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('refresh-user-tickets'));
+                  window.dispatchEvent(new CustomEvent('refresh-open-house-status'));
+              }
           }
       } catch(e) {
           console.error(e);
@@ -107,40 +116,56 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
       }
   };
 
-  return (
-    <div className="fixed inset-0 z-[60000] flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+  // 🔥 Si Next.js aún no ha montado el componente en el cliente, no renderizamos
+  if (!mounted) return null;
 
-      <div className="relative w-full max-w-[900px] bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[90vh] md:h-auto animate-in zoom-in-95 duration-300">
+  // 🔥 EMPAQUETAMOS TODO EL MODAL EN UNA VARIABLE
+  const modalContent = (
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center pointer-events-auto">
+      
+      {/* FONDO OSCURO */}
+      <div 
+         className="absolute inset-0 bg-black/80 backdrop-blur-md cursor-pointer animate-in fade-in duration-300" 
+         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} 
+      />
+
+      {/* TARJETA DEL MODAL */}
+      <div 
+         className="relative w-[95%] max-w-[850px] bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[90vh] md:h-auto animate-in zoom-in-95 duration-300 z-10 m-auto"
+         onClick={(e) => e.stopPropagation()} 
+      >
         
        {/* --- COLUMNA IZQUIERDA: VISUAL --- */}
-        <div className="relative w-full md:w-5/12 h-48 md:h-auto bg-slate-900 shrink-0">
+        <div className="relative w-full md:w-[45%] h-56 md:h-auto bg-slate-900 shrink-0">
             <img 
                 src={property.img || property.images?.[0] || "/placeholder.jpg"} 
-                className={`w-full h-full object-cover transition-opacity duration-500 ${isSoldOut && !isRegistered ? 'opacity-40 grayscale' : 'opacity-80'}`} 
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${(isSoldOut && !isRegistered) || isPast ? 'opacity-40 grayscale' : 'opacity-80'}`} 
                 alt="Event"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
             
-            <div className="absolute bottom-0 left-0 right-0 p-6 text-white flex flex-col justify-end z-10">
-                {/* ETIQUETA DE ESTADO */}
-                {isSoldOut && !isRegistered ? (
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-red-600/90 backdrop-blur-md border border-red-500/50 text-[10px] font-black uppercase tracking-widest mb-2 w-fit animate-pulse">
+            <div className="absolute bottom-0 left-0 right-0 p-8 text-white flex flex-col justify-end z-10">
+                {isPast ? (
+                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-slate-600/90 backdrop-blur-md border border-slate-500/50 text-[10px] font-black uppercase tracking-widest mb-3 w-fit">
+                         ⏳ EVENTO FINALIZADO
+                     </span>
+                ) : isSoldOut && !isRegistered ? (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-red-600/90 backdrop-blur-md border border-red-500/50 text-[10px] font-black uppercase tracking-widest mb-3 w-fit animate-pulse">
                         ⛔ Aforo Completo
                     </span>
                 ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/20 backdrop-blur-md border border-white/30 text-[9px] font-black uppercase tracking-widest mb-2 w-fit">
-                        <Star size={10} className="text-yellow-400 fill-yellow-400" /> Evento VIP
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 text-[10px] font-black uppercase tracking-widest mb-3 w-fit shadow-lg">
+                        <Star size={12} className="text-yellow-400 fill-yellow-400" /> Evento VIP
                     </span>
                 )}
                 
-                <h2 className="text-xl md:text-3xl font-black leading-tight mb-2 break-words text-shadow-sm">
+                <h2 className="text-3xl md:text-4xl font-black leading-tight mb-2 drop-shadow-md tracking-tight">
                     {oh.title || "Open House"}
                 </h2>
                 
-                <div className="flex items-center gap-1 text-white/80 text-xs font-medium">
-                    <MapPin size={12} className="shrink-0" />
-                    <span className="truncate">{property.address || property.title}</span>
+                <div className="flex items-start gap-1.5 text-white/80 text-xs font-medium">
+                    <MapPin size={14} className="shrink-0 mt-0.5" />
+                    <span className="line-clamp-2 leading-snug">{property.address || property.title}</span>
                 </div>
             </div>
         </div>
@@ -148,26 +173,28 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
         {/* --- COLUMNA DERECHA: INTERACCIÓN --- */}
         <div className="flex-1 bg-white relative flex flex-col h-full overflow-hidden">
             
-           {/* BOTÓN CERRAR */}
+           {/* BOTÓN CERRAR GIGANTE */}
             <button 
-                onClick={onClose} 
-                className="absolute top-5 right-5 z-50 w-10 h-10 flex items-center justify-center bg-white text-slate-300 rounded-full hover:bg-slate-50 hover:text-slate-900 border border-slate-100 hover:border-slate-300 transition-all duration-300 shadow-sm hover:shadow-md group"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }} 
+                className="absolute top-5 right-5 z-[100] w-12 h-12 flex items-center justify-center bg-slate-100 text-slate-500 rounded-full hover:bg-slate-200 hover:text-slate-900 border border-slate-200 transition-all duration-300 shadow-sm cursor-pointer active:scale-90"
             >
-                <X size={22} className="group-hover:rotate-90 transition-transform duration-500 ease-out" />
+                <X size={24} />
             </button>
 
             {/* CONTENIDO SCROLLABLE */}
-            <div className="p-6 md:p-8 flex-1 overflow-y-auto">
-                <div className="flex items-start gap-4 mb-6">
-                    <div className="w-14 h-14 rounded-xl bg-slate-100 flex flex-col items-center justify-center shrink-0 border border-slate-200">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">{monthName}</span>
-                        <span className="text-xl font-black text-slate-900 leading-none">{dayNumber}</span>
+            <div className="p-8 flex-1 overflow-y-auto">
+                
+                {/* 🔥 AÑADIDO pr-16 (padding-right) PARA QUE EL TEXTO NO CHOQUE CON LA 'X' */}
+                <div className="flex items-start gap-5 mb-8 pt-2 pr-16">
+                    <div className={`w-16 h-16 rounded-2xl flex flex-col items-center justify-center shrink-0 border-2 ${isPast ? 'bg-slate-100 border-slate-200 text-slate-400' : 'bg-indigo-50 border-indigo-100 text-indigo-700 shadow-inner'}`}>
+                        <span className="text-[10px] font-black uppercase tracking-widest">{monthName}</span>
+                        <span className={`text-2xl font-black leading-none mt-0.5 ${isPast ? 'line-through decoration-slate-300' : ''}`}>{dayNumber}</span>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-900 capitalize">{weekDay}, {timeStr}H</h3>
+                    <div className="pt-1">
+                        <h3 className={`text-xl font-black capitalize tracking-tight ${isPast ? 'text-slate-400 line-through decoration-slate-300' : 'text-slate-900'}`}>{weekDay}, {timeStr}H</h3>
                         {oh.description && (
-                             <p className="text-sm text-slate-500 leading-relaxed mt-1 line-clamp-3">
-                                {oh.description}
+                             <p className="text-sm text-slate-500 leading-relaxed mt-2 line-clamp-3 font-medium">
+                                {isPast ? "Este evento ya ha finalizado. Gracias por tu interés." : oh.description}
                             </p>
                         )}
                     </div>
@@ -175,10 +202,10 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
 
                 {/* Amenities */}
                 {oh.amenities && Array.isArray(oh.amenities) && oh.amenities.length > 0 && (
-                    <div className="mb-4">
+                    <div className="mb-6">
                         <div className="flex flex-wrap gap-2">
                             {oh.amenities.map((am: string) => (
-                                <span key={am} className="px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 text-[10px] font-bold border border-slate-100 uppercase tracking-wide">
+                                <span key={am} className={`px-3 py-1.5 rounded-lg text-[10px] font-black border uppercase tracking-widest ${isPast ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-white text-slate-700 border-slate-200 shadow-sm'}`}>
                                     {am}
                                 </span>
                             ))}
@@ -188,99 +215,94 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
                 
                 {/* MENSAJES DE ERROR VISUALES */}
                 {errorMsg && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600 animate-in slide-in-from-top-2">
-                        <AlertCircle size={14} /> {errorMsg}
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-sm font-bold text-red-600 animate-in slide-in-from-top-2">
+                        <AlertCircle size={18} className="shrink-0" /> {errorMsg}
                     </div>
                 )}
             </div>
 
             {/* 🔒 FOOTER DE ACCIÓN (INTELIGENTE) */}
-            <div className="p-6 md:p-8 bg-white border-t border-slate-100 shrink-0 mt-auto">
+            <div className="p-8 bg-slate-50/50 border-t border-slate-100 shrink-0 mt-auto">
                 {isOwner ? (
-                    /* 🟢 MODO AGENCIA */
                     <div className="animate-in fade-in">
-                        <div className="mb-3 flex justify-between items-end">
-                            <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                <Users size={14}/> Radar de Asistentes
+                        <div className="mb-4 flex justify-between items-end">
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                <Users size={16} className="text-indigo-500"/> Radar de Asistentes
                             </h4>
-                            <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded-full border border-slate-200">
-                                Organizador
+                            <span className={`text-[10px] font-bold px-3 py-1 rounded-full border ${isPast ? 'bg-slate-200 text-slate-500 border-slate-300' : 'text-slate-600 bg-white border-slate-200 shadow-sm'}`}>
+                                {isPast ? 'EVENTO PASADO' : 'Modo Organizador'}
                             </span>
                         </div>
-                        <div className="max-h-[250px] overflow-y-auto border border-slate-200 rounded-xl shadow-inner bg-slate-50/50">
+                        <div className="max-h-[250px] overflow-y-auto border border-slate-200 rounded-2xl shadow-inner bg-white">
                             <GuestList openHouseId={oh.id} capacity={oh.capacity || 50} />
                         </div>
                     </div>
                 ) : (
-                    /* 🔵 MODO VISITANTE */
                 isRegistered ? (
-  <div className="w-full flex flex-col gap-4 animate-in zoom-in duration-300">
-    {/* CARD PREMIUM (no se corta) */}
-    <div className="relative w-full overflow-hidden rounded-[28px] border border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-teal-50 px-7 py-7 shadow-[0_18px_55px_rgba(5,150,105,0.18)]">
-      {/* halos suaves */}
-      <div className="pointer-events-none absolute -top-24 -right-24 h-60 w-60 rounded-full bg-emerald-200/55 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-24 h-60 w-60 rounded-full bg-teal-200/45 blur-3xl" />
+                  <div className="w-full flex flex-col gap-4 animate-in zoom-in duration-300">
+                    <div className={`relative w-full overflow-hidden rounded-[24px] border px-7 py-7 ${isPast ? 'border-slate-200 bg-slate-100 shadow-none' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-lg'}`}>
+                      {!isPast && (
+                          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-200/40 blur-3xl" />
+                      )}
 
-      <div className="relative flex flex-col items-center text-center gap-3">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-white shadow-[0_10px_25px_rgba(5,150,105,0.35)] ring-4 ring-white">
-          <Check size={30} strokeWidth={3.2} />
-        </div>
+                      <div className="relative flex items-center gap-5">
+                        <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white shadow-md ${isPast ? 'bg-slate-400' : 'bg-emerald-500'}`}>
+                          {isPast ? <CalendarX size={24} strokeWidth={2.5}/> : <Check size={28} strokeWidth={3} />}
+                        </div>
 
-        <div className="w-full">
-          <h3 className="text-2xl font-black tracking-tight text-emerald-950 leading-tight">
-            ¡Entrada confirmada!
-          </h3>
-          <p className="mt-1 text-sm font-semibold text-emerald-800/90">
-            Te hemos enviado los detalles por email.
-          </p>
+                        <div className="w-full">
+                          <h3 className={`text-xl font-black tracking-tight leading-tight ${isPast ? 'text-slate-600' : 'text-emerald-900'}`}>
+                            {isPast ? 'Evento Finalizado' : '¡Plaza Confirmada!'}
+                          </h3>
+                          <p className={`mt-0.5 text-xs font-semibold ${isPast ? 'text-slate-500' : 'text-emerald-700'}`}>
+                            {isPast ? 'Gracias por tu asistencia.' : 'Te esperamos en la propiedad.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-          <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-[11px] font-bold text-emerald-900/70 border border-emerald-200/60">
-            <Ticket size={14} className="shrink-0 text-emerald-700" />
-            <span className="truncate">
-              Acceso activo · {oh.capacity ? `Cupo ${oh.capacity} familias` : "Acceso libre"}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {/* CTA cancelar */}
-    <button
-      type="button"
-      onClick={handleLeave}
-      disabled={loading}
-      className="w-full rounded-2xl py-4 text-xs font-bold text-red-500/80 hover:text-red-700 hover:bg-red-50 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-    >
-      {loading ? <Clock size={14} className="animate-spin" /> : <LogOut size={14} />}
-      Cancelar asistencia
-    </button>
-  </div>
-) : (
-                        /* ESTADO 2: NO TENGO TICKET -> BOTÓN RESERVAR O SOLD OUT */
+                    {!isPast && (
+                        <button
+                          type="button"
+                          onClick={handleLeave}
+                          disabled={loading}
+                          className="w-full rounded-xl py-4 text-xs font-black tracking-widest uppercase text-red-500 hover:text-red-700 hover:bg-red-50 transition-all flex items-center justify-center gap-2 border border-transparent hover:border-red-100 disabled:opacity-50"
+                        >
+                          {loading ? <Clock size={16} className="animate-spin" /> : <LogOut size={16} />}
+                          Cancelar mi asistencia
+                        </button>
+                    )}
+                  </div>
+                ) : (
                         <div className="space-y-4 animate-in fade-in">
-                            <div className="flex justify-between items-center text-xs font-medium text-slate-500">
-                                <span className="flex items-center gap-1">
-                                    {isSoldOut ? <AlertCircle size={12} className="text-red-500"/> : <Ticket size={12}/>} 
-                                    {isSoldOut ? <span className="text-red-600 font-bold">Sin plazas disponibles</span> : "Tickets por Grupo"}
+                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 px-2">
+                                <span className="flex items-center gap-1.5">
+                                    {isPast ? <CalendarX size={14} className="text-slate-400"/> : isSoldOut ? <AlertCircle size={14} className="text-red-500"/> : <Ticket size={14} className="text-indigo-500"/>} 
+                                    {isPast ? <span className="text-slate-400">Fuera de plazo</span> : isSoldOut ? <span className="text-red-600">Sin plazas disponibles</span> : "Pase para Grupo Familiar"}
                                 </span>
-                                <span className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-700 font-bold">
+                                <span className="bg-slate-200/50 px-3 py-1 rounded-md text-slate-700">
                                     {oh.capacity ? `Cupo: ${oh.capacity} Familias` : "Acceso libre"}
                                 </span>
                             </div>
 
                             <button 
                                 onClick={handleRegister}
-                                disabled={loading || isSoldOut}
-                                className={`w-full h-14 rounded-xl font-black tracking-wide text-sm transition-all shadow-xl flex items-center justify-center gap-3 relative overflow-hidden group px-4
-                                    ${isSoldOut 
-                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' 
-                                        : 'bg-[#111] text-white hover:bg-black active:scale-[0.98]'
+                                disabled={loading || isSoldOut || isPast}
+                                className={`w-full h-16 rounded-2xl font-black tracking-wider text-base transition-all shadow-xl flex items-center justify-center gap-4 relative overflow-hidden group
+                                    ${isPast || isSoldOut 
+                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none' 
+                                        : 'bg-[#1c1c1e] text-white hover:bg-black active:scale-[0.98]'
                                     }`}
                             >
                                 {loading ? (
                                     <span className="flex items-center gap-2">
-                                        <Clock className="animate-spin h-5 w-5" /> Procesando...
+                                        <Loader2 className="animate-spin h-5 w-5" /> Procesando...
                                     </span>
+                                ) : isPast ? (
+                                    <>
+                                        <CalendarX size={20} className="shrink-0" />
+                                        <span>EVENTO FINALIZADO</span>
+                                    </>
                                 ) : isSoldOut ? (
                                     <>
                                         <X size={20} className="shrink-0" />
@@ -288,17 +310,14 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
                                     </>
                                 ) : (
                                     <>
-                                        <Ticket size={20} className="shrink-0 group-hover:rotate-12 transition-transform"/> 
-                                        <div className="flex flex-col items-start leading-none text-left">
-                                            <span className="truncate">RESERVAR ENTRADA</span>
-                                            <span className="text-[9px] font-normal opacity-70 normal-case tracking-normal">Válido para ti y tus acompañantes</span>
-                                        </div>
+                                        <Ticket size={24} className="shrink-0 group-hover:rotate-12 transition-transform text-yellow-400"/> 
+                                        <span>RESERVAR ENTRADA</span>
                                     </>
                                 )}
                             </button>
                             
-                            {!isSoldOut && (
-                                <p className="text-center text-[10px] text-gray-400">
+                            {!isSoldOut && !isPast && (
+                                <p className="text-center text-[10px] text-gray-400 font-medium">
                                     Una sola inscripción cubre a toda tu unidad familiar.
                                 </p>
                             )}
@@ -311,4 +330,7 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
       </div>
     </div>
   );
+
+  // 🔥 EYECTAMOS EL MODAL FUERA DE CUALQUIER SCROLL, DIRECTO AL BODY
+  return createPortal(modalContent, document.body);
 }

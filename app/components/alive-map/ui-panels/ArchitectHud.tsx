@@ -5,12 +5,13 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Activity, ArrowLeft, ArrowRight, ArrowUp, Camera, Check, CheckCircle2, Clock,
   Eye, FileCheck, FileText, Flame, Globe, LayoutGrid, Loader2, Map as MapIcon,
-  MapPin, Megaphone, Paintbrush, Radar, Ruler, Search, Shield, ShieldCheck,
-  Smartphone, TrendingUp, Truck, UploadCloud, Video, X, Zap, Award, Crown, Play, Film,
+  MapPin, Megaphone, Paintbrush, Radar, Ruler, Search, Shield, ShieldCheck, Zap, Crown, TrendingUp,
+  Smartphone, Truck, UploadCloud, Video, X, Award, Play, Film, Navigation,
   Box, Droplets, Star, Bed, Bath, Maximize2, Building2, Home, Briefcase, LandPlot, Warehouse, Sun, Handshake, Coins, Calculator, Lock,
-  // 🔥 NUEVOS ICONOS AÑADIDOS (Para Dúplex, Terraza, Aire, etc.)
+  // 🔥 NUEVOS ICONOS AÑADIDOS
   Wind, Thermometer, Armchair, Tent, Layers, Compass, SunDim, Trees, Hammer
 } from "lucide-react";
+
 import MapNanoCard from "./MapNanoCard";
 import ExplorerHud from "./ExplorerHud";
 import ProfilePanel from "./ProfilePanel";
@@ -19,9 +20,9 @@ import ProfilePanel from "./ProfilePanel";
 import StepAgencyExtras from "./StepAgencyExtras";
 import StepOpenHouse from "./StepOpenHouse";
 import StepAgencyB2B from "./StepAgencyB2B"; // 👈 AÑADA ESTA LÍNEA
-// ✅ AÑADIR "/app" DESPUÉS DE LA ARROBA
-// 👇 Hemos añadido getUserMeAction para poder verificar el rol
-import { savePropertyAction, getUserMeAction } from '@/app/actions';// 👇 AÑADIR ESTA LÍNEA DEBAJO DE LAS OTRAS IMPORTS
+
+//  Hemos añadido getUserMeAction para poder verificar el rol
+import { savePropertyAction, getUserMeAction } from '@/app/actions';
 import { getMarketRadarAction } from '@/app/actions-market';
 import { uploadToCloudinary } from '@/app/utils/upload';
 
@@ -1437,7 +1438,7 @@ const MarketAnalysisStep = ({ formData, onNext }: any) => {
   const marketPosition = Math.min(Math.max(50 + (parseFloat(percentDiff) / 2), 5), 95);
   const estimatedMonths = isExpensive ? (Math.abs(Number(percentDiff)) > 20 ? 12 : 6) : 2;
 
-  if (analyzing) { return (<div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in relative overflow-hidden"><div className="absolute inset-0 bg-gradient-to-t from-blue-50/50 to-transparent pointer-events-none" /><div className="w-full max-w-sm relative z-10"><div className="mb-10 relative flex justify-center"><div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-ping opacity-20"></div><div className="absolute inset-2 border-4 border-blue-50 rounded-full animate-ping delay-100 opacity-30"></div><div className="w-32 h-32 rounded-full bg-white flex items-center justify-center shadow-[0_10px_40px_rgba(0,113,227,0.15)] relative z-10"><div className="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div><span className="text-3xl font-black text-gray-900">{progress}%</span></div></div><h2 className="text-xl font-bold text-gray-900 mb-2">Conectando Sonar</h2><p className="text-sm font-bold text-blue-600 uppercase tracking-widest animate-pulse">Analizando zona en tiempo real...</p><div className="h-1.5 w-full bg-gray-100 rounded-full mt-8 overflow-hidden"><div className="h-full bg-blue-600 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]" style={{ width: `${progress}%` }}></div></div></div></div>); }
+  if (analyzing) { return (<div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in relative overflow-hidden"><div className="absolute inset-0 bg-gradient-to-t from-blue-50/50 to-transparent pointer-events-none" /><div className="w-full max-w-sm relative z-10"><div className="mb-10 relative flex justify-center"><div className="absolute inset-0 border-4 border-blue-100 rounded-full animate-ping opacity-20"></div><div className="absolute inset-2 border-4 border-blue-50 rounded-full animate-ping delay-100 opacity-30"></div><div className="w-32 h-32 rounded-full bg-white flex items-center justify-center shadow-[0_10px_40px_rgba(0,113,227,0.15)] relative z-10"><div className="absolute inset-0 border-4 border-transparent border-t-blue-600 rounded-full animate-spin"></div><span className="text-3xl font-black text-gray-900">{progress}%</span></div></div><h2 className="text-xl font-bold text-gray-900 mb-2">Buscando Coordenadas</h2><p className="text-sm font-bold text-blue-600 uppercase tracking-widest animate-pulse">Analizando zona en tiempo real...</p><div className="h-1.5 w-full bg-gray-100 rounded-full mt-8 overflow-hidden"><div className="h-full bg-blue-600 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]" style={{ width: `${progress}%` }}></div></div></div></div>); }
 
   return (
     <div className="h-full flex flex-col animate-fade-in-up px-2 relative">
@@ -1453,10 +1454,137 @@ const MarketAnalysisStep = ({ formData, onNext }: any) => {
              {marketData.count === 0 ? " Aún hay pocos datos en esta área, eres pionero." : (isExpensive ? " Estás por encima de la media detectada." : " Tu precio es muy competitivo respecto a tus vecinos.")}
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+   <div className="grid grid-cols-2 gap-4">
           <div className="p-5 rounded-[24px] bg-gray-50 border border-gray-100 flex flex-col justify-between h-32 hover:bg-white hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-400"><Clock size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Tiempo Estimado</span></div><div className="text-3xl font-black text-gray-900">{estimatedMonths} <span className="text-sm font-bold text-gray-400">Meses</span></div>{isExpensive && <div className="text-[10px] font-bold text-orange-500">Rotación Lenta</div>}{!isExpensive && <div className="text-[10px] font-bold text-emerald-500">Rotación Rápida</div>}</div>
           <div className="p-5 rounded-[24px] bg-gray-50 border border-gray-100 flex flex-col justify-between h-32 hover:bg-white hover:shadow-md transition-all"><div className="flex items-center gap-2 text-gray-400"><Search size={16} /> <span className="text-[10px] font-black uppercase tracking-widest">Demanda</span></div><div className="text-2xl font-black text-gray-900 flex items-center gap-2">ALTA <span className="flex h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.6)]"></span></div><div className="text-[10px] font-bold text-gray-400">Zona Caliente</div></div>
         </div>
+
+        {/* --- 🚀 UPSELL TÁCTICO: PROMOCIÓN NANO CARD PREMIUM (Reposicionada abajo) --- */}
+        <div className="mt-24 rounded-[24px] bg-gradient-to-br from-[#1a1a1f] to-[#0f0f13] border border-orange-500/20 p-5 relative overflow-hidden shadow-xl group cursor-pointer hover:border-orange-500/40 transition-all duration-300">
+            {/* Efecto de radar/brillo de fondo */}
+            <div className="absolute top-0 right-0 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-colors duration-500"></div>
+
+            <div className="flex gap-4 relative z-10">
+                {/* Icono del Rayo Naranja (Referencia visual a su panel) */}
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FF9500] to-[#FF5E00] flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(255,149,0,0.3)] group-hover:scale-105 transition-transform duration-300">
+                    <Zap size={24} className="text-white" fill="currentColor" />
+                </div>
+
+                {/* Textos y Promesa de Venta */}
+                <div className="flex flex-col justify-center">
+                    <div className="flex items-center gap-1.5 mb-1">
+                        <Crown size={12} className="text-[#FF9500]" />
+                        <h4 className="text-[9px] font-black text-[#FF9500] uppercase tracking-widest">Nivel Táctico Superior</h4>
+                    </div>
+                    
+                    <h3 className="text-base font-bold text-white leading-tight mb-1.5">
+                        Activa el modo <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF9500] to-[#FF5E00] font-black">FUEGO</span>
+                    </h3>
+                    
+                    <p className="text-[10px] text-gray-400 font-medium mb-3 pr-2 leading-relaxed">
+                        Haz clic en el <strong className="text-gray-200">Rayo Naranja</strong> de tu panel de gestión. Multiplica las visitas y domina la zona.
+                    </p>
+
+                    {/* Mini-Grid de Beneficios */}
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                            <Flame size={10} className="text-[#FF9500]" />
+                            <span className="text-[8px] font-bold text-gray-300 uppercase tracking-wide">Visibilidad x5</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <TrendingUp size={10} className="text-[#FF9500]" />
+                            <span className="text-[8px] font-bold text-gray-300 uppercase tracking-wide">Posición Top #1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+     {/* --- 🎨 VISUAL NANO CARD FUEGO EXAMPLE (CENTRADÍSIMO REAL) --- */}
+        <div className="mt-24 mb-12 flex flex-col items-center justify-center select-none w-full mx-auto">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-8">Así brillará tu propiedad en el mapa</p>
+            
+            {/* CONTENEDOR PRINCIPAL DEL CLON */}
+            <div className="pointer-events-none flex flex-col items-center group relative z-[200]">
+                
+                {/* 1. LA TARJETA */}
+                <div className="flex w-[370px] min-h-[135px] bg-white border-[2px] border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.5)] rounded-[16px] overflow-hidden relative">
+                    
+                    {/* 📸 FOTO DEL USUARIO (50%) */}
+                    <div className="relative shrink-0 overflow-hidden w-[185px]">
+                        <img 
+                            src={(formData.images && formData.images.length > 0) ? formData.images[0] : "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"} 
+                            className="object-cover w-full h-full" 
+                            alt="Propiedad" 
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-red-500/20 via-transparent to-white/10 mix-blend-overlay"></div>
+                        
+                        <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+                            <div className="px-1.5 py-0.5 rounded backdrop-blur-md bg-white/95 shadow-sm flex items-center gap-1 border border-red-100 w-fit">
+                                <Crown size={10} className="text-red-600 fill-red-500 animate-[pulse_1.5s_ease-in-out_infinite]"/>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-red-700 leading-none mt-[1px]">FUEGO</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 📝 TEXTOS */}
+                    <div className="flex flex-col justify-between p-3 flex-1 min-w-0 bg-gradient-to-br from-[#FFF8F6] to-white">
+                        <div>
+                            <div className="flex justify-between items-start gap-1 mb-0.5">
+                                <span className="font-black uppercase tracking-widest block leading-none truncate text-[7.5px] text-red-500">
+                                    REF-PRO
+                                </span>
+                            </div>
+                            
+                            <h3 className="font-black text-slate-900 truncate tracking-tight text-[15px] mb-1">
+                                {(formData.type || "PROPIEDAD").toUpperCase()}
+                            </h3>
+
+                            <div className="mb-1.5">
+                                <span className="block font-black tracking-tighter leading-none text-[24px] bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
+                                    {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(parseFloat(String(formData.price).replace(/\D/g, "")) || 0)}
+                                </span>
+                            </div>
+
+                            <div className="flex items-start gap-1">
+                                <Navigation size={9} className="shrink-0 mt-[1px] text-red-400" />
+                                <span className="font-bold uppercase line-clamp-2 leading-snug tracking-wider text-[8px] text-slate-600">
+                                    {String(formData.address || formData.city || "UBICACIÓN PRIVADA").toUpperCase()}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Specs */}
+                        <div className="mt-1.5 pt-1.5 flex items-center justify-between border-t border-red-100">
+                            <div className="flex items-center gap-1 text-slate-800">
+                                <Bed size={11} className="text-red-400" />
+                                <span className="font-black text-[11px]">{formData.rooms || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-slate-800">
+                                <Bath size={11} className="text-red-400" />
+                                <span className="font-black text-[11px]">{formData.baths || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-slate-800">
+                                <Maximize2 size={11} className="text-red-400" />
+                                <span className="font-black text-[11px]">{formData.mBuilt || 0}<span className="font-bold text-slate-400 ml-[1px] text-[7px]">m²</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 🎯 2. EL PIN FLOTANTE */}
+                <div className="relative rounded-full shadow-[0_0_20px_rgba(239,68,68,0.6)] flex flex-col items-center justify-center z-[300] scale-105 px-4 py-1.5 border-orange-200 border-[3px] mt-2" style={{ background: 'linear-gradient(to bottom right, #fbbf24, #ef4444)' }}>
+                    <span className="absolute inset-0 rounded-full border-4 border-[#f97316] opacity-80 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></span>
+                    <span className="absolute inset-0 rounded-full border-2 border-white opacity-90 animate-pulse"></span>
+                    <span className="text-sm font-black font-sans tracking-tight whitespace-nowrap text-white">
+                        {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(parseFloat(String(formData.price).replace(/\D/g, "")) || 0)}
+                    </span>
+                    <div className="absolute left-1/2 -translate-x-1/2 w-0 h-0 border-l-transparent border-r-transparent -bottom-[7px] border-l-[8px] border-r-[8px] border-t-[9px] border-t-[#ef4444]"></div>
+                </div>
+
+            </div>
+        </div>
+
       </div>
       <div className="sticky bottom-0 left-0 right-0 pt-4 pb-6 bg-white/95 backdrop-blur-xl border-t border-gray-100 flex gap-4 shrink-0 z-50 -mx-4 px-4 shadow-[0_-10px_20px_rgba(255,255,255,1)]"><button onClick={onNext} className="w-full bg-[#1d1d1f] hover:bg-black text-white rounded-2xl py-4 shadow-xl active:scale-[0.99] transition-all flex justify-between items-center px-8 h-16"><div className="flex flex-col items-start"><span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Siguiente paso</span><span className="text-lg font-bold">Ver Competencia (Radar)</span></div><div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"><Radar size={20} className="text-white" /></div></button></div>
     </div>
@@ -1495,47 +1623,190 @@ const MarketRadarStep = ({ formData, onNext }: any) => {
       <div className="flex justify-between items-end mb-4 shrink-0 px-6 pt-2"><div><div className="flex items-center gap-2 mb-1"><span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#007AFF]"></span></span><span className="text-[10px] font-black uppercase tracking-widest text-[#007AFF]">Radar Activo</span></div><h3 className="text-3xl font-black text-gray-900 tracking-tight">Competencia Real</h3></div><div className="text-right bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100"><p className="text-[9px] font-black text-gray-400 uppercase tracking-wide">Radio</p><p className="text-xs font-black text-gray-900">2 KM</p></div></div>
       <div className="flex-1 flex flex-col gap-5 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 pb-28">
         
-        {/* RADAR VISUAL (Círculos) */}
-        <div className="w-full h-40 bg-white rounded-[32px] border border-gray-100 relative flex items-center justify-center shrink-0 overflow-hidden shadow-sm mx-auto shadow-[inset_0_0_40px_rgba(0,0,0,0.02)]">
-            <div className="absolute w-[80%] h-[80%] border border-gray-100 rounded-full"></div><div className="absolute w-[50%] h-[50%] border border-gray-100 rounded-full"></div><div className="absolute w-[20%] h-[20%] border border-blue-100 rounded-full bg-blue-50/50"></div><div className="absolute w-4 h-4 bg-[#007AFF] rounded-full shadow-[0_0_0_4px_rgba(255,255,255,1)] z-20"></div>
-            {rivals.map((rival, index) => { 
-                const angle = index * (360 / Math.max(1, rivals.length)) * (Math.PI / 180);
-                const distance = 20 + (index % 3) * 15; 
-                const top = 50 + Math.sin(angle) * distance; 
-                const left = 50 + Math.cos(angle) * distance; 
-                return <div key={rival.id} className={`absolute w-3 h-3 rounded-full transition-all duration-300 z-10 cursor-pointer border-2 border-white shadow-sm ${rival.type === "HOT" ? "bg-[#FF9500]" : "bg-gray-400"} ${selectedRival === rival.id ? "scale-150 ring-2 ring-blue-200" : ""}`} style={{ top: `${top}%`, left: `${left}%` }} onMouseEnter={() => setSelectedRival(rival.id)} onMouseLeave={() => setSelectedRival(null)} />; 
-            })}
+     {/* RADAR VISUAL (Círculo Perfecto) */}
+        <div className="w-full py-5 bg-white rounded-[32px] border border-gray-100 flex flex-col items-center justify-center shrink-0 shadow-sm mx-auto relative overflow-hidden mb-2">
+            
+            {/* Efecto de fondo suave */}
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-50/50 via-transparent to-transparent opacity-50"></div>
+
+            {/* Contenedor Cuadrado (Garantiza que el radar sea 100% redondo) */}
+            <div className="relative w-40 h-40 flex items-center justify-center">
+                
+                {/* Anillos de Radar */}
+                <div className="absolute inset-0 border border-gray-200 rounded-full"></div>
+                <div className="absolute w-[66%] h-[66%] border border-gray-200 rounded-full"></div>
+                <div className="absolute w-[33%] h-[33%] border border-blue-100 bg-blue-50/50 rounded-full shadow-inner"></div>
+                
+                {/* Cruceta del Radar (Targeting) */}
+                <div className="absolute w-full h-[1px] bg-gray-100"></div>
+                <div className="absolute h-full w-[1px] bg-gray-100"></div>
+
+                {/* Tu Posición (El Centro) */}
+                <div className="absolute w-3.5 h-3.5 bg-blue-600 rounded-full shadow-[0_0_0_3px_rgba(255,255,255,1)] z-20"></div>
+                <div className="absolute w-10 h-10 bg-blue-500/20 rounded-full animate-ping z-10"></div>
+
+                {/* Puntos (Rivales reales) */}
+                {rivals.map((rival: any, index: number) => { 
+                    const angle = index * (360 / Math.max(1, rivals.length)) * (Math.PI / 180);
+                    // Distribuir en el radio matemáticamente (del 18% al 42% para no salirse)
+                    const distance = 18 + (index % 3) * 12; 
+                    const top = 50 + Math.sin(angle) * distance; 
+                    const left = 50 + Math.cos(angle) * distance; 
+                    
+                    const isSelected = selectedRival === rival.id;
+                    const isMyProperty = formData.id && String(rival.id) === String(formData.id);
+                    const isFire = rival.isFire || rival.price === 45666 || rival.price === 210000;
+
+                    // Código de Colores Inteligente
+                    let dotColor = "bg-gray-400";
+                    if (isMyProperty) dotColor = "bg-blue-600";
+                    else if (isFire) dotColor = "bg-[#FF9500]";
+
+                    return (
+                        <div 
+                            key={rival.id} 
+                            className={`absolute w-3 h-3 rounded-full transition-all duration-300 z-30 cursor-pointer border-2 border-white shadow-sm ${dotColor} ${isSelected ? "scale-[2.5] ring-4 ring-blue-100" : "hover:scale-150"}`} 
+                            style={{ top: `${top}%`, left: `${left}%` }} 
+                            onMouseEnter={() => setSelectedRival(rival.id)} 
+                            onMouseLeave={() => setSelectedRival(null)} 
+                        >
+                            {/* Pulso para los que son Fuego */}
+                            {isFire && !isMyProperty && (
+                                <div className="absolute inset-0 bg-orange-400 rounded-full animate-ping opacity-60"></div>
+                            )}
+                        </div>
+                    ); 
+                })}
+            </div>
+
+            {/* Leyenda de Mando */}
+            <div className="mt-5 flex gap-4 text-[9px] font-black text-gray-400 uppercase tracking-widest relative z-10">
+                <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-sm"></div> TÚ</div>
+                <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#FF9500] shadow-sm"></div> FUEGO</div>
+                <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-gray-400 shadow-sm"></div> NORMAL</div>
+            </div>
         </div>
 
-        {/* LISTA DE PROPIEDADES REALES */}
+ {/* LISTA DE PROPIEDADES REALES */}
         <div className="space-y-3 px-1">
             {rivals.length === 0 ? (
                 <div className="text-center py-8 opacity-50"><p className="text-xs font-bold">No se encontraron propiedades cercanas.</p></div>
             ) : (
-                rivals.map((rival) => { 
+                rivals.map((rival: any) => { 
                     const isSelected = selectedRival === rival.id; 
+                    const isMyProperty = formData.id && String(rival.id) === String(formData.id);
+                    const showFire = rival.isFire || rival.price === 45666 || rival.price === 210000;
+
                     return (
-                        <div key={rival.id} onMouseEnter={() => setSelectedRival(rival.id)} onMouseLeave={() => setSelectedRival(null)} className={`flex gap-4 p-3 rounded-[24px] border transition-all duration-300 cursor-pointer group w-full ${isSelected ? "bg-white border-blue-500 shadow-md scale-[1.01]" : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"}`}>
-                            <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 relative bg-gray-100 shadow-sm">
-                                <img src={rival.img} className="w-full h-full object-cover" alt="Propiedad" />
-                                {rival.type === "HOT" && (<div className="absolute top-1.5 right-1.5 bg-[#FF9500] text-white p-1 rounded-full shadow-lg border border-white z-10"><Zap size={10} fill="currentColor" /></div>)}
+                        // 🎯 AÑADIDO 'items-center' PARA ALINEAR LAS 3 COLUMNAS
+                        <div key={rival.id} onMouseEnter={() => setSelectedRival(rival.id)} onMouseLeave={() => setSelectedRival(null)} className={`flex items-center gap-4 p-3 rounded-[24px] border transition-all duration-300 cursor-pointer group w-full ${isMyProperty ? "bg-blue-50/50 border-blue-500 shadow-md" : isSelected ? "bg-white border-blue-500 shadow-md scale-[1.01]" : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm"}`}>
+                            
+                            {/* COLUMNA 1: FOTO PROPIEDAD */}
+                            <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 relative bg-gray-100 shadow-sm border border-gray-200/50">
+                                <img src={rival.img || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=200&q=80"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="Propiedad" />
                             </div>
+                            
+                            {/* COLUMNA 2: DATOS DE LA PROPIEDAD */}
                             <div className="flex-1 flex flex-col justify-center min-w-0 py-1">
-                                <h4 className={`text-xs font-bold truncate mb-0.5 ${isSelected ? "text-blue-600" : "text-gray-500"}`}>{rival.name}</h4>
-                                <span className="text-xl font-black tracking-tight text-gray-900 mb-2 block truncate">{formatMoney(rival.price)}</span>
-                                <div className="flex flex-wrap gap-2">
-                                    <div className={`px-2 py-0.5 rounded-md flex items-center gap-1 border ${rival.days > 90 ? "bg-red-50 border-red-100 text-red-600" : "bg-green-50 border-green-100 text-green-700"}`}><Clock size={10} strokeWidth={2.5} /><span className="text-[10px] font-bold tracking-wide">{rival.days}d</span></div>
-                                    <div className="px-2 py-0.5 rounded-md bg-gray-50 border border-gray-100 text-gray-500 flex items-center gap-1"><Eye size={10} strokeWidth={2.5} /><span className="text-[10px] font-bold tracking-wide">{rival.visits}</span></div>
+                                <div className="flex justify-between items-start mb-0.5">
+                                    <h4 className={`text-[10px] font-black uppercase tracking-widest truncate ${isSelected || isMyProperty ? "text-blue-600" : "text-gray-500"}`}>
+                                        {rival.type || "Activo"} <span className="opacity-50 mx-0.5">•</span> {rival.mBuilt || 0} m²
+                                    </h4>
                                 </div>
+                                
+                                <span className="text-xl font-black tracking-tight text-gray-900 mb-2 block truncate">
+                                    {Number(rival.price || 0).toLocaleString('es-ES')} €
+                                </span>
+                                
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className={`px-2 py-0.5 rounded-md flex items-center gap-1 border whitespace-nowrap ${Number(rival.days) > 90 ? "bg-red-50 border-red-100 text-red-600" : "bg-green-50 border-green-100 text-green-700"}`}>
+                                        <Clock size={10} strokeWidth={2.5} />
+                                        <span className="text-[10px] font-bold tracking-wide">
+                                            {Number(rival.days) === 0 ? 'Hoy' : `${rival.days || 0} Días`}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                                        <Eye size={10} strokeWidth={2.5} />
+                                        <span className="text-[10px] font-bold tracking-wide">{rival.visits || 0}</span>
+                                    </div>
+
+                                    {showFire && (
+                                        <div className="px-2 py-0.5 rounded-md bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center gap-1 shadow-sm whitespace-nowrap border border-white/40 animate-pulse">
+                                            <Flame size={10} fill="currentColor" />
+                                            <span className="text-[10px] font-black tracking-wide uppercase">Fuego</span>
+                                        </div>
+                                    )}
+
+                                    {Number(rival.pricePerM2) > 0 && (
+                                        <div className="px-2 py-0.5 rounded-md bg-slate-900 text-white flex items-center gap-1 whitespace-nowrap ml-auto shadow-sm">
+                                            <span className="text-[10px] font-black tracking-widest">
+                                                {Number(rival.pricePerM2).toLocaleString('es-ES')} €/m²
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                        {/* COLUMNA 3: BLOQUE VIP DE AGENCIA / IDENTIDAD */}
+                            <div className="shrink-0 flex flex-col items-center justify-center pl-4 border-l border-gray-100 min-w-[110px]">
+                                {isMyProperty ? (
+                                    <>
+                                        <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center border-2 border-blue-500 shadow-sm mb-1.5">
+                                            <ShieldCheck size={24} className="text-blue-600" />
+                                        </div>
+                                        <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest text-center leading-tight">Tu<br/>Propiedad</span>
+                                    </>
+                                ) : rival.agency ? (
+                                    <>
+                                        {/* AVATAR VIP DE AGENCIA */}
+                                        {rival.agency.logo ? (
+                                            <img src={rival.agency.logo} className="w-14 h-14 rounded-full object-cover border-2 border-gray-200 shadow-sm bg-white mb-1.5" alt="Agencia"/>
+                                        ) : (
+                                            <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center border-2 border-gray-200 shadow-sm mb-1.5">
+                                                <Briefcase size={24} className="text-gray-400" />
+                                            </div>
+                                        )}
+                                        {/* NOMBRE Y TELÉFONO */}
+                                        <span className="text-[10px] font-black text-gray-900 uppercase tracking-wider text-center w-full max-w-[100px] truncate mb-0.5">
+                                            {rival.agency.name}
+                                        </span>
+                                        {rival.agency.phone && (
+                                            <span className="text-[9px] font-bold text-gray-500 flex items-center justify-center gap-1">
+                                                <Smartphone size={10} className="text-blue-500" /> {rival.agency.phone}
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
+                                    /* 🔥 NUEVO DISEÑO PREMIUM PARA PARTICULARES */
+                                    <div className="w-full flex flex-col items-center">
+                                         <div className="w-14 h-14 rounded-full bg-slate-50 flex items-center justify-center border-2 border-slate-200 shadow-sm mb-1.5 group-hover:bg-slate-100 transition-colors">
+                                             <Home size={22} className="text-slate-600" />
+                                         </div>
+                                         <span className="text-[9px] font-black text-slate-800 uppercase tracking-widest text-center">Particular</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ); 
                 })
             )}
         </div>
+      </div> 
+      
+      <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t border-gray-100 flex gap-4 z-50 shadow-[0_-10px_40px_rgba(255,255,255,0.8)]">
+          <button onClick={onNext} className="w-full bg-[#1d1d1f] hover:bg-black text-white rounded-2xl py-4 shadow-xl active:scale-[0.99] transition-all flex justify-between items-center px-8 h-16">
+              <div className="flex flex-col items-start">
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Siguiente paso</span>
+                  <span className="text-lg font-bold">Definir Estrategia</span>
+              </div>
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <TrendingUp size={20} className="text-white" />
+              </div>
+          </button>
       </div>
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t border-gray-100 flex gap-4 z-50 shadow-[0_-10px_40px_rgba(255,255,255,0.8)]"><button onClick={onNext} className="w-full bg-[#1d1d1f] hover:bg-black text-white rounded-2xl py-4 shadow-xl active:scale-[0.99] transition-all flex justify-between items-center px-8 h-16"><div className="flex flex-col items-start"><span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Siguiente paso</span><span className="text-lg font-bold">Definir Estrategia</span></div><div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"><TrendingUp size={20} className="text-white" /></div></button></div>
-    </div>
+
+    </div> 
   );
 };
 
