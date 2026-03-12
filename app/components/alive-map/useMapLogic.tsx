@@ -24,7 +24,8 @@ import { getVipAgenciesAction } from '@/app/actions-zones';
 import { getPusherClient } from '@/app/utils/pusher';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
-
+const MAPBOX_PIN_FONT = ['Arial Unicode MS Bold'];
+const MAPBOX_CLUSTER_FONT = ['Arial Unicode MS Bold'];
 // ✅ Helper universal: true / "true" / 1 / "1" / "sí" / "si" / "yes" / "on"
 const isYes = (val: any) => {
   if (val === true || val === 1) return true;
@@ -33,7 +34,18 @@ const isYes = (val: any) => {
   const s = String(val).toLowerCase().trim();
   return ['true', '1', 'yes', 'si', 'sí', 'on'].includes(s);
 };
-
+const FIRE_WAVE_FILTER: any = [
+  'all',
+  ['!', ['has', 'point_count']],
+  [
+    'any',
+    ['==', ['get', 'isFire'], true],
+    ['==', ['get', 'isFire'], 'true'],
+    ['==', ['get', 'promotedTier'], 'PREMIUM'],
+    ['==', ['get', 'isPromoted'], true],
+    ['==', ['get', 'isPromoted'], 'true']
+  ]
+];
 // ----------------------------------------------------------------------
 // 2. LÓGICA DEL MAPA (CEREBRO CENTRAL)
 // ----------------------------------------------------------------------
@@ -103,8 +115,8 @@ export const useMapLogic = () => {
           type: 'geojson',
           data: { type: 'FeatureCollection', features: [] },
           cluster: true,
-          clusterMaxZoom: 15,
-          clusterRadius: 80
+          clusterMaxZoom: 17,
+          clusterRadius: 60
         });
       }
 
@@ -115,14 +127,15 @@ export const useMapLogic = () => {
           type: 'circle',
           source: 'properties',
           filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': '#0071e3', // Azul Corporativo Stratos
-            'circle-radius': ['step', ['get', 'point_count'], 25, 100, 35, 750, 45],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 1,
-            'circle-emissive-strength': 1
-          }
+      paint: {
+  'circle-color': '#00B8DB',
+  'circle-radius': ['step', ['get', 'point_count'], 25, 100, 35, 750, 45],
+  'circle-stroke-width': 1.15,
+  'circle-stroke-color': '#000000',
+  'circle-stroke-opacity': 0.72,
+  'circle-opacity': 0.24,
+  'circle-emissive-strength': 0.9
+}
         });
       }
 
@@ -133,89 +146,404 @@ export const useMapLogic = () => {
           type: 'symbol',
           source: 'properties',
           filter: ['has', 'point_count'],
-          layout: {
-            'text-field': '{point_count_abbreviated}',
-            'text-font': ['Arial Unicode MS Bold'],
-            'text-size': 16,
-            'text-offset': [0, 0]
-          },
-          paint: { 'text-color': '#ffffff', 'text-emissive-strength': 1 }
+        layout: {
+  'text-field': '{point_count_abbreviated}',
+  'text-font': MAPBOX_CLUSTER_FONT,
+  'text-size': 16,
+  'text-offset': [0, 0]
+},
+paint: {
+  'text-color': '#ffffff',
+  'text-emissive-strength': 1,
+  'text-halo-color': 'rgba(0,0,0,0.18)',
+  'text-halo-width': 0.9,
+  'text-halo-blur': 0.4
+}
         });
       }
-
       // =================================================================
-      // 🚀 CAPA NATIVA: EL CÍRCULO DEL PIN (NORMAL VS FUEGO)
+      // 🔥 ONDAS NATIVAS MAPBOX SOLO PARA PINS FUEGO
       // =================================================================
-      if (!map.current.getLayer('unclustered-point')) {
+      if (!map.current.getLayer('fire-wave-outer')) {
         map.current.addLayer({
-          id: 'unclustered-point',
+          id: 'fire-wave-outer',
           type: 'circle',
           source: 'properties',
-          filter: ['!', ['has', 'point_count']],
-          paint: {
-            'circle-color': [
-              'case',
-              // SI ES PREMIUM -> ROJO FUEGO
-              ['==', ['get', 'promotedTier'], 'PREMIUM'], '#ef4444', 
-              ['==', ['get', 'isPromoted'], true], '#ef4444',        
-              // SI ES NORMAL -> PIZARRA OSCURO
-              '#0f172a' 
-            ],
-            'circle-radius': [
-              'case', 
-              // SI ES PREMIUM -> MÁS GRANDE
-              ['==', ['get', 'promotedTier'], 'PREMIUM'], 12, 
-              // NORMAL
-              9
-            ],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': [
-              'case',
-              // SI ES PREMIUM -> ARO DORADO
-              ['==', ['get', 'promotedTier'], 'PREMIUM'], '#f59e0b', 
-              // NORMAL -> ARO BLANCO
-              '#ffffff'
-            ]
-          }
+          filter: FIRE_WAVE_FILTER,
+       paint: {
+  'circle-radius': 15,
+  'circle-color': '#ff7a00',
+  'circle-opacity': 0.18,
+  'circle-stroke-width': 3,
+  'circle-stroke-color': '#ffd45c',
+  'circle-stroke-opacity': 0.62,
+  'circle-blur': 0.08,
+  'circle-emissive-strength': 1.65
+}
         });
       }
+if (!map.current.getLayer('fire-wave-inner')) {
+  map.current.addLayer({
+    id: 'fire-wave-inner',
+    type: 'circle',
+    source: 'properties',
+    filter: FIRE_WAVE_FILTER,
+    paint: {
+      'circle-radius': 11,
+      'circle-color': '#ff5a1f',
+      'circle-opacity': 0.14,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fff0a0',
+      'circle-stroke-opacity': 0.48,
+      'circle-blur': 0.05,
+      'circle-emissive-strength': 1.85
+    }
+  });
+}
+     if (!map.current.getLayer('fire-wave-core')) {
+  map.current.addLayer({
+    id: 'fire-wave-core',
+    type: 'circle',
+    source: 'properties',
+    filter: [
+      'all',
+      ['!', ['has', 'point_count']],
+      [
+        'any',
+        ['==', ['get', 'isFire'], true],
+        ['==', ['get', 'promotedTier'], 'PREMIUM'],
+        ['==', ['get', 'isPromoted'], true]
+      ]
+    ],
+  paint: {
+  'circle-radius': 5,
+  'circle-color': '#ffb300',
+  'circle-opacity': 0.16,
+  'circle-blur': 0.62,
+  'circle-emissive-strength': 2.05
+}
+  });
+}
+// =================================================================
+      // 🎨 1. CLONACIÓN EXACTA (DISEÑO NATIVO REACT)
+      // =================================================================
+    const loadSafePill = (id, bgColor) => {
+  const isFire = id === 'pin-fire';
 
+  // 🔧 Solo rebajamos las normales
+  const w = isFire ? 120 : 96;
+  const h = isFire ? 46 : 34; 
+        
+  let svg = '';
+
+  if (isFire) {
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+        <defs>
+          <linearGradient id="fireGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fbbf24" />
+            <stop offset="100%" stop-color="#ef4444" />
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#ef4444" flood-opacity="0.6"/>
+          </filter>
+        </defs>
+        <path d="M 16 1.5 L 104 1.5 A 14.5 14.5 0 0 1 104 30.5 L 68 30.5 L 60 39.5 L 52 30.5 L 16 30.5 A 14.5 14.5 0 0 1 16 1.5 Z" 
+              fill="url(#fireGrad)" stroke="#fed7aa" stroke-width="3" filter="url(#glow)"/>
+      </svg>
+    `;
+  } else {
+    svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+        <defs>
+          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="1.4" stdDeviation="1.15" flood-color="#000000" flood-opacity="0.18"/>
+          </filter>
+        </defs>
+        <path d="M 14 2 L 82 2 A 11 11 0 0 1 82 24 L 54 24 L 48 32 L 42 24 L 14 24 A 11 11 0 0 1 14 2 Z" 
+              fill="${bgColor}" stroke="#ffffff" stroke-width="2.4" filter="url(#shadow)"/>
+      </svg>
+    `;
+  }
+        
+  const encoded = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+  const img = new Image(w, h);
+  img.onload = () => {
+    if (map.current && !map.current.hasImage(id)) map.current.addImage(id, img);
+  };
+  img.src = encoded;
+};
+
+      loadSafePill('pin-green', '#34C759');
+      loadSafePill('pin-blue', '#30B0C7');
+      loadSafePill('pin-yellow', '#FFD60A');
+      loadSafePill('pin-orange', '#FF9500');
+      loadSafePill('pin-pink', '#FF2D55');
+      loadSafePill('pin-purple', '#AF52DE');
+      loadSafePill('pin-fire', null); 
+
+
+      
       // =================================================================
-      // 🚀 CAPA NATIVA: EL TEXTO DEL PRECIO (ETIQUETA ELEGANTE)
+      // 🚀 CAPA 1: SOLO EL FONDO DE LA PASTILLA (El Escudo)
       // =================================================================
-      if (!map.current.getLayer('unclustered-point-label')) {
+      if (!map.current.getLayer('unclustered-point-bg')) {
         map.current.addLayer({
-          id: 'unclustered-point-label',
-          type: 'symbol',
+          id: 'unclustered-point-bg',
+          type: 'symbol', 
           source: 'properties',
           filter: ['!', ['has', 'point_count']],
           layout: {
-            // 🔥 AQUÍ USAMOS EL TEXTO BONITO QUE FORMATEAMOS ANTES
-            'text-field': ['get', 'formattedPrice'],
-            'text-font': ['Arial Unicode MS Bold'],
-            'text-size': 11,
-            // Lo bajamos un poquito para que no tape el círculo
-            'text-offset': [0, 1.5],
-            'text-anchor': 'top'
-          },
-          paint: {
-            // Color del texto (Blanco)
-            'text-color': '#ffffff',
-            // 🔥 EL TRUCO TRIVAGO: Un halo grueso que funciona como fondo de la etiqueta
-            'text-halo-color': [
+            'icon-image': [
               'case',
-              // Fondo Rojo si es Premium
-              ['==', ['get', 'promotedTier'], 'PREMIUM'], '#ef4444', 
-              ['==', ['get', 'isPromoted'], true], '#ef4444',
-              // Fondo oscuro si es normal
-              '#0f172a'
+              ['==', ['get', 'isFire'], true], 'pin-fire',
+              ['==', ['get', 'promotedTier'], 'PREMIUM'], 'pin-fire',
+              ['==', ['get', 'isPromoted'], true], 'pin-fire',
+              ['<', ['to-number', ['coalesce', ['get', 'priceValue'], ['get', 'rawPrice'], 0]], 3500], 'pin-green',
+              ['<', ['to-number', ['coalesce', ['get', 'priceValue'], ['get', 'rawPrice'], 0]], 200000], 'pin-blue',
+              ['<', ['to-number', ['coalesce', ['get', 'priceValue'], ['get', 'rawPrice'], 0]], 550000], 'pin-yellow',
+              ['<', ['to-number', ['coalesce', ['get', 'priceValue'], ['get', 'rawPrice'], 0]], 1200000], 'pin-orange',
+              ['<', ['to-number', ['coalesce', ['get', 'priceValue'], ['get', 'rawPrice'], 0]], 3000000], 'pin-pink',
+              'pin-purple'
             ],
-            'text-halo-width': 2,
-            'text-halo-blur': 0.5
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'icon-anchor': 'bottom' // El pico toca la calle
           }
         });
       }
 
+    // =================================================================
+      // 🚀 CAPA 2: SOLO EL TEXTO (El Francotirador)
+      // =================================================================
+      if (!map.current.getLayer('unclustered-point-text')) {
+        map.current.addLayer({
+          id: 'unclustered-point-text',
+          type: 'symbol', 
+          source: 'properties',
+          filter: ['!', ['has', 'point_count']],
+        layout: {
+  'text-field': ['coalesce', ['get', 'formattedPrice'], ['get', 'price']],
+  'text-font': MAPBOX_PIN_FONT,
+  'text-size': ['case', ['==', ['get', 'isFire'], true], 14, 12.2],
+  'text-offset': [
+    'case',
+    ['==', ['get', 'isFire'], true], ['literal', [0, -2.16]],
+    ['literal', [0, -1.73]]
+  ],
+  'text-allow-overlap': true,
+  'text-ignore-placement': true
+},
+paint: {
+  'text-color': '#ffffff',
+  'text-opacity': 1,
+  'text-halo-color': [
+    'case',
+    ['==', ['get', 'isFire'], true], 'rgba(255,184,0,0.26)',
+    'rgba(255,255,255,0.10)'
+  ],
+  'text-halo-width': [
+    'case',
+    ['==', ['get', 'isFire'], true], 1.15,
+    0.8
+  ],
+  'text-halo-blur': 0.45
+}
+        });
+      }
+  
+  
+  
+      // =================================================================
+      // 🖱️ 3. RADAR DE PROXIMIDAD (HOVER PARA TARJETA, CLIC PARA DETALLES)
+      // =================================================================
+      
+      // Variables tácticas para controlar que no se abran 200 tarjetas a la vez
+      let activePopup: any = null;
+      let activeRoot: any = null;
+      let hoverTimeout: any = null;
+
+      // 🎯 1. AL PASAR EL RATÓN (ABRE LA NANOCARD)
+      map.current.on('mouseenter', 'unclustered-point-bg', (e: any) => { 
+        map.current.getCanvas().style.cursor = 'pointer'; 
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+
+        const features = map.current.queryRenderedFeatures(e.point, { layers: ['unclustered-point-bg'] });
+        if (!features.length) return;
+        
+        const feature = features[0];
+        const p = { ...feature.properties };
+        
+        // Si ya está abierta esta misma tarjeta, no hacemos nada
+        if (activePopup && activePopup._stratosId === p.id) return;
+
+        // Si hay otra abierta, la destruimos
+        if (activePopup) {
+            activePopup.remove();
+            if (activeRoot) setTimeout(() => activeRoot.unmount(), 300);
+        }
+
+        const coordinates = feature.geometry.coordinates.slice();
+        const parseMaybeJSON = (v: any) => { if (typeof v === 'string') { try { return JSON.parse(v); } catch(err){} } return v; };
+        
+        p.user = parseMaybeJSON(p.user); p.ownerSnapshot = parseMaybeJSON(p.ownerSnapshot);
+        p.openHouse = parseMaybeJSON(p.openHouse); p.open_house_data = parseMaybeJSON(p.open_house_data) || p.openHouse;
+        p.activeCampaign = parseMaybeJSON(p.activeCampaign); p.b2b = parseMaybeJSON(p.b2b);
+        p.selectedServices = parseMaybeJSON(p.selectedServices) || []; p.specs = parseMaybeJSON(p.specs) || {};
+        let safeImages: any[] = []; if (typeof p.images === 'string') { try { safeImages = JSON.parse(p.images); } catch(err){} }
+
+        const el = document.createElement("div");
+        el.className = "z-[99999]"; 
+        activeRoot = createRoot(el);
+        
+        activeRoot.render(
+          <MapNanoCard
+            id={p.id || Date.now().toString()} data={p} forceOpen={true} promotedTier={p.promotedTier}
+            isPromoted={p.isPromoted} isFire={p.isFire} price={p.price} priceValue={p.priceValue}
+            rawPrice={p.priceValue} rooms={p.rooms} baths={p.baths} mBuilt={p.mBuilt} m2={p.m2} 
+            selectedServices={p.selectedServices} elevator={p.elevator} specs={p.specs}
+            type={p.type || 'Propiedad'} img={p.img} images={safeImages} lat={coordinates[1]} lng={coordinates[0]} 
+            role={p.role} title={p.title} description={p.description} address={p.address} city={p.city} 
+            postcode={p.postcode} region={p.region} communityFees={p.communityFees} energyConsumption={p.energyConsumption}
+            energyEmissions={p.energyEmissions} energyPending={p.energyPending} openHouse={p.openHouse}
+            activeCampaign={p.activeCampaign} b2b={p.b2b}
+          />
+        );
+
+        // 🚀 EL TRUCO ANTICOLISIÓN: Elevamos el popup 42px (o 50px si es Fuego) para que no tape el pin
+        const elevacion = p.isFire ? 50 : 42;
+
+        activePopup = new mapboxgl.Popup({ 
+            closeButton: false, 
+            closeOnClick: false, 
+            offset: { 'bottom': [0, -elevacion], 'bottom-left': [0, -elevacion], 'bottom-right': [0, -elevacion] }, 
+            maxWidth: 'none', 
+            className: 'st-nano-popup' 
+        })
+        .setLngLat(coordinates as [number, number])
+        .setDOMContent(el)
+        .addTo(map.current);
+        
+        activePopup._stratosId = p.id;
+
+        // 💥 DESTRUCCIÓN DEL FONDO BLANCO NATIVO Y CONTROL DE RETENCIÓN
+        const popupElem = activePopup.getElement();
+        if (popupElem) {
+            const content = popupElem.querySelector('.mapboxgl-popup-content');
+            if (content) { content.style.background = 'transparent'; content.style.boxShadow = 'none'; content.style.padding = '0'; }
+            const tip = popupElem.querySelector('.mapboxgl-popup-tip');
+            if (tip) tip.style.display = 'none';
+
+            // Si el ratón entra en la tarjeta flotante, cancelamos el cierre automático
+            popupElem.addEventListener('mouseenter', () => { if (hoverTimeout) clearTimeout(hoverTimeout); });
+            // Si sale de la tarjeta flotante, la cerramos
+            popupElem.addEventListener('mouseleave', () => {
+                hoverTimeout = setTimeout(() => {
+                    if (activePopup) { activePopup.remove(); activeRoot.unmount(); activePopup = null; }
+                }, 200);
+            });
+        }
+      });
+
+      // 🎯 2. AL QUITAR EL RATÓN DEL PIN (CIERRA LA NANOCARD)
+      map.current.on('mouseleave', 'unclustered-point-bg', () => { 
+        map.current.getCanvas().style.cursor = ''; 
+        // Le damos 200ms de margen por si el usuario está moviendo el ratón hacia la tarjeta para pulsar favoritos
+        hoverTimeout = setTimeout(() => {
+            if (activePopup) {
+                activePopup.remove();
+                if (activeRoot) activeRoot.unmount();
+                activePopup = null;
+            }
+        }, 200);
+      });
+
+    // 🎯 3. AL HACER CLIC EN EL PIN (ABRE DETAILS Y VUELA)
+      map.current.on('click', 'unclustered-point-bg', (e: any) => {
+        const features = map.current.queryRenderedFeatures(e.point, { layers: ['unclustered-point-bg'] });
+        if (!features.length) return;
+        
+        const p = { ...features[0].properties };
+        const coordinates = features[0].geometry.coordinates.slice();
+        
+        // 🧳 1. DESEMPAQUETADO SEGURO DE LA BASE DE DATOS
+        const parseJsonSafe = (v: any) => { if (typeof v === 'string') { try { return JSON.parse(v); } catch(err){} } return v; };
+        
+        p.user = parseJsonSafe(p.user);
+        p.ownerSnapshot = parseJsonSafe(p.ownerSnapshot);
+        p.openHouse = parseJsonSafe(p.openHouse);
+        p.open_house_data = parseJsonSafe(p.open_house_data) || p.openHouse;
+        p.activeCampaign = parseJsonSafe(p.activeCampaign);
+        p.campaigns = parseJsonSafe(p.campaigns);
+        p.b2b = parseJsonSafe(p.b2b);
+        p.selectedServices = parseJsonSafe(p.selectedServices) || [];
+        p.specs = parseJsonSafe(p.specs) || {};
+        const sourceImages = parseJsonSafe(p.images);
+
+        // 📸 2. RECONSTRUCCIÓN DE IMÁGENES EXACTA A SU NANO CARD (El fallo estaba aquí)
+        let finalAlbum: string[] = [];
+        if (Array.isArray(sourceImages) && sourceImages.length > 0) {
+            finalAlbum = sourceImages.map((i: any) => (typeof i === "string" ? i : i?.url || i)).filter(Boolean);
+        } else {
+            const backupImg = p.mainImage || p.img || p.image;
+            if (backupImg) finalAlbum = [backupImg];
+        }
+
+        // 🤝 3. RECONSTRUCCIÓN DEL B2B
+        let b2bData = p.b2b;
+        if (!b2bData) {
+            const ac = p.activeCampaign;
+            if (ac) b2bData = { sharePct: Number(ac.commissionSharePct || 0), visibility: ac.commissionShareVisibility || 'PRIVATE' };
+            else b2bData = { sharePct: Number(p.sharePct ?? 0), visibility: p.shareVisibility ?? 'PRIVATE' };
+        }
+
+        // 🏢 4. RECONSTRUCCIÓN DEL USUARIO/AGENCIA (Con Avatar y Cover)
+        const safeActiveCampaign = p.activeCampaign || (Array.isArray(p.campaigns) ? p.campaigns[0] : null);
+        let finalUser = p.user || p.ownerSnapshot || {};
+
+        if (safeActiveCampaign && safeActiveCampaign.status === 'ACCEPTED' && safeActiveCampaign.agency) {
+            const agency = safeActiveCampaign.agency;
+            finalUser = {
+                ...agency, id: agency.id, name: agency.companyName || agency.name || "Agencia Asociada", role: "AGENCIA",
+                avatar: agency.companyLogo || agency.avatar || null, email: agency.email, phone: agency.mobile || agency.phone,
+                mobile: agency.mobile, coverImage: agency.coverImage || null, companyName: agency.companyName,
+                licenseNumber: agency.licenseNumber, website: agency.website
+            };
+        }
+
+        // 💰 5. PRECIO SEGURO
+        const currentPrice = Number(p.priceValue || p.rawPrice || 0);
+
+        // 🧳 6. LA MALETA CLONADA Y PERFECTA LISTA PARA ENVIAR
+        const payload = {
+            ...p,
+            id: String(p.id),
+            address: p.address || null,
+            city: p.city || null,
+            postcode: p.postcode || null,
+            region: p.region || null,
+            images: finalAlbum, // Array de Strings limpios
+            img: finalAlbum[0] || null, // Primera imagen limpia para portada
+            price: currentPrice,
+            priceValue: currentPrice,
+            b2b: b2bData,
+            user: finalUser,
+            realOwner: p.user,
+            openHouse: p.openHouse,
+            open_house_data: p.open_house_data,
+            activeCampaign: safeActiveCampaign,
+            promotedTier: (p.promotedTier === 'PREMIUM' || p.isPromoted) ? 'PREMIUM' : undefined
+        };
+
+        const strId = String(p.id || Date.now().toString());
+        window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: strId } }));
+        (window as any).__currentOpenPropertyId = strId; 
+
+        // 🚀 DISPARO LIMPIO AL PANEL LATERAL (Ya no fallará la carga)
+        window.dispatchEvent(new CustomEvent("open-details-signal", { detail: payload })); 
+
+        map.current.flyTo({ center: coordinates as [number, number], zoom: 18.5, pitch: 60, speed: 0.8 });
+      });
       // =================================================================
       // 🖱️ INTERACTIVIDAD DE CLÚSTERES AZULES
       // =================================================================
@@ -224,13 +552,17 @@ export const useMapLogic = () => {
         const clusterId = features[0].properties.cluster_id;
         map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err: any, zoom: any) => {
           if (err) return;
-          map.current.flyTo({ center: features[0].geometry.coordinates as [number, number], zoom: zoom + 1, speed: 0.5 });
-        });
+map.current.flyTo({
+  center: features[0].geometry.coordinates as [number, number],
+  zoom,
+  speed: 0.5
+});      
+  });
       });
       map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
       map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
-     // =================================================================
+    // =================================================================
       // 🎯 INTERACTIVIDAD DE ÉLITE (El Francotirador de NanoCards BLINDADO)
       // =================================================================
       map.current.on('click', 'unclustered-point', (e: any) => {
@@ -268,8 +600,13 @@ export const useMapLogic = () => {
           <MapNanoCard
             id={p?.id || Date.now().toString()}
             data={p}
+            
+            // ⚡️ LA ORDEN MÁGICA: ABRE LA TARJETA GRANDE DE GOLPE (ADIÓS AL DOBLE CLIC) ⚡️
+            forceOpen={true} 
+            
             promotedTier={p?.promotedTier}
             isPromoted={p?.isPromoted}
+            isFire={p?.isFire}
             price={p?.price}
             priceValue={p?.priceValue}
             rawPrice={p?.priceValue}
@@ -322,7 +659,7 @@ export const useMapLogic = () => {
           data: { type: 'FeatureCollection', features: [] },
           cluster: true,
           clusterMaxZoom: 14, 
-          clusterRadius: 60
+          clusterRadius: 40
         });
       }
 
@@ -389,7 +726,66 @@ export const useMapLogic = () => {
       
     }); 
   }, []);
+  // --------------------------------------------------------------------
+  // 🔥 ANIMACIÓN NATIVA DE ONDAS PARA PINS FUEGO
+  // --------------------------------------------------------------------
+  useEffect(() => {
+    if (!isLoaded || !map.current) return;
 
+    let rafId = 0;
+    let destroyed = false;
+
+   const animateFireWaves = () => {
+  if (!map.current || destroyed) return;
+
+  const t = performance.now() * 0.0021;
+
+  const outerPulse = (Math.sin(t) + 1) / 2;
+  const innerPulse = (Math.sin(t + 1.05) + 1) / 2;
+  const heat = (Math.sin(t * 1.45 + 0.35) + 1) / 2;
+
+  const mix = (a: number, b: number, k: number) => a + (b - a) * k;
+  const rgba = (r: number, g: number, b: number, a = 1) =>
+    `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${a})`;
+
+  // Vibración visible pero más elegante
+  const outerColor = rgba(255, mix(122, 96, heat), mix(0, 18, heat), 1);
+  const outerStroke = rgba(255, mix(212, 235, heat), mix(92, 120, heat), 1);
+
+  const innerColor = rgba(255, mix(90, 62, heat), mix(10, 24, heat), 1);
+  const innerStroke = rgba(255, mix(208, 248, heat), mix(120, 170, heat), 1);
+
+  if (map.current.getLayer('fire-wave-outer')) {
+    map.current.setPaintProperty('fire-wave-outer', 'circle-radius', 22 + outerPulse * 14);
+    map.current.setPaintProperty('fire-wave-outer', 'circle-opacity', 0.18 - outerPulse * 0.11);
+    map.current.setPaintProperty('fire-wave-outer', 'circle-stroke-opacity', 0.62 - outerPulse * 0.34);
+    map.current.setPaintProperty('fire-wave-outer', 'circle-color', outerColor);
+    map.current.setPaintProperty('fire-wave-outer', 'circle-stroke-color', outerStroke);
+  }
+
+  if (map.current.getLayer('fire-wave-inner')) {
+    map.current.setPaintProperty('fire-wave-inner', 'circle-radius', 11 + innerPulse * 10);
+    map.current.setPaintProperty('fire-wave-inner', 'circle-opacity', 0.14 - innerPulse * 0.08);
+    map.current.setPaintProperty('fire-wave-inner', 'circle-stroke-opacity', 0.48 - innerPulse * 0.26);
+    map.current.setPaintProperty('fire-wave-inner', 'circle-color', innerColor);
+    map.current.setPaintProperty('fire-wave-inner', 'circle-stroke-color', innerStroke);
+  }
+
+  if (map.current.getLayer('fire-wave-core')) {
+    map.current.setPaintProperty('fire-wave-core', 'circle-radius', 6 + heat * 1.8);
+    map.current.setPaintProperty('fire-wave-core', 'circle-opacity', 0.16 + heat * 0.06);
+    map.current.setPaintProperty('fire-wave-core', 'circle-color', rgba(255, mix(179, 205, heat), mix(0, 24, heat), 1));
+  }
+
+  rafId = requestAnimationFrame(animateFireWaves);
+};
+    rafId = requestAnimationFrame(animateFireWaves);
+
+    return () => {
+      destroyed = true;
+      cancelAnimationFrame(rafId);
+    };
+  }, [isLoaded]);
   // ----------------------------------------------------------------------
   // 3. LÓGICA DE FILTRADO INTELIGENTE V2 (INTACTA)
   // ----------------------------------------------------------------------
