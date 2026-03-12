@@ -1,6 +1,5 @@
-// @ts-nocheck
-"use client";
 
+"use client";
 
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -12,8 +11,6 @@ import MapNanoCard from './ui-panels/MapNanoCard';
 // 🔥 IMPORTAMOS EL MONOLITO DORADO PARA LAS AGENCIAS VIP
 import VipAgencyMarker from './ui-panels/VipAgencyMarker';
 
-// 🔥 1. IMPORTAMOS LA NUEVA BASE DE DATOS MAESTRA
-// import { STRATOS_PROPERTIES, IMAGES } from './stratos-db';
 const STRATOS_PROPERTIES : any[] = [];
 const IMAGES : any[] = [];
 
@@ -44,11 +41,11 @@ export const useMapLogic = () => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const markersRef = useRef({});
   const agencyMarkersRef = useRef<any>({});
   
   // 🔥 BÚNKER TÁCTICO: Almacena las tropas originales para no borrarlas al filtrar
   const masterRadarDataRef = useRef<any[]>([]);
+
   // --------------------------------------------------------------------
   // A. INICIALIZACIÓN DEL MAPA (MOTOR ELITE V2 - 3D REAL)
   // --------------------------------------------------------------------
@@ -61,8 +58,8 @@ export const useMapLogic = () => {
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/standard', // EL MOTOR MAESTRO
       center: [-3.6883, 40.4280], 
-      zoom: 16, // Zoom Pro para ver fachadas
-      pitch: 75, // Inclinación agresiva
+      zoom: 16, 
+      pitch: 75, 
       bearing: -20,
       antialias: true,
       projection: 'globe'
@@ -70,31 +67,25 @@ export const useMapLogic = () => {
 
    // 🚀 CONFIGURACIÓN DE ALTO NIVEL (FUERZA BRUTA 3D)
     map.current.on('style.import.load', () => {
-        // 1. FORZAMOS EL RELIEVE
         map.current.setConfigProperty('basemap', 'show3dObjects', true);
         map.current.setConfigProperty('basemap', 'showLandmarks', true);
         
-        // 🔥 2. RELOJ BIOLÓGICO (SINCRONIZACIÓN CON EL MUNDO REAL)
         const hour = new Date().getHours();
-        let currentLighting = 'day'; // Por defecto, día
+        let currentLighting = 'day'; 
         
         if (hour >= 20 || hour < 7) {
-            currentLighting = 'night'; // Noche cerrada (20:00 a 06:59)
+            currentLighting = 'night';
         } else if (hour >= 18) {
-            currentLighting = 'dusk';  // Atardecer (18:00 a 19:59)
+            currentLighting = 'dusk'; 
         } else if (hour >= 7 && hour < 9) {
-            currentLighting = 'dawn';  // Amanecer (07:00 a 08:59)
+            currentLighting = 'dawn'; 
         }
         
-        // Aplicamos la luz real
         map.current.setConfigProperty('basemap', 'lightPreset', currentLighting); 
-        
-        // 🔥 3. LIMPIEZA COMERCIAL (Fuera la basura que no paga)
         map.current.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
         map.current.setConfigProperty('basemap', 'showTransitLabels', false);
-        
-        console.log(`⚡️ STRATOSFERE: RELOJ ACTIVO (${currentLighting.toUpperCase()}) Y MAPA LIMPIO`);
     });
+
     map.current.addControl(
       new mapboxgl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }),
       'bottom-left'
@@ -104,34 +95,18 @@ export const useMapLogic = () => {
       console.log("🟢 SISTEMA CARGADO");
       setIsLoaded(true);
 
-     
-      // =================================================================
-      // 🛑 ESTRATEGIA CERO PARPADEOS (ESTRUCTURA VISUAL)
-      // =================================================================
-      // Iniciamos el mapa VACÍO.
-      // La lógica de "Blindaje de Datos" (Ascensor, Precios, Servicios)
-      // se ejecuta EXCLUSIVAMENTE en el 'executeRadar' (más abajo)
-      // para asegurar una única fuente de verdad y evitar conflictos.
-
      // 1. FUENTE DE DATOS (INICIALIZACIÓN ESTRUCTURAL)
       if (map.current.getSource('properties')) {
-        (map.current.getSource('properties') as any).setData({
-          type: 'FeatureCollection',
-          features: [] // 🔥 VACÍO: Esperando inyección segura del Radar
-        });
+        (map.current.getSource('properties') as any).setData({ type: 'FeatureCollection', features: [] });
       } else {
         map.current.addSource('properties', {
           type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }, // 🔥 VACÍO: Esperando inyección segura del Radar
+          data: { type: 'FeatureCollection', features: [] },
           cluster: true,
           clusterMaxZoom: 15,
           clusterRadius: 80
         });
       }
-
-      // =================================================================
-      // 🎨 DISEÑO VISUAL Y CAPAS (MANTENIDO AL 100%)
-      // =================================================================
 
       // Capa: Círculos Azules (Agrupaciones)
       if (!map.current.getLayer('clusters')) {
@@ -164,41 +139,189 @@ export const useMapLogic = () => {
             'text-size': 16,
             'text-offset': [0, 0]
           },
-          paint: { 
-            'text-color': '#ffffff', 
-            'text-emissive-strength': 1 
+          paint: { 'text-color': '#ffffff', 'text-emissive-strength': 1 }
+        });
+      }
+
+      // =================================================================
+      // 🚀 CAPA NATIVA: EL CÍRCULO DEL PIN (NORMAL VS FUEGO)
+      // =================================================================
+      if (!map.current.getLayer('unclustered-point')) {
+        map.current.addLayer({
+          id: 'unclustered-point',
+          type: 'circle',
+          source: 'properties',
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': [
+              'case',
+              // SI ES PREMIUM -> ROJO FUEGO
+              ['==', ['get', 'promotedTier'], 'PREMIUM'], '#ef4444', 
+              ['==', ['get', 'isPromoted'], true], '#ef4444',        
+              // SI ES NORMAL -> PIZARRA OSCURO
+              '#0f172a' 
+            ],
+            'circle-radius': [
+              'case', 
+              // SI ES PREMIUM -> MÁS GRANDE
+              ['==', ['get', 'promotedTier'], 'PREMIUM'], 12, 
+              // NORMAL
+              9
+            ],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': [
+              'case',
+              // SI ES PREMIUM -> ARO DORADO
+              ['==', ['get', 'promotedTier'], 'PREMIUM'], '#f59e0b', 
+              // NORMAL -> ARO BLANCO
+              '#ffffff'
+            ]
           }
         });
       }
 
       // =================================================================
-      // 🖱️ INTERACTIVIDAD (CLICS Y MOVIMIENTO AZULES)
+      // 🚀 CAPA NATIVA: EL TEXTO DEL PRECIO (ETIQUETA ELEGANTE)
+      // =================================================================
+      if (!map.current.getLayer('unclustered-point-label')) {
+        map.current.addLayer({
+          id: 'unclustered-point-label',
+          type: 'symbol',
+          source: 'properties',
+          filter: ['!', ['has', 'point_count']],
+          layout: {
+            // 🔥 AQUÍ USAMOS EL TEXTO BONITO QUE FORMATEAMOS ANTES
+            'text-field': ['get', 'formattedPrice'],
+            'text-font': ['Arial Unicode MS Bold'],
+            'text-size': 11,
+            // Lo bajamos un poquito para que no tape el círculo
+            'text-offset': [0, 1.5],
+            'text-anchor': 'top'
+          },
+          paint: {
+            // Color del texto (Blanco)
+            'text-color': '#ffffff',
+            // 🔥 EL TRUCO TRIVAGO: Un halo grueso que funciona como fondo de la etiqueta
+            'text-halo-color': [
+              'case',
+              // Fondo Rojo si es Premium
+              ['==', ['get', 'promotedTier'], 'PREMIUM'], '#ef4444', 
+              ['==', ['get', 'isPromoted'], true], '#ef4444',
+              // Fondo oscuro si es normal
+              '#0f172a'
+            ],
+            'text-halo-width': 2,
+            'text-halo-blur': 0.5
+          }
+        });
+      }
+
+      // =================================================================
+      // 🖱️ INTERACTIVIDAD DE CLÚSTERES AZULES
       // =================================================================
       map.current.on('click', 'clusters', (e: any) => {
         const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         const clusterId = features[0].properties.cluster_id;
         map.current.getSource('properties').getClusterExpansionZoom(clusterId, (err: any, zoom: any) => {
           if (err) return;
-          map.current.flyTo({ 
-              center: features[0].geometry.coordinates as [number, number], 
-              zoom: zoom + 1, 
-              speed: 0.5 
-          });
+          map.current.flyTo({ center: features[0].geometry.coordinates as [number, number], zoom: zoom + 1, speed: 0.5 });
         });
       });
-
       map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
       map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
      // =================================================================
-      // 🔥 1. EL BOTE DE CACAHUETES DORADO (Capas VIP) 🔥
+      // 🎯 INTERACTIVIDAD DE ÉLITE (El Francotirador de NanoCards BLINDADO)
+      // =================================================================
+      map.current.on('click', 'unclustered-point', (e: any) => {
+        const features = map.current.queryRenderedFeatures(e.point, { layers: ['unclustered-point'] });
+        if (!features.length) return;
+        
+        const feature = features[0];
+        const coordinates = feature.geometry.coordinates.slice();
+        
+        // 🔥 DESVINCULACIÓN TOTAL: Clonamos los datos para que Mapbox no interfiera con React
+        const p = { ...feature.properties };
+        
+        // Desempaquetado seguro para recuperar los datos de la base de datos
+        const parseMaybeJSON = (v: any) => { if (typeof v === 'string') { try { return JSON.parse(v); } catch(err){} } return v; };
+        
+        p.user = parseMaybeJSON(p.user);
+        p.ownerSnapshot = parseMaybeJSON(p.ownerSnapshot);
+        p.openHouse = parseMaybeJSON(p.openHouse);
+        p.open_house_data = parseMaybeJSON(p.open_house_data) || p.openHouse;
+        p.activeCampaign = parseMaybeJSON(p.activeCampaign);
+        p.b2b = parseMaybeJSON(p.b2b);
+        p.selectedServices = parseMaybeJSON(p.selectedServices) || [];
+        p.specs = parseMaybeJSON(p.specs) || {};
+
+        let safeImages: any[] = [];
+        if (typeof p.images === 'string') { try { safeImages = JSON.parse(p.images); } catch(err){} }
+
+        // 🚀 CREAMOS EL MARCADOR (UNO SOLO)
+        const el = document.createElement("div");
+        el.className = "z-[99999]"; // Prioridad máxima para la tarjeta
+        const root = createRoot(el);
+        
+        // 🔥 USO DE OPTIONAL CHAINING (?.): Si falta un dato, no explota, pone null.
+        root.render(
+          <MapNanoCard
+            id={p?.id || Date.now().toString()}
+            data={p}
+            promotedTier={p?.promotedTier}
+            isPromoted={p?.isPromoted}
+            price={p?.price}
+            priceValue={p?.priceValue}
+            rawPrice={p?.priceValue}
+            rooms={p?.rooms}
+            baths={p?.baths}
+            mBuilt={p?.mBuilt}
+            m2={p?.m2} 
+            selectedServices={p?.selectedServices}
+            elevator={p?.elevator}
+            specs={p?.specs}
+            type={p?.type || 'Propiedad'}
+            img={p?.img}
+            images={safeImages}
+            lat={coordinates[1]}
+            lng={coordinates[0]}
+            role={p?.role}
+            title={p?.title}
+            description={p?.description}
+            address={p?.address || null}
+            city={p?.city || null}
+            postcode={p?.postcode || null}
+            region={p?.region || null}
+            communityFees={p?.communityFees}
+            energyConsumption={p?.energyConsumption}
+            energyEmissions={p?.energyEmissions}
+            energyPending={p?.energyPending}
+            openHouse={p?.openHouse}
+            activeCampaign={p?.activeCampaign}
+            b2b={p?.b2b}
+          />
+        );
+
+        // Forzamos el CSS nativo del popup para que no rompa nuestro diseño flotante
+        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: true, offset: 15, maxWidth: 'none', className: 'st-nano-popup' })
+          .setLngLat(coordinates as [number, number])
+          .setDOMContent(el)
+          .addTo(map.current);
+        
+        // Destrucción de la memoria RAM al cerrar
+        popup.on('close', () => { setTimeout(() => root.unmount(), 300); });
+          
+        map.current.flyTo({ center: coordinates as [number, number], zoom: 18.5, pitch: 60, speed: 0.8 });
+      });
+      // =================================================================
+      // 🔥 EL BOTE DE CACAHUETES DORADO (Capas VIP) 🔥 (INTACTO)
       // =================================================================
       if (!map.current.getSource('vip-agencies')) {
         map.current.addSource('vip-agencies', {
           type: 'geojson',
           data: { type: 'FeatureCollection', features: [] },
           cluster: true,
-          clusterMaxZoom: 14, // A partir de zoom 14 se rompe el bote
+          clusterMaxZoom: 14, 
           clusterRadius: 60
         });
       }
@@ -210,7 +333,7 @@ export const useMapLogic = () => {
           source: 'vip-agencies',
           filter: ['has', 'point_count'],
           paint: {
-            'circle-color': '#eab308', // Dorado VIP
+            'circle-color': '#eab308',
             'circle-radius': ['step', ['get', 'point_count'], 30, 10, 40, 50, 50],
             'circle-stroke-width': 3,
             'circle-stroke-color': '#ffffff',
@@ -230,7 +353,6 @@ export const useMapLogic = () => {
         });
       }
 
-      // Cinemática al hacer clic en el orbe dorado (GremlinsPop)
       map.current.on('click', 'vip-clusters', (e: any) => {
         const features = map.current.queryRenderedFeatures(e.point, { layers: ['vip-clusters'] });
         const clusterId = features[0].properties.cluster_id;
@@ -246,151 +368,90 @@ export const useMapLogic = () => {
       // ⚙️ MOVIMIENTO Y SINCRONIZACIÓN FINAL
       // =================================================================
       map.current.on('moveend', () => {
-          updateMarkers();
-          
-          // 🔥 LLAMAMOS AL DESPARRAMADOR VIP AL MOVER EL MAPA
           if (typeof updateVipMarkers === 'function') {
               updateVipMarkers();
           }
-          
           const center = map.current.getCenter();
-          window.dispatchEvent(new CustomEvent('map-center-updated', { 
-              detail: { lng: center.lng, lat: center.lat } 
-          }));
+          window.dispatchEvent(new CustomEvent('map-center-updated', { detail: { lng: center.lng, lat: center.lat } }));
       });
 
       map.current.on('move', () => {
           const center = map.current.getCenter();
-          window.dispatchEvent(new CustomEvent('map-center-updated', { 
-              detail: { lng: center.lng, lat: center.lat } 
-          }));
+          window.dispatchEvent(new CustomEvent('map-center-updated', { detail: { lng: center.lng, lat: center.lat } }));
       });
-
-      updateMarkers();
 
       setTimeout(() => {
           if (map.current) {
               const initialCenter = map.current.getCenter();
-              window.dispatchEvent(new CustomEvent('map-center-updated', { 
-                  detail: { lng: initialCenter.lng, lat: initialCenter.lat } 
-              }));
+              window.dispatchEvent(new CustomEvent('map-center-updated', { detail: { lng: initialCenter.lng, lat: initialCenter.lat } }));
           }
       }, 500);
       
-    }); // <--- CIERRE DEL .on('load')
-  }, []); // <--- CIERRE DEL useEffect
- // ----------------------------------------------------------------------
-  // 3. LÓGICA DE FILTRADO INTELIGENTE V2
+    }); 
+  }, []);
+
+  // ----------------------------------------------------------------------
+  // 3. LÓGICA DE FILTRADO INTELIGENTE V2 (INTACTA)
   // ----------------------------------------------------------------------
   useEffect(() => {
     const handleFilterSignal = (e: any) => {
       if (!map.current || !map.current.getSource('properties')) return;
 
-      // 🔥 AHORA LEEMOS LOS NUEVOS PARÁMETROS DE LA CONSOLA VIP
       const { priceMax, surfaceRange, type, specs, premiumOnly } = e.detail;
-      const priceRange = { min: 0, max: priceMax || 999999999 }; // Adaptamos el precio
-      console.log(`🔍 FILTRANDO AVANZADO:`, { priceRange, type, specs, premiumOnly });
+      const priceRange = { min: 0, max: priceMax || 999999999 };
    
-     // 🛡️ 1. RECONSTRUIR EJÉRCITO (DESDE EL BÚNKER DE RAM)
       let masterFeatures: any[] = masterRadarDataRef.current || [];
 
-      if (masterFeatures.length === 0) {
-          console.warn("⏳ Filtro recibido pero el Búnker está vacío. El radar aún no ha escaneado la zona.");
-          return;
-      }
+      if (masterFeatures.length === 0) return;
 
-      // Normalizamos (sin perder elevator/specs/selectedServices ni la memoria de Agencia)
       masterFeatures = masterFeatures.map((f: any) => {
         const p = f.properties || {};
         const idStr = String(p.id ?? p._id ?? f.id ?? Date.now());
-
-        const priceValue = Number(
-          p.priceValue ??
-          p.rawPrice ??
-          (typeof p.price === 'string' ? String(p.price).replace(/\D/g, '') : p.price) ??
-          0
-        );
-
+        const priceValue = Number(p.priceValue ?? p.rawPrice ?? (typeof p.price === 'string' ? String(p.price).replace(/\D/g, '') : p.price) ?? 0);
         const m2 = Number(p.m2 ?? p.mBuilt ?? 0);
         const mBuilt = Number(p.mBuilt ?? p.m2 ?? 0);
 
-        // 🔥 SALVAVIDAS DE ARRAYS (Por si Mapbox los convirtió en texto)
         let safeServices = [];
-        if (Array.isArray(p.selectedServices)) {
-            safeServices = p.selectedServices;
-        } else if (typeof p.selectedServices === 'string') {
-            try { safeServices = JSON.parse(p.selectedServices); } catch(e) { safeServices = []; }
-        }
+        if (Array.isArray(p.selectedServices)) safeServices = p.selectedServices;
+        else if (typeof p.selectedServices === 'string') { try { safeServices = JSON.parse(p.selectedServices); } catch(e) { safeServices = []; } }
 
-        // 🔥 SALVAVIDAS DE OBJETOS (Por si Mapbox los convirtió en texto)
-        let safeSpecs = {};
-        if (typeof p.specs === 'object' && p.specs !== null) {
-            safeSpecs = p.specs;
-        } else if (typeof p.specs === 'string') {
-            try { safeSpecs = JSON.parse(p.specs); } catch(e) { safeSpecs = {}; }
-        }
+        // 🔥 BLINDAJE TYPESCRIPT: Le decimos explícitamente que es de tipo "any"
+        let safeSpecs: any = {};
+        if (typeof p.specs === 'object' && p.specs !== null) safeSpecs = p.specs;
+        else if (typeof p.specs === 'string') { try { safeSpecs = JSON.parse(p.specs); } catch(e) { safeSpecs = {}; } }
 
         return {
           ...f,
           properties: {
-            ...p, // <--- Esto garantiza que el Open House y el Fuego Premium NO se borren
-            id: idStr,
-            priceValue,
-            m2,
-            mBuilt,
-            selectedServices: safeServices,
-            specs: safeSpecs,
-            elevator: (
-              isYes(p.elevator) ||
-              isYes(p.ascensor) ||
-              isYes(p.hasElevator) ||
-              isYes(p?.specs?.elevator) ||
-              isYes(safeSpecs?.elevator)
-            )
+            ...p, id: idStr, priceValue, m2, mBuilt, selectedServices: safeServices, specs: safeSpecs,
+            // 🔥 Añadimos (safeSpecs as any) por si TypeScript se pone pesado
+            elevator: isYes(p.elevator) || isYes(p.ascensor) || isYes(p.hasElevator) || isYes((p?.specs as any)?.elevator) || isYes((safeSpecs as any)?.elevator)
           }
         };
       });
-
-      // =====================================================================
-      // ☁️ 100% SAAS CLOUD: PURGA DE TROPAS FANTASMA (LOCALSTORAGE ELIMINADO)
-      // =====================================================================
-      // Usamos exclusivamente los datos reales validados por el servidor (masterFeatures).
 
       const allData = masterFeatures.filter((f: any) => {
         const pid = f?.properties?.id ?? f?.properties?._id ?? f?.id;
         return pid !== undefined && pid !== null && String(pid).trim() !== "";
       });
 
-      // ✅ CORTAFUEGOS ANTI-BORRADO: Si por lo que sea aún no hay datos, NO tocar el source
-      if (allData.length === 0) {
-        console.warn("⏳ Filtro recibido pero no hay features válidas aún. No aplico para no borrar NanoCards.");
-        return;
-      }
+      if (allData.length === 0) return;
 
-      // 2. APLICAR LÓGICA DE FILTRADO BASE (Precio, Superficie, Extras)
       const baseFilteredFeatures = allData.filter(f => {
         const p = f.properties;
-
-        // 🔥 FILTRO VIP (MODO FUEGO BLINDADO)
         if (premiumOnly === true || String(premiumOnly) === "true") {
            const tier = String(p.promotedTier || "").toUpperCase();
            const isPremium = tier === 'PREMIUM' || p.isPromoted === true || p.premium === true;
            if (!isPremium) return false;
         }
 
-        // A. Precio
         if (p.priceValue < priceRange.min || p.priceValue > priceRange.max) return false;
-
-        // B. Superficie 
         const m2 = p.m2 || Math.floor(p.priceValue / 4000);
         if (m2 < (surfaceRange?.min || 0) || m2 > (surfaceRange?.max || 99999999)) return false;
 
-        // C. Especificaciones (Habitaciones / Baños)
         if (specs) {
           if (specs.beds > 0 && (p.rooms || 0) < specs.beds) return false;
           if (specs.baths > 0 && (p.baths || 0) < specs.baths) return false;
-
-          // D. Extras (Piscina, Garaje...)
           if (specs.features && specs.features.length > 0) {
             const safeServices = Array.isArray(p.selectedServices) ? p.selectedServices : [];
             const safeText = ` ${(p.title || '')} ${(p.description || '')} `.toUpperCase();
@@ -414,7 +475,6 @@ export const useMapLogic = () => {
         return true; 
       });
 
-      // 3. APLICAR FILTRO DE TIPO (El cirujano)
       let finalFeatures = baseFilteredFeatures.filter(f => {
           const pType = String(f.properties.type || "").toLowerCase().trim();
           const targetType = String(type || "all").toLowerCase().trim();
@@ -436,30 +496,18 @@ export const useMapLogic = () => {
           return true;
       });
 
-      // 🐎🧠 LA MAGIA EN EL MAPA: MODO CABALLO VS BICICLETA
       if (finalFeatures.length === 0 && String(type || "all").toLowerCase() !== "all") {
-          console.log("⚠️ Radar: Cero coincidencias exactas de tipología. Desplegando alternativas de la zona.");
-          finalFeatures = baseFilteredFeatures; // Restauramos las tropas alternativas
+          finalFeatures = baseFilteredFeatures; 
       }
-
-      // 4. ACTUALIZAR MAPA (Inyectamos finalFeatures)
-      Object.values(markersRef.current).forEach((marker: any) => marker.remove());
-      markersRef.current = {};
 
       const src: any = map.current.getSource('properties');
-      if (src) {
-        src.setData({ type: 'FeatureCollection', features: finalFeatures });
-      }
-
-      map.current.once('idle', () => {
-        console.log(`✅ Filtro aplicado: ${finalFeatures.length} activos encontrados.`);
-        updateMarkers();
-      });
+      if (src) src.setData({ type: 'FeatureCollection', features: finalFeatures });
     };
 
     window.addEventListener('apply-filter-signal', handleFilterSignal);
     return () => window.removeEventListener('apply-filter-signal', handleFilterSignal);
   }, []);
+
   // --------------------------------------------------------------------
   // C. SISTEMA DE TELETRANSPORTE (GIROSCOPIO BLINDADO)
   // --------------------------------------------------------------------
@@ -468,17 +516,13 @@ export const useMapLogic = () => {
       if (!map.current) return;
       const { center, zoom, pitch, duration } = e.detail;
 
-      // 🔥 1. LEEMOS LA CÁMARA ACTUAL DEL USUARIO
       const currentPitch = map.current.getPitch();
       const currentBearing = map.current.getBearing();
 
-      // 🔥 2. VOLAMOS RESPETANDO SU INCLINACIÓN Y ROTACIÓN
       map.current.flyTo({
         center: center,
         zoom: zoom || 18,
-        // Si el botón manda un pitch exacto, lo usamos. Si no, mantenemos el del usuario.
         pitch: pitch !== undefined ? pitch : currentPitch,
-        // Ya no forzamos -20. Mantenemos hacia dónde miraba el usuario.
         bearing: currentBearing, 
         duration: duration || 3000,
         essential: true
@@ -488,169 +532,16 @@ export const useMapLogic = () => {
     return () => window.removeEventListener('fly-to-location', handleFlyTo);
   }, []);
 
-// --------------------------------------------------------------------
-  // D. PINTOR DE MARCADORES (UNIFICADO: SOLO USAMOS MapNanoCard)
   // --------------------------------------------------------------------
-  const updateMarkers = () => {
-    const mapInstance = map.current;
-    if (!mapInstance || !mapInstance.getSource("properties")) return;
-
-    // Solo pintamos propiedades individuales (no clusters)
-    const features = mapInstance.querySourceFeatures("properties", {
-      filter: ["!", ["has", "point_count"]],
-    });
-
-    // Ordenar visualmente para que las del sur queden por delante (Efecto 3D)
-    features.sort((a: any, b: any) => b.geometry.coordinates[1] - a.geometry.coordinates[1]);
-    
-    // IDs como string
-    const visibleIds = new Set(features.map((f: any) => String(f.properties.id)));
-
-   // Limpiar marcadores viejos (CON DESTRUCCIÓN DE MEMORIA REACT)
-    Object.keys(markersRef.current).forEach((id) => {
-      if (!visibleIds.has(id)) {
-        const targetMarker = markersRef.current[id];
-        
-        // 🔥 EL MATA-ZOMBIES: Si el marcador tiene un root pegado, lo destruimos para liberar RAM
-        if (targetMarker._reactRoot) {
-            targetMarker._reactRoot.unmount();
-        }
-        
-        // Borramos el pin del mapa de Mapbox
-        targetMarker.remove();
-        delete markersRef.current[id];
-      }
-    });
-
-    // Pintar nuevos marcadores
-    features.forEach((feature: any) => {
-      const id = String(feature.properties.id);
-      if (markersRef.current[id]) return; // Si ya existe, no lo tocamos
-
-      const el = document.createElement("div");
-      el.className = "nanocard-marker";
-      
-      const root = createRoot(el);
-      const p = feature.properties;
-     
-      // 1. RECUPERACIÓN DE IMAGEN
-      let safeImages: any[] = [];
-      if (Array.isArray(p.images)) {
-        safeImages = p.images.map((i: any) => (typeof i === "string" ? i : i?.url)).filter(Boolean);
-      } else if (typeof p.images === 'string') {
-        try {
-            const parsed = JSON.parse(p.images);
-            safeImages = Array.isArray(parsed) ? parsed : [p.images];
-        } catch (e) { safeImages = [p.images]; }
-      }
-      if (safeImages.length === 0 && p.img) safeImages = [p.img];
-      const safeImg = safeImages[0] || null;
-
-      // 2. METROS
-      const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
-
-     // 3. PARSEO DE USUARIO/SNAPSHOT Y DESCOMPRESIÓN BLINDADA 🔥
-      const parseMaybeJSON = (v: any) => {
-        if (!v) return null;
-        if (typeof v === "object") return v;
-        if (typeof v === "string") {
-          try {
-            const j = JSON.parse(v);
-            return j && typeof j === "object" ? j : null;
-          } catch {}
-        }
-        return null;
-      };
-
-      const snapObj = parseMaybeJSON(p.ownerSnapshot);
-      const userObj = parseMaybeJSON(p.user) || snapObj;
-      if (snapObj) p.ownerSnapshot = snapObj;
-      if (userObj) p.user = userObj;
-
-      // 🔥 RESCATE DE LA AMNESIA: Desenvasamos Agencia, Open House y Extras
-      const openHouseObj = parseMaybeJSON(p.openHouse) || parseMaybeJSON(p.open_house_data);
-      const activeCampaignObj = parseMaybeJSON(p.activeCampaign);
-      const b2bObj = parseMaybeJSON(p.b2b);
-      const servicesArray = typeof p.selectedServices === 'string' ? parseMaybeJSON(p.selectedServices) : p.selectedServices;
-
-      if (openHouseObj) { p.openHouse = openHouseObj; p.open_house_data = openHouseObj; }
-      if (activeCampaignObj) p.activeCampaign = activeCampaignObj;
-      if (b2bObj) p.b2b = b2bObj;
-      p.selectedServices = Array.isArray(servicesArray) ? servicesArray : [];
-
-     p.role = p.role || p.user?.role || p.ownerSnapshot?.role || null;
-      p.description = p.description || p.desc || "";
-
-    
-      // 🔥 AQUÍ ESTÁ EL CAMBIO: USAMOS SIEMPRE MapNanoCard 🔥
-      // Él ya sabe leer "promotedTier" y ponerse Premium solo.
-      
-      root.render(
-          <MapNanoCard
-            id={id}
-            data={p}
-            promotedTier={p.promotedTier}
-            isPromoted={p.isPromoted}
-            price={p.price}
-            priceValue={p.priceValue}
-            rawPrice={p.priceValue}
-            rooms={p.rooms}
-            baths={p.baths}
-            mBuilt={finalM2}
-            m2={finalM2} 
-            selectedServices={p.selectedServices}
-            elevator={p.elevator}
-            specs={p.specs}
-            type={p.type}
-            img={safeImg}
-            images={safeImages}
-            lat={feature.geometry.coordinates[1]}
-            lng={feature.geometry.coordinates[0]}
-            role={p.role}
-            title={p.title}
-            description={p.description}
-            
-           // 🔥 DATOS PUROS (Sin lavar, pasados directamente)
-            address={p.address || null}
-            city={p.city || null}
-            postcode={p.postcode || null}
-            region={p.region || null}
-            
-            communityFees={p.communityFees}
-            energyConsumption={p.energyConsumption}
-            energyEmissions={p.energyEmissions}
-            energyPending={p.energyPending}
-            
-            // 🔥 INYECCIÓN DE LOS OBJETOS DESEMPAQUETADOS
-            openHouse={p.openHouse}
-            activeCampaign={p.activeCampaign}
-            b2b={p.b2b}
-          />
-      );
-
-     const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-        .setLngLat(feature.geometry.coordinates)
-        .addTo(mapInstance);
-
-      // 🔥 EL TRUCO: Le pegamos el root al marcador para poder destruirlo después
-      (marker as any)._reactRoot = root; 
-
-      markersRef.current[id] = marker;
-    });
-  };
-
-  // --------------------------------------------------------------------
-  // 🔥 2. EL DESPARRAMADOR VIP (Dibuja los HTML sueltos) 🔥
+  // 🔥 EL DESPARRAMADOR VIP (Dibuja los HTML sueltos) 🔥 (INTACTO)
   // --------------------------------------------------------------------
   const updateVipMarkers = () => {
     const mapInstance = map.current;
     if (!mapInstance || !(mapInstance as any).getSource("vip-agencies")) return;
 
-    // Solo busca cacahuetes SUELTOS (los que ya no están agrupados)
     const features = (mapInstance as any).querySourceFeatures("vip-agencies", { filter: ["!", ["has", "point_count"]] });
     const visibleIds = new Set(features.map((f: any) => String(f.properties.uniqueMarkerId)));
 
-    // Limpia los que ya no se ven
     Object.keys(agencyMarkersRef.current).forEach((id) => {
       if (!visibleIds.has(id)) {
         agencyMarkersRef.current[id].remove();
@@ -658,7 +549,6 @@ export const useMapLogic = () => {
       }
     });
 
-    // Dibuja los nuevos
     features.forEach((feature: any) => {
       const id = String(feature.properties.uniqueMarkerId);
       if (agencyMarkersRef.current[id]) return;
@@ -668,12 +558,9 @@ export const useMapLogic = () => {
       const root = createRoot(el);
       
       const agencyData = JSON.parse(feature.properties.agencyRawData);
-
-      // 🍿 CÁLCULO DEL RETRASO ALEATORIO (Efecto metralleta de 0 a 0.25 seg)
       const popDelay = (Math.random() * 0.25).toFixed(2);
 
       root.render(
-          // 🔥 ENVOLTORIO GREMLIN POP CON TAILWIND PURE
           <div className="animate-gremlin-pop" style={{ animationDelay: `${popDelay}s` }}>
               <VipAgencyMarker 
                   agency={agencyData} 
@@ -694,106 +581,52 @@ export const useMapLogic = () => {
       agencyMarkersRef.current[id] = marker;
     });
   };
- // --------------------------------------------------------------------
-  // E. BÚSQUEDA OMNI V10 (INTERCEPTOR TÁCTICO) 🇪🇸🛡️
+
+  // --------------------------------------------------------------------
+  // E. BÚSQUEDA OMNI V10 (INTERCEPTOR TÁCTICO) 🇪🇸🛡️ (INTACTO)
   // --------------------------------------------------------------------
   const searchCity = async (rawQuery: any) => {
     if (!rawQuery || !map.current) return;
 
    let query = String(rawQuery || "").toLowerCase().trim();
+   query = query
+     .replace(/[0-9.,]+\s*(€|euros|euro|k|m|millon|millones)?/gi, " ")
+     .replace(/\b\d+\s*(hab|habitacion|habitaciones|dorm|dormitorio|dormitorios|ban|baño|baños|aseo|aseos|m2|metros|mts)\b/gi, " ")
+     .replace(/\b(quiero|buscar|busco|necesito|comprar|alquilar|ver|encontrar|zona|cerca de)\b/gi, " ")
+     .replace(/\b(piso|casa|chalet|villa|atico|ático|penthouse|duplex|dúplex|loft|oficina|local|suelo|terreno|parcela|nave|industrial)\b/gi, " ")
+     .replace(/\b(con|sin|para|de|del|la|el|los|las|un|una|y|o)\b/gi, " ")
+     .replace(/\s+/g, " ")
+     .trim();
 
-query = query
-  // números y presupuestos
-  .replace(/[0-9.,]+\s*(€|euros|euro|k|m|millon|millones)?/gi, " ")
-  // habitaciones, baños, metros
-  .replace(/\b\d+\s*(hab|habitacion|habitaciones|dorm|dormitorio|dormitorios|ban|baño|baños|aseo|aseos|m2|metros|mts)\b/gi, " ")
-  // intención de búsqueda
-  .replace(/\b(quiero|buscar|busco|necesito|comprar|alquilar|ver|encontrar|zona|cerca de)\b/gi, " ")
-  // tipologías inmobiliarias
-  .replace(/\b(piso|casa|chalet|villa|atico|ático|penthouse|duplex|dúplex|loft|oficina|local|suelo|terreno|parcela|nave|industrial)\b/gi, " ")
-  // conectores basura
-  .replace(/\b(con|sin|para|de|del|la|el|los|las|un|una|y|o)\b/gi, " ")
-  .replace(/\s+/g, " ")
-  .trim();
-
-if (query.length < 2) return;
     if (query.length < 2) return;
 
-    // 🛑 EL DICCIONARIO SALVAVIDAS (ARSENAL AMPLIADO) 🛑
     const overrides: Record<string, string> = {
-        // --- BALEARES Y CANARIAS (Correcciones clásicas) ---
-        "palma de mallorca": "Palma, Illes Balears",
-        "palma": "Palma, Illes Balears",
-        "mallorca": "Mallorca, Illes Balears",
-        "ibiza": "Eivissa, Illes Balears",
-        "eivissa": "Eivissa, Illes Balears",
-        "menorca": "Menorca, Illes Balears",
-        "formentera": "Formentera, Illes Balears",
-        "tenerife": "Isla de Tenerife, Canarias",
-        "gran canaria": "Las Palmas de Gran Canaria",
-        "lanzarote": "Isla de Lanzarote, Canarias",
-
-        // --- CIUDADES GEMELAS (Bloqueo antimisiles para no acabar en América) ---
-        "cordoba": "Córdoba, Andalucía, España",
-        "toledo": "Toledo, Castilla-La Mancha, España",
-        "merida": "Mérida, Extremadura, España",
-        "cartagena": "Cartagena, Región de Murcia, España",
-        "santiago": "Santiago de Compostela, Galicia, España",
-        "santiago de compostela": "Santiago de Compostela, Galicia, España",
-        "san sebastian": "Donostia-San Sebastián, País Vasco",
-        "donostia": "Donostia-San Sebastián, País Vasco",
-        "vitoria": "Vitoria-Gasteiz, País Vasco",
-        "alicante": "Alicante, Comunitat Valenciana, España",
-        "valencia": "Valencia, Comunitat Valenciana, España", // Hay una en Venezuela
-
-        // --- HOTSPOTS DE LUJO Y REAL ESTATE (Precisión Quirúrgica) ---
-        "la zagaleta": "La Zagaleta, Benahavís, Málaga",
-        "sotogrande": "Sotogrande, San Roque, Cádiz",
-        "puerto banus": "Puerto Banús, Marbella, Málaga",
-        "la moraleja": "La Moraleja, Alcobendas, Madrid",
-        "la finca": "La Finca, Pozuelo de Alarcón, Madrid",
-        "barrio de salamanca": "Barrio de Salamanca, Madrid",
-        "baqueira": "Baqueira Beret, Lleida",
-        "valderrama": "Club de Golf Valderrama, San Roque, Cádiz",
-        "altea hills": "Altea Hills, Altea, Alicante",
-
-        // --- ESTADIOS Y CATEDRALES ---
-        "santiago bernabeu": "Estadio Santiago Bernabéu, Madrid",
-        "bernabeu": "Estadio Santiago Bernabéu, Madrid",
-        "estadio santiago bernabeu": "Estadio Santiago Bernabéu, Madrid",
-        "camp nou": "Spotify Camp Nou, Barcelona",
-        "spotify camp nou": "Spotify Camp Nou, Barcelona",
-        "metropolitano": "Estadio Cívitas Metropolitano, Madrid",
-        "wanda metropolitano": "Estadio Cívitas Metropolitano, Madrid",
-        "mestalla": "Estadio de Mestalla, Valencia",
-        "san mames": "Estadio San Mamés, Bilbao",
-        "rico perez": "Estadio José Rico Pérez, Alicante",
-        "estadio rico perez": "Estadio José Rico Pérez, Alicante",
-        "sagrada familia": "La Sagrada Familia, Barcelona",
-        "alhambra": "La Alhambra, Granada",
-
-        // --- AEROPUERTOS TÁCTICOS ---
-        "barajas": "Aeropuerto Adolfo Suárez Madrid-Barajas",
-        "el prat": "Aeropuerto Josep Tarradellas Barcelona-El Prat",
-
-        // --- ABREVIATURAS Y CÓDIGOS DE USUARIO ---
-        "bcn": "Barcelona, España",
-        "mad": "Madrid, España",
-        "vlc": "Valencia, España"
+        "palma de mallorca": "Palma, Illes Balears", "palma": "Palma, Illes Balears", "mallorca": "Mallorca, Illes Balears",
+        "ibiza": "Eivissa, Illes Balears", "eivissa": "Eivissa, Illes Balears", "menorca": "Menorca, Illes Balears",
+        "formentera": "Formentera, Illes Balears", "tenerife": "Isla de Tenerife, Canarias", "gran canaria": "Las Palmas de Gran Canaria",
+        "lanzarote": "Isla de Lanzarote, Canarias", "cordoba": "Córdoba, Andalucía, España", "toledo": "Toledo, Castilla-La Mancha, España",
+        "merida": "Mérida, Extremadura, España", "cartagena": "Cartagena, Región de Murcia, España", "santiago": "Santiago de Compostela, Galicia, España",
+        "santiago de compostela": "Santiago de Compostela, Galicia, España", "san sebastian": "Donostia-San Sebastián, País Vasco",
+        "donostia": "Donostia-San Sebastián, País Vasco", "vitoria": "Vitoria-Gasteiz, País Vasco", "alicante": "Alicante, Comunitat Valenciana, España",
+        "valencia": "Valencia, Comunitat Valenciana, España", "la zagaleta": "La Zagaleta, Benahavís, Málaga", "sotogrande": "Sotogrande, San Roque, Cádiz",
+        "puerto banus": "Puerto Banús, Marbella, Málaga", "la moraleja": "La Moraleja, Alcobendas, Madrid", "la finca": "La Finca, Pozuelo de Alarcón, Madrid",
+        "barrio de salamanca": "Barrio de Salamanca, Madrid", "baqueira": "Baqueira Beret, Lleida", "valderrama": "Club de Golf Valderrama, San Roque, Cádiz",
+        "altea hills": "Altea Hills, Altea, Alicante", "santiago bernabeu": "Estadio Santiago Bernabéu, Madrid", "bernabeu": "Estadio Santiago Bernabéu, Madrid",
+        "estadio santiago bernabeu": "Estadio Santiago Bernabéu, Madrid", "camp nou": "Spotify Camp Nou, Barcelona", "spotify camp nou": "Spotify Camp Nou, Barcelona",
+        "metropolitano": "Estadio Cívitas Metropolitano, Madrid", "wanda metropolitano": "Estadio Cívitas Metropolitano, Madrid", "mestalla": "Estadio de Mestalla, Valencia",
+        "san mames": "Estadio San Mamés, Bilbao", "rico perez": "Estadio José Rico Pérez, Alicante", "estadio rico perez": "Estadio José Rico Pérez, Alicante",
+        "sagrada familia": "La Sagrada Familia, Barcelona", "alhambra": "La Alhambra, Granada", "barajas": "Aeropuerto Adolfo Suárez Madrid-Barajas",
+        "el prat": "Aeropuerto Josep Tarradellas Barcelona-El Prat", "bcn": "Barcelona, España", "mad": "Madrid, España", "vlc": "Valencia, España"
     };
 
     const finalQuery = overrides[query] || query;
 
-    console.log(`🚀 RADAR ACTIVADO. Objetivo: "${finalQuery}"`);
-
     try {
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(finalQuery)}.json?access_token=${mapboxgl.accessToken}&language=es&limit=10`;
-      
       const response = await fetch(url);
       const data = await response.json();
 
       if (data.features && data.features.length > 0) {
-        
         const sortedFeatures = data.features.sort((a: any, b: any) => {
             const rank: any = { 'place': 100, 'poi': 90, 'region': 80, 'locality': 70, 'neighborhood': 60, 'district': 50, 'postcode': 40, 'address': 10 };
             const scoreA = (rank[a.place_type[0]] || 0) + (a.relevance * 50);
@@ -804,129 +637,63 @@ if (query.length < 2) return;
        const bestMatch = sortedFeatures[0];
         const type = bestMatch.place_type[0];
 
-        console.log(`✅ ATERRIZANDO EN: ${bestMatch.place_name} (Tipo: ${type})`);
+        window.dispatchEvent(new CustomEvent('set-epicenter', { detail: { lng: bestMatch.center[0], lat: bestMatch.center[1] } }));
 
-        // 🔥🔥🔥 EL CABLE VITAL QUE FALTABA 🔥🔥🔥
-        // Esto le dice a la barra lateral: "Toma las coordenadas planas de la ciudad para medir la distancia"
-        window.dispatchEvent(new CustomEvent('set-epicenter', { 
-            detail: { lng: bestMatch.center[0], lat: bestMatch.center[1] } 
-        }));
-
-      // 🚁 MANIOBRAS DE VUELO
         if (bestMatch.bbox && ['country', 'region', 'place', 'district', 'locality'].includes(type)) {
-           // Vuelo general para ciudades
-           
-           // 🔥 EL SECRETO: Leer la cámara antes de encuadrar
            const currentPitch = map.current.getPitch();
            const currentBearing = map.current.getBearing();
-
-           map.current.fitBounds(bestMatch.bbox, { 
-               padding: 50, 
-               duration: 3000, 
-               pitch: currentPitch,     // <-- EVITA QUE SE PONGA RECTO
-               bearing: currentBearing, // <-- EVITA QUE GIRE AL NORTE DE GOLPE
-               essential: true 
-           });
+           map.current.fitBounds(bestMatch.bbox, { padding: 50, duration: 3000, pitch: currentPitch, bearing: currentBearing, essential: true });
         } else {
-           // --- CONFIGURACIÓN DE CÁMARA POR DEFECTO ---
-           // ... (El resto de su código hacia abajo se queda igual)
-           // --- CONFIGURACIÓN DE CÁMARA POR DEFECTO ---
-           let targetZoom = 16.5; 
-           let targetPitch = 60;
-           let targetBearing = -10;
-           let flightSpeed = 1.5;
-
-           // 🎬 EL MODO DRON (SOLO PARA ESTADIOS Y MONUMENTOS) 🎬
-           if (type === 'poi') {
-               targetZoom = 17.8;        // Zoom ultra cercano
-               targetPitch = 75;         // Inclinación máxima (cámara casi a ras de suelo)
-               targetBearing = 120;      // Giro de cámara dramático (la cámara rotará mientras vuela)
-               flightSpeed = 0.6;        // Vuelo muy lento y majestuoso
-               console.log("🚁 MODO DRON CINEMÁTICO DESPLEGADO");
-           } 
-           // MODO CALLE EXACTA
-           else if (type === 'address') {
-               targetZoom = 18.5; 
-               targetPitch = 65;
-           }
+           let targetZoom = 16.5, targetPitch = 60, targetBearing = -10, flightSpeed = 1.5;
+           if (type === 'poi') { targetZoom = 17.8; targetPitch = 75; targetBearing = 120; flightSpeed = 0.6; } 
+           else if (type === 'address') { targetZoom = 18.5; targetPitch = 65; }
            
-           // Ejecutar el vuelo con los parámetros elegidos
-           map.current.flyTo({ 
-               center: bestMatch.center, 
-               zoom: targetZoom, 
-               pitch: targetPitch, 
-               bearing: targetBearing, 
-               speed: flightSpeed, 
-               curve: 1.2, // Curva de vuelo más suave
-               essential: true 
-           });
+           map.current.flyTo({ center: bestMatch.center, zoom: targetZoom, pitch: targetPitch, bearing: targetBearing, speed: flightSpeed, curve: 1.2, essential: true });
         }
-      } else {
-          console.warn("❌ Radar: Destino no encontrado.");
       }
-    } catch (error) {
-      console.error("🚨 Error:", error);
-    }
+    } catch (error) { console.error("🚨 Error:", error); }
   };
+
   // --------------------------------------------------------------------
-  // C. RECEPTOR DE NUEVAS PROPIEDADES (ADD PROPERTY) - ANTI-DUPLICADOS
+  // C. RECEPTOR DE NUEVAS PROPIEDADES (ADD PROPERTY)
   // --------------------------------------------------------------------
   useEffect(() => {
     const handleNewProperty = async (event: any) => {
       const formData = event.detail;
       if (!map.current || !formData) return;
 
-      console.log("📦 MAPA: Inyectando nueva propiedad...", formData);
-
-     // 1. GEO BLINDADO (Sin falsos Madriles)
       let baseCoords = null; 
-
-      // A. Buscamos en todas las formas posibles que tiene la base de datos de mandarlo
-      if (formData.coordinates && Array.isArray(formData.coordinates) && formData.coordinates.length === 2) {
-          baseCoords = formData.coordinates;
-      } else if (formData.lng && formData.lat) {
-          baseCoords = [Number(formData.lng), Number(formData.lat)];
-      } else if (formData.longitude && formData.latitude) {
-          baseCoords = [Number(formData.longitude), Number(formData.latitude)];
-      } else if (formData.address) {
-          // B. Último recurso táctico: Radar de emergencia (Geocoding)
+      if (formData.coordinates && Array.isArray(formData.coordinates) && formData.coordinates.length === 2) baseCoords = formData.coordinates;
+      else if (formData.lng && formData.lat) baseCoords = [Number(formData.lng), Number(formData.lat)];
+      else if (formData.longitude && formData.latitude) baseCoords = [Number(formData.longitude), Number(formData.latitude)];
+      else if (formData.address) {
           try {
             const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(formData.address)}.json?access_token=${mapboxgl.accessToken}&country=es`;
             const res = await fetch(url);
             const data = await res.json();
-            if (data.features?.[0]) {
-                baseCoords = data.features[0].center;
-            }
-          } catch (e) { console.error("Geo Error:", e); }
+            if (data.features?.[0]) baseCoords = data.features[0].center;
+          } catch (e) {}
       }
 
-      // 🚫 PROTOCOLO DE EXTERMINIO: Si después de todo NO hay coordenadas, ABORTAMOS.
-      // (Es mejor no dibujar nada, que dibujarlo en una ciudad equivocada).
-      if (!baseCoords || isNaN(baseCoords[0]) || isNaN(baseCoords[1])) {
-          console.warn("🚫 Fallo crítico de Coordenadas en la nueva propiedad. Abortando inserción visual.");
-          return;
-      }
+      if (!baseCoords || isNaN(baseCoords[0]) || isNaN(baseCoords[1])) return;
       
-      // Pequeña variación para evitar superposición exacta
       const jitter = () => (Math.random() - 0.5) * 0.0004;
       const finalCoords = [baseCoords[0] + jitter(), baseCoords[1] + jitter()];
 
-      // 2. PREPARAR IMAGEN REAL (Sin falsedades)
       let finalImage = null;
       if (formData.mainImage) finalImage = formData.mainImage;
       else if (Array.isArray(formData.images) && formData.images.length > 0) {
           const first = formData.images[0];
           finalImage = typeof first === 'string' ? first : first.url;
-      }
-      else if (formData.img) finalImage = formData.img;
+      } else if (formData.img) finalImage = formData.img;
 
-   // 3. CONSTRUIR FEATURE GEOJSON (ENVASE AL VACÍO ANTI-AMNESIA) 🔥
-      
-      // Serializamos los objetos complejos para que Mapbox no los destruya
+      // 🔥 FORMATEAMOS EL PRECIO PARA QUE SUBA BIEN DESDE EL WEBSOCKET
+      const priceValue = Number(formData.price || 0);
+      const formattedPrice = new Intl.NumberFormat("es-ES").format(priceValue) + " €";
+
       const openHouseJson = formData.openHouse ? JSON.stringify(formData.openHouse) : (formData.open_house_data ? JSON.stringify(formData.open_house_data) : null);
       const activeCampaignJson = formData.activeCampaign ? JSON.stringify(formData.activeCampaign) : null;
       const b2bJson = formData.b2b ? JSON.stringify(formData.b2b) : null;
-      
       const userObj = formData.user && typeof formData.user === 'object' ? formData.user : null;
       const ownerSnapObj = formData.ownerSnapshot && typeof formData.ownerSnapshot === 'object' ? formData.ownerSnapshot : null;
       const userJson = userObj ? JSON.stringify(userObj) : null;
@@ -934,58 +701,32 @@ if (query.length < 2) return;
 
       const newFeature = {
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: baseCoords }, // Asegúrese de que aquí dice baseCoords o finalCoords (como lo tenga arriba)
+        geometry: { type: 'Point', coordinates: baseCoords }, 
         properties: {
-          ...formData,
-          id: String(formData.id), // ID siempre string para comparar
-          type: formData.type || 'Propiedad',
-          
-          price: `${formData.price}€`,
-          priceValue: Number(formData.price || 0),
-          
-          // 🔥 Aseguramos que los metros se guarden en m2 y mBuilt
-          m2: Number(formData.mBuilt || 0),
-          mBuilt: Number(formData.mBuilt || 0),
-          
-          elevator: isYes(formData.elevator),
-          selectedServices: Array.isArray(formData.selectedServices) ? formData.selectedServices : [],
-          
-          img: formData.img || (formData.images && formData.images.length > 0 ? formData.images[0] : null),
-          images: formData.images || [], 
-
-          // 🔥 INYECCIÓN BLINDADA (Mapbox guardará los textos sin romperlos)
-          user: userJson,
-          ownerSnapshot: ownerSnapJson,
-          openHouse: openHouseJson,
-          open_house_data: openHouseJson,
-          activeCampaign: activeCampaignJson,
-          b2b: b2bJson
+          ...formData, id: String(formData.id), type: formData.type || 'Propiedad',
+          price: `${formData.price}€`, 
+          priceValue: priceValue,
+          formattedPrice: formattedPrice, // 🔥 PRECIO BONITO
+          m2: Number(formData.mBuilt || 0), mBuilt: Number(formData.mBuilt || 0),
+          elevator: isYes(formData.elevator), selectedServices: Array.isArray(formData.selectedServices) ? formData.selectedServices : [],
+          img: formData.img || (formData.images && formData.images.length > 0 ? formData.images[0] : null), images: formData.images || [], 
+          user: userJson, ownerSnapshot: ownerSnapJson, openHouse: openHouseJson, open_house_data: openHouseJson, activeCampaign: activeCampaignJson, b2b: b2bJson
         }
       };
-      // 4. INYECCIÓN ANTI-DUPLICADOS (LA CLAVE)
+
       const src: any = map.current.getSource('properties');
       if (src && (src as any)._data) {
         const currentFeatures = (src as any)._data.features || [];
-        
-        // 🔥 FILTRO CLAVE: Borramos la versión anterior si existe
-        // "Si el ID ya está en el mapa, quítalo antes de meter el nuevo"
         const others = currentFeatures.filter((f: any) => String(f.properties.id) !== String(formData.id));
-        
-        // Añadimos la nueva versión limpia
         src.setData({ type: 'FeatureCollection', features: [...others, newFeature] });
-
-        // Forzamos vuelo y repintado
         map.current.flyTo({ center: finalCoords, zoom: 18, pitch: 60 });
-        
-        map.current.once('idle', () => updateMarkers());
-        setTimeout(() => updateMarkers(), 250);
       }
     };
-
     window.addEventListener('add-property-signal', handleNewProperty);
     return () => window.removeEventListener('add-property-signal', handleNewProperty);
   }, [map]);
- // --------------------------------------------------------------------
+
+  // --------------------------------------------------------------------
   // G. SISTEMA DE ACTUALIZACIÓN EN TIEMPO REAL (UPDATE PROPERTY)
   // --------------------------------------------------------------------
   useEffect(() => {
@@ -993,167 +734,106 @@ if (query.length < 2) return;
       const { id, updates } = event.detail; 
       if (!map.current) return;
 
-      console.log(`🔄 COMANDO ACTUALIZAR RECIBIDO para ID: ${id}`, updates);
-
-      // 🗑️ LOCALSTORAGE ELIMINADO TOTALMENTE - SOLO USAMOS MEMORIA DEL MAPA 🗑️
-
-      // 1. ACTUALIZAR EN EL MAPA (BLINDADO CONTRA '[object Object]')
       const updateSource: any = map.current.getSource('properties');
-
       if (updateSource && (updateSource as any)._data) {
         const currentFeatures = (updateSource as any)._data.features || [];
-
         const updatedFeatures = currentFeatures.map((f: any) => {
           if (String(f.properties.id) === String(id)) {
             const newPriceValue = updates.price ? Number(updates.price) : f.properties.priceValue;
+            
+            // 🔥 FORMATEAMOS EL PRECIO AL ACTUALIZAR EN VIVO
+            const formattedPrice = new Intl.NumberFormat("es-ES").format(newPriceValue) + " €";
 
-            // 🔥 SALVAVIDAS MAPBOX: Serializamos todo lo complejo antes de dárselo a Mapbox
-            // Mapbox rompe los arrays y objetos anidados si se los das directamente
-          const safeUpdates = { ...updates };
+            const safeUpdates = { ...updates };
             ['images', 'b2b', 'openHouse', 'open_house_data', 'activeCampaign', 'user', 'ownerSnapshot', 'specs', 'selectedServices'].forEach(key => {
                 if (safeUpdates[key] && typeof safeUpdates[key] === 'object') {
-                    safeUpdates[key] = JSON.stringify(safeUpdates[key]); // Convertimos a string seguro
+                    safeUpdates[key] = JSON.stringify(safeUpdates[key]); 
                 }
             });
-
             return {
-              ...f,
-              properties: {
-                ...f.properties,
-                ...safeUpdates, // Inyectamos la data segura
-                price: updates.price ? `${updates.price}€` : f.properties.price,
-                priceValue: newPriceValue,
-              },
+              ...f, properties: { 
+                  ...f.properties, 
+                  ...safeUpdates, 
+                  price: updates.price ? `${updates.price}€` : f.properties.price, 
+                  priceValue: newPriceValue,
+                  formattedPrice: formattedPrice // 🔥 PRECIO BONITO
+              }
             };
           }
           return f;
         });
-
         updateSource.setData({ type: 'FeatureCollection', features: updatedFeatures });
-
-        // Forzamos repintado visual inmediato para que la NanoCard lea los cambios
-        map.current.once('idle', () => updateMarkers());
       }
     };
-
-   window.addEventListener('update-property-signal', handleUpdateProperty);
+    window.addEventListener('update-property-signal', handleUpdateProperty);
     return () => window.removeEventListener('update-property-signal', handleUpdateProperty);
   }, [map]);
 
- // --------------------------------------------------------------------
+  // --------------------------------------------------------------------
   // H. ESCANER TÁCTICO (RADAR) - INTEGRADO Y BLINDADO 🔥
   // --------------------------------------------------------------------
   const scanVisibleProperties = () => {
     if (!map.current) return [];
-
-    // 1. Obtener límites visuales actuales (El perímetro)
     const bounds = map.current.getBounds();
     const radarSource: any = map.current.getSource('properties');
-
-    // 2. Si el mapa aún no ha cargado datos, abortamos misión
     if (!radarSource || !(radarSource as any)._data || !(radarSource as any)._data.features) return [];
 
-    // 3. Filtrar y Formatear para el HUD
     const visibleProps = (radarSource as any)._data.features
       .filter((f: any) => {
-        // Solo objetivos dentro del perímetro visual
         const [lng, lat] = f.geometry.coordinates;
         return bounds.contains([lng, lat]);
       })
       .map((f: any) => {
         const p = f.properties;
-
-        // 🔥 DESEMPAQUETADO SEGURO: Leemos el array real de servicios
         let safeServices = [];
-        if (typeof p.selectedServices === 'string') {
-            try { safeServices = JSON.parse(p.selectedServices); } catch(e) {}
-        } else if (Array.isArray(p.selectedServices)) {
-            safeServices = p.selectedServices;
-        }
-
+        if (typeof p.selectedServices === 'string') { try { safeServices = JSON.parse(p.selectedServices); } catch(e) {} } 
+        else if (Array.isArray(p.selectedServices)) { safeServices = p.selectedServices; }
         return {
-          id: p.id,
-          address: p.address || p.location || "Ubicación Privada",
-          price: p.price || "Consultar",
-          type: p.type || "Propiedad",
-          lat: f.geometry.coordinates[1],
-          lng: f.geometry.coordinates[0],
-          
-          // Ahora sí cuenta los elementos reales del array, no las letras del texto
+          id: p.id, address: p.address || p.location || "Ubicación Privada", price: p.price || "Consultar", type: p.type || "Propiedad", lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0],
           gap: safeServices.length > 0 ? [] : ["Foto Pro", "Plano 3D"],
         };
       });
-
     return visibleProps;
   };
 
-// --------------------------------------------------------------------
-  // D. RADAR GLOBAL DINÁMICO (BOUNDING BOX + ANTI-SPAM) 🛡️
+  // --------------------------------------------------------------------
+  // D. RADAR GLOBAL DINÁMICO (BOUNDING BOX + ANTI-SPAM) 🛡️ (INTACTO)
   // --------------------------------------------------------------------
   useEffect(() => {
-    // 1. Si el mapa no existe físicamente, abortamos.
     if (!map.current) return;
-    
-    let debounceTimer: any = null; // ⏱️ El seguro del arma (Anti-Spam)
+    let debounceTimer: any = null; 
 
     const executeRadar = async () => {
       try {
         if (!map.current) return;
-
-        // 1. LEER EL PERÍMETRO DE LA PANTALLA (El Bounding Box)
         const b = map.current.getBounds();
-        
-       // Abrimos el radar según zoom para no dejar fuera municipios pegados
-const zoom = map.current.getZoom();
-const pad =
-  zoom >= 15 ? 0.035 :
-  zoom >= 13 ? 0.06 :
-  zoom >= 11 ? 0.1 :
-  0.16;
+        const zoom = map.current.getZoom();
+        const pad = zoom >= 15 ? 0.035 : zoom >= 13 ? 0.06 : zoom >= 11 ? 0.1 : 0.16;
 
-const bounds = {
-  minLng: b.getWest() - pad,
-  maxLng: b.getEast() + pad,
-  minLat: b.getSouth() - pad,
-  maxLat: b.getNorth() + pad
-};
-
-        console.log("📡 RADAR: Escaneando sector actual...", bounds);
+        const bounds = { minLng: b.getWest() - pad, maxLng: b.getEast() + pad, minLat: b.getSouth() - pad, maxLat: b.getNorth() + pad };
         
-        // --- FASE 1: OBTENCIÓN DE DATOS (SOLO LO QUE SE VE EN PANTALLA) ---
         const response = await getGlobalPropertiesAction(bounds);
         const rawData = response.success ? response.data : [];
 
-        // 🔥🔥🔥 CORTAFUEGOS TÁCTICO BLINDADO (FRONTEND) 🔥🔥🔥
         const serverData = rawData.filter((p: any) => {
             const status = String(p.status || "").toUpperCase();
             const isPremium = p.promotedTier === 'PREMIUM' || p.isPromoted === true;
             const isManaged = p.assignment && p.assignment.status === 'ACTIVE';
-            
-            // REGLA DE ORO: Pasan Publicadas, Gestionadas, y Premium
             return status === "PUBLICADO" || status === "MANAGED" || status === "ACCEPTED" || isPremium || isManaged;
         });
 
-        // --- FASE 2: NORMALIZACIÓN Y ANTI-DUPLICADOS ---
         const uniqueMap = new Map();
-        serverData.forEach((p: any) => {
-            uniqueMap.set(String(p.id), { ...p, source: 'CLOUD_DB' });
-        });
+        serverData.forEach((p: any) => uniqueMap.set(String(p.id), { ...p, source: 'CLOUD_DB' }));
         const unifiedList = Array.from(uniqueMap.values());
 
-        // 🔥 CABLE DE COMUNICACIÓN AL RADAR LATERAL 🔥
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('stratos-inventory-ready', { detail: unifiedList }));
-            
-            // 2. Contestador automático
             window.addEventListener('request-stratos-inventory', () => {
                 window.dispatchEvent(new CustomEvent('stratos-inventory-ready', { detail: unifiedList }));
-            }, { once: true }); // Usamos once:true para no acumular listeners al mover el mapa
+            }, { once: true }); 
         }
        
-        // --- FASE 3: GEOMETRÍA (Espirales para evitar superposición) ---
         const coordTracker = new Map<string, number>(); 
-
         const features = unifiedList.map((p: any) => {
             let lng = Number(p.coordinates ? p.coordinates[0] : (p.lng ?? p.longitude));
             let lat = Number(p.coordinates ? p.coordinates[1] : (p.lat ?? p.latitude));
@@ -1162,7 +842,6 @@ const bounds = {
 
             const coordKey = `${lng.toFixed(4)},${lat.toFixed(4)}`;
             const count = coordTracker.get(coordKey) || 0;
-            
             if (count > 0) {
                 const angle = count * (Math.PI * 2 / 5); 
                 const separation = 0.0003; 
@@ -1174,6 +853,10 @@ const bounds = {
 
             const safeImage = p.mainImage || (p.images && p.images.length > 0 ? (p.images[0].url || p.images[0]) : null);
             const finalM2 = Number(p.mBuilt || p.m2 || p.surface || 0);
+
+            // 🔥 FORMATEAMOS EL PRECIO ANTES DE DÁRSELO A MAPBOX
+            const priceValue = Number(p.rawPrice || p.priceValue || p.price || 0);
+            const formattedPrice = new Intl.NumberFormat("es-ES").format(priceValue) + " €";
 
             const identityObj = (p?.user && typeof p.user === "object" ? p.user : null) || (p?.ownerSnapshot && typeof p.ownerSnapshot === "object" ? p.ownerSnapshot : null);
             const identityJson = identityObj ? JSON.stringify(identityObj) : null;
@@ -1187,99 +870,53 @@ const bounds = {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
                 properties: {
-                    ...p,
-                    id: String(p.id),
-                    priceValue: Number(p.rawPrice || p.priceValue || p.price || 0),
-                    img: safeImage,
-                    m2: finalM2,       
-                    mBuilt: finalM2,   
-                    elevator: isYes(p.elevator),
-                    address: p.address || null,
-                    city: p.city || null,
-                    postcode: p.postcode || null,
-                    region: p.region || null,
-                    communityFees: p.communityFees,
-                    energyConsumption: p.energyConsumption,
-                    energyEmissions: p.energyEmissions,
-                    energyPending: p.energyPending,
-                    user: identityJson,
-                    ownerSnapshot: ownerSnapJson,
-                    role: p?.role ?? identityObj?.role ?? null,
-                    openHouse: openHouseJson,
-                    open_house_data: openHouseJson,
-                    activeCampaign: activeCampaignJson,
-                    b2b: b2bJson
+                    ...p, 
+                    id: String(p.id), 
+                    priceValue: priceValue, 
+                    formattedPrice: formattedPrice, // 🔥 PRECIO BONITO
+                    img: safeImage, m2: finalM2, mBuilt: finalM2, elevator: isYes(p.elevator),
+                    address: p.address || null, city: p.city || null, postcode: p.postcode || null, region: p.region || null, communityFees: p.communityFees, energyConsumption: p.energyConsumption,
+                    energyEmissions: p.energyEmissions, energyPending: p.energyPending, user: identityJson, ownerSnapshot: ownerSnapJson, role: p?.role ?? identityObj?.role ?? null,
+                    openHouse: openHouseJson, open_house_data: openHouseJson, activeCampaign: activeCampaignJson, b2b: b2bJson
                 }
             };
         }).filter(Boolean); 
        
-// 🔥 PEGAR AQUÍ EL PASO C: GUARDAMOS EN EL BÚNKER LA COPIA MAESTRA INTACTA
-       masterRadarDataRef.current = features;
+        masterRadarDataRef.current = features;
 
-
-       // --- FASE 4: INYECCIÓN SEGURA (Aceleración Extrema) ---
         const injectSafely = (attempts = 0) => {
             if (!map.current) return;
             const source: any = map.current.getSource('properties');
-
             if (source) {
                 source.setData({ type: 'FeatureCollection', features: features });
-                console.log(`✅ RADAR: ${features.length} activos cargados en la zona actual.`);
-
-                // 🔥 ACELERADOR 1: YA NO ESPERAMOS AL 'IDLE' DEL 3D.
-                // Disparamos la orden de pintar exactamente en el milisegundo que los datos tocan el mapa.
-                const onSourceData = (e: any) => {
-                    if (e.sourceId === 'properties' && map.current?.isSourceLoaded('properties')) {
-                        updateMarkers();
-                        map.current.off('sourcedata', onSourceData);
-                    }
-                };
-                map.current.on('sourcedata', onSourceData);
-                
-                // Doble seguro de renderizado ultrarrápido (50ms en vez de 350ms)
-                setTimeout(() => { try { updateMarkers(); } catch (e) {} }, 50);
-                setTimeout(() => { try { updateMarkers(); } catch (e) {} }, 150);
-
             } else if (attempts < 10) {
-                // Si el source no está, reintentamos más rápido
                 setTimeout(() => injectSafely(attempts + 1), 100);
             }
         };
-
         injectSafely();
 
       } catch (e) { console.error("❌ Fallo crítico en radar:", e); }
     };
 
-    // 🎯 DISPARADORES
-    if (isLoaded) {
-        executeRadar();
-    } else {
-        map.current.once('load', executeRadar);
-    }
+    if (isLoaded) executeRadar();
+    else map.current.once('load', executeRadar);
 
-    // 🎯 GATILLO INTELIGENTE AL MOVER EL MAPA (El Umbral de Oro: 300ms)
     const onMapMoveEnd = () => {
         if (debounceTimer) clearTimeout(debounceTimer);
-        
-        // 🔥 300ms: Rápido, fluido, pero sin ametrallar al servidor por micro-movimientos.
-        debounceTimer = setTimeout(() => {
-            executeRadar();
-        }, 300); 
+        debounceTimer = setTimeout(() => executeRadar(), 300); 
     };
 
     map.current.on('moveend', onMapMoveEnd);
     window.addEventListener('force-map-refresh', executeRadar);
     
-    // Limpieza al desmontar
     return () => {
         if (map.current) map.current.off('moveend', onMapMoveEnd);
         window.removeEventListener('force-map-refresh', executeRadar);
         if (debounceTimer) clearTimeout(debounceTimer);
     };
+  }, [isLoaded]);
 
-  }, [isLoaded]); // Fin del useEffect
- // --------------------------------------------------------------------
+  // --------------------------------------------------------------------
   // 🏢 3. RADAR DE AGENCIAS VIP (AHORA EN EL MOTOR DE GRAVEDAD)
   // --------------------------------------------------------------------
   useEffect(() => {
@@ -1287,33 +924,22 @@ const bounds = {
 
     const loadVipAgencies = async () => {
       try {
-        console.log("👑 RADAR VIP: Metiendo cacahuetes en el bote dorado...");
         const response = await getVipAgenciesAction(); 
         const agencies = response?.success ? response.data : [];
 
-        // Empaquetado GeoJSON para el motor físico
         const features = agencies.map((agency: any) => {
             if (!agency.coordinates || !agency.coordinates[0] || !agency.coordinates[1]) return null;
             return {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: agency.coordinates },
-                properties: {
-                    uniqueMarkerId: `${agency.id}-${agency.targetZone}`,
-                    agencyRawData: JSON.stringify(agency) 
-                }
+                properties: { uniqueMarkerId: `${agency.id}-${agency.targetZone}`, agencyRawData: JSON.stringify(agency) }
             };
         }).filter(Boolean);
 
         const source: any = map.current.getSource('vip-agencies');
         if (source) {
             source.setData({ type: 'FeatureCollection', features: features });
-            
-            // ⏳ Forzamos repintado de los marcadores sueltos asegurando que el mapa esté listo
-            map.current.once('idle', () => {
-                if (typeof updateVipMarkers === 'function') {
-                    updateVipMarkers();
-                }
-            }); 
+            map.current.once('idle', () => { if (typeof updateVipMarkers === 'function') updateVipMarkers(); }); 
         }
       } catch (e) { console.error("Error cargando Agencias VIP:", e); }
     };
@@ -1321,50 +947,32 @@ const bounds = {
     loadVipAgencies();
     window.addEventListener('reload-vip-agencies', loadVipAgencies);
     return () => window.removeEventListener('reload-vip-agencies', loadVipAgencies);
-
   }, [isLoaded]);
 
-// --------------------------------------------------------------------
+  // --------------------------------------------------------------------
   // 🎯 ANTENA DEL BUSCADOR LATERAL (Conexión Directa)
   // --------------------------------------------------------------------
   useEffect(() => {
     const handleSearchSignal = (e: any) => {
-      if (e.detail) {
-        console.log("🛸 Orden de vuelo recibida desde el Sidebar:", e.detail);
-        searchCity(e.detail);
-      }
+      if (e.detail) searchCity(e.detail);
     };
     window.addEventListener('stratos-search-city', handleSearchSignal);
     return () => window.removeEventListener('stratos-search-city', handleSearchSignal);
   }, []);
 
-
   // 🔥🔥🔥 WEBSOCKETS: RADAR DE MAPA EN VIVO 🔥🔥🔥
   useEffect(() => {
     const pusher = getPusherClient();
     if (!pusher) return;
-
-    // Nos suscribimos al canal global donde aterrizan las propiedades
     const channel = pusher.subscribe('stratos-global');
-
-    // Escuchamos si cae un misil con una nueva propiedad
     channel.bind('new-property', (newProp: any) => {
-      console.log("🛸 [PUSHER] ¡Nueva propiedad detectada en el espacio aéreo!", newProp.id);
-      
-      // Disparamos la misma señal interna que ya usaba su sistema para añadir propiedades sin recargar
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('add-property-signal', { detail: newProp }));
-      }
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('add-property-signal', { detail: newProp }));
     });
-
-    return () => {
-      channel.unbind('new-property');
-      pusher.unsubscribe('stratos-global');
-    };
+    return () => { channel.unbind('new-property'); pusher.unsubscribe('stratos-global'); };
   }, []);
 
   // --------------------------------------------------------------------
-  // RETORNO FINAL (Cierre del Hook)
+  // RETORNO FINAL
   // --------------------------------------------------------------------
   return { 
     mapContainer, 
