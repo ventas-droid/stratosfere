@@ -7,15 +7,12 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { parseOmniSearch, CONTEXT_CONFIG } from './smart-search';
 import MapNanoCard from './ui-panels/MapNanoCard';
-
-// 🔥 IMPORTAMOS EL MONOLITO DORADO PARA LAS AGENCIAS VIP
 import VipAgencyMarker from './ui-panels/VipAgencyMarker';
+import { getGlobalPropertiesAction } from '@/app/actions';
 
 const STRATOS_PROPERTIES : any[] = [];
 const IMAGES : any[] = [];
 
-// AHORA:
-import { getGlobalPropertiesAction } from '@/app/actions';
 
 // 🔥 IMPORTACIÓN CORRECTA DEL RADAR VIP
 import { getVipAgenciesAction } from '@/app/actions-zones';
@@ -459,15 +456,23 @@ paint: {
       });
 
     // 🎯 3. AL HACER CLIC EN EL PIN (ABRE DETAILS Y VUELA)
-      map.current.on('click', 'unclustered-point-bg', (e: any) => {
-        const features = map.current.queryRenderedFeatures(e.point, { layers: ['unclustered-point-bg'] });
-        if (!features.length) return;
-        
-        const p = { ...features[0].properties };
-        const coordinates = features[0].geometry.coordinates.slice();
-        
-        // 🧳 1. DESEMPAQUETADO SEGURO DE LA BASE DE DATOS
-        const parseJsonSafe = (v: any) => { if (typeof v === 'string') { try { return JSON.parse(v); } catch(err){} } return v; };
+map.current.on('click', 'unclustered-point-bg', (e: any) => {
+  const features = map.current.queryRenderedFeatures(e.point, {
+    layers: ['unclustered-point-text', 'unclustered-point-bg']
+  });
+  if (!features.length) return;
+
+  const feature = features[0];
+  const p = { ...feature.properties };
+  const coordinates = feature.geometry.coordinates.slice();
+
+  // 🧳 1. DESEMPAQUETADO SEGURO DE LA BASE DE DATOS
+  const parseJsonSafe = (v: any) => {
+    if (typeof v === 'string') {
+      try { return JSON.parse(v); } catch (err) {}
+    }
+    return v;
+  };
         
         p.user = parseJsonSafe(p.user);
         p.ownerSnapshot = parseJsonSafe(p.ownerSnapshot);
@@ -562,140 +567,63 @@ map.current.flyTo({
       map.current.on('mouseenter', 'clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
       map.current.on('mouseleave', 'clusters', () => { map.current.getCanvas().style.cursor = ''; });
 
-    // =================================================================
-      // 🎯 INTERACTIVIDAD DE ÉLITE (El Francotirador de NanoCards BLINDADO)
-      // =================================================================
-      map.current.on('click', 'unclustered-point', (e: any) => {
-        const features = map.current.queryRenderedFeatures(e.point, { layers: ['unclustered-point'] });
-        if (!features.length) return;
-        
-        const feature = features[0];
-        const coordinates = feature.geometry.coordinates.slice();
-        
-        // 🔥 DESVINCULACIÓN TOTAL: Clonamos los datos para que Mapbox no interfiera con React
-        const p = { ...feature.properties };
-        
-        // Desempaquetado seguro para recuperar los datos de la base de datos
-        const parseMaybeJSON = (v: any) => { if (typeof v === 'string') { try { return JSON.parse(v); } catch(err){} } return v; };
-        
-        p.user = parseMaybeJSON(p.user);
-        p.ownerSnapshot = parseMaybeJSON(p.ownerSnapshot);
-        p.openHouse = parseMaybeJSON(p.openHouse);
-        p.open_house_data = parseMaybeJSON(p.open_house_data) || p.openHouse;
-        p.activeCampaign = parseMaybeJSON(p.activeCampaign);
-        p.b2b = parseMaybeJSON(p.b2b);
-        p.selectedServices = parseMaybeJSON(p.selectedServices) || [];
-        p.specs = parseMaybeJSON(p.specs) || {};
-
-        let safeImages: any[] = [];
-        if (typeof p.images === 'string') { try { safeImages = JSON.parse(p.images); } catch(err){} }
-
-        // 🚀 CREAMOS EL MARCADOR (UNO SOLO)
-        const el = document.createElement("div");
-        el.className = "z-[99999]"; // Prioridad máxima para la tarjeta
-        const root = createRoot(el);
-        
-        // 🔥 USO DE OPTIONAL CHAINING (?.): Si falta un dato, no explota, pone null.
-        root.render(
-          <MapNanoCard
-            id={p?.id || Date.now().toString()}
-            data={p}
-            
-            // ⚡️ LA ORDEN MÁGICA: ABRE LA TARJETA GRANDE DE GOLPE (ADIÓS AL DOBLE CLIC) ⚡️
-            forceOpen={true} 
-            
-            promotedTier={p?.promotedTier}
-            isPromoted={p?.isPromoted}
-            isFire={p?.isFire}
-            price={p?.price}
-            priceValue={p?.priceValue}
-            rawPrice={p?.priceValue}
-            rooms={p?.rooms}
-            baths={p?.baths}
-            mBuilt={p?.mBuilt}
-            m2={p?.m2} 
-            selectedServices={p?.selectedServices}
-            elevator={p?.elevator}
-            specs={p?.specs}
-            type={p?.type || 'Propiedad'}
-            img={p?.img}
-            images={safeImages}
-            lat={coordinates[1]}
-            lng={coordinates[0]}
-            role={p?.role}
-            title={p?.title}
-            description={p?.description}
-            address={p?.address || null}
-            city={p?.city || null}
-            postcode={p?.postcode || null}
-            region={p?.region || null}
-            communityFees={p?.communityFees}
-            energyConsumption={p?.energyConsumption}
-            energyEmissions={p?.energyEmissions}
-            energyPending={p?.energyPending}
-            openHouse={p?.openHouse}
-            activeCampaign={p?.activeCampaign}
-            b2b={p?.b2b}
-          />
-        );
-
-        // Forzamos el CSS nativo del popup para que no rompa nuestro diseño flotante
-        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: true, offset: 15, maxWidth: 'none', className: 'st-nano-popup' })
-          .setLngLat(coordinates as [number, number])
-          .setDOMContent(el)
-          .addTo(map.current);
-        
-        // Destrucción de la memoria RAM al cerrar
-        popup.on('close', () => { setTimeout(() => root.unmount(), 300); });
-          
-        map.current.flyTo({ center: coordinates as [number, number], zoom: 18.5, pitch: 60, speed: 0.8 });
-      });
+   
       // =================================================================
       // 🔥 EL BOTE DE CACAHUETES DORADO (Capas VIP) 🔥 (INTACTO)
       // =================================================================
-      if (!map.current.getSource('vip-agencies')) {
-        map.current.addSource('vip-agencies', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] },
-          cluster: true,
-          clusterMaxZoom: 14, 
-          clusterRadius: 40
-        });
-      }
+    if (!map.current.getSource('vip-agencies')) {
+  map.current.addSource('vip-agencies', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    clusterMaxZoom: 17,
+    clusterRadius: 60
+  });
+}
 
-      if (!map.current.getLayer('vip-clusters')) {
-        map.current.addLayer({
-          id: 'vip-clusters',
-          type: 'circle',
-          source: 'vip-agencies',
-          filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': '#eab308',
-            'circle-radius': ['step', ['get', 'point_count'], 30, 10, 40, 50, 50],
-            'circle-stroke-width': 3,
-            'circle-stroke-color': '#ffffff',
-            'circle-opacity': 0.95
-          }
-        });
-      }
+   if (!map.current.getLayer('vip-clusters')) {
+  map.current.addLayer({
+    id: 'vip-clusters',
+    type: 'circle',
+    source: 'vip-agencies',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#00B8DB',
+      'circle-radius': ['step', ['get', 'point_count'], 25, 100, 35, 750, 45],
+      'circle-stroke-width': 1.15,
+      'circle-stroke-color': '#000000',
+      'circle-stroke-opacity': 0.72,
+      'circle-opacity': 0.24,
+      'circle-emissive-strength': 0.9
+    }
+  });
+}
 
-      if (!map.current.getLayer('vip-cluster-count')) {
-        map.current.addLayer({
-          id: 'vip-cluster-count',
-          type: 'symbol',
-          source: 'vip-agencies',
-          filter: ['has', 'point_count'],
-          layout: { 'text-field': '{point_count_abbreviated}', 'text-font': ['Arial Unicode MS Bold'], 'text-size': 16 },
-          paint: { 'text-color': '#ffffff' }
-        });
-      }
+     if (!map.current.getLayer('vip-cluster-count')) {
+  map.current.addLayer({
+    id: 'vip-cluster-count',
+    type: 'symbol',
+    source: 'vip-agencies',
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': MAPBOX_CLUSTER_FONT,
+      'text-size': 16,
+      'text-offset': [0, 0]
+    },
+    paint: {
+      'text-color': '#ffffff',
+      'text-emissive-strength': 1
+    }
+  });
+}
 
       map.current.on('click', 'vip-clusters', (e: any) => {
         const features = map.current.queryRenderedFeatures(e.point, { layers: ['vip-clusters'] });
         const clusterId = features[0].properties.cluster_id;
         map.current.getSource('vip-agencies').getClusterExpansionZoom(clusterId, (err: any, zoom: any) => {
           if (err) return;
-          map.current.flyTo({ center: features[0].geometry.coordinates as [number, number], zoom: zoom + 1.5, speed: 0.8 });
+          map.current.flyTo({ center: features[0].geometry.coordinates as [number, number], zoom, speed: 0.8 });
         });
       });
       map.current.on('mouseenter', 'vip-clusters', () => { map.current.getCanvas().style.cursor = 'pointer'; });
@@ -1097,7 +1025,7 @@ map.current.flyTo({
 
       const newFeature = {
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: baseCoords }, 
+        geometry: { type: 'Point', coordinates: finalCoords },       
         properties: {
           ...formData, id: String(formData.id), type: formData.type || 'Propiedad',
           price: `${formData.price}€`, 
