@@ -98,6 +98,15 @@ export default function HoloInspector({
       new Set(rawAlbum.map(normalizeMedia).filter(Boolean))
   ) as string[];
 
+const stats = useMemo(() => {
+  return unique.reduce((acc, src) => {
+    if (src.match(/\.(mp4|mov|webm|mkv)$/i) || src.includes("/video/upload")) acc.videos++;
+    else if (src.match(/\.pdf$/i) || src.includes(".pdf")) acc.pdfs++;
+    else acc.photos++;
+    return acc;
+  }, { photos: 0, videos: 0, pdfs: 0 });
+}, [unique]);
+
   const current = unique[idx] || unique[0] || null;
   const hasMultiplePhotos = unique.length > 1;
 
@@ -184,7 +193,7 @@ export default function HoloInspector({
       return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, idx, onClose, unique.length]);
 
-  const nav = (dir: number) => {
+const nav = (dir: number) => {
       if (!unique.length) return;
 
       if (soundEnabled && playSynthSound) playSynthSound("click");
@@ -200,6 +209,8 @@ export default function HoloInspector({
 
       setIdx((p) => (p + dir + unique.length) % unique.length);
       setIsZooming(false);
+      
+      // 🚀 NITRO: Respuesta inmediata al cambiar de foto
       setTimeout(() => setIsZooming(true), 50);
   };
 
@@ -217,21 +228,29 @@ export default function HoloInspector({
           {/* Sombra de viñeta para dar profundidad a la pantalla */}
           <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.6)_100%)]" />
          
-          {/* FONDOS (Visuales puros) - VISIÓN ORBITAL */}
-          {showOrbitalFx && showChrome && (
-              <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
-                  {current && !isVideo && !isPdf ? (
-                      <img 
-                          src={String(current)} 
-                          className="absolute min-w-[120vw] min-h-[120vh] object-cover blur-[120px] opacity-40 saturate-200 animate-pulse transform-gpu" 
-                          alt="ambilight" 
-                      />
-                  ) : (
-                      <div className="absolute w-[90vw] h-[80vh] bg-gradient-to-r from-cyan-500/40 via-fuchsia-500/40 to-blue-500/40 blur-[100px] animate-pulse transform-gpu" />
-                  )}
-              </div>
-          )}
-
+      {/* FONDOS (Visuales puros) - VISIÓN ORBITAL OPTIMIZADA */}
+{showOrbitalFx && showChrome && (
+    <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+        {current && !isVideo && !isPdf ? (
+            <img 
+                src={String(current)} 
+                // 🛠️ FIX TÁCTICO: Bajamos blur a 64px, quitamos pulse, bajamos opacidad para dar profundidad
+                className="absolute min-w-[110vw] min-h-[110vh] object-cover blur-[64px] opacity-25 saturate-150 transform-gpu" 
+                style={{ 
+                    WebkitBackfaceVisibility: 'hidden',
+                    backfaceVisibility: 'hidden',
+                    perspective: 1000 
+                }} 
+                alt="ambilight-shield" 
+            />
+        ) : (
+            <div 
+                className="absolute w-[90vw] h-[80vh] bg-gradient-to-r from-cyan-500/20 via-fuchsia-500/20 to-blue-500/20 blur-[80px] transform-gpu" 
+                style={{ willChange: 'transform' }}
+            />
+        )}
+    </div>
+)}
           {/* EFECTO STUDIO HDR (Mejora Fotográfica Premium) */}
           {ultraMode && showChrome && (
               <div className="pointer-events-none absolute inset-0 z-[25]">

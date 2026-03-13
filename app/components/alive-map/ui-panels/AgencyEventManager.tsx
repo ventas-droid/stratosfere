@@ -4,50 +4,56 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
     ArrowLeft, Users, Calendar, MapPin, 
     MessageCircle, Phone, Mail, ChevronRight, 
-    Clock, Loader2, Trash2, RefreshCw
+    Clock, Loader2, Trash2, RefreshCw, Send, AlertTriangle
 } from 'lucide-react';
-import { getPropertiesAction, getEventAttendeesAction, cancelOpenHouseAction } from '@/app/actions';
+// 🔥 FIX: Actualizamos los imports con las nuevas armas tácticas
+import { 
+    getPropertiesAction, 
+    getEventAttendeesAction, 
+    cancelAndNotifyOpenHouseAction, // El Megáfono 📢
+    obliterateOpenHouseAction       // El Borrado Total 🧨
+} from '@/app/actions';
 
 export default function AgencyEventManager({ onClose }: { onClose: () => void }) {
-    // ESTADOS
+    // ESTADOS DE VISTA
     const [view, setView] = useState<'LIST' | 'DETAILS'>('LIST');
     const [events, setEvents] = useState<any[]>([]);
     const [selectedEvent, setSelectedEvent] = useState<any>(null);
     const [attendees, setAttendees] = useState<any[]>([]);
     
     // ESTADOS DE CARGA
-    const [loading, setLoading] = useState(true); // Carga inicial fuerte
-    const [loadingAttendees, setLoadingAttendees] = useState(false); // Carga de detalles
+    const [loading, setLoading] = useState(true); 
+    const [loadingAttendees, setLoadingAttendees] = useState(false); 
     const [deleting, setDeleting] = useState(false);
 
-    // 🧠 CEREBRO DEL RADAR (Referencias para no perder el hilo en los intervalos)
+    // 📢 ESTADOS DEL MEGÁFONO (NUEVO)
+    const [showNotifyModal, setShowNotifyModal] = useState(false);
+    const [notifyMessage, setNotifyMessage] = useState("Lamentamos informarle que por motivos de fuerza mayor, nos vemos obligados a cancelar este evento. Disculpe las molestias.");
+    const [sendingNotice, setSendingNotice] = useState(false);
+
+    // 🧠 CEREBRO DEL RADAR
     const selectedEventRef = useRef<any>(null);
     const viewRef = useRef<string>('LIST');
 
-    // Sincronizar Refs con Estado (Truco para que el interval lea el estado actual)
     useEffect(() => { selectedEventRef.current = selectedEvent; }, [selectedEvent]);
     useEffect(() => { viewRef.current = view; }, [view]);
 
     // ============================================================
-    // 📡 1. FUNCIÓN DE RECARGA INTELIGENTE (EL RADAR)
+    // 📡 1. FUNCIÓN DE RECARGA INTELIGENTE
     // ============================================================
     const refreshData = useCallback(async (isBackground = false) => {
-        // Solo mostramos spinner si NO es una actualización de fondo
         if (!isBackground) setLoading(true);
 
         try {
-            // A) SIEMPRE RECARGAMOS LA LISTA MAESTRA
             const res = await getPropertiesAction();
             if (res.success && res.data) {
                 const activeEvents = res.data.filter((p: any) => {
                     const oh = p.openHouse || p.open_house || p.open_house_data;
                     return oh && oh.id; 
                 });
-                // Actualizamos solo si hay cambios para evitar parpadeos innecesarios (React lo gestiona bien)
                 setEvents(activeEvents);
             }
 
-            // B) SI EL USUARIO ESTÁ MIRANDO UN EVENTO ESPECÍFICO, RECARGAMOS SUS ASISTENTES
             const currentSelected = selectedEventRef.current;
             const currentView = viewRef.current;
 
@@ -56,7 +62,6 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                 if (oh?.id) {
                     const attRes = await getEventAttendeesAction(oh.id);
                     if (attRes.success) {
-                        // Aquí actualizamos la lista de invitados en tiempo real
                         setAttendees(attRes.attendees || []);
                     }
                 }
@@ -68,25 +73,13 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
         }
     }, []);
 
-    // ============================================================
-    // ⚡ 2. INICIO DE MOTORES (HOOKS)
-    // ============================================================
     useEffect(() => {
-        // 1. Carga Inicial Inmediata
         refreshData(false);
-
-        // 2. ACTIVAR RADAR (Intervalo cada 3 segundos)
-        // Esto hace que si alguien se apunta, aparezca "mágicamente" a los 3 seg.
-        const radarInterval = setInterval(() => {
-            refreshData(true); // true = Silencioso (sin spinner)
-        }, 3000); 
-
-        // 3. ESCUCHAR SEÑALES DEL SISTEMA (Para inmediatez absoluta si la acción es local)
+        const radarInterval = setInterval(() => { refreshData(true); }, 3000); 
         const handleSystemSignal = () => refreshData(true);
         window.addEventListener("reload-agency-data", handleSystemSignal);
-        window.addEventListener("open-chat-with-user", handleSystemSignal); // Por si acaso
+        window.addEventListener("open-chat-with-user", handleSystemSignal); 
 
-        // Limpieza al cerrar
         return () => {
             clearInterval(radarInterval);
             window.removeEventListener("reload-agency-data", handleSystemSignal);
@@ -104,7 +97,7 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
 
         setSelectedEvent(eventProp);
         setView('DETAILS');
-        setLoadingAttendees(true); // Spinner local solo la primera vez
+        setLoadingAttendees(true); 
         try {
             const res = await getEventAttendeesAction(oh.id);
             if (res.success) {
@@ -120,35 +113,55 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
     const handleOpenChat = (user: any) => {
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('open-chat-with-user', { 
-                detail: { 
-                    userId: user.id, 
-                    userName: user.name, 
-                    userAvatar: user.avatar 
-                } 
+                detail: { userId: user.id, userName: user.name, userAvatar: user.avatar } 
             }));
         }
     };
 
-    const handleCancelEvent = async () => {
+    // 📢 NUEVA ACCIÓN: EL MEGÁFONO (CANCELAR Y AVISAR)
+    const handleExecuteCancelAndNotify = async () => {
         if (!selectedEvent) return;
         const oh = selectedEvent.openHouse || selectedEvent.open_house;
         if (!oh?.id) return;
 
-        if (!confirm("⚠️ ¿CANCELAR EVENTO?\n\nSe borrará el evento y se notificará a los asistentes.")) return;
+        setSendingNotice(true);
+        try {
+            const res = await cancelAndNotifyOpenHouseAction(oh.id, notifyMessage);
+            if (res.success) {
+                alert("✅ Evento cancelado y asistentes notificados con éxito.");
+                setShowNotifyModal(false);
+                // Refrescamos los datos, el evento ahora debería salir como CANCELED o desaparecer si su API lo filtra
+                await refreshData(false); 
+            } else {
+                alert("❌ Error: " + res.error);
+            }
+        } catch (e) {
+            alert("❌ Error de conexión al enviar avisos.");
+        } finally {
+            setSendingNotice(false);
+        }
+    };
+
+    // 🧨 NUEVA ACCIÓN: ELIMINACIÓN TOTAL (BASURA)
+    const handleObliterateEvent = async () => {
+        if (!selectedEvent) return;
+        const oh = selectedEvent.openHouse || selectedEvent.open_house;
+        if (!oh?.id) return;
+
+        if (!confirm("🚨 ADVERTENCIA FINAL\n\nEstás a punto de borrar este evento para siempre. Perderás la lista de asistentes.\n\n¿Estás seguro de que ya has guardado sus contactos?")) return;
 
         setDeleting(true);
         try {
-            const res = await cancelOpenHouseAction(oh.id);
+            const res = await obliterateOpenHouseAction(oh.id);
             if (res.success) {
                 setView('LIST');
                 setSelectedEvent(null);
-                await refreshData(false); // Recarga forzosa
-                alert("✅ Evento cancelado.");
+                await refreshData(false);
             } else {
-                alert("Error: " + res.error);
+                alert("❌ Error: " + res.error);
             }
         } catch (e) {
-            alert("Error de conexión");
+            alert("❌ Error de conexión al eliminar.");
         } finally {
             setDeleting(false);
         }
@@ -158,8 +171,50 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
     // 🖼️ 4. RENDERIZADO
     // ============================================================
     return (
-        <div className="flex flex-col h-full bg-[#F5F5F7] animate-in slide-in-from-right duration-300">
+        <div className="flex flex-col h-full bg-[#F5F5F7] animate-in slide-in-from-right duration-300 relative">
             
+           {/* 📢 MODAL DEL MEGÁFONO (SUPERPUESTO Y BLINDADO) */}
+            {showNotifyModal && (
+                <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-4 text-orange-600">
+                            <AlertTriangle size={24} />
+                            <h3 className="font-black text-lg">Aviso a Invitados</h3>
+                        </div>
+                        <p className="text-sm text-slate-600 mb-4">
+                            El evento se marcará como <strong className="text-red-500">CANCELADO</strong> en el mapa público. Se enviará el siguiente mensaje por email a todos los inscritos:
+                        </p>
+                        <textarea 
+                            value={notifyMessage}
+                            onChange={(e) => setNotifyMessage(e.target.value)}
+                            className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none mb-4"
+                            placeholder="Escriba aquí el motivo de la cancelación..."
+                        />
+                      <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowNotifyModal(false)}
+                                disabled={sendingNotice}
+                                className="flex-1 py-3 rounded-xl font-bold text-xs tracking-widest uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            >
+                                VOLVER
+                            </button>
+                            <button 
+                                onClick={handleExecuteCancelAndNotify}
+                                disabled={sendingNotice || !notifyMessage.trim()}
+                                className="flex-1 py-2 px-2 rounded-xl font-bold text-[10px] sm:text-xs tracking-widest uppercase text-white bg-orange-500 hover:bg-orange-600 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                            >
+                                {sendingNotice ? (
+                                    <><Loader2 size={14} className="animate-spin shrink-0"/> <span>ENVIANDO...</span></>
+                                ) : (
+                                    <><Send size={14} className="shrink-0"/> <span className="leading-tight text-center">CANCELAR<br/>Y AVISAR</span></>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             {/* VISTA LISTA */}
             {view === 'LIST' && (
                 <>
@@ -170,7 +225,6 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                             </button>
                             <h2 className="text-xl font-black text-slate-900 tracking-tight">Gestión de Eventos</h2>
                             
-                            {/* INDICADOR DE RADAR: PUNTITO VERDE QUE LATE */}
                             <div className="ml-auto flex items-center gap-2">
                                 <span className="relative flex h-3 w-3">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -202,11 +256,14 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                                 const attendeeCount = prop.openHouseAttendeesCount || oh?._count?.attendees || 0;
                                 const capacity = oh?.capacity || 50; 
                                 const occupancy = capacity > 0 ? Math.round((attendeeCount / capacity) * 100) : 0;
+                                
+                                // 🔥 CHIVATO DE ESTADO CANCELADO (REVOCADO)
+                                const isCanceled = oh?.status === "CANCELED";
 
                                 return (
-                                    <div key={prop.id} onClick={() => handleSelectEvent(prop)} className="bg-white rounded-[24px] p-4 shadow-sm border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
+                                    <div key={prop.id} onClick={() => handleSelectEvent(prop)} className={`bg-white rounded-[24px] p-4 shadow-sm border transition-all cursor-pointer group relative overflow-hidden ${isCanceled ? 'border-red-300 bg-red-50/30' : 'border-slate-200 hover:border-indigo-400 hover:shadow-md'}`}>
                                         <div className="flex gap-4">
-                                            <div className="w-20 h-24 rounded-2xl bg-slate-200 relative overflow-hidden shrink-0">
+                                            <div className={`w-20 h-24 rounded-2xl relative overflow-hidden shrink-0 ${isCanceled ? 'opacity-50 grayscale' : 'bg-slate-200'}`}>
                                                 {prop.mainImage ? (
                                                     <img src={prop.mainImage} className="w-full h-full object-cover" alt=""/>
                                                 ) : (
@@ -219,20 +276,25 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                                             </div>
                                             <div className="flex-1 min-w-0 py-1">
                                                 <div className="flex justify-between items-start">
-                                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full uppercase tracking-wider mb-1 inline-block">OPEN HOUSE</span>
-                                                    {occupancy >= 100 && <span className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded">FULL</span>}
+                                                    <span className={`text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-wider mb-1 inline-block ${isCanceled ? 'bg-red-100 text-red-600' : 'text-indigo-600 bg-indigo-50'}`}>
+                                                        {isCanceled ? 'CANCELADO' : 'OPEN HOUSE'}
+                                                    </span>
+                                                    {occupancy >= 100 && !isCanceled && <span className="text-[9px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded">FULL</span>}
                                                 </div>
-                                                <h3 className="font-bold text-slate-900 truncate text-base mb-1">{oh?.title || prop.title}</h3>
+                                                <h3 className={`font-bold truncate text-base mb-1 ${isCanceled ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{oh?.title || prop.title}</h3>
                                                 <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate"><MapPin size={12}/> {prop.address}</p>
-                                                <div className="mt-3">
-                                                    <div className="flex justify-between text-[10px] font-bold mb-1">
-                                                        <span className="text-slate-600 flex items-center gap-1"><Users size={12}/> {attendeeCount} Inscritos</span>
-                                                        <span className="text-slate-400">Cupo: {capacity}</span>
+                                                
+                                                {!isCanceled && (
+                                                    <div className="mt-3">
+                                                        <div className="flex justify-between text-[10px] font-bold mb-1">
+                                                            <span className="text-slate-600 flex items-center gap-1"><Users size={12}/> {attendeeCount} Inscritos</span>
+                                                            <span className="text-slate-400">Cupo: {capacity}</span>
+                                                        </div>
+                                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className={`h-full rounded-full transition-all duration-500 ${occupancy > 90 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(occupancy, 100)}%` }}/>
+                                                        </div>
                                                     </div>
-                                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-500 ${occupancy > 90 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(occupancy, 100)}%` }}/>
-                                                    </div>
-                                                </div>
+                                                )}
                                             </div>
                                             <div className="flex items-center justify-center pl-1">
                                                 <ChevronRight className="text-slate-300 group-hover:text-slate-600 group-hover:translate-x-1 transition-all"/>
@@ -258,7 +320,6 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                                 <h2 className="text-sm font-black text-slate-900 truncate uppercase tracking-wide">LISTA DE INVITADOS</h2>
                                 <p className="text-xs text-slate-500 truncate">{selectedEvent.openHouse?.title || "Evento"}</p>
                             </div>
-                            {/* INDICADOR DE SINCRONIZACIÓN EN DETALLES */}
                             <RefreshCw size={14} className="text-slate-300 animate-spin opacity-50"/>
                         </div>
                         
@@ -312,13 +373,23 @@ export default function AgencyEventManager({ onClose }: { onClose: () => void })
                         )}
                     </div>
 
-                    <div className="p-4 bg-white border-t border-red-100">
+                    {/* 🎮 PANEL DE CONTROL INFERIOR (LOS DOS BOTONES) */}
+                    <div className="p-4 bg-white border-t border-slate-100 flex flex-col gap-2">
+                        {/* 1. Botón de Avisar (Naranja) */}
                         <button 
-                            onClick={handleCancelEvent}
-                            disabled={deleting}
-                            className="w-full py-4 rounded-xl bg-red-50 text-red-600 font-bold text-xs tracking-widest uppercase hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 border border-red-200"
+                            onClick={() => setShowNotifyModal(true)}
+                            className="w-full py-4 rounded-xl bg-orange-50 text-orange-600 font-bold text-xs tracking-widest uppercase hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2 border border-orange-200"
                         >
-                            {deleting ? ( <><Loader2 size={14} className="animate-spin"/> CANCELANDO...</> ) : ( <><Trash2 size={14}/> CANCELAR EVENTO</> )}
+                            <Send size={14}/> CANCELAR Y AVISAR ASISTENTES
+                        </button>
+
+                        {/* 2. Botón de Borrar Permanente (Rojo y más discreto) */}
+                        <button 
+                            onClick={handleObliterateEvent}
+                            disabled={deleting}
+                            className="w-full py-3 rounded-xl text-red-500 font-bold text-[10px] tracking-widest uppercase hover:bg-red-50 transition-all flex items-center justify-center gap-2 opacity-60 hover:opacity-100"
+                        >
+                            {deleting ? ( <><Loader2 size={12} className="animate-spin"/> ELIMINANDO BASE DE DATOS...</> ) : ( <><Trash2 size={12}/> VACIAR EVENTO Y ELIMINAR</> )}
                         </button>
                     </div>
                 </>

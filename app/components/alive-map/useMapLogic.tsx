@@ -519,10 +519,14 @@ map.current.on('click', 'unclustered-point-bg', (e: any) => {
         // 💰 5. PRECIO SEGURO
         const currentPrice = Number(p.priceValue || p.rawPrice || 0);
 
-        // 🧳 6. LA MALETA CLONADA Y PERFECTA LISTA PARA ENVIAR
+       // 🧳 6. LA MALETA CLONADA Y PERFECTA LISTA PARA ENVIAR
         const payload = {
             ...p,
             id: String(p.id),
+            
+            // 🚀 EL RASTREADOR TÁCTICO: Número ligero para evitar el lag visual
+            photoCount: Number(p.photoCount) || finalAlbum.length || 1,
+            
             address: p.address || null,
             city: p.city || null,
             postcode: p.postcode || null,
@@ -1023,17 +1027,19 @@ map.current.flyTo({
       const userJson = userObj ? JSON.stringify(userObj) : null;
       const ownerSnapJson = ownerSnapObj ? JSON.stringify(ownerSnapObj) : userJson;
 
-      const newFeature = {
+     const newFeature = {
         type: 'Feature',
         geometry: { type: 'Point', coordinates: finalCoords },       
         properties: {
           ...formData, id: String(formData.id), type: formData.type || 'Propiedad',
           price: `${formData.price}€`, 
           priceValue: priceValue,
-          formattedPrice: formattedPrice, // 🔥 PRECIO BONITO
+          formattedPrice: formattedPrice, 
           m2: Number(formData.mBuilt || 0), mBuilt: Number(formData.mBuilt || 0),
           elevator: isYes(formData.elevator), selectedServices: Array.isArray(formData.selectedServices) ? formData.selectedServices : [],
-          img: formData.img || (formData.images && formData.images.length > 0 ? formData.images[0] : null), images: formData.images || [], 
+          img: formData.img || (formData.images && formData.images.length > 0 ? formData.images[0] : null), 
+          // 🔥 LO MISMO AQUÍ, EMPAQUETAMOS LAS FOTOS
+          images: formData.images ? JSON.stringify(formData.images) : '[]', 
           user: userJson, ownerSnapshot: ownerSnapJson, openHouse: openHouseJson, open_house_data: openHouseJson, activeCampaign: activeCampaignJson, b2b: b2bJson
         }
       };
@@ -1190,21 +1196,29 @@ map.current.flyTo({
             const activeCampaignJson = p.activeCampaign ? JSON.stringify(p.activeCampaign) : (p.campaigns && p.campaigns[0] ? JSON.stringify(p.campaigns[0]) : null);
             const b2bJson = p.b2b ? JSON.stringify(p.b2b) : null;
 
-            return {
+       return {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [lng, lat] },
                 properties: {
                     ...p, 
                     id: String(p.id), 
                     priceValue: priceValue, 
-                    formattedPrice: formattedPrice, // 🔥 PRECIO BONITO
-                    img: safeImage, m2: finalM2, mBuilt: finalM2, elevator: isYes(p.elevator),
+                    formattedPrice: formattedPrice, 
+                    img: safeImage, 
+                    
+                    // 🚀 LA INYECCIÓN TÁCTICA 1: El contador peso pluma (Cero lag)
+                    photoCount: Array.isArray(p.images) ? p.images.length : (p.images ? 1 : 0),
+                    
+                    // 🔥 Mantenemos el empaquetado de seguridad por si el usuario hace clic a la velocidad de la luz
+                    images: p.images ? JSON.stringify(p.images) : '[]', 
+                    
+                    m2: finalM2, mBuilt: finalM2, elevator: isYes(p.elevator),
                     address: p.address || null, city: p.city || null, postcode: p.postcode || null, region: p.region || null, communityFees: p.communityFees, energyConsumption: p.energyConsumption,
                     energyEmissions: p.energyEmissions, energyPending: p.energyPending, user: identityJson, ownerSnapshot: ownerSnapJson, role: p?.role ?? identityObj?.role ?? null,
                     openHouse: openHouseJson, open_house_data: openHouseJson, activeCampaign: activeCampaignJson, b2b: b2bJson
                 }
             };
-        }).filter(Boolean); 
+        }).filter(Boolean);
        
         masterRadarDataRef.current = features;
 

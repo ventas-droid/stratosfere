@@ -398,6 +398,10 @@ model Campaign {
   commissionTotalEur Float @default(0)
   commissionShareEur Float @default(0)
 
+// ⚖️ AUDITORÍA LEGAL (CAJA NEGRA)
+  ownerDecisionAt    DateTime? // Cuándo aceptó el contrato
+  revokedAt          DateTime? // Cuándo pulsó el Botón Rojo de ruptura
+
   @@unique([propertyId, agencyId]) // 1 campaña activa por propiedad+agencia (mínimo)
   @@index([propertyId])
   @@index([agencyId])

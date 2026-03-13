@@ -3039,7 +3039,6 @@ export async function leaveOpenHouseAction(openHouseId: string) {
     });
 
     // 3. NOTIFICACIÓN TÁCTICA (EMAIL A LA AGENCIA)
-    // Esto ocurre después de borrar, para no bloquear al usuario si falla el email
     const resendApiKey = process.env.RESEND_API_KEY;
 
     if (resendApiKey) {
@@ -3047,24 +3046,22 @@ export async function leaveOpenHouseAction(openHouseId: string) {
             const { Resend } = require('resend'); 
             const resend = new Resend(resendApiKey);
 
-            // Datos para el informe
             const eventTitle = ticket.openHouse.title || "Open House";
             const userName = user.name || "Un usuario";
             const userEmail = user.email;
             const propertyRef = ticket.openHouse.property.refCode || "Sin Ref";
 
-            // Datos Agencia
             const agencyUser = ticket.openHouse.property.user;
-            const agencyEmail = agencyUser?.email; // Ahora sí lo tenemos
+            const agencyEmail = agencyUser?.email; 
             const senderEmail = 'Stratosfere <info@stratosfere.com>';
 
-            // A) AVISO A LA AGENCIA (¡PLAZA LIBRE!)
+            // A) AVISO A LA AGENCIA
             if (agencyEmail) {
                 console.log(`📧 AVISANDO BAJA A AGENCIA: ${agencyEmail}`);
                 await resend.emails.send({
                     from: senderEmail,
                     to: agencyEmail,
-                    reply_to: userEmail || undefined, // Para que puedan responder al usuario si quieren
+                    reply_to: userEmail || undefined,
                     subject: `📉 Plaza Liberada (Ref: ${propertyRef}): ${userName} canceló`,
                     html: `
                         <div style="font-family:sans-serif; border:1px solid #ddd; padding:20px; border-radius:10px;">
@@ -3086,7 +3083,7 @@ export async function leaveOpenHouseAction(openHouseId: string) {
                 });
             }
 
-            // B) CONFIRMACIÓN AL USUARIO (OPCIONAL PERO RECOMENDADO)
+            // B) CONFIRMACIÓN AL USUARIO
             if (userEmail) {
                 await resend.emails.send({
                     from: senderEmail,
@@ -3101,7 +3098,7 @@ export async function leaveOpenHouseAction(openHouseId: string) {
             }
 
         } catch (emailError) {
-            console.error("❌ Error enviando emails de baja (pero la baja se realizó):", emailError);
+            console.error("❌ Error enviando emails de baja:", emailError);
         }
     }
 
@@ -3112,6 +3109,7 @@ export async function leaveOpenHouseAction(openHouseId: string) {
     return { success: false, error: String(e) };
   }
 }
+
 // J. VER ASISTENTES (RADAR DE AGENCIA)
 export async function getEventAttendeesAction(eventId: string) {
   try {
@@ -3126,9 +3124,9 @@ export async function getEventAttendeesAction(eventId: string) {
             id: true,
             name: true,
             email: true,
-            avatar: true, // ✅ CORRECTO (Antes era 'image')
+            avatar: true, 
             phone: true,
-            mobile: true  // ✅ Añadido extra por si el tlf está aquí
+            mobile: true  
           }
         }
       },
@@ -3145,140 +3143,117 @@ export async function getEventAttendeesAction(eventId: string) {
 }
 
 // =====================================================
-// 🗑️ 5. CANCELAR EVENTO (NOTIFICANDO A TODOS) - BLINDADO
+// 📢 1. CANCELAR Y AVISAR (EL MODAL DE LA AGENCIA)
 // =====================================================
-export async function cancelOpenHouseAction(openHouseId: string) {
-  try {
-    const user = await getCurrentUser();
-    if (!user) return { success: false, error: "No autorizado" };
+export async function cancelAndNotifyOpenHouseAction(eventId: string, customMessage: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, error: "UNAUTH" };
 
-    // 1. RECUPERAMOS EL EVENTO Y SUS INVITADOS (ANTES DE BORRAR)
-    const event = await prisma.openHouse.findUnique({
-      where: { id: openHouseId },
-      include: {
-        property: {
-            include: { user: true } // Necesitamos datos de la agencia
-        },
-        attendees: true // Necesitamos emails de los inscritos
-      }
-    });
+        const event = await prisma.openHouse.findUnique({
+            where: { id: eventId },
+            include: {
+                attendees: { where: { status: 'CONFIRMED' } },
+                property: { select: { address: true, userId: true } }
+            }
+        });
 
-    if (!event) return { success: false, error: "Evento no encontrado" };
-    
-    // Seguridad: Solo el dueño puede cancelar
-    if (event.property.userId !== user.id) return { success: false, error: "No eres el organizador" };
+        if (!event) return { success: false, error: "NOT_FOUND" };
+        
+        // Verificamos permisos (Dueño de la casa o Agencia)
+        if (event.property.userId !== user.id && user.role !== 'AGENCIA') {
+            return { success: false, error: "FORBIDDEN" };
+        }
 
-    // 2. PREPARACIÓN DE CORREOS (CON PROTECCIÓN DE ERRORES)
-    const resendApiKey = process.env.RESEND_API_KEY;
-    
-    if (resendApiKey) {
-        try {
-            // 🔥 IMPORTACIÓN SEGURA: Evita que rompa si falta el import arriba
-            const { Resend } = require('resend'); 
-            const resend = new Resend(resendApiKey);
+        // 1. CAMBIAMOS EL ESTADO A CANCELADO (Desaparece del mapa público al instante)
+        await prisma.openHouse.update({
+            where: { id: eventId },
+            data: { status: "CANCELED" }
+        });
 
-            // Datos Formateados
-            const eventTitle = event.title || "Open House";
-            const d = new Date(event.startTime);
-            const eventDate = d.toLocaleDateString("es-ES", { weekday: 'long', day: 'numeric', month: 'long' });
-            const eventTime = d.toLocaleTimeString("es-ES", { hour: '2-digit', minute: '2-digit' });
-            const address = event.property.address || "Ubicación Privada";
-            
-            // Datos Agencia
-            const agencyName = event.property.user?.companyName || event.property.user?.name || "Agencia";
-            const senderEmail = 'Stratosfere <info@stratosfere.com>'; // Su remitente oficial
+        // 2. DISPARAMOS LOS AVISOS CON EL TEXTO DEL MODAL
+        const resendApiKey = process.env.RESEND_API_KEY;
+        if (resendApiKey && event.attendees.length > 0) {
+            try {
+                const { Resend } = require('resend');
+                const resend = new Resend(resendApiKey);
 
-            // Array de promesas para envío masivo
-            const emailPromises = [];
+                const agencyName = user.companyName || user.name || "La Agencia";
+                const eventTitle = event.title || "Open House";
 
-            // A) CORREOS A LOS CLIENTES (UNO POR UNO)
-            for (const ticket of event.attendees) {
-                if (ticket.email) {
-                    // Verificamos si existe el helper de HTML, si no, texto plano
-                    const emailHtmlClient = typeof buildStratosfereEmailHtml === 'function' 
-                        ? buildStratosfereEmailHtml({
-                            title: "Evento Cancelado",
-                            headline: "Cancelación de Open House",
-                            bodyHtml: `
-                                <p>Hola <strong>${ticket.name || 'Invitado'}</strong>,</p>
-                                <p>Te informamos que el evento <strong>${eventTitle}</strong> ha sido cancelado por el organizador.</p>
-                                
-                                <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; padding:20px; margin:20px 0; color:#991B1B;">
-                                    <p style="margin:0 0 5px 0;">🚫 <strong>EVENTO CANCELADO</strong></p>
-                                    <p style="margin:0 0 5px 0;">📍 ${address}</p>
-                                    <p style="margin:0;">🗓️ Previsto: ${eventDate} • ${eventTime}H</p>
-                                </div>
-
-                                <p>Disculpa las molestias ocasionadas.</p>
-                                <p style="font-size:12px; color:#666;">Atentamente,<br/>${agencyName}</p>
-                            `,
-                            ctaText: "Ver Propiedades Similares",
-                            ctaUrl: "https://stratosfere.com"
-                        }) 
-                        : `<p>El evento ${eventTitle} ha sido cancelado.</p>`;
-
-                    emailPromises.push(
+                const emailPromises = event.attendees
+                    .filter(t => t.email)
+                    .map(ticket => 
                         resend.emails.send({
-                            from: senderEmail,
-                            to: ticket.email,
+                            from: 'Stratosfere <info@stratosfere.com>',
+                            to: ticket.email!,
+                            reply_to: user.email, 
                             subject: `🚫 CANCELADO: ${eventTitle}`,
-                            html: emailHtmlClient
+                            html: `
+                                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #fee2e2; border-radius: 8px;">
+                                    <h2 style="color: #b91c1c;">El evento ha sido cancelado</h2>
+                                    <p>Hola ${ticket.name || 'Invitado'},</p>
+                                    <p><strong>${agencyName}</strong> nos ha pedido que te comuniquemos la cancelación del evento en <em>${event.property.address}</em> con el siguiente mensaje:</p>
+                                    
+                                    <blockquote style="background: #fef2f2; padding: 15px; border-left: 4px solid #b91c1c; font-style: italic; margin: 20px 0; color: #7f1d1d;">
+                                        ${customMessage.replace(/\n/g, '<br/>')}
+                                    </blockquote>
+                                    
+                                    <p style="font-size: 12px; color: #666;">Si tienes alguna duda, puedes responder directamente a este correo para hablar con el organizador.</p>
+                                </div>
+                            `
                         })
                     );
-                }
+                
+                await Promise.allSettled(emailPromises);
+            } catch (e) {
+                console.error("Error enviando correos de cancelación:", e);
             }
-
-            // B) CORREO DE CONFIRMACIÓN A LA AGENCIA (USTED)
-            if (user.email) {
-                 const emailHtmlAgency = typeof buildStratosfereEmailHtml === 'function'
-                    ? buildStratosfereEmailHtml({
-                        title: "Evento Eliminado",
-                        headline: "Cancelación Exitosa",
-                        bodyHtml: `
-                            <p>Has cancelado el evento: <strong>${eventTitle}</strong></p>
-                            <div style="background:#F9FAFB; border:1px solid #E5E7EB; border-radius:12px; padding:15px; margin:15px 0;">
-                                <p>✅ Se ha eliminado el evento de la plataforma.</p>
-                                <p>📬 Se han enviado notificaciones a <strong>${event.attendees.length} asistentes</strong>.</p>
-                            </div>
-                        `,
-                        ctaText: "Volver al Panel",
-                        ctaUrl: "https://stratosfere.com/dashboard"
-                    })
-                    : `<p>Evento cancelado y asistentes notificados.</p>`;
-
-                emailPromises.push(
-                    resend.emails.send({
-                        from: senderEmail,
-                        to: user.email,
-                        subject: `🗑️ Confirmación: ${eventTitle} eliminado`,
-                        html: emailHtmlAgency
-                    })
-                );
-            }
-
-            // Disparamos todos los correos sin bloquear si uno falla
-            await Promise.allSettled(emailPromises);
-
-        } catch (emailError) {
-            console.error("❌ Error enviando emails (pero procedemos a borrar):", emailError);
         }
-    }
 
-    // 3. DEMOLICIÓN FINAL (BORRAR DE LA DB)
-    await prisma.openHouse.delete({
-      where: { id: openHouseId }
+        revalidatePath("/");
+        return { success: true };
+
+    } catch (e: any) {
+        console.error("Error en cancelAndNotify:", e);
+        return { success: false, error: "Fallo al cancelar el evento." };
+    }
+}
+
+
+// =====================================================
+// 🗑️ 2. ELIMINACIÓN TOTAL (DESPUÉS DE GUARDAR LOS DATOS)
+// =====================================================
+export async function obliterateOpenHouseAction(eventId: string) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "UNAUTH" };
+
+    const event = await prisma.openHouse.findUnique({
+      where: { id: eventId },
+      include: { property: { select: { userId: true } } }
     });
 
-    // 4. ACTUALIZAR UI
+    if (!event) return { success: false, error: "NOT_FOUND" };
+    
+    // Verificamos permisos
+    if (event.property.userId !== user.id && user.role !== 'AGENCIA') {
+        return { success: false, error: "FORBIDDEN" };
+    }
+
+    // 💥 AHORA SÍ: Destrucción total de la base de datos (Evento + Asistentes)
+    await prisma.openHouse.delete({
+      where: { id: eventId }
+    });
+
     revalidatePath("/");
     return { success: true };
 
   } catch (error: any) {
-    console.error("Error cancelOpenHouseAction:", error);
-    return { success: false, error: String(error.message || "Error al cancelar") };
+    console.error("Error obliterating event:", error);
+    return { success: false, error: "Error al eliminar la base de datos del evento." };
   }
 }
-
 // =====================================================
 // 🤝 7. RESPONDER CAMPAÑA (PROPIETARIO ACEPTA/RECHAZA) - FINAL
 // =====================================================
@@ -3305,12 +3280,22 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
         return { success: false, error: "No eres el dueño de esta propiedad" };
     }
 
-    // 2. ACTUALIZAR ESTADO EN DB
+    // 2. ACTUALIZAR ESTADO EN DB (CAJA NEGRA NOTARIAL ACTIVADA)
     const newStatus = decision === "ACCEPT" ? "ACCEPTED" : "REJECTED";
+    
+    // Preparamos el paquete de datos con el nuevo estado
+    const auditData: any = { status: newStatus };
+    
+    // Inyectamos el sello de tiempo según la decisión del General
+    if (decision === "ACCEPT") {
+        if (campaign.status !== "ACCEPTED") auditData.ownerDecisionAt = new Date();
+    } else if (decision === "REJECT") {
+        auditData.revokedAt = new Date(); // 🚨 FECHA EXACTA DE RUPTURA
+    }
     
     await prisma.campaign.update({
       where: { id: campaignId },
-      data: { status: newStatus }
+      data: auditData
     });
 
     // 3. SI ACEPTA -> TRANSFERENCIA DE PODERES
@@ -3332,15 +3317,15 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
         }
       });
 
-      // B) ENVIAR EMAIL (Usando el import global de la línea 6)
+      // B) ENVIAR EMAIL DE ÉXITO A LA AGENCIA
       const resendApiKey = process.env.RESEND_API_KEY;
       if (resendApiKey) {
         try {
-            // Usamos la clase Resend importada arriba. No re-importamos.
+            // Importación dinámica por seguridad
+            const { Resend } = require('resend');
             const resend = new Resend(resendApiKey);
-
             await resend.emails.send({
-                from: 'Stratosfere <info@stratosfere.com>', // Su remitente real
+                from: 'Stratosfere <info@stratosfere.com>',
                 to: campaign.agency.email, 
                 subject: `🚀 ¡CAPTACIÓN ÉXITO! ${campaign.property.address}`,
                 html: `
@@ -3348,7 +3333,8 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
                     <h2 style="color: #059669;">¡Nuevo Mandato Conseguido!</h2>
                     <p>El propietario ha aceptado tu propuesta para <strong>${campaign.property.address}</strong>.</p>
                     <p>Ya tienes acceso completo al expediente.</p>
-<a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel</a>                  </div>
+                    <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel</a>
+                  </div>
                 `
             });
             console.log("✅ [SERVER] Email enviado a la agencia.");
@@ -3356,6 +3342,77 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
             console.error("⚠️ [SERVER] Falló email (pero la DB está OK):", mailError);
         }
       }
+    } 
+    // 🔥 EL MISIL DE DEMOLICIÓN Y PROTOCOLO 48H 🔥
+    else if (decision === "REJECT") {
+      // A. Destruimos la asignación. La casa deja de ser de la Agencia.
+      await prisma.propertyAssignment.deleteMany({
+        where: { propertyId: campaign.propertyId }
+      });
+
+      // B. La casa vuelve al escaparate público como Particular Verificado (No PENDIENTE_PAGO)
+      await prisma.property.update({
+          where: { id: campaign.propertyId },
+          data: { status: "PUBLICADO" } 
+      });
+
+      // C. ⏱️ PROTOCOLO DE ULTIMÁTUM (OPEN HOUSE)
+      const pendingEvent = await prisma.openHouse.findFirst({
+          where: { propertyId: campaign.propertyId, status: "SCHEDULED" },
+          include: { attendees: true }
+      });
+
+      if (pendingEvent) {
+          // Congelamos el evento: Oculto al público, pero visible en el panel de la agencia
+          await prisma.openHouse.update({
+              where: { id: pendingEvent.id },
+              data: { status: "CANCELED" } 
+          });
+
+          // Mail de Ultimátum a la Agencia
+          const resendApiKey = process.env.RESEND_API_KEY;
+          if (resendApiKey && campaign.agency?.email) {
+              try {
+                  const { Resend } = require('resend'); 
+                  const resend = new Resend(resendApiKey);
+                  const eventTitle = pendingEvent.title || "Open House";
+
+                  await resend.emails.send({
+                      from: 'Stratosfere <info@stratosfere.com>',
+                      to: campaign.agency.email,
+                      subject: `⏳ ACCIÓN REQUERIDA: Evento Huérfano (${eventTitle})`,
+                      html: `
+                        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #f59e0b; border-radius: 8px; background-color: #fffbeb;">
+                            <h2 style="color: #b45309;">Mandato Revocado - Atención al Evento</h2>
+                            <p style="color: #92400e;">El propietario de la propiedad <strong>${campaign.property.address}</strong> ha revocado la gestión.</p>
+                            <p style="color: #92400e;">Tu evento <strong>${eventTitle}</strong> ha sido ocultado del mapa para que nadie más se apunte, pero actualmente tienes <strong>${pendingEvent.attendees.length} personas confirmadas</strong> que no saben que se ha cancelado.</p>
+                            
+                            <div style="background: #fff; padding: 15px; border-radius: 5px; margin: 15px 0; border: 1px solid #fcd34d;">
+                                <h3 style="margin-top:0; color: #b45309;">⏱️ Tienes 48 Horas</h3>
+                                <p style="font-size: 14px; color: #666;">Por favor, entra a tu panel, exporta los datos de tus clientes y utiliza la herramienta de <strong>Aviso Masivo</strong> para explicarles la situación con tu propia voz. Después, elimina el evento.</p>
+                                <p style="font-size: 14px; color: #dc2626; font-weight: bold;">Si en 48 horas el evento sigue en tu panel, el sistema lo eliminará automáticamente y enviará un correo frío de cancelación a todos los asistentes para proteger la imagen de la plataforma.</p>
+                            </div>
+                            
+                            <a href="https://stratosfere.com/dashboard" style="display: inline-block; background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Ir a mi Panel de Eventos</a>
+                        </div>
+                      `
+                  });
+              } catch (e) {
+                  console.error("Error enviando ultimátum a la agencia:", e);
+              }
+          }
+      }
+
+      console.log(`🛑 [SERVER] Asignación destruida. Casa devuelta. Eventos congelados (Ultimátum 48h).`);
+    }
+
+    // ⚡️ DESTRUIR CACHÉ DEL MAPA PARA MATAR AL FANTASMA ⚡️
+    // (VITAL para que la casa cambie de color instantáneamente en toda la app)
+    try {
+        await redis.del("stratos_global_map_cache");
+        console.log("⚡️ [REDIS] Caché fulminada tras decisión del propietario.");
+    } catch(e) {
+        console.error("Error borrando caché Redis:", e);
     }
 
     revalidatePath("/");

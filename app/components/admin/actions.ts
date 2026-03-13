@@ -1,9 +1,11 @@
 "use server";
 import { PrismaClient } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { redis } from '@/app/utils/redis'; // 👈 1. INYECTAMOS EL MOTOR REDIS AQUÍ
+
 const prisma = new PrismaClient();
 
-// 1. NANO CARD PREMIUM (Mantenida por seguridad de código, aunque ya no se use en el panel)
+// 1. NANO CARD PREMIUM
 export async function togglePropertyPremiumAction(propertyId: string, newState: boolean) {
   try {
     const expires = newState ? new Date(Date.now() + 15 * 24 * 60 * 60 * 1000) : null;
@@ -16,12 +18,14 @@ export async function togglePropertyPremiumAction(propertyId: string, newState: 
         promotedUntil: expires
       }
     });
+    
+    // 💥 2. PURGA DE CACHÉ GLOBAL
+    try { await redis.del("stratos_global_map_cache"); } catch(e) {}
+    revalidatePath("/");
+    
     return { success: true };
   } catch (error) { return { success: false }; }
 }
-
-// Asegúrese de que esta línea está arriba del todo del archivo actions.ts (junto a los otros imports):
-// import { revalidatePath } from 'next/cache';
 
 // 2. NANO CARD FUEGO (+15 DÍAS EXACTOS Y PURGA DE FANTASMAS)
 export async function togglePropertyFireAction(propertyId: string, newState: boolean) {
@@ -38,7 +42,9 @@ export async function togglePropertyFireAction(propertyId: string, newState: boo
       }
     });
     
-    revalidatePath("/"); // 💣 BOMBA DE CACHÉ: Obliga al mapa a redibujarse con la nueva info
+    // 💥 2. PURGA DE CACHÉ GLOBAL
+    try { await redis.del("stratos_global_map_cache"); } catch(e) {}
+    revalidatePath("/"); 
     
     return { success: true };
   } catch (error) { return { success: false }; }
@@ -57,14 +63,15 @@ export async function togglePropertyStatusAction(propertyId: string, publish: bo
       }
     });
     
-    revalidatePath("/"); // 💣 BOMBA DE CACHÉ: Obliga al mapa a redibujarse
+    // 💥 2. PURGA DE CACHÉ GLOBAL
+    try { await redis.del("stratos_global_map_cache"); } catch(e) {}
+    revalidatePath("/"); 
     
     return { success: true };
   } catch (error) {
     return { success: false };
   }
 }
-
 // 4. ACCIÓN: MASTER SWITCH (BLOQUEAR / ACTIVAR USUARIO)
 export async function toggleUserStatusAction(userId: string, activate: boolean) {
   try {

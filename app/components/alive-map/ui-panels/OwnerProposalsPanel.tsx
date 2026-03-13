@@ -15,12 +15,12 @@ import {
   Loader2,
   Globe,
   Key,
-  Copy
+  Copy,
+  ShieldCheck 
 } from "lucide-react";
 
-// 🔥 IMPORTANTE: La acción del servidor para aceptar/rechazar propuesta
-import { respondToCampaignAction } from "@/app/actions";
-
+// 🔥 IMPORTANTE: La acción del servidor para aceptar/rechazar propuesta y el comunicador de chat
+import { respondToCampaignAction, sendMessageAction } from "@/app/actions";
 // --- TIPOS ---
 type Visibility = "PRIVATE" | "AGENCIES" | "PUBLIC";
 
@@ -189,6 +189,15 @@ export default function OwnerProposalsPanel({
   // ✅ ESTADO CORREGIDO: Objeto { id, decision }
   const [processing, setProcessing] = useState<{ id: string; decision: "ACCEPT" | "REJECT" } | null>(null);
 
+  // 🛡️ ESTADOS DEL BÚNKER LEGAL
+  const [showLegalModal, setShowLegalTerms] = useState<string | null>(null);
+  const [check1, setCheck1] = useState(false);
+  const [check2, setCheck2] = useState(false);
+  const [check3, setCheck3] = useState(false);
+
+  // 🚨 ESTADO DEL BOTÓN ROJO (NUEVO)
+  const [showRevokeModal, setShowRevokeModal] = useState<string | null>(null);
+
   // --- LÓGICA DE ESTADO (HÍBRIDA: PADRE O LOCAL) ---
   const [localCampaignId, setLocalCampaignId] = useState<string | null>(null);
   const isControlled = typeof setActiveCampaignId === "function";
@@ -243,7 +252,34 @@ export default function OwnerProposalsPanel({
 
   if (rightPanel !== "OWNER_PROPOSALS") return null;
 
-  // 🔥 LÓGICA DE DECISIÓN CORREGIDA Y BLINDADA 🔥
+ // 🤝 NUEVO MISIL DIPLOMÁTICO: SOLICITAR REUNIÓN / ASESORAMIENTO
+  const handleRequestMeeting = async (e: React.MouseEvent, p: OwnerProposal) => {
+    e.stopPropagation();
+    if (soundEnabled && playSynthSound) playSynthSound("click");
+
+    const cid = p.conversationId;
+    if (!cid) return;
+
+    try {
+        // Disparamos el mensaje automático para agendar
+        await sendMessageAction({
+            conversationId: String(cid),
+            text: "🤝 Hola. He estado revisando la propuesta de gestión y me gustaría solicitar una reunión o llamada de asesoramiento con vosotros para aclarar un par de detalles antes de formalizar el traspaso. ¿Qué disponibilidad de agenda tenéis para los próximos días?"
+        });
+
+        // Abrimos el canal de comunicaciones (el chat) automáticamente para que vea que se ha enviado
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("open-chat-signal", { 
+                detail: { conversationId: String(cid) } 
+            }));
+        }
+    } catch (err) {
+        console.error("Error al solicitar reunión:", err);
+    }
+  };
+ 
+ 
+  // 🔥 LÓGICA DE DECISIÓN CORREGIDA Y BLINDADA CON AUTORESPUESTA DE CHAT 🔥
   const handleDecision = async (
     e: React.MouseEvent,
     id: string,
@@ -258,7 +294,7 @@ export default function OwnerProposalsPanel({
     setProcessing({ id, decision });
 
     try {
-      // 1. LLAMADA AL SERVIDOR
+      // 1. LLAMADA AL SERVIDOR PARA ACEPTAR/RECHAZAR LA CAMPAÑA
       const res = await respondToCampaignAction(id, decision);
 
       if (res.success) {
@@ -266,6 +302,33 @@ export default function OwnerProposalsPanel({
         if (decision === "ACCEPT") {
             if (soundEnabled && playSynthSound) playSynthSound("success");
             if (onAccept) await onAccept(id);
+            
+          // 🚀 INYECCIÓN TÁCTICA: EL CONTRATO DIGITAL AL CHAT 🚀
+            const cid = selected?.conversationId;
+            if (cid) {
+                try {
+                    // 💶 Filtro de Formateo de Moneda
+                    const rawPrice = selected?.property?.rawPrice || selected?.property?.price || 0;
+                    const precioStr = String(rawPrice).replace(/\D/g, ''); // Quitamos letras por si acaso
+                    const precioFormateado = precioStr ? new Intl.NumberFormat("es-ES").format(Number(precioStr)) + " €" : "Consultar";
+
+                    const contratoText = `📜 ACTA DE TRASPASO DE MANDO 📜\n\nEl propietario ha aceptado formalmente la propuesta y cede los derechos comerciales del expediente para su comercialización.\n\n• Ref: ${selected?.property?.refCode || "SF-N/A"}\n• Precio Base: ${precioFormateado}\n• Comisión Acordada: ${selected?.terms?.commissionPct}% + IVA\n• Mandato: ${selected?.terms?.exclusive ? "Exclusiva" : "No Exclusiva"} (${selected?.terms?.months} meses)\n\n⚠️ Stratosfere OS actúa únicamente como enlace tecnológico entre las partes.`;
+
+                    await sendMessageAction({
+                        conversationId: String(cid),
+                        text: contratoText
+                    });
+                    
+                    if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("open-chat-signal", { 
+                            detail: { conversationId: String(cid) } 
+                        }));
+                    }
+                } catch (chatErr) {
+                    console.error("Fallo al enviar el auto-mensaje de aceptación", chatErr);
+                }
+            }
+
         } else {
             if (soundEnabled && playSynthSound) playSynthSound("error");
             if (onReject) await onReject(id);
@@ -294,6 +357,54 @@ export default function OwnerProposalsPanel({
       setProcessing(null);
     }
   };
+
+// 💥 MISIL DE RUPTURA: REVOCAR MANDATO
+  const handleRevoke = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (processing) return;
+    
+    // Bloqueamos la interfaz
+    setProcessing({ id, decision: "REJECT" }); 
+
+    try {
+      // Usamos REJECT para romper el lazo en la base de datos
+      const res = await respondToCampaignAction(id, "REJECT");
+      
+      if (res.success) {
+        if (soundEnabled && playSynthSound) playSynthSound("error"); // Sonido de alerta
+        
+        // 🚀 DISPARO DEL MENSAJE FRÍO DE RUPTURA AL CHAT
+        const cid = selected?.conversationId;
+        if (cid) {
+            try {
+                await sendMessageAction({
+                    conversationId: String(cid),
+                    text: "🛑 [AVISO DEL SISTEMA] El propietario ha revocado unilateralmente los derechos de gestión digital sobre este expediente. El acceso de la agencia ha sido suspendido."
+                });
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("open-chat-signal", { detail: { conversationId: String(cid) } }));
+                }
+            } catch (chatErr) {
+                console.error("Error al enviar mensaje de revocación", chatErr);
+            }
+        }
+
+        // Actualizar radares visuales
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("respond-campaign-signal", { detail: { campaignId: id, decision: "REJECT" } }));
+        }
+        handleSelectionChange(null);
+      } else {
+        alert("Error al revocar: " + (res.error || "Desconocido"));
+      }
+    } catch (err) {
+      console.error("Error crítico al revocar", err);
+    } finally {
+      setProcessing(null);
+      setShowRevokeModal(null);
+    }
+  };
+
 
   // --- LÓGICA DE SERVICIOS ---
   const processedServices = useMemo(() => {
@@ -670,48 +781,188 @@ export default function OwnerProposalsPanel({
                 </div>
               </div>
 
-           {/* 6. BOTONES DE ACCIÓN (DEFINITIVOS Y FUNCIONALES) */}
-              <div className="grid grid-cols-2 gap-3 pt-2 relative z-50">
+          {/* 6. BOTONES DE ACCIÓN (DEFINITIVOS Y FUNCIONALES) */}
+              <div className="pt-2 relative z-50 space-y-3">
                 
-                {/* BOTÓN RECHAZAR */}
-                <button
+                {/* 🔥 NUEVO BOTÓN TÁCTICO: SOLICITAR ASESORAMIENTO (Vía suave) 🔥 */}
+                {!isFinal && (
+                  <button
                   type="button"
-                  disabled={!!processing || isFinal}
-                  onClick={(e) => handleDecision(e, selected.id, "REJECT")}
-                  className="h-14 rounded-2xl bg-white border border-rose-100 text-rose-600 font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 hover:border-rose-200 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm cursor-pointer relative z-50 pointer-events-auto"
+                  disabled={!!processing}
+                  onClick={(e) => handleRequestMeeting(e, selected)}
+                  className="w-full h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-indigo-100 transition-all active:scale-[0.98] shadow-sm cursor-pointer pointer-events-auto"
                 >
-                  {/* Solo gira si decision es REJECT */}
-                  {processing?.id === selected.id && processing?.decision === "REJECT" ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <>
-                      <XCircle size={18} /> Rechazar
-                    </>
-                  )}
+                  <Phone size={16} className="text-indigo-500" /> Solicitar Asesoramiento
                 </button>
+                )}
 
-                {/* BOTÓN ACEPTAR */}
-                <button
-                  type="button"
-                  disabled={!!processing || isFinal}
-                  onClick={(e) => handleDecision(e, selected.id, "ACCEPT")}
-                  className="h-14 rounded-2xl bg-slate-900 text-white font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-[0.98] disabled:opacity-70 shadow-lg shadow-slate-900/20 cursor-pointer relative z-50 pointer-events-auto"
-                >
-                  {/* Solo gira si decision es ACCEPT */}
-                  {processing?.id === selected.id && processing?.decision === "ACCEPT" ? (
-                    <Loader2 className="animate-spin text-white" size={18} />
-                  ) : (
-                    <>
-                      <Check size={18} /> Aceptar
-                    </>
-                  )}
-                </button>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                    {/* BOTÓN RECHAZAR */}
+                    <button
+                      type="button"
+                      disabled={!!processing || isFinal}
+                      onClick={(e) => handleDecision(e, selected.id, "REJECT")}
+                      className="h-14 rounded-2xl bg-white border border-rose-100 text-rose-600 font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 hover:border-rose-200 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm cursor-pointer relative z-50 pointer-events-auto"
+                    >
+                      {processing?.id === selected.id && processing?.decision === "REJECT" ? (
+                        <Loader2 className="animate-spin" size={18} />
+                      ) : (
+                        <>
+                          <XCircle size={18} /> Rechazar
+                        </>
+                      )}
+                    </button>
+
+                 {/* BOTÓN ACEPTAR (INTERCEPTADO PARA ABRIR EL BÚNKER LEGAL) */}
+                    <button
+                      type="button"
+                      disabled={!!processing || isFinal}
+                      onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setShowLegalTerms(selected.id); 
+                      }}
+                      className="h-14 rounded-2xl bg-slate-900 text-white font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-[0.98] disabled:opacity-70 shadow-lg shadow-slate-900/20 cursor-pointer relative z-50 pointer-events-auto"
+                    >
+                        <Check size={18} /> Aceptar
+                    </button>
+                </div>
+              </div> {/* <-- Cierre del contenedor de los botones de Acción --> */}
+
+              {/* 🚨 PANEL DE EMERGENCIA: SOLO VISIBLE SI YA ESTÁ ACEPTADA 🚨 */}
+              {selected?.status === "ACCEPTED" && (
+                <div className="pt-4 relative z-50 border-t border-rose-100 mt-4">
+                  <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mb-3">
+                    Zona de Peligro
+                  </p>
+                  <button
+                    type="button"
+                    disabled={!!processing}
+                    onClick={(e) => { e.stopPropagation(); setShowRevokeModal(selected.id); }}
+                    className="w-full h-12 rounded-2xl bg-white border border-rose-200 text-rose-600 font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 transition-all active:scale-[0.98] shadow-sm cursor-pointer pointer-events-auto"
+                  >
+                    <XCircle size={16} /> Revocar Gestión Digital
+                  </button>
+                </div>
+              )}
 
             </div>
           )}
         </div>
       </div>
+
+      {/* 🛡️ MODAL DE SEGURIDAD LEGAL (TRIPLE CHECK) */}
+      {showLegalModal && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto" onClick={() => setShowLegalTerms(null)}>
+          <div className="bg-white w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            
+            <div className="bg-slate-900 p-6 text-white text-center relative">
+              <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-400">
+                <ShieldCheck size={32} />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-widest mb-1">Confirmar Traspaso</h3>
+              <p className="text-xs text-slate-400 font-medium">Revisión de términos comerciales</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="pt-0.5">
+                  <input type="checkbox" checked={check1} onChange={(e) => setCheck1(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                </div>
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  <strong className="text-slate-900 block mb-0.5">1. Cesión de Material y Derechos</strong>
+                  Autorizo a la Agencia a utilizar las fotografías, descripciones y Nano Card de mi propiedad con fines comerciales durante la vigencia del mandato.
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="pt-0.5">
+                  <input type="checkbox" checked={check2} onChange={(e) => setCheck2(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                </div>
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  <strong className="text-slate-900 block mb-0.5">2. Condiciones Económicas</strong>
+                  Acepto las comisiones marcadas en esta propuesta y reconozco que cualquier modificación del precio base será consensuada con la Agencia.
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="pt-0.5">
+                  <input type="checkbox" checked={check3} onChange={(e) => setCheck3(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                </div>
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  <strong className="text-slate-900 block mb-0.5">3. Exoneración Tecnológica</strong>
+                  Entiendo que Stratosfere OS es únicamente una plataforma de conexión. La relación contractual y legal recae exclusivamente entre el Propietario y la Agencia.
+                </div>
+              </label>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={() => setShowLegalTerms(null)}
+                className="flex-1 py-3 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              
+              <button 
+                disabled={!check1 || !check2 || !check3 || !!processing}
+                onClick={(e) => {
+                  setShowLegalTerms(null);
+                  handleDecision(e, showLegalModal, "ACCEPT");
+                }}
+                className="flex-1 py-3 text-xs font-black uppercase tracking-widest text-white bg-blue-600 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {processing?.id === showLegalModal ? <Loader2 size={16} className="animate-spin" /> : "Firmar Acuerdo"}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+{/* 🚨 MODAL DE EMERGENCIA: REVOCAR GESTIÓN (BOTÓN ROJO) */}
+      {showRevokeModal && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto" onClick={() => setShowRevokeModal(null)}>
+          <div className="bg-white w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative animate-slide-up border-2 border-rose-500" onClick={(e) => e.stopPropagation()}>
+            
+            <div className="bg-rose-600 p-6 text-white text-center relative">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 text-white">
+                <XCircle size={32} />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-widest mb-1">Peligro: Revocación</h3>
+              <p className="text-xs text-rose-200 font-medium">Estás a punto de cortar el acceso a la Agencia</p>
+            </div>
+
+            <div className="p-6">
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-sm text-rose-800 leading-relaxed font-medium mb-4">
+                <strong className="block font-black mb-2 text-rose-900">🚨 ADVERTENCIA LEGAL</strong>
+                Al confirmar, la Agencia perderá inmediatamente el control digital de tu expediente en Stratosfere. 
+                <br/><br/>
+                <strong>Sin embargo:</strong> Si firmaste un mandato de exclusividad, romperlo de forma unilateral podría acarrear penalizaciones económicas por parte de la Agencia en el mundo físico.
+              </div>
+              <p className="text-xs text-slate-500 text-center font-bold">
+                Stratosfere ejecutará tu orden digital, pero no asume ninguna responsabilidad legal por incumplimiento de contrato entre las partes.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={() => setShowRevokeModal(null)}
+                className="flex-1 py-3 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Abortar
+              </button>
+              
+              <button 
+                disabled={!!processing}
+                onClick={(e) => handleRevoke(e, showRevokeModal)}
+                className="flex-1 py-3 text-xs font-black uppercase tracking-widest text-white bg-rose-600 rounded-xl shadow-lg hover:bg-rose-700 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {processing?.id === showRevokeModal ? <Loader2 size={16} className="animate-spin" /> : "Ejecutar Ruptura"}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

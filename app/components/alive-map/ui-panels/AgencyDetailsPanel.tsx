@@ -83,7 +83,10 @@ const [showB2BModal, setShowB2BModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [copiedRef, setCopiedRef] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
-// 🔥 1. INTENTO DE CARGA INSTANTÁNEA (Lee de la memoria en 0 milisegundos)
+
+
+
+    // 🔥 1. INTENTO DE CARGA INSTANTÁNEA (Lee de la memoria en 0 milisegundos)
     const [isVip, setIsVip] = useState(() => {
         return activeOwner?.isVanguardVip === true || initialAgencyData?.isVanguardVip === true || false;
     });
@@ -206,6 +209,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
     useEffect(() => {
         const verifyRealData = async () => {
             if (!selectedProp?.id) return;
+
             try {
                 // 1. Pedimos el expediente completo al servidor
                 const realData = await getPropertyByIdAction(selectedProp.id);
@@ -241,7 +245,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                         finalOwner = data.activeCampaign.agency;
                     }
 
-                 // Actualizamos el estado visual con el Avatar, Portada, Teléfono, etc. de la Agencia
+                    // Actualizamos el estado visual con el Avatar, Portada, Teléfono, etc. de la Agencia
                     if (Object.keys(finalOwner).length > 0) {
                         setActiveOwner((prev: any) => ({ ...prev, ...finalOwner }));
                     }
@@ -293,8 +297,21 @@ const [showB2BModal, setShowB2BModal] = useState(false);
   }, [selectedProp?.id]);
   
 
-    const handleMainPhotoClick = () => {
+   const handleMainPhotoClick = () => {
+        // 1. Sumamos la estadística (Igual que antes)
         if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'photo');
+        
+        // 🚀 2. LA INYECCIÓN: Le metemos las 7 fotos a la memoria global a la fuerza
+        if (typeof window !== 'undefined' && selectedProp) {
+            window.dispatchEvent(new CustomEvent("open-details-signal", { 
+                detail: selectedProp 
+            }));
+            window.dispatchEvent(new CustomEvent("update-property-signal", { 
+                detail: { id: selectedProp.id, updates: { images: selectedProp.images } } 
+            }));
+        }
+
+        // 3. AHORA SÍ, abrimos el HoloInspector (que ya tendrá las 7 fotos cargadas)
         if (onOpenInspector) onOpenInspector();
     };
 
@@ -507,34 +524,48 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                     </div>
                 </div>
 
-                {/* CONTENIDO PRINCIPAL */}
-<div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-[50px] bg-[#F5F5F7]">                    <div className="relative aspect-video w-full bg-slate-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white group">
+             {/* CONTENIDO PRINCIPAL */}
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-[50px] bg-[#F5F5F7]">
+                    
+                    {/* FOTO + HUD STRATOS (SIN BLOQUEAR EL NATIVO) */}
+                    <div 
+                        key={selectedProp?.id} 
+                        className="relative aspect-video w-full bg-slate-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white group"
+                    >
+                        {/* Esta es la imagen/componente que dispara HoloInspector */}
                         <img 
                             src={img} 
                             onClick={handleMainPhotoClick} 
-                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-700 cursor-pointer animate-in fade-in" 
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-700 cursor-pointer" 
                             alt="Propiedad" 
                         />
-                        <div onClick={handleMainPhotoClick} className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none" />
-                        
-                        {selectedProp?.videoUrl && (
-                             <a 
-                                href={selectedProp.videoUrl} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                onClick={(e) => e.stopPropagation()} 
-                                className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md text-red-600 px-4 py-2 rounded-full font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-red-600 hover:text-white transition-all z-20 active:scale-95 cursor-pointer"
-                             >
-                                <Globe size={16} /> VER VÍDEO
-                             </a>
-                        )}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/40 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                                <Sparkles size={14}/> STRATOS VISION
+{/* EL HUD: 'pointer-events-none' para que NO tape las flechas nativas */}
+{/* 🚀 MODO SIGILO ACTIVADO: Invisible por defecto, aparece suavemente al hacer hover */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 transition-all duration-300 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transform-gpu">                          
+                              <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 shadow-2xl">
+                                
+                                {/* Branding */}
+                                <div className="flex items-center gap-2 pr-3 border-r border-white/20">
+                                    <Sparkles size={16} className="text-cyan-400 animate-pulse" />
+                                    <span className="text-white text-[11px] font-black uppercase tracking-[0.2em]">STRATOS VISION</span>
+                                </div>
+
+                          {/* 🚀 ZONA DE CONTADORES (SIN RUEDITA) */}
+                                <div className="flex items-center gap-4 pl-1">
+                                    <div className="flex items-center gap-1.5 text-white text-[11px] font-bold">
+                                        <Camera size={14} className="text-white/70" /> 
+                                        
+                                        {/* 🚀 LECTURA DIRECTA Y MATEMÁTICA PURA */}
+                                        {Math.max(Number(selectedProp?.images?.length || 0), Number(selectedProp?.photoCount || 0)) || 1}
+                                        
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
-                    </div>
+                    </div> 
 
+                    {/* BLOQUE TÍTULO Y REFERENCIA (TU CIERRE EXACTO) */}
                     <div>
                       <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 inline-block shadow-blue-200 shadow-sm">
                           {selectedProp?.type || "INMUEBLE"}
@@ -546,8 +577,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                    {selectedProp?.refCode && (
                         <div 
                             onClick={copyRefCode} 
-                            className="text-[12px] text-slate-500 mb-2 flex items-center gap-2 cursor-pointer hover:text-slate-700 select-none" 
-                            title="Copiar referencia"
+                            className="text-[12px] text-slate-500 mb-2 flex items-center gap-2 cursor-pointer hover:text-slate-700 select-none"
                         >
                           <span>Ref:</span>
                           <span className="font-mono text-slate-700">{selectedProp.refCode}</span>

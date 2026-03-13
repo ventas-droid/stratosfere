@@ -79,10 +79,12 @@ export default function DetailsPanel({
     const [showContactModal, setShowContactModal] = useState(false);
     const [copied, setCopied] = useState(false);
     const [isDescExpanded, setIsDescExpanded] = useState(false);
-// --- 🛡️ SISTEMA DE CONTACTO BLINDADO (BÚNKER) ---
+
+    // --- 🛡️ SISTEMA DE CONTACTO BLINDADO (BÚNKER) ---
     const [sending, setSending] = useState(false);
     const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', message: '' });
-
+    
+   
     const handleSendLead = async (e: any) => {
         e.preventDefault();
         setSending(true);
@@ -105,7 +107,7 @@ export default function DetailsPanel({
             toast.error("Error", { description: "No se pudo entregar el mensaje." });
         }
     };
-    // Sincronizar al abrir
+  // Sincronizar al abrir
     useEffect(() => { 
         setSelectedProp(initialProp); 
         setFreshOwner(null); // Reset al cambiar de propiedad
@@ -130,26 +132,25 @@ export default function DetailsPanel({
         }
     }, [selectedProp?.id]);
 
-  // ============================================================
-    // 🚑 PROTOCOLO DE AUTO-REPARACIÓN (PURGA DE DATOS VIEJOS)
+    // ============================================================
+    // ⚡ ACTUALIZACIÓN EN SEGUNDO PLANO (CERO BLOQUEOS NI RETRASOS)
     // ============================================================
     useEffect(() => {
         const fetchFreshData = async () => {
             if (!selectedProp?.id) return;
 
             try {
-                // 1. Pedimos a la base de datos la VERDAD
+                // 1. Pedimos a la base de datos la VERDAD silenciosamente
                 const res = await getPropertyByIdAction(selectedProp.id);
                 
                 // 🔥 LA LLAVE: Verificamos que traiga el .data
                 if (res && res.success && res.data) {
                     const realData = res.data;
 
-                    // 2. Actualizamos la propiedad (Métricas, Precio, Estado)
+                    // 2. Actualizamos la propiedad (Métricas, Precio, Estado, FOTOS)
                     setSelectedProp((prev: any) => ({ 
                         ...prev, 
-                        ...realData, // AHORA SÍ SACA LOS DATOS CORRECTAMENTE
-                        user: initialProp?.user || prev?.user || realData.user
+                        ...realData, 
                     }));
 
                     // 3. CAPTURAMOS AL DUEÑO REAL
@@ -164,10 +165,21 @@ export default function DetailsPanel({
 
         fetchFreshData();
     }, [selectedProp?.id, initialProp]);
-
-    // 🔥 SENSOR FOTOS
+    
+   // 🔥 SENSOR FOTOS Y DISPARADOR HOLOINSPECTOR (BLINDADO)
     const handleMainPhotoClick = () => {
         if (selectedProp?.id) incrementStatsAction(selectedProp.id, 'photo');
+        
+        // 🚀 Inyección a la memoria global antes de abrir el inspector
+        if (typeof window !== 'undefined' && selectedProp) {
+            window.dispatchEvent(new CustomEvent("open-details-signal", { 
+                detail: selectedProp 
+            }));
+            window.dispatchEvent(new CustomEvent("update-property-signal", { 
+                detail: { id: selectedProp.id, updates: { images: selectedProp.images } } 
+            }));
+        }
+
         if (onOpenInspector) onOpenInspector();
     };
 
@@ -191,7 +203,7 @@ export default function DetailsPanel({
       setTimeout(() => setCopiedRef(false), 2000);
     };
 
-    // ============================================================
+    /// ============================================================
     // 🛡️ LÓGICA DE IDENTIDAD BLINDADA (EL ARREGLO DEL AVATAR)
     // ============================================================
     
@@ -200,21 +212,26 @@ export default function DetailsPanel({
     
     // Prioridad INQUEBRANTABLE: 
     // 1. Tu mochila o perfil (Si es tu casa) -> 2. Dueño Fresco (BD) -> 3. Snapshot viejo
+    // 🔥 CORRECCIÓN FANTASMA: Si 'initialProp' (el que viene del click) dice que es PARTICULAR, no miramos nada más.
+    const forceParticular = initialProp?.user?.role === "PARTICULAR" || initialProp?.ownerSnapshot?.role === "PARTICULAR";
+    
     const activeOwner = isViewingMyOwnProperty 
         ? (initialProp?.user || currentUser) 
         : (freshOwner || selectedProp?.user || initialProp?.user || selectedProp?.ownerSnapshot || {});
 
-    const ownerName = activeOwner.companyName || activeOwner.name || "Propietario";
+    const ownerName = activeOwner?.companyName || activeOwner?.name || "Propietario";
     
     // Truco para avatar: Busca en todos los rincones posibles
-    const ownerAvatar = activeOwner.companyLogo || activeOwner.avatar || activeOwner.image || null;
-    const ownerCover = activeOwner.coverImage || activeOwner.cover || null;
+    const ownerAvatar = activeOwner?.companyLogo || activeOwner?.avatar || activeOwner?.image || null;
+    const ownerCover = activeOwner?.coverImage || activeOwner?.cover || null;
     
-    const ownerPhone = activeOwner.mobile || activeOwner.phone || "Consultar";
-    const ownerEmail = activeOwner.email || "---";
+    const ownerPhone = activeOwner?.mobile || activeOwner?.phone || "Consultar";
+    const ownerEmail = activeOwner?.email || "---";
     
-    // ROL NORMALIZADO (Respeta si le pasamos "Particular Verificado" desde la mochila)
-    const ownerRole = String(activeOwner.badge || activeOwner.role || "PARTICULAR").toUpperCase();
+    // ROL NORMALIZADO: Si el click inicial decía PARTICULAR, lo clavamos como PARTICULAR para evitar el destello
+    const ownerRole = forceParticular 
+        ? "PARTICULAR" 
+        : String(activeOwner?.badge || activeOwner?.role || "PARTICULAR").toUpperCase();
 
     // Copiar teléfono
     const copyPhone = () => {
@@ -389,30 +406,68 @@ const vipLink = p.refCode
                             </button>
                          </div>
 
-                         <div>
+                    <div className="min-h-[60px]">
                             <h2 className="text-3xl font-black text-white leading-none mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                                 {ownerName}
                             </h2>
                             <span className={`px-3 py-1 rounded-lg backdrop-blur-md border border-white/30 text-[10px] font-bold uppercase tracking-wider shadow-lg inline-flex items-center gap-2 ${ownerRole === 'AGENCIA' || ownerRole === 'AGENCY' ? 'bg-black/80 text-emerald-400' : 'bg-black/40 text-white'}`}>
                                 {(ownerRole === 'AGENCIA' || ownerRole === 'AGENCY') ? <Building2 size={12}/> : <User size={12}/>} 
-                                {ownerRole}
+                                {ownerRole === 'AGENCIA' || ownerRole === 'AGENCY' ? 'Agencia Certificada' : 'Particular Verificado'}
                             </span>
                          </div>
                     </div>
                 </div>
-
+                
                 {/* 2. CONTENIDO SCROLLABLE */}
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scrollbar-hide pb-32">
                     
-                   {/* Foto Propiedad (BLINDADA ANTI-SALTOS) */}
-                    <div onClick={handleMainPhotoClick} className="relative aspect-video w-full bg-slate-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white cursor-pointer hover:shadow-2xl transition-shadow group">
-                        <img src={img} className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-700" alt="Propiedad" />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/40 text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                                <Sparkles size={14}/> STRATOS VISION
+                 {/* Foto Propiedad (STRATOS VISION HUD 3.0) */}
+                    <div 
+                        key={selectedProp?.id || 'main-img-user'}
+                        className="relative aspect-video w-full bg-slate-200 rounded-[24px] overflow-hidden shadow-lg border-4 border-white group"
+                    >
+                        <img 
+                            src={img} 
+                            onClick={handleMainPhotoClick} 
+                            className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-[1200ms] cursor-pointer group-hover:scale-105 transition-transform" 
+                            alt="Propiedad" 
+                        />
+                        
+                        {/* Overlay contraste */}
+                        <div className="absolute inset-0 bg-black/5 group-hover:bg-black/20 transition-colors pointer-events-none" />
+
+                      {/* HUD STRATOS VISION: Modo Sigilo (Aparece suavemente al hacer hover) */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 transition-all duration-300 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transform-gpu">
+                            <div className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 shadow-2xl transition-all duration-500 group-hover:scale-105 group-hover:bg-black/60">
+                                
+                                <div className="flex items-center gap-2 pr-3 border-r border-white/20">
+                                    <Sparkles size={16} className="text-cyan-400 animate-pulse" />
+                                    <span className="text-white text-[11px] font-black uppercase tracking-[0.2em]">STRATOS VISION</span>
+                                </div>
+
+                            {/* 🚀 ZONA DE CONTADORES */}
+                                <div className="flex items-center gap-4 pl-1">
+                                    
+                                    {/* 📸 LECTURA DIRECTA: Cero rueditas, cero lag visual */}
+                                    <div className="flex items-center gap-1.5 text-white text-[11px] font-bold">
+                                        <Camera size={14} className="text-white/70" /> 
+                                        
+                                        {Math.max(Number(selectedProp?.images?.length || 0), Number(selectedProp?.photoCount || 0)) || 1}
+                                        
+                                    </div>
+                                    
+                                    {/* 🌍 VÍDEO (Si lo hay) */}
+                                    {selectedProp?.videoUrl && (
+                                        <div className="flex items-center gap-1.5 text-white text-[11px] font-bold">
+                                            <Globe size={14} className="text-cyan-400" /> 1
+                                        </div>
+                                    )}
+                                    
+                                </div>
+                                
                             </div>
                         </div>
-                    </div>
+                    </div> 
 
           {/* Título y Precio */}
                     <div>
