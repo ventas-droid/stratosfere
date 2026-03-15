@@ -785,19 +785,19 @@ const isOnline = (new Date().getTime() - lastActive.getTime()) / 36e5 < 0.5;
                               const activeAssignment = prop.assignment?.agency || prop.campaigns?.[0]?.agency || null;
                                 const isCeded = !!activeAssignment;
 
-                                // 💥 CERO PEGAMENTO: LA BASE DE DATOS MANDA ABSOLUTAMENTE.
-                                // Si usted pulsa el botón, cambia en la BD y se queda como usted diga.
-                                const isPremium = prop.isPremium === true || prop.promotedTier === 'PREMIUM';
-                                const isFire = prop.isFire === true || prop.promotedTier === 'FUEGO';
+                            // 💥 CERO PEGAMENTO: LA BASE DE DATOS MANDA ABSOLUTAMENTE.
+// Si usted pulsa el botón, cambia en la BD y se queda como usted diga.
+const isPremium = prop.isPremium === true || prop.promotedTier === 'PREMIUM';
+const isFire = prop.isFire === true || prop.promotedTier === 'FUEGO';
                                 
-                                // El botón azul (Alta Radar) solo estará encendido si la BD dice que está publicado.
-                                const isPublished = prop.status === 'PUBLICADO' || prop.status === 'MANAGED' || prop.status === 'ACCEPTED';
+// El botón azul (Alta Radar) solo estará encendido si la BD dice que está publicado.
+const isPublished = prop.status === 'PUBLICADO' || prop.status === 'MANAGED' || prop.status === 'ACCEPTED';
                                 
-                                const managerName = isCeded ? (activeAssignment.companyName || activeAssignment.name) : "Gestión Propia";
-                                const managerPhones = isCeded ? ([activeAssignment.phone, activeAssignment.mobile].filter(Boolean).join(" / ") || "Sin tlf") : creatorPhones;
-                                const managerEmail = isCeded ? (activeAssignment.email || "Sin email") : creator.email;
+const managerName = isCeded ? (activeAssignment.companyName || activeAssignment.name) : "Gestión Propia";
+const managerPhones = isCeded ? ([activeAssignment.phone, activeAssignment.mobile].filter(Boolean).join(" / ") || "Sin tlf") : creatorPhones;
+const managerEmail = isCeded ? (activeAssignment.email || "Sin email") : creator.email;
 
-                                // 🎯 CORREGIDO: Leemos el tiempo del canal oficial
+// 🎯 CORREGIDO: Leemos el tiempo del canal oficial
 const premiumTime = isPremium ? getTimeRemaining(prop.promotedUntil) : null;
 const fireTime = isFire ? getTimeRemaining(prop.promotedUntil) : null;
 

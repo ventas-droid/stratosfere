@@ -73,28 +73,43 @@ export async function getPromotablePropertiesAction() {
         let finalCommission = 0;
         let agencyName = "Particular";
         let agencyLogo = null;
+        
+       // 🔥 LAS VARIABLES DE VISIBILIDAD Y PORCENTAJES
+        let b2bVisibility = "PRIVATE";
+        let b2bSharePct = 0;
+        let totalCommissionPct = 0; // <--- NUEVO CHIVATO DEL PORCENTAJE ORIGINAL
 
         const contract = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
         if (contract) {
+            const feePct = Number(contract.commissionPct || 0);
+            totalCommissionPct = feePct; // Guardamos el % del contrato
+
             if (contract.commissionShareEur && Number(contract.commissionShareEur) > 0) {
                 finalCommission = Number(contract.commissionShareEur);
             } else {
-                const feePct = Number(contract.commissionPct || 0);
                 const sharePct = Number(contract.commissionSharePct || 0);
                 finalCommission = (price * (feePct / 100)) * (sharePct / 100);
             }
             const ag = contract.agency;
             agencyName = ag?.companyName || ag?.name || "Agencia Partner";
             agencyLogo = ag?.companyLogo || ag?.avatar || null;
+            
+            b2bVisibility = contract.commissionShareVisibility || "PRIVATE";
+            b2bSharePct = contract.commissionSharePct || 0;
         } else {
             const propFeePct = Number(p.commissionPct || 0);
+            totalCommissionPct = propFeePct; // Guardamos el % de la propiedad
+
             const propSharePct = Number(p.sharePct || 0);
             const totalFee = price * (propFeePct / 100);
             finalCommission = totalFee * (propSharePct / 100);
 
             agencyName = p.user?.companyName || p.user?.name || "Propietario";
             agencyLogo = p.user?.companyLogo || p.user?.avatar || null;
+            
+            b2bVisibility = p.shareVisibility || "PRIVATE";
+            b2bSharePct = propSharePct;
         }
 
         if (isNaN(finalCommission) || finalCommission < 0) finalCommission = 0;
@@ -102,6 +117,7 @@ export async function getPromotablePropertiesAction() {
         if (!img && p.images && p.images.length > 0) img = p.images[0].url || p.images[0];
         if (!img) img = "/placeholder.jpg";
 
+        // 🔥 EL PAQUETE COMPLETO PARA EL HOLINSPECTOR Y LA TARJETA
         return {
             id: p.id,
             title: p.title || "Oportunidad",
@@ -111,9 +127,41 @@ export async function getPromotablePropertiesAction() {
             refCode: p.refCode || "S/R",
             city: p.city || "Ubicación General",
             agencyName: agencyName,
-            agencyLogo: agencyLogo
+            agencyLogo: agencyLogo,
+            
+            totalCommissionPct: totalCommissionPct, // <--- ENVIAMOS EL DATO AL FRONTEND
+            
+            // Datos inyectados para el Holinspector
+            images: p.images ? p.images.map((i: any) => i.url) : [],
+            description: p.description || null,
+            rooms: p.rooms || 0,
+            baths: p.baths || 0,
+            mBuilt: p.mBuilt || 0,
+            state: p.state || "Buen estado",
+            tourUrl: p.tourUrl || null,
+            
+            // 🛰️ COORDENADAS GPS AÑADIDAS PARA EL SATÉLITE MAPBOX 🛰️
+            longitude: p.longitude || null,
+            latitude: p.latitude || null,
+            
+            // Amenities (Convertimos a booleanos)
+            pool: !!p.pool,
+            garage: !!p.garage,
+            garden: !!p.garden,
+            terrace: !!p.terrace,
+            ac: !!p.ac,
+            heating: !!p.heating,
+
+            // Etiqueta de Exclusiva
+            mandateType: contract?.mandateType || p.mandateType || "ABIERTO", 
+            
+            // Paquete de Visibilidad B2B
+            b2b: {
+                visibility: b2bVisibility,
+                sharePct: b2bSharePct
+            }
         };
-    });
+    }); // <--- ESTE CIERRE ERA EL QUE FALTABA
 
     // 🔥 LA LIMPIEZA DEFINITIVA
     revalidatePath('/ambassador', 'page');
@@ -125,7 +173,6 @@ export async function getPromotablePropertiesAction() {
     return { success: false, error: "Error de sistema" };
   }
 }
-
 // =========================================================
 // 3. LA MUNICIÓN (GENERAR LINK) - VERSIÓN ESCAPARATE PÚBLICO
 // =========================================================

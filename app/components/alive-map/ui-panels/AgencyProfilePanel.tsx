@@ -16,6 +16,8 @@ import AgencyEventManager from "./AgencyEventManager";
 import CollaborationManager from "./CollaborationManager"; // <--- NUEVO FICHAJE
 import VanguardRequestModal from './VanguardRequestModal';
 import { checkVanguardVipStatusAction } from '@/app/actions-zones';
+import AgendaManager from "./AgendaManager";
+
 // --- CONSTANTES DE LICENCIA ---
 const LICENSE_LEVELS = {
   AGENCY: { name: "Agency SF PRO", credits: 50, maxCredits: 50, rank: "Agencia profesional", color: "emerald" },
@@ -34,8 +36,10 @@ const [billingInfo, setBillingInfo] = useState<any>(null);
   // 🔥 ESTADOS DE MODALES INTERNOS
   const [showEventManager, setShowEventManager] = useState(false);
   const [showCollabManager, setShowCollabManager] = useState(false); // <--- NUEVO ESTADO B2B
-const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VANGUARD VIP
+  const [showAgendaManager, setShowAgendaManager] = useState(false);
+  const [showVipModal, setShowVipModal] = useState(false); // 🔥 NUEVO ESTADO VANGUARD VIP
   const bust = (url: string | null | undefined) => {
+   
     if (!url) return url;
     const sep = url.includes("?") ? "&" : "?";
     return `${url}${sep}v=${Date.now()}`;
@@ -289,6 +293,26 @@ if (showCollabManager) {
                     }
                     // NOTA: Si quiere que el panel se cierre al abrir chat, descomente la siguiente línea:
                     // setShowCollabManager(false); onClose();
+                }}
+            />
+        </div>
+    );
+}
+
+// 🔥 MODAL INTERNO 3: GESTOR DE AGENDA Y LEADS
+if (showAgendaManager) {
+    return (
+        <div className="absolute inset-y-0 right-0 w-[500px] max-w-full z-[60000] bg-[#F5F5F7] border-l border-black/5 flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">
+            <AgendaManager 
+                onBack={() => setShowAgendaManager(false)}
+                onClose={() => {
+                    setShowAgendaManager(false);
+                    onClose();
+                }}
+                onOpenChat={(detail: any) => {
+                    if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('open-chat-signal', { detail }));
+                    }
                 }}
             />
         </div>
@@ -600,6 +624,29 @@ const creditPercentage = Math.min(
                   </div>
               </button>
 
+           {/* 1.5. GESTOR DE AGENDA Y ASESORAMIENTO */}
+              <button 
+                  onClick={() => { 
+                      if(soundEnabled) playSynthSound('click'); 
+                      setShowAgendaManager(true); // 🔥 AQUÍ ESTÁ LA MAGIA: Esto abre el panel real
+                  }}
+                  className="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-200/60 flex items-center justify-between group hover:border-rose-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+              >
+                  <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center group-hover:bg-rose-500 group-hover:text-white group-hover:shadow-lg group-hover:shadow-rose-500/30 transition-all duration-300 border border-rose-100/50 shrink-0 relative">
+                          <Phone size={20} strokeWidth={2.5} />
+                          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                      </div>
+                      <div className="text-left">
+                          <h3 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-rose-600 transition-colors">Citas & Asesoramiento</h3>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">Gestión de Leads</p>
+                      </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:text-rose-500 group-hover:bg-rose-50 transition-all shrink-0">
+                     <ChevronRight size={16} strokeWidth={3} />
+                  </div>
+              </button>
+             
               {/* 2. GESTOR DE COLABORACIONES (B2B) */}
               <button 
                   onClick={() => { if(soundEnabled) playSynthSound('click'); setShowCollabManager(true); }}

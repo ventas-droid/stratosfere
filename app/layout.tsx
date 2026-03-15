@@ -17,8 +17,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
-      <body className="bg-black text-zinc-100">
-        {children}
+<body className="bg-[#F5F5F7] text-slate-900">        
+  {children}
         
         {/* 2. INYECTAMOS EL COMPONENTE AL FINAL DE TODO */}
         <CookieConsent />

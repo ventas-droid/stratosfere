@@ -128,6 +128,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
     const currentUserId = user?.id || null;
 
     const CACHE_KEY = "stratos_global_map_cache";
+    const now = new Date(); // 🔥 EL RELOJ MAESTRO
 
     // 🎯 TÁCTICA FRANCOTIRADOR: Obtenemos SOLO los favoritos del usuario actual ultrarrápido
     let myFavIds: string[] = [];
@@ -139,7 +140,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
         myFavIds = myFavs.map(f => f.propertyId);
     }
 
-    // 🛡️ ESCUDO 1: Si hay "bounds" (el mapa pide una zona concreta), SALTAMOS Redis.
+    // 🛡️ ESCUDO 1: LECTOR DE RAM INTELIGENTE (Apaga fuegos fantasma)
     if (!bounds) {
         try {
           console.log("⚡️ [REDIS] Buscando mapa global en la caché...");
@@ -147,11 +148,28 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
           
           if (cachedData) {
             console.log("⚡️ [REDIS] ¡Impacto directo! Sirviendo mapa desde la RAM.");
+            
             // 🔥 MAGIA: Sellamos los favoritos personales sobre la caché genérica
-            const personalizedData = (cachedData as any[]).map((p: any) => ({
-              ...p,
-              isFavorited: myFavIds.includes(p.id)
-            }));
+            // Y 🧯 EXTINTOR AUTOMÁTICO EN LA RAM
+            const personalizedData = (cachedData as any[]).map((p: any) => {
+              let isPromoted = p.isPromoted;
+              let promotedTier = p.promotedTier;
+
+              if (p.promotedUntil) {
+                  const expiry = new Date(p.promotedUntil);
+                  if (expiry < now) {
+                      isPromoted = false;
+                      promotedTier = "FREE";
+                  }
+              }
+
+              return {
+                ...p,
+                isPromoted,
+                promotedTier,
+                isFavorited: myFavIds.includes(p.id)
+              };
+            });
             return { success: true, data: personalizedData };
           }
         } catch (cacheError) {
@@ -207,16 +225,31 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
       // 2. IDENTIDAD Y TIER (Lógica de Transmutación de Agencia)
       let finalIdentity = buildIdentity(p.user, p.ownerSnapshot);
       let realTier = p.promotedTier || "FREE";
+      let isPromotedActive = !!p.isPromoted; // Estado base de la BD
       
       const activeCampaign = (p.campaigns && p.campaigns.length > 0) ? p.campaigns[0] : null;
 
       if (p.assignment?.agency) {
           finalIdentity = buildIdentity(p.assignment.agency, null);
           finalIdentity.role = 'AGENCIA'; 
-          if (p.assignment.agency.licenseType === 'PRO') realTier = 'PREMIUM';
+          if (p.assignment.agency.licenseType === 'PRO') {
+              realTier = 'PREMIUM';
+              isPromotedActive = true; // Si es PRO, siempre está promocionada
+          }
       }
 
-      // 3. CÁLCULO B2B
+      // 🧯 3. EXTINTOR EN LA BASE DE DATOS (El arreglo clave)
+      if (p.promotedUntil) {
+          const expiryDate = new Date(p.promotedUntil);
+          if (expiryDate < now) {
+              realTier = "FREE";
+              isPromotedActive = false; // APAGAMOS EL FUEGO
+          } else {
+              isPromotedActive = true; // ENCENDEMOS EL FUEGO SI AÚN ES VÁLIDO
+          }
+      }
+
+      // 4. CÁLCULO B2B
       let b2bData = null;
       if (activeCampaign) {
            b2bData = {
@@ -230,14 +263,14 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
            };
       }
 
-      // 4. COORDENADAS
+      // 5. COORDENADAS
       const lng = Number(p.longitude);
       const lat = Number(p.latitude);
       const validCoords = (lng !== 0 && lat !== 0 && Number.isFinite(lng) && Number.isFinite(lat)) 
           ? [lng, lat] 
           : null;
 
-      // 5. FORMATEO DE PRECIO VIVO
+      // 6. FORMATEO DE PRECIO VIVO
       const rawPrice = Number(p.price || 0);
       const priceFormatted = new Intl.NumberFormat("es-ES", {
           style: "currency",
@@ -245,11 +278,6 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
           maximumFractionDigits: 0
       }).format(rawPrice);
 
-      // 6. VERIFICACIÓN DE EXPIRACIÓN PREMIUM
-      const now = new Date();
-      const expiryDate = p.promotedUntil ? new Date(p.promotedUntil) : null;
-      if (expiryDate && expiryDate < now) realTier = "FREE";
-      
       // 7. DATOS DE OPEN HOUSE
       let openHouseObj = null;
       if (p.openHouses && p.openHouses.length > 0) {
@@ -264,7 +292,7 @@ export async function getGlobalPropertiesAction(bounds?: { minLat: number; maxLa
         activeCampaign: activeCampaign,
         isCaptured: !!activeCampaign,
         promotedTier: realTier,
-        isPromoted: realTier === 'PREMIUM',
+        isPromoted: isPromotedActive, // 🔥 AHORA ES LA VARIABLE CALCULADA Y BLINDADA
         user: finalIdentity, 
         ownerSnapshot: p.ownerSnapshot ?? null,
         coordinates: validCoords,
@@ -3424,7 +3452,7 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
   }
 }
 // =========================================================
-// 🏠 2. GESTIÓN DE PROPIETARIO (CON DATOS COMPLETOS DE AGENCIA)
+// 🏠 2. GESTIÓN DE PROPIETARIO (CON MOTOR AUTOLIMPIABLE INYECTADO)
 // =========================================================
 
 export async function getMyPropertiesAction() {
@@ -3432,6 +3460,7 @@ export async function getMyPropertiesAction() {
     const userRes = await getUserMeAction();
     if (!userRes.success || !userRes.data) return { success: false, data: [] };
     const user = userRes.data;
+    const now = new Date(); // 🔥 EL RELOJ MAESTRO PARA EL FUEGO
 
     const properties = await prisma.property.findMany({
       where: { userId: user.id },
@@ -3466,6 +3495,41 @@ export async function getMyPropertiesAction() {
       },
       orderBy: { updatedAt: 'desc' }
     });
+
+   // 🧯 EL MOTOR AUTOLIMPIABLE EN LA BASE DE DATOS (VERSIÓN CORREGIDA)
+    const expiredProps = properties.filter((p: any) => 
+        (p.isPromoted || p.isFire || p.isPremium) && p.promotedUntil && new Date(p.promotedUntil) < now
+    );
+    
+    if (expiredProps.length > 0) {
+        console.log(`🧯 Apagando ${expiredProps.length} fuegos caducados en la Base de Datos...`);
+        try {
+            await prisma.property.updateMany({
+                where: { id: { in: expiredProps.map((p: any) => p.id) } },
+                data: { 
+                    isPromoted: false, 
+                    isFire: false,       
+                    isPremium: false,    
+                    promotedTier: "FREE",
+                    promotedUntil: null  
+                } 
+            });
+            
+            // 🔥 AQUÍ ESTÁ EL ARREGLO: Ponemos el nombre de la caché directamente entre comillas
+            await redis.del("stratos_global_map_cache"); 
+            
+            // Actualiza en memoria
+            expiredProps.forEach((p: any) => { 
+                p.isPromoted = false; 
+                p.isFire = false; 
+                p.isPremium = false;
+                p.promotedTier = "FREE"; 
+                p.promotedUntil = null;
+            });
+        } catch (e) {
+            console.error("Error en autolimpieza:", e);
+        }
+    }
 
     const processed = properties.map((p: any) => {
         let activeCampaign = p.campaigns.find((c: any) => c.status === "ACCEPTED");
@@ -3510,7 +3574,10 @@ export async function getMyPropertiesAction() {
             formattedPrice: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(p.price || 0),
             activeCampaign: activeCampaign,
             isManaged: activeCampaign?.status === "ACCEPTED",
-            agencyName: agencyName 
+            agencyName: agencyName,
+            // 🔥 Nos aseguramos de que el panel reciba el estado del fuego perfectamente limpio
+            isPromoted: !!p.isPromoted,
+            promotedTier: p.promotedTier || "FREE"
         };
     });
 
@@ -3520,7 +3587,6 @@ export async function getMyPropertiesAction() {
     return { success: false, error: "Error al cargar propiedades" };
   }
 }
-
 // =========================================================
 // 🦅 RADAR DE GESTIÓN: ¿QUIÉN CONTROLA ESTA PROPIEDAD?
 // =========================================================
@@ -3977,5 +4043,48 @@ export async function getPropertyByRefCodeAction(refCode: string) {
   } catch (e) {
     console.error("[CRITICAL_DATABASE_ERROR]:", e);
     return { success: false, error: "SERVER_ERROR" };
+  }
+}
+// 🔥 LECTOR DE ESTADO DE CITA PARA EL PROPIETARIO (VERSIÓN BLINDADA)
+export async function checkMeetingStatusAction(propertyId: string, agencyId: string) {
+  try {
+    const { prisma } = require('@/app/lib/prisma');
+    
+    // 1. Buscamos el Lead B2B más reciente para ESTA casa
+    const lead = await prisma.lead.findFirst({
+      where: { 
+          propertyId: propertyId, 
+          source: "B2B_MEETING" 
+          // ⚠️ QUITAMOS EL managerId PORQUE A VECES FALLA SI NO ESTÁ PERFECTAMENTE ALINEADO
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    if (!lead) return { success: true, data: { status: 'NONE' } };
+    if (lead.status !== 'MANAGED') return { success: true, data: { status: 'PENDING' } };
+
+    // 2. Si está gestionado (Cita fijada), extraemos los datos
+    const msg = lead.message || "";
+    
+    // Usamos una extracción más tolerante por si cambian los espacios
+    const agentMatch = msg.match(/Agente:\s*([^\n]+)/);
+    const dateMatch = msg.match(/Fecha:\s*([^\n]+?)\s*a las\s*([^\n]+)/);
+    const placeMatch = msg.match(/Lugar:\s*([^\n]+)/);
+
+    return { 
+      success: true, 
+      data: { 
+        status: 'CONFIRMED',
+        details: {
+           agent: agentMatch ? agentMatch[1].trim() : "Asesor Asociado",
+           date: dateMatch ? dateMatch[1].trim() : "",
+           time: dateMatch ? dateMatch[2].trim() : "",
+           address: placeMatch ? placeMatch[1].trim() : ""
+        }
+      } 
+    };
+  } catch (e) {
+    console.error("Error en checkMeetingStatusAction:", e);
+    return { success: false };
   }
 }

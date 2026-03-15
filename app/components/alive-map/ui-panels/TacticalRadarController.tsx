@@ -13,6 +13,7 @@ import {
   MapPin,
   ShieldCheck,
   Sparkles,
+  Handshake
 } from "lucide-react";
 
 import {
@@ -34,7 +35,7 @@ import {
 
 type MsgStatus = "IDLE" | "SENDING" | "SENT" | "ACCEPTED" | "REJECTED";
 
-type RoleFilter = "ALL" | "PARTICULAR" | "AGENCY";
+type RoleFilter = "ALL" | "PARTICULAR" | "AGENCY" | "B2B" | "MINE";
 
 export default function TacticalRadarController({ targets = [], onClose }: any) {
   // --- 1. ESTADOS ---
@@ -168,6 +169,30 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     return "PARTICULAR";
   };
 
+  // ✅ IDENTIFICADOR DE ACTIVOS PROPIOS
+  const isMyAsset = (t: any) => {
+    if (!meId) return false;
+    const ownerId = String(t?.user?.id || t?.userId || t?.ownerId || t?.ownerSnapshot?.id || "");
+    return ownerId === meId;
+  };
+
+ // ✅ NUEVO: ESCÁNER ESTRICTO B2B (Basado en Prisma Schema real) 🔥
+  const isB2BActive = (t: any) => {
+    // Leemos las variables exactas de su esquema de Prisma
+    const sharePct = Number(t?.sharePct || 0);
+    const shareVisibility = String(t?.shareVisibility || "").toUpperCase();
+
+    // Una propiedad está en colaboración B2B si comparte porcentaje (> 0)
+    // Y si esa compartición NO es estrictamente privada.
+    // (Aceptamos "AGENCIES", "PUBLIC" u otros estados que no sean "PRIVATE")
+    const isSharing = sharePct > 0 && shareVisibility !== "PRIVATE";
+
+    // Mantenemos las de respaldo por si el objeto de campaña viene anidado
+    const fallbackB2B = !!(t?.b2b || t?.isB2b || t?.campaign?.b2b);
+
+    return isSharing || fallbackB2B;
+  };
+
   // --- 2. BADGE VISUAL LIMPIO ---
   const roleBadge = (t: any) => {
     const r = pickRole(t);
@@ -261,6 +286,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       `Quedo atento.`
     );
   };
+
 // 🔥 MOTOR DE ENRIQUECIMIENTO (PRE-FETCH DE DATOS REALES) 🔥
   useEffect(() => {
     const enrichTargets = async () => {
@@ -271,21 +297,16 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
 
       setIsEnriching(true);
       
-      // Creamos un array para guardar las propiedades reales
       const realDataArray = [];
 
-      // Recorremos las chinchetas del mapa
       for (const t of targets) {
         const pid = String(t?.id || "").trim();
         if (pid) {
           try {
-            // Preguntamos a la base de datos por la VERDAD ABSOLUTA de esta propiedad
             const res: any = await getPropertyByIdAction(pid);
             if (res?.success && res?.data) {
-              // Si la encontramos, la mezclamos con los datos del mapa para no perder coords
               realDataArray.push({ ...t, ...res.data });
             } else {
-              // Si falla, dejamos la chincheta original por si acaso
               realDataArray.push(t);
             }
           } catch (e) {
@@ -299,7 +320,8 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     };
 
     enrichTargets();
-  }, [targets]); // Se ejecuta cada vez que el mapa envía nuevas chinchetas
+  }, [targets]); 
+
   // --- 2. MEMORIA (SERVER) ---
   useEffect(() => {
     (async () => {
@@ -321,7 +343,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, activeTab]);
 
-  // ✅ Normaliza mensajes DB -> UI ({ sender:'me'|'other', text })
+  // ✅ Normaliza mensajes DB -> UI 
   const mapDbMessagesToUi = (msgs: any[]) => {
     const list = Array.isArray(msgs) ? msgs : [];
     const my = String(meId || "");
@@ -349,7 +371,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     } catch {}
   };
 
-  // ✅ polling mensajes conversación (Radar) cada 6s cuando está en COMMS
+  // ✅ polling mensajes
   useEffect(() => {
     if (!conversationId) return;
     if (activeTab !== "COMMS") return;
@@ -377,11 +399,13 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     };
   }, [conversationId, activeTab, meId]);
 
-  // --- 3. MOTOR DE BÚSQUEDA (SIN FILTRAR LA LISTA - SOLO VUELO) ---
+  // --- 3. MOTOR DE BÚSQUEDA (CORRECCIÓN DOBLE TOQUE Y FEEDBACK VISUAL) ---
   const performGlobalSearch = async () => {
     if (!searchTerm) return;
 
     setIsFlying(true);
+    // Vaciamos la lista al instante para que el usuario vea que está pasando algo
+    setEnrichedTargets([]);
 
     try {
       const response = await fetch(
@@ -403,10 +427,22 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
             })
           );
 
+          // 🔥 ELIMINAMOS EL setSearchTerm("") PARA NO CORTAR LA BÚSQUEDA 🔥
+          
+          // 🚀 RÁFAGA DE RADAR: Lanzamos 3 escaneos seguidos para atrapar las chinchetas
+          // sin importar lo que tarde el vuelo de la cámara (sea corto o largo).
           setTimeout(() => {
             window.dispatchEvent(new CustomEvent("trigger-scan-signal"));
-            setIsFlying(false);
           }, 2000);
+
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("trigger-scan-signal"));
+          }, 3500);
+
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("trigger-scan-signal"));
+            setIsFlying(false); // Apagamos el loader al finalizar el último pulso
+          }, 5000);
         }
       } else {
         setIsFlying(false);
@@ -472,9 +508,9 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     }
   };
 
-// ⚠️ NUEVO MOTOR DEL BOTÓN DE VUELO: VUELA Y ABRE EL PANEL EXTERNO (SIN ABRIR EL RADAR)
+// ⚠️ NUEVO MOTOR DEL BOTÓN DE VUELO
   const handleVolarAPropiedad = async (e: any, target: any) => {
-    e.stopPropagation(); // Bloquea el clic para que no se abra la pestaña de proponer Campaña
+    e.stopPropagation(); 
 
     const pid = String(target?.id || "").trim();
     if (!pid) return;
@@ -489,7 +525,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       }));
     }
 
-    // 2. Extraemos la base de datos real para saber quién es el creador (Agencia o Particular)
+    // 2. Extraemos la base de datos real
     let prop: any = target;
     try {
       const res: any = await getPropertyByIdAction(pid);
@@ -497,12 +533,11 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     } catch {}
 
     // 3. Disparamos la señal global del SaaS.
-    // El layout principal escuchará esto y abrirá AgencyDetailsPanel o DetailsPanel según el 'prop.user.role'
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: pid } }));
       window.dispatchEvent(new CustomEvent("open-details-signal", { 
         detail: { 
-          ...prop, // Expandimos los datos en la raíz para que el mapa lea el rol
+          ...prop,
           propertyId: pid, 
           propertySnapshot: prop, 
           property: prop, 
@@ -585,7 +620,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       });
 
       // 🔥 INYECCIÓN MILITAR DE REFERENCIA 🔥
-      // Forzamos a que el texto empiece siempre con la Referencia si existe
       const refReal = selectedTarget?.refCode || "";
       if (refReal && !defaultMsg.includes(refReal)) {
         defaultMsg = `REF: ${refReal} - ${defaultMsg}`;
@@ -610,23 +644,15 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
         message: defaultMsg,
         serviceIds,
         status: "SENT",
-
-        // términos limpios (cliente)
         commissionPct: numericPct,
         commissionIvaPct: numericIva,
         totalAmount: numericTotal,
         exclusiveMandate: isExclusive,
         exclusiveMonths: numericMonths,
-
-        // ✅ snapshot para que Owner/Agency HUD sea consistente
         servicesSnapshot,
         servicesCount: serviceIds.length,
         proposalSummary: defaultMsg,
-
-        // Precio de referencia
         priceAtProposal: parsePriceNumber(selectedTarget?.price),
-
-        // Objeto terms (por compat)
         terms: {
           commissionPct: numericPct,
           ivaPct: numericIva,
@@ -636,8 +662,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
           servicesCount: serviceIds.length,
         },
       };
-
-      console.log("🚀 PROPUESTA (limpia/premium):", payload);
 
       const res: any = await sendCampaignAction(payload as any);
 
@@ -701,7 +725,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     setInputMsg("");
 
     try {
-        // 🔥 EL MISMO ESCUDO IMPENETRABLE DE SU CONSOLA CENTRAL 🔥
         let res: any = null;
         try { res = await (sendMessageAction as any)(cid, text); } catch {}
         if (!res?.success) { try { res = await (sendMessageAction as any)({ conversationId: cid, text }); } catch {} }
@@ -713,14 +736,11 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
           return;
         }
 
-        // Actualizamos el historial visual del Radar
         setChatHistory((prev) => [
           ...(Array.isArray(prev) ? prev : []),
           { sender: "me", text },
         ]);
 
-        // 🔥 SINCRONIZACIÓN GLOBAL (Sin tocar useStratosChat) 🔥
-        // Simulamos el evento de abrir chat para que la consola principal se entere y descargue el mensaje
         if (typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("open-chat-signal", { 
                 detail: { conversationId: cid } 
@@ -736,19 +756,82 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     }
   };
 
-  // 🔥 FILTRO CONECTADO A LA VERDAD DE LA BASE DE DATOS 🔥
+  // 🔥 FILTRO INTELIGENTE BLINDADO 🔥
+  // ✅ MOTOR MATEMÁTICO B2B
+  const getB2BInfo = (t: any) => {
+    const sharePercent = Number(
+      t?.b2b?.sharePct ??
+      t?.activeCampaign?.commissionSharePct ??
+      t?.campaign?.commissionSharePct ??
+      t?.campaigns?.[0]?.commissionSharePct ??
+      t?.commissionSharePct ??
+      t?.sharePct ?? 0
+    );
+
+    const visibilityMode = String(
+      t?.b2b?.visibility ??
+      t?.activeCampaign?.commissionShareVisibility ??
+      t?.campaign?.commissionShareVisibility ??
+      t?.campaigns?.[0]?.commissionShareVisibility ??
+      t?.shareVisibility ?? "PRIVATE"
+    ).toUpperCase();
+
+    const baseCommissionPct = Number(
+      t?.activeCampaign?.commissionPct ??
+      t?.campaign?.commissionPct ??
+      t?.campaigns?.[0]?.commissionPct ??
+      t?.commissionPct ?? 3
+    );
+
+    const numericPrice = Number(String(t?.price || "0").replace(/[^0-9]/g, ""));
+    const estimatedEarnings = numericPrice * (baseCommissionPct / 100) * (sharePercent / 100);
+
+    const isB2B = sharePercent > 0 && visibilityMode !== "PRIVATE";
+
+    return {
+      isB2B,
+      sharePercent,
+      formattedEarnings: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(estimatedEarnings)
+    };
+  };
+
+  // 🔥 FILTRO INTELIGENTE BLINDADO 🔥
   const filteredTargets = useMemo(() => {
-    // AHORA MIRAMOS enrichedTargets EN LUGAR DE targets
     const list = Array.isArray(enrichedTargets) ? enrichedTargets : [];
-    if (roleFilter === "ALL") return list;
     
     return list.filter((t: any) => {
       const r = pickRole(t); 
-      if (roleFilter === "AGENCY") return r === "AGENCY"; 
-      if (roleFilter === "PARTICULAR") return r === "PARTICULAR";
-      return true;
+      const isMine = isMyAsset(t);
+      const b2bInfo = getB2BInfo(t);
+
+      if (roleFilter === "ALL") return true;
+      if (roleFilter === "PARTICULAR") return r === "PARTICULAR" && !isMine;
+      if (roleFilter === "AGENCY") return r === "AGENCY" && !isMine;
+      
+      if (roleFilter === "B2B") {
+           if (r === "PARTICULAR" && !isMine) return false; 
+           return b2bInfo.isB2B; 
+      }
+      
+      if (roleFilter === "MINE") return isMine;
+      
+      return false; 
     });
-  }, [enrichedTargets, roleFilter]); // <-- Dependencia actualizada
+  }, [enrichedTargets, roleFilter, meId]);
+
+// 👇 PEGAR AQUÍ EL PASO 1 (LA CALCULADORA) 👇
+  const getB2BData = (t: any) => {
+    const sharePercent = Number(t?.b2b?.sharePct ?? t?.campaign?.commissionSharePct ?? t?.campaigns?.[0]?.commissionSharePct ?? t?.sharePct ?? 0);
+    const numericPrice = Number(String(t?.price || "0").replace(/[^0-9]/g, ""));
+    const baseCommissionPct = Number(t?.activeCampaign?.commissionPct ?? t?.campaign?.commissionPct ?? t?.campaigns?.[0]?.commissionPct ?? t?.commissionPct ?? 3);
+    
+    const estimatedEarnings = numericPrice * (baseCommissionPct / 100) * (sharePercent / 100);
+    
+    return { 
+        sharePercent, 
+        formattedEarnings: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(estimatedEarnings) 
+    };
+  };
 
   // --- RENDERIZADO ---
   return (
@@ -793,7 +876,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
           </button>
         </div>
 
-        {/* BARRA DE NAVEGACIÓN (VUELO) - NO FILTRA, SOLO MUEVE */}
+        {/* BARRA DE NAVEGACIÓN (VUELO) */}
         {!selectedTarget && (
           <div className="flex gap-2">
             <div className="flex-1 bg-white flex items-center px-3 py-2.5 rounded-2xl border border-slate-200 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.25)] focus-within:border-blue-500 transition-all">
@@ -828,13 +911,10 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
         {selectedTarget ? (
           /* --- VISTA EXPEDIENTE --- */
           <div className="p-6 space-y-6 animate-fade-in-up">
-          {/* FICHA CORREGIDA */}
             <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm relative overflow-hidden">
-              {/* Banda de color superior, más fina y sin romper el borde redondeado */}
               <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600" />
 
               <div className="flex items-start gap-4 mt-2">
-                {/* Imagen */}
                 <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
                   {pickImageUrl(selectedTarget) ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -873,7 +953,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                 </div>
               </div>
 
-             {/* total agencia + servicios */}
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
@@ -896,7 +975,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                     Servicios Seleccionados
                   </p>
-                  {/* Número limpio sin icono ni lista de servicios */}
                   <p className="mt-1 text-sm font-black text-slate-900">
                     {getServiceIdsForCampaign().length}
                   </p>
@@ -904,7 +982,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
               </div>
             </div>
 
-            {/* TABS */}
             <div className="bg-slate-100 p-1 rounded-2xl flex text-center border border-slate-200/60">
               <button
                 onClick={() => setActiveTab("RADAR")}
@@ -973,7 +1050,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
 
                 {msgStatus === "IDLE" || msgStatus === "SENDING" ? (
                   <>
-                    {/* SERVICIOS */}
                     <div className="mb-4">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
                         Servicios de la Agencia
@@ -1032,7 +1108,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                         )}
                       </div>
 
-                      {/* Mandato */}
                       <div className="mt-4 bg-white border border-slate-200/60 rounded-3xl p-4 shadow-[0_14px_50px_-36px_rgba(0,0,0,0.35)]">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
                           Mandato
@@ -1124,7 +1199,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                         </div>
                       </div>
 
-                    {/* Resumen */}
                       <div className="mt-4 bg-white border border-slate-200/60 rounded-3xl p-4 shadow-[0_14px_50px_-36px_rgba(0,0,0,0.35)]">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
                           Resumen de Propuesta
@@ -1132,14 +1206,12 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
 
                         <div className="space-y-2 text-[11px] font-semibold text-slate-700">
                           
-                          {/* 👇 ESTE ES EL BLOQUE QUE HEMOS CAMBIADO 👇 */}
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-500">Condiciones</span>
                             <span className="font-black text-slate-900">
                               {exclusiveMandate ? `Exclusiva ${exclusiveMonths}m` : "No exclusiva"}
                             </span>
                           </div>
-                          {/* 👆 ------------------------------------ 👆 */}
 
                           <div className="flex justify-between gap-3">
                             <span className="text-slate-500">Comisión</span>
@@ -1277,11 +1349,12 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                 )}
               </span>
 
-              <div className="flex items-center gap-2">
-                <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200/60 flex shadow-inner">
+              {/* ✅ BARRA DE PESTAÑAS (Scroll Horizontal si no caben) */}
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                <div className="bg-slate-100 p-1 rounded-2xl border border-slate-200/60 flex shadow-inner shrink-0">
                   <button
                     onClick={() => setRoleFilter("ALL")}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                       roleFilter === "ALL" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
@@ -1289,7 +1362,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                   </button>
                   <button
                     onClick={() => setRoleFilter("PARTICULAR")}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                       roleFilter === "PARTICULAR"
                         ? "bg-white text-slate-900 shadow-sm"
                         : "text-slate-500 hover:text-slate-700"
@@ -1299,13 +1372,40 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                   </button>
                   <button
                     onClick={() => setRoleFilter("AGENCY")}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                       roleFilter === "AGENCY"
                         ? "bg-white text-slate-900 shadow-sm"
                         : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     Agencias
+                  </button>
+
+                  {/* ✅ BOTÓN B2B ESTILO LUXURY YELLOW */}
+                  <button
+                    onClick={() => setRoleFilter("B2B")}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                      roleFilter === "B2B"
+                        ? "bg-white text-[#E5B842] shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <div className={`p-[3px] rounded flex items-center justify-center transition-colors ${roleFilter === "B2B" ? "bg-[#E5B842]" : "bg-slate-300"}`}>
+                      <Handshake size={10} className="text-white" strokeWidth={2.5} />
+                    </div>
+                    B2B
+                  </button>
+
+                  {/* ✅ BOTÓN MIS ACTIVOS */}
+                  <button
+                    onClick={() => setRoleFilter("MINE")}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-1 ${
+                      roleFilter === "MINE"
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    <ShieldCheck size={10} strokeWidth={2.5}/> Mis Activos
                   </button>
                 </div>
 
@@ -1316,41 +1416,56 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
             <div className="px-4 py-2 space-y-2">
               {filteredTargets.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 opacity-50">
-                  <Search size={32} className="mb-3 text-slate-300" />
-                  <p className="text-xs font-black text-slate-400">Sin señales en este sector.</p>
+                  {isFlying ? (
+                     <Loader2 size={32} className="mb-3 text-slate-300 animate-spin" />
+                  ) : (
+                     <Search size={32} className="mb-3 text-slate-300" />
+                  )}
+                  <p className="text-xs font-black text-slate-400">
+                    {isFlying ? "Escaneando coordenadas..." : "Sin señales en este sector."}
+                  </p>
                   <p className="text-[10px] text-slate-500 mt-1 max-w-[180px] text-center font-semibold">
                     Use el buscador superior para mover el satélite.
                   </p>
                 </div>
               ) : (
-                filteredTargets.map((t: any) => {
+           filteredTargets.map((t: any) => {
                   const isProcessed = processedIds.includes(String(t.id));
+                  const isMine = isMyAsset(t);
                   const img = pickImageUrl(t);
                   const rb = roleBadge(t);
+                  const b2bInfo = getB2BInfo(t); // Ejecuta el motor B2B aquí
 
         return (
                     <div
                       key={t.id}
                       onClick={() => {
-                        handleTrabajar(t);
                         openDetailsAndFlyFromTarget(t);
+                        if (!isMine) {
+                          handleTrabajar(t);
+                        }
                       }}
-                      className={`group relative flex items-center p-3 rounded-2xl cursor-pointer transition-all border
+                      className={`group relative flex items-center p-3 rounded-2xl transition-all border
                         ${
-                          isProcessed
-                            ? "bg-white border-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.15)] z-10"
-                            : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md"
+                          isMine 
+                            ? "bg-amber-50/30 border-amber-200 cursor-pointer hover:border-amber-300 hover:shadow-md" 
+                            : isProcessed
+                              ? "bg-white border-emerald-400 shadow-[0_0_15px_-3px_rgba(16,185,129,0.15)] z-10 cursor-pointer"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md cursor-pointer"
                         }
                       `}
                     >
-                      {/* Banda lateral fina */}
-                      <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-md ${rb.tone === "blue" ? "bg-blue-500" : "bg-slate-300"}`} />
+                      <div className={`absolute top-3 bottom-3 left-0 w-1 rounded-r-md ${isMine ? "bg-[#E5B842]" : rb.tone === "blue" ? "bg-blue-500" : "bg-slate-300"}`} />
 
-                      {/* 🔥 THUMBNAIL (FOTO REAL, NUNCA SE TAPA) 🔥 */}
+                      {/* ✅ BADGE "COLABORACIÓN ACTIVA" CON PORCENTAJE EN PESTAÑA B2B O ALL */}
+                      {!isMine && rb.tone === "blue" && (roleFilter === "B2B" || roleFilter === "ALL") && b2bInfo.isB2B && (
+                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-[#E5B842] to-yellow-500 text-white text-[9px] font-black px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-30 border border-white/50">
+                          <Handshake size={9} /> {b2bInfo.sharePercent}% COLAB
+                        </div>
+                      )}
+
                       <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0 ml-2 mr-4 relative flex items-center justify-center shadow-inner group-hover:bg-white transition-colors duration-300">
-                        
                         {img ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={img} alt="Property" className="w-full h-full object-cover" loading="lazy" />
                         ) : (
                           <span className="font-black text-[26px] leading-none tracking-tighter text-slate-300 group-hover:text-blue-600 transition-colors duration-300 select-none mt-1">
@@ -1358,23 +1473,30 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                           </span>
                         )}
                         
-                        {/* 🔥 CHECK FLOTANTE (Solo un circulito transparente, deja ver la foto 100%) 🔥 */}
-                        {isProcessed && (
+                        {isProcessed && !isMine && (
                           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
                             <div className="bg-white/80 backdrop-blur-md rounded-full p-1 shadow-sm border border-emerald-200">
                               <CheckCircle2 size={22} className="text-emerald-500" strokeWidth={2.5}/>
                             </div>
                           </div>
                         )}
-
                       </div>
 
                       <div className="flex-1 min-w-0 pr-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${rb.tone === "blue" ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
-                            {rb.label}
-                          </span>
-                          {isProcessed && <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded uppercase">Procesado</span>}
+                          {!isMine && (
+                            <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${rb.tone === "blue" ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                              {rb.label}
+                            </span>
+                          )}
+
+                          {isMine && (
+                             <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border bg-amber-50 text-[#E5B842] border-amber-200 flex items-center gap-1">
+                               <ShieldCheck size={8}/> Tu Activo
+                             </span>
+                          )}
+
+                          {isProcessed && !isMine && <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded uppercase">Procesado</span>}
                         </div>
 
                         <h3 className="font-bold text-slate-900 text-sm truncate leading-tight">{t.title || t.type || "Propiedad"}</h3>
@@ -1383,15 +1505,23 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                         </p>
                       </div>
 
-                      <div className="text-right shrink-0 flex flex-col justify-between items-end h-16 py-0.5">
-                        <span className="block font-black text-slate-900 text-sm tracking-tight">
-                          {t.price || "---"}
-                        </span>
+                     {/* ✅ ÁREA DE PRECIO Y BOTÓN DE VUELO (REDISEÑADA PARA NO PISARSE) */}
+                      <div className="shrink-0 flex items-center gap-3 pl-2">
+                        <div className="flex flex-col items-end">
+                            <span className="block font-black text-slate-900 text-sm tracking-tight">
+                              {t.price || "---"}
+                            </span>
+                            {/* 🔥 Muestra el porcentaje Y los euros de forma limpia */}
+                            {b2bInfo.isB2B && b2bInfo.sharePercent > 0 && (
+                               <span className="text-[9px] font-black text-[#E5B842] mt-1 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap flex items-center gap-1">
+                                  {b2bInfo.sharePercent}% <span className="opacity-50">|</span> +{b2bInfo.formattedEarnings}
+                               </span>
+                            )}
+                        </div>
                         
-                        {/* BOTÓN DE VUELO */}
                         <button
                           onClick={(e) => handleVolarAPropiedad(e, t)}
-                          className="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white flex items-center justify-center transition-all border border-slate-200 shadow-sm z-20 relative"
+                          className="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white flex items-center justify-center transition-all border border-slate-200 shadow-sm z-20 shrink-0"
                         >
                           <Navigation size={12} />
                         </button>
@@ -1399,7 +1529,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
                     </div>
                   );
                 })
-              )}
+             )}
             </div>
           </div>
         )}

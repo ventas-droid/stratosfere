@@ -1954,9 +1954,12 @@ const StepSuccess = ({ handleClose, formData }: any) => {
         price: formData.price,
         
         // 🔥 CORRECCIÓN CRÍTICA:
-        // Si formData.coordinates es null, enviamos undefined.
-        // El servidor ignora undefined y MANTIENE la ubicación original (Manilva).
         coordinates: formData.coordinates || undefined, 
+        
+        // 🎯 NUEVO: INYECCIÓN DIRECTA DE B2B A LA RAÍZ DE PRISMA
+        // Extraemos los datos del sub-objeto b2b que genera StepAgencyB2B
+        sharePct: Number(formData.b2b?.sharePct || formData.sharePct || 0),
+        shareVisibility: String(formData.b2b?.visibility || formData.shareVisibility || "PRIVATE").toUpperCase(),
       };
 
       console.log("📡 GUARDANDO EN BASE DE DATOS (Estado:", targetStatus, ")...");
