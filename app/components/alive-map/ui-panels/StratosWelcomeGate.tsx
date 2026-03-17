@@ -13,7 +13,7 @@ export default function StratosWelcomeGate({ playSynthSound }: any) {
   playsInline
   className="absolute top-0 left-0 w-full h-full object-cover -z-10"
 >
-  <source src="/videos/tierra.mp4" type="video/mp4" />
+  <source src="/videos/color.mp4" type="video/mp4" />
 </video>
 
       {/* 1️⃣ PARTE SUPERIOR: LOGO Y BOTÓN */}
