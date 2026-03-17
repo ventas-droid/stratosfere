@@ -319,15 +319,37 @@ if (!map.current.getLayer('fire-wave-inner')) {
           type: 'symbol', 
           source: 'properties',
           filter: ['!', ['has', 'point_count']],
-        layout: {
+       layout: {
   'text-field': ['coalesce', ['get', 'formattedPrice'], ['get', 'price']],
   'text-font': MAPBOX_PIN_FONT,
-  'text-size': ['case', ['==', ['get', 'isFire'], true], 14, 12.2],
+  'text-size': [
+    'case',
+    [
+      'any',
+      ['==', ['get', 'isFire'], true],
+      ['==', ['get', 'isFire'], 'true'],
+      ['==', ['get', 'promotedTier'], 'PREMIUM'],
+      ['==', ['get', 'isPromoted'], true],
+      ['==', ['get', 'isPromoted'], 'true']
+    ],
+    14,
+    12.2
+  ],
   'text-offset': [
     'case',
-    ['==', ['get', 'isFire'], true], ['literal', [0, -2.16]],
+    [
+      'any',
+      ['==', ['get', 'isFire'], true],
+      ['==', ['get', 'isFire'], 'true'],
+      ['==', ['get', 'promotedTier'], 'PREMIUM'],
+      ['==', ['get', 'isPromoted'], true],
+      ['==', ['get', 'isPromoted'], 'true']
+    ],
+    ['literal', [0, -2.16]],
     ['literal', [0, -1.73]]
   ],
+  'text-anchor': 'center',
+  'text-max-width': 20,
   'text-allow-overlap': true,
   'text-ignore-placement': true
 },
