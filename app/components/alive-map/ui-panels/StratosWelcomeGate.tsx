@@ -6,15 +6,15 @@ export default function StratosWelcomeGate({ playSynthSound }: any) {
     <div className="fixed inset-0 z-[99999] flex flex-col justify-between items-center p-8 sm:p-20 pointer-events-auto animate-fade-in select-none overflow-hidden bg-black">
 
       {/* 📽️ VÍDEO DE FONDO CINEMÁTICO (La Tierra girando) */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute top-0 left-0 w-full h-full object-cover z-0 opacity-80"
-      >
-        <source src="/background-video.mp4" type="video/mp4" />
-      </video>
+     <video
+  autoPlay
+  loop
+  muted
+  playsInline
+  className="absolute top-0 left-0 w-full h-full object-cover -z-10"
+>
+  <source src="/videos/universo.mp4" type="video/mp4" />
+</video>
 
       {/* 1️⃣ PARTE SUPERIOR: LOGO Y BOTÓN */}
       <div className="w-full flex flex-col items-center gap-8 z-10 mt-10 animate-fade-in-up delay-100">
