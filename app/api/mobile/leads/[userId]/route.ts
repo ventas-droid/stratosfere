@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { userId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const userId = params.userId;
+    const { userId } = await params;
 
     if (!userId) {
       return NextResponse.json({ error: "Falta ID" }, { status: 400 });
@@ -18,14 +18,14 @@ export async function GET(
         property: {
           OR: [
             { userId: userId }, // Soy el dueño
-            { assignment: { agencyId: userId, status: 'ACTIVE' } } // O soy la agencia que la lleva
+            { assignment: { agencyId: userId, status: "ACTIVE" } } // O soy la agencia que la lleva
           ]
         }
       },
       include: {
         property: { select: { refCode: true, title: true } }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: "desc" }
     });
 
     // ⚙️ Formateo para la app móvil
@@ -37,12 +37,12 @@ export async function GET(
       message: l.message,
       source: l.source || "ORGANIC",
       property: {
-        refCode: l.property?.refCode || "Sin Ref"
+        refCode: l.property?.refCode || "Sin Ref",
+        title: l.property?.title || "Sin título"
       }
     }));
 
     return NextResponse.json(formattedLeads);
-
   } catch (error) {
     console.error("❌ Error API Leads:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
