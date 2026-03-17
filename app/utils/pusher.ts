@@ -12,18 +12,21 @@ export const pusherServer = new PusherServer({
 
 // 📡 2. EL RECEPTOR (Solo lo usan los Componentes React para ESCUCHAR)
 export const getPusherClient = () => {
-  // Nos aseguramos de que esto solo corra en el navegador (Cliente)
-  if (typeof window !== 'undefined') {
-    // Patrón Singleton: Evita crear múltiples antenas si la pantalla se recarga
-    if (!(window as any).pusherClientInstance) {
-      (window as any).pusherClientInstance = new PusherClient(
-        process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
-        {
-          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'eu',
-        }
-      );
-    }
-    return (window as any).pusherClientInstance;
+  if (typeof window === 'undefined') return null;
+
+  const key = process.env.NEXT_PUBLIC_PUSHER_APP_KEY;
+  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'eu';
+
+  if (!key) {
+    console.warn('⚠️ Falta NEXT_PUBLIC_PUSHER_APP_KEY');
+    return null;
   }
-  return null;
+
+  if (!(window as any).pusherClientInstance) {
+    (window as any).pusherClientInstance = new PusherClient(key, {
+      cluster,
+    });
+  }
+
+  return (window as any).pusherClientInstance;
 };

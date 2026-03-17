@@ -42,13 +42,17 @@ export default function StratosChatWindow({
         </div>
 
        {/* 🔥 BOTÓN X (Mini-Tornillo Consola Chat) 🔥 */}
-        <button
-          onClick={() => setChatOpen(false)}
-          className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 hover:rotate-90 flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-md shrink-0"
-          title="Cerrar"
-        >
-          <X size={16} />
-        </button>
+<button
+  onClick={() => {
+    setChatOpen(false);
+    setChatConversationId(null);
+    setChatMessages([]);
+  }}
+  className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 hover:rotate-90 flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/20 text-white shadow-md shrink-0"
+  title="Cerrar"
+>
+  <X size={16} />
+</button>
       </div>
 
       {/* Body 2-column */}
@@ -82,7 +86,8 @@ export default function StratosChatWindow({
 
               const blocked = isBlockedThread(t);
               const active = String(chatConversationId || "") === id;
-              const unread = Number(unreadByConv?.[id] || 0) > 0;
+             const unreadCount = Number(unreadByConv?.[id] || 0);
+const unread = unreadCount > 0;
 
            return (
                 <button
@@ -148,10 +153,23 @@ if (systemMode === "EXPLORER") {
         <div className="text-[11px] font-black tracking-widest text-white uppercase truncate">
           {otherName}
         </div>
-        <div className="flex items-center gap-2">
-          {unread && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
-          {blocked && <span className="text-[9px] text-white/30 font-mono">BLOCK</span>}
-        </div>
+       <div className="flex items-center gap-2">
+  {unreadCount > 0 ? (
+    <span
+      className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold text-white"
+      style={{ backgroundColor: "#4f46e5" }}
+    >
+      {unreadCount}
+    </span>
+  ) : unread ? (
+    <span
+      className="inline-block w-2 h-2 rounded-full"
+      style={{ backgroundColor: "#4f46e5" }}
+    />
+  ) : null}
+
+  {blocked && <span className="text-[9px] text-white/30 font-mono">BLOCK</span>}
+</div>
       </div>
 
       <div className="mt-0.5 text-[10px] text-white/50 font-mono truncate">

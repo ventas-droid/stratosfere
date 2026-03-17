@@ -1399,16 +1399,22 @@ useEffect(() => {
     }`}
   >
     <span className="relative inline-flex">
-      <MessageCircle size={18} />
-      {unreadTotal > 0 && (
-        <>
-          <span className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-          <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-black text-[10px] font-black flex items-center justify-center">
-            {unreadTotal > 9 ? "9+" : unreadTotal}
-          </span>
-        </>
-      )}
-    </span>
+  <MessageCircle size={18} />
+  {unreadTotal > 0 && (
+    <>
+      <span
+        className="absolute -top-1 -left-1 w-2 h-2 rounded-full animate-pulse"
+        style={{ backgroundColor: "#4f46e5" }}
+      />
+      <span
+        className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-black flex items-center justify-center"
+        style={{ backgroundColor: "#4f46e5" }}
+      >
+        {unreadTotal > 9 ? "9+" : unreadTotal}
+      </span>
+    </>
+  )}
+</span>
   </button>
 
                     {/* 4. IA */}

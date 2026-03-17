@@ -1340,8 +1340,8 @@ const normalizeThread = (conv: any, meId: string) => {
 
   const myLastReadAt = myPart?.lastReadAt ? new Date(myPart.lastReadAt).getTime() : 0;
 
-  // ✅ unread REAL: último msg > mi lastReadAt (y que no sea mi propio msg)
-  const unread = lastMessageAt > myLastReadAt && String(last?.senderId || "") !== String(meId);
+  const unreadCount = Number(conv?.unreadCount || 0);
+  const unread = unreadCount > 0;
 
   const refCode = prop?.refCode || null;
   const propertyTitle = prop?.title || null;
@@ -1367,11 +1367,10 @@ const normalizeThread = (conv: any, meId: string) => {
     refCode,
     propertyTitle,
     title,
-
-    // ✅ server truth para badges
     myLastReadAt,
     lastMessageAt,
     unread,
+    unreadCount,
   };
 };
 
@@ -1494,43 +1493,68 @@ export async function getMyConversationsAction() {
     const me = meRes?.data;
     if (!me?.id) return { success: false, error: "UNAUTH" };
 
-    const items = await prisma.conversation.findMany({
-      where: { participants: { some: { userId: me.id } } },
-      orderBy: { updatedAt: "desc" },
+  const items = await prisma.conversation.findMany({
+  where: { participants: { some: { userId: me.id } } },
+  orderBy: { updatedAt: "desc" },
+  include: {
+    participants: {
       include: {
-        participants: {
-          include: {
-          user: {
-            select: {
-              id: true,
-              role: true,
-              name: true,
-              surname: true,
-              email: true,
-              avatar: true,
-              companyName: true,
-              companyLogo: true,
-              coverImage: true,
-              phone: true, 
-              mobile: true,
-              website: true,
-              licenseNumber: true
-            },
-          },
+        user: {
+          select: {
+            id: true,
+            role: true,
+            name: true,
+            surname: true,
+            email: true,
+            avatar: true,
+            companyName: true,
+            companyLogo: true,
+            coverImage: true,
+            phone: true,
+            mobile: true,
+            website: true,
+            licenseNumber: true,
           },
         },
-        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+    },
+    messages: { orderBy: { createdAt: "desc" }, take: 1 },
+  },
+});
+
+// ✅ cálculo real de unreadCount por conversación
+const unreadCountEntries = await Promise.all(
+  (items || []).map(async (c: any) => {
+    const myPart = Array.isArray(c?.participants)
+      ? c.participants.find((p: any) => String(p?.userId) === String(me.id))
+      : null;
+
+    const lastReadDate = myPart?.lastReadAt
+      ? new Date(myPart.lastReadAt)
+      : new Date(0);
+
+    const count = await prisma.message.count({
+      where: {
+        conversationId: String(c.id),
+        senderId: { not: String(me.id) },
+        createdAt: { gt: lastReadDate },
       },
     });
 
-    const propIds = Array.from(
-      new Set(
-        (items || [])
-          .map((c: any) => c?.propertyId)
-          .filter(Boolean)
-          .map(String)
-      )
-    );
+    return [String(c.id), count] as const;
+  })
+);
+
+const unreadCountMap = new Map<string, number>(unreadCountEntries);
+
+const propIds = Array.from(
+  new Set(
+    (items || [])
+      .map((c: any) => c?.propertyId)
+      .filter(Boolean)
+      .map(String)
+  )
+);
 
     // 🔥 EL GOLPE TÁCTICO: Traemos toda la info de la casa en la misma consulta 🔥
     const rawProps = propIds.length
@@ -1626,25 +1650,32 @@ export async function getMyConversationsAction() {
         });
     });
 
-    const normalized = (items || []).map((c: any) => {
-      const pid = c?.propertyId ? String(c.propertyId) : null;
-      const prop = pid ? propMap.get(pid) : null;
+   const normalized = (items || []).map((c: any) => {
+  const pid = c?.propertyId ? String(c.propertyId) : null;
+  const prop = pid ? propMap.get(pid) : null;
 
-      // ✅ compat: algunos frontends miran t.lastMessage directamente
-      const lastMessage =
-        Array.isArray(c?.messages) && c.messages.length > 0 ? c.messages[0] : null;
+  // ✅ compat: algunos frontends miran t.lastMessage directamente
+  const lastMessage =
+    Array.isArray(c?.messages) && c.messages.length > 0 ? c.messages[0] : null;
 
-      return normalizeThread(
-        { ...(c as any), property: prop, lastMessage } as any,
-        me.id
-      );
-    });
+  const unreadCount = Number(unreadCountMap.get(String(c.id)) || 0);
 
-    normalized.sort((a: any, b: any) => {
-      const ta = a?.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
-      const tb = b?.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
-      return tb - ta;
-    });
+  return normalizeThread(
+    {
+      ...(c as any),
+      property: prop,
+      lastMessage,
+      unreadCount,
+    } as any,
+    me.id
+  );
+});
+
+normalized.sort((a: any, b: any) => {
+  const ta = a?.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
+  const tb = b?.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+  return tb - ta;
+});
 
     return { success: true, data: normalized };
   } catch (e: any) {
@@ -1781,7 +1812,7 @@ export async function sendMessageAction(a: any, b?: any) {
       });
     } catch {}
 
-    // 🔥🔥🔥 EL GATILLO DE WEB-SOCKETS (LA MAGIA EN TIEMPO REAL) 🔥🔥🔥
+   // 🔥🔥🔥 EL GATILLO DE WEB-SOCKETS (LA MAGIA EN TIEMPO REAL) 🔥🔥🔥
     try {
       const payload = {
         ...msg,
@@ -1789,8 +1820,24 @@ export async function sendMessageAction(a: any, b?: any) {
         text: msg?.text ?? text,
       };
       
+      // 1. Disparo a la sala de chat
       await pusherServer.trigger(`chat-${conversationId}`, 'new-message', payload);
       console.log(`📡 [PUSHER] Mensaje disparado al canal: chat-${conversationId}`);
+
+      // 2. 🌍 EL BUSCA DE SILICON VALLEY (Para que el móvil vibre)
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { participants: true }
+      });
+      
+      if (conversation) {
+        const receiverParticipant = conversation.participants.find((p: any) => p.userId !== me.id);
+        if (receiverParticipant) {
+          await pusherServer.trigger(`user-${receiverParticipant.userId}`, 'new-message', payload);
+          console.log(`🌍 [PUSHER] ¡Busca disparado al usuario: ${receiverParticipant.userId}!`);
+        }
+      }
+
     } catch (pusherError) {
       console.error("⚠️ Error disparando Pusher:", pusherError);
     }
@@ -1807,6 +1854,7 @@ export async function sendMessageAction(a: any, b?: any) {
     return { success: false, error: String(e?.message || e) };
   }
 }
+
 // =========================================================
 // 🚫 CHAT MODERATION (bloquear + borrar conversación)
 // =========================================================

@@ -211,31 +211,38 @@ export const useStratosChat = (
     } catch (e) {}
   };
 
-  const updateUnreadFromThreads = (threads: any[]) => {
-    try {
-      const next: Record<string, number> = {};
-      (Array.isArray(threads) ? threads : []).forEach((t: any) => {
-        const id = String(t?.id || "");
-        if (!id) return;
-        if (String(chatConversationId || "") === id) return;
+const updateUnreadFromThreads = (threads: any[]) => {
+  try {
+    const next: Record<string, number> = {};
 
-        const isUnread = !!t?.unread;
-        if (isUnread) {
-          next[id] = 1;
-          const lastAt = Number(t?.lastMessageAt || 0);
-          const notifiedAt = Number(lastNotifiedAtRef.current[id] || 0);
-          if (lastAt && lastAt > notifiedAt) {
-            const title = t?.title || t?.propertyTitle || t?.refCode || "Nuevo mensaje";
-            addNotification(`📩 ${title}`);
-            lastNotifiedAtRef.current[id] = lastAt;
-          }
+    (Array.isArray(threads) ? threads : []).forEach((t: any) => {
+      const id = String(t?.id || "");
+      if (!id) return;
+
+      // si el chat está abierto, no lo contamos como unread en la Omni
+    if (chatOpen && String(chatConversationId || "") === id) return;
+
+      const count = Number(t?.unreadCount || (t?.unread ? 1 : 0) || 0);
+
+      if (count > 0) {
+        next[id] = count;
+
+        const lastAt = Number(t?.lastMessageAt || 0);
+        const notifiedAt = Number(lastNotifiedAtRef.current[id] || 0);
+
+        if (lastAt && lastAt > notifiedAt) {
+          const title = t?.title || t?.propertyTitle || t?.refCode || "Nuevo mensaje";
+          addNotification(`📩 ${title}`);
+          lastNotifiedAtRef.current[id] = lastAt;
         }
-      });
-      setUnreadByConv(next);
-    } catch (err) {
-      console.warn("updateUnreadFromThreads failed:", err);
-    }
-  };
+      }
+    });
+
+    setUnreadByConv(next);
+  } catch (err) {
+    console.warn("updateUnreadFromThreads failed:", err);
+  }
+};
 
   const openConversation = async (conversationId: string) => {
     if (!conversationId) return;
@@ -544,11 +551,48 @@ export const useStratosChat = (
     };
   }, [identityVerified, activeUserKey, chatConversationId, chatOpen]);
 
+  // 🌍 WEBSOCKET GLOBAL: actualiza Omni / threads aunque el chat esté cerrado
+useEffect(() => {
+  if (!identityVerified || !activeUserKey || activeUserKey === "anon") return;
+
+  const pusher = getPusherClient();
+  if (!pusher) return;
+
+  const channelName = `user-${activeUserKey}`;
+  const channel = pusher.subscribe(channelName);
+
+  const refreshThreadsFromServer = async () => {
+    try {
+      const listFn = listMyConversationsAction as any;
+      if (typeof listFn !== "function") return;
+
+      const res = await listFn();
+      if (!res?.success) return;
+
+      const threads = Array.isArray(res.data) ? res.data : [];
+      setChatThreads(threads);
+      updateUnreadFromThreads(threads);
+    } catch (e) {
+      console.warn("global websocket refresh failed:", e);
+    }
+  };
+
+  const onGlobalMessage = async (newMsg: any) => {
+    await refreshThreadsFromServer();
+  };
+
+  channel.bind("new-message", onGlobalMessage);
+
+  return () => {
+    channel.unbind("new-message", onGlobalMessage);
+    pusher.unsubscribe(channelName);
+  };
+}, [identityVerified, activeUserKey, chatConversationId]);
+
   // 🔥🔥🔥 WEBSOCKETS: RECEPTOR DE SEÑAL EN TIEMPO REAL (PUSHER) 🔥🔥🔥
   useEffect(() => {
-    // Si no hay una conversación abierta, apagamos la radio
-    if (!chatConversationId) return;
-
+  // solo escuchamos la sala si el chat está realmente abierto
+  if (!chatOpen || !chatConversationId) return;
     // Encendemos la antena
     const pusher = getPusherClient();
     if (!pusher) return;
@@ -584,13 +628,14 @@ export const useStratosChat = (
       scrollChatToBottom();
     });
 
-    // 🧹 Limpieza táctica: Cuando cerramos el chat o cambiamos de conversación, apagamos la radio de este canal
+   // 🧹 Limpieza táctica: Cuando cerramos el chat o cambiamos de conversación, apagamos la radio de este canal
     return () => {
       channel.unbind("new-message");
       pusher.unsubscribe(channelName);
     };
-  }, [chatConversationId]);
+  }, [chatOpen, chatConversationId]);
 
+  
   return {
     chatOpen, setChatOpen,
     chatThreads, setChatThreads,
