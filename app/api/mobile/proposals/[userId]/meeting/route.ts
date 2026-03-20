@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server';
+// 5 saltos hacia atrás porque estamos un nivel más profundo
 import { prisma } from '../../../../../lib/prisma'; 
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ campaignId: string }> }
+  // 🔥 TRUCO: Le decimos a Next.js que la carpeta se llama userId para que no colisione
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const { campaignId } = await params;
-    const body = await request.json();
-    const { meetingForm, userId } = body;
+    // 🔥 TRUCO: Extraemos userId de la URL, pero sabemos que el móvil nos mandó el ID de la Campaña
+    const resolvedParams = await params;
+    const campaignId = resolvedParams.userId; 
 
-    if (!campaignId || !userId) {
+    const body = await request.json();
+    const { meetingForm, userId: actualUserId } = body;
+
+    if (!campaignId || !actualUserId) {
       return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
     }
 
     console.log(`📡 [API MOBILE] Petición de Asesoramiento para campaña: ${campaignId}`);
 
-    // 1. Buscamos la campaña para sacar los datos del piso y la agencia
+    // 1. Buscamos la campaña
     const campaign = await prisma.campaign.findUnique({
       where: { id: campaignId },
       include: {
@@ -31,7 +36,7 @@ export async function POST(
 
     const agencyName = campaign.agency?.companyName || campaign.agency?.name || "la Agencia";
 
-    // 2. 🔥 CREAMOS EL LEAD B2B PARA QUE LA WEB SE ENTERE (Sincronización)
+    // 2. 🔥 CREAMOS EL LEAD B2B PARA QUE LA WEB SE ENTERE
     const newLead = await prisma.lead.create({
       data: {
         propertyId: campaign.propertyId,
@@ -39,7 +44,7 @@ export async function POST(
         email: meetingForm.email,
         phone: meetingForm.phone,
         message: `Cita solicitada desde App Móvil. Opciones: ${meetingForm.date1} / ${meetingForm.date2}`,
-        source: "B2B_MEETING", // 👈 ESTA ETIQUETA ES LA QUE ACTIVA EL CALENDARIO EN LA WEB
+        source: "B2B_MEETING", // 👈 ESTA ETIQUETA ACTIVA EL CALENDARIO EN LA WEB
         managerId: campaign.agencyId
       }
     });
@@ -51,7 +56,7 @@ export async function POST(
       await prisma.message.create({
         data: {
           conversationId: campaign.conversationId,
-          senderId: userId,
+          senderId: actualUserId,
           text: meetingText
         }
       });
