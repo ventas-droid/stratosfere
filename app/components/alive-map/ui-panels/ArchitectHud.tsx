@@ -1123,7 +1123,7 @@ const StepEnergy = ({ formData, updateData, setStep }: any) => {
 const StepMedia = ({ formData, updateData, setStep }: any) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 👇 NUEVA LÓGICA BLINDADA PARA CLOUDFLARE R2
+  // 👇 NUEVA LÓGICA BLINDADA PARA CLOUDFLARE R2 (CON ADUANAS AMPLIADAS)
   const handleFileUpload = async (e: any) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -1131,11 +1131,21 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
     // 1. Enviamos cada archivo a nuestro propio servidor (R2)
     const uploadPromises = files.map(async (file: any) => {
         try {
+            // 🛑 CONTROL DE ADUANAS (LÍMITES AMPLIADOS PARA VÍDEOS DE 1:30 MIN)
+            const isVideo = file.type.startsWith('video/');
+            const maxSizeMB = isVideo ? 150 : 20; // 150MB vídeos, 20MB fotos/PDF originales
+            
+            if (file.size > maxSizeMB * 1024 * 1024) {
+                alert(`⚠️ ARCHIVO MUY PESADO: "${file.name}" supera el límite de ${maxSizeMB}MB.`);
+                return null; // El dron aborta el despegue
+            }
+
             let fileToUpload = file;
 
-            // 🛡️ Comprimimos la imagen antes de enviarla
+            // 🛡️ Comprimimos la imagen antes de enviarla (CALIDAD AUMENTADA)
             if (file.type.startsWith('image/')) {
-                fileToUpload = await imageCompression(file, { maxSizeMB: 2, maxWidthOrHeight: 1920, useWebWorker: true });
+                // Resolución 2K (2048) y hasta 3MB de peso final para máxima nitidez inmobiliaria
+                fileToUpload = await imageCompression(file, { maxSizeMB: 3, maxWidthOrHeight: 2048, useWebWorker: true });
             }
 
             // 📡 Pedimos pista de aterrizaje a Cloudflare R2
@@ -1158,7 +1168,7 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
                 return null;
             }
 
-            console.log("✅ FOTO EN CLOUDFLARE R2:", publicUrl);
+            console.log("✅ ARCHIVO EN CLOUDFLARE R2:", publicUrl);
             return publicUrl;
         } catch (error) {
             console.error("❌ Derribado en vuelo:", error);
@@ -1169,12 +1179,12 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
     // 2. Esperamos a que la escuadra vuelva con las URLs seguras
     const uploadedUrls = await Promise.all(uploadPromises);
 
-    // 3. Filtramos las bajas (si alguna falló)
+    // 3. Filtramos las bajas (si alguna falló por ser muy pesada o por error de red)
     const validUrls = uploadedUrls.filter(url => url !== null);
 
     // 4. Actualizamos el radar del formulario
     const currentImages = formData.images || [];
-    const combined = [...currentImages, ...validUrls].slice(0, 10);
+    const combined = [...currentImages, ...validUrls].slice(0, 10); // Máximo 10 archivos por propiedad
     updateData("images", combined);
   };
 
@@ -1185,7 +1195,6 @@ const StepMedia = ({ formData, updateData, setStep }: any) => {
   };
   
   const images = formData.images || [];
-
   return (
     <div className="h-full flex flex-col animate-fade-in-right px-2">
       <input 

@@ -320,32 +320,24 @@ const nav = (dir: number) => {
                       <div className="w-full h-full bg-black flex items-center justify-center relative z-10">
                           <video key={String(current)} src={String(current)} className="w-full h-full object-contain" controls autoPlay playsInline loop onLoadedData={() => setIsLoaded(true)} />
                       </div>
-                  ) : isPdf ? (
-                      <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center relative z-10 group p-4 md:p-8">
-                          <img
-                              src={String(current).replace(/\.pdf$/i, ".jpg")}
-                              alt="Vista previa"
-                              className="relative z-10 h-full w-auto object-contain shadow-[0_30px_80px_rgba(0,0,0,0.18)] rounded-2xl bg-white border border-black/5"
-                              onLoad={() => setIsLoaded(true)}
-                              onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                  e.currentTarget.nextElementSibling?.classList.remove("hidden");
-                                  setIsLoaded(true);
-                              }}
-                          />
-                          <div className="hidden absolute inset-0 z-10 flex flex-col items-center justify-center">
-                              <FileText size={64} className="text-slate-300 mb-4" />
-                              <p className="text-slate-400 font-bold">Vista previa no disponible</p>
+                 ) : isPdf ? (
+                      <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center relative z-10 group p-4 md:p-8" onLoad={() => setIsLoaded(true)}>
+                          {/* Diseño limpio de documento en lugar de intentar cargar un JPG fantasma */}
+                          <div className="relative z-10 flex flex-col items-center justify-center">
+                              <FileText size={80} className="text-slate-400 mb-6 drop-shadow-md" />
+                              <p className="text-slate-500 font-bold tracking-widest uppercase text-sm">Documento PDF</p>
                           </div>
-                          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/0 hover:bg-black/10 transition-colors pointer-events-none">
+                          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/0 hover:bg-black/5 transition-colors pointer-events-none">
                               <a
-                                  href={String(current).replace("/upload/", "/upload/fl_attachment/")}
+                                  href={String(current)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                   download
                                   onClick={(e) => e.stopPropagation()}
                                   className="pointer-events-auto px-8 py-4 bg-black text-white rounded-full text-sm font-bold shadow-2xl hover:scale-105 transition-transform flex items-center gap-3 opacity-95 hover:opacity-100"
                               >
                                   <FileText size={20} className="text-red-400" />
-                                  DESCARGAR PDF
+                                  ABRIR / DESCARGAR PDF
                               </a>
                           </div>
                       </div>
@@ -456,17 +448,19 @@ const nav = (dir: number) => {
                       </>
                   )}
 
-                  {/* MINIATURAS (THUMBNAILS) BLINDADAS */}
+                {/* MINIATURAS (THUMBNAILS) BLINDADAS */}
                   {showChrome && showThumbs && hasMultiplePhotos && (
-                      <div className="absolute bottom-6 right-6 z-40 max-w-[44vw] hidden md:flex items-center gap-2 px-3 py-3 rounded-[22px] bg-black/28 backdrop-blur-2xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.22)] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-                          {unique.slice(0, 8).map((src, thumbIdx) => {
+                      <div 
+                          className="absolute bottom-6 right-6 z-40 max-w-[44vw] hidden md:flex items-center gap-2 px-3 py-3 rounded-[22px] bg-black/28 backdrop-blur-2xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.22)] pointer-events-auto overflow-x-auto scrollbar-hide" 
+                          onClick={(e) => e.stopPropagation()}
+                      >
+                          {unique.map((src, realIdx) => {
                               const thumbIsVideo = src.match(/\.(mp4|mov|webm|mkv)$/i) || src.includes("/video/upload");
                               const thumbIsPdf = src.match(/\.pdf$/i) || src.includes(".pdf");
-                              const previewSrc = thumbIsPdf ? src.replace(/\.pdf$/i, ".jpg") : src;
 
                               return (
                                   <button
-                                      key={`${src}-${thumbIdx}`}
+                                      key={`${src}-${realIdx}`}
                                       onClick={(e) => {
                                           e.stopPropagation();
                                           if (soundEnabled && playSynthSound) playSynthSound("click");
@@ -476,18 +470,18 @@ const nav = (dir: number) => {
                                               clearTimeout(hidePrevTimer.current);
                                               hidePrevTimer.current = setTimeout(() => setShowPrevLayer(false), 400);
                                           }
-                                          setIdx(thumbIdx);
+                                          setIdx(realIdx);
                                       }}
-                                      className={`relative w-14 h-14 rounded-2xl overflow-hidden border transition-all cursor-pointer ${thumbIdx === idx ? "border-fuchsia-400 shadow-[0_0_0_1px_rgba(217,70,239,0.35)] scale-105" : "border-white/10 hover:border-white/30"}`}
+                                      className={`relative shrink-0 w-14 h-14 rounded-2xl overflow-hidden border transition-all cursor-pointer ${realIdx === idx ? "border-fuchsia-400 shadow-[0_0_0_1px_rgba(217,70,239,0.35)] scale-105" : "border-white/10 hover:border-white/30"}`}
                                   >
                                       {thumbIsVideo ? (
                                           <div className="w-full h-full bg-black flex items-center justify-center"><Play size={14} className="text-white" /></div>
                                       ) : thumbIsPdf ? (
-                                          <div className="w-full h-full bg-slate-200 flex items-center justify-center"><FileText size={14} className="text-slate-700" /></div>
+                                          <div className="w-full h-full bg-slate-800 flex items-center justify-center"><FileText size={14} className="text-white" /></div>
                                       ) : (
-                                          <img src={previewSrc} alt={`thumb-${thumbIdx}`} className="w-full h-full object-cover" />
+                                          <img src={src} alt={`thumb-${realIdx}`} className="w-full h-full object-cover" />
                                       )}
-                                      {thumbIdx === idx && <div className="absolute inset-0 ring-1 ring-fuchsia-300/60 rounded-2xl" />}
+                                      {realIdx === idx && <div className="absolute inset-0 ring-1 ring-fuchsia-300/60 rounded-2xl" />}
                                   </button>
                               );
                           })}
