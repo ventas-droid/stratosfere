@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-// Asegúrese de que esta es su ruta real de prisma en el proyecto web.
-import { prisma } from '../../../../lib/prisma';
+import { prisma } from '../../../../lib/prisma'; 
 
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  // 🔥 CORRECCIÓN PARA VERCEL: Ahora tipamos params como Promise
+  { params }: { params: Promise<{ userId: string }> } 
 ) {
   try {
-    const { userId } = params;
+    // 🔥 CORRECCIÓN PARA VERCEL: Ahora esperamos (await) a que llegue el parámetro
+    const { userId } = await params; 
 
     if (!userId) {
       return NextResponse.json({ error: 'Falta el ID del usuario' }, { status: 400 });
@@ -18,29 +19,20 @@ export async function GET(
     const proposals = await prisma.campaign.findMany({
       where: {
         property: {
-          userId: userId // Solo buscamos las campañas de las casas que le pertenecen a este usuario
+          userId: userId 
         }
       },
       include: {
         agency: {
           select: {
-            id: true,
-            name: true,
-            companyName: true,
-            avatar: true,
-            email: true,
-            phone: true,
-            mobile: true,
+            id: true, name: true, companyName: true, avatar: true,
+            email: true, phone: true, mobile: true,
           }
         },
         property: {
           select: {
-            id: true,
-            title: true,
-            refCode: true,
-            address: true,
-            city: true,
-            price: true,
+            id: true, title: true, refCode: true,
+            address: true, city: true, price: true,
           }
         }
       },
@@ -48,8 +40,6 @@ export async function GET(
         createdAt: 'desc'
       }
     });
-
-    console.log(`✅ [API MOBILE] Se encontraron ${proposals.length} propuestas.`);
 
     return NextResponse.json(proposals);
 
