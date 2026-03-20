@@ -3844,6 +3844,8 @@ export async function submitLeadAction(data: {
             } catch (e) { console.error("Error stats:", e); }
         }
 
+
+        
         return { success: true, data: newLead };
 
     } catch (e) {
