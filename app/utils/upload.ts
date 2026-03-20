@@ -1,24 +1,19 @@
 import imageCompression from 'browser-image-compression';
-import { getUploadUrl } from './r2-server';
+import { getUploadUrl } from './r2-server'; 
 
-
-// 🚁 DRON DE CARGA: MUNICIÓN UNIVERSAL COMPRIMIDA
+// 🚁 NUEVO DRON DE CARGA (Camuflado como Cloudinary, pero ataca a Cloudflare R2)
 export const uploadToCloudinary = async (file: File) => {
   if (!file) return null;
 
-  // 👇 DATOS CONFIRMADOS
-  const CLOUD_NAME = "dn11trogr"; 
-  const UPLOAD_PRESET = "stratos_upload"; 
-  
   let fileToUpload = file;
 
-  // 🛡️ CORTAFUEGOS DE PESO: Solo comprimimos si es una imagen (dejamos los PDFs y Videos en paz)
+  // 🛡️ CORTAFUEGOS DE PESO: Solo comprimimos si es una imagen
   if (file.type.startsWith('image/')) {
       try {
           const options = {
-              maxSizeMB: 2,           // Peso máximo objetivo: 2MB (Ideal para inmobiliarias)
-              maxWidthOrHeight: 1920, // Resolución máxima HD (Suficiente para pantallas grandes)
-              useWebWorker: true,     // Usa el procesador del usuario para que no se congele la pantalla
+              maxSizeMB: 2,           
+              maxWidthOrHeight: 1920, 
+              useWebWorker: true,     
           };
           
           console.log(`⚖️ Peso original: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
@@ -30,30 +25,26 @@ export const uploadToCloudinary = async (file: File) => {
       }
   }
 
-  const formData = new FormData();
-  formData.append("file", fileToUpload);
-  formData.append("upload_preset", UPLOAD_PRESET);
-
   try {
-    // 🚨 MODO AUTO: Preparado para fotos y vídeos
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, 
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    if (!response.ok) {
-        const errorText = await response.text(); 
-        console.error("🚨 TEXTO DE RECHAZO CLOUDINARY:", errorText);
-        throw new Error(`Cloudinary bloqueó el dron. Código: ${response.status}`);
+    // 1️⃣ Pedimos la pista de aterrizaje temporal a nuestro búnker (R2)
+    const { success, uploadUrl, publicUrl } = await getUploadUrl(fileToUpload.name, fileToUpload.type);
+    
+    if (!success || !uploadUrl) {
+        throw new Error("Cloudflare denegó el pase de aterrizaje");
     }
+
+    // 2️⃣ Disparamos el archivo directamente a la URL segura de R2
+    const response = await fetch(uploadUrl, {
+        method: "PUT",
+        body: fileToUpload,
+        headers: { "Content-Type": fileToUpload.type },
+    });
+
+    if (!response.ok) throw new Error(`R2 rechazó la carga: ${response.statusText}`);
+
+    console.log("✅ ACTIVO EN NUBE R2:", publicUrl);
     
-    const data = await response.json();
-    console.log("✅ ACTIVO EN NUBE:", data.secure_url);
-    
-    return data.secure_url; 
+    return publicUrl; 
 
   } catch (error) {
     console.error("❌ EL DRON HA SIDO DERRIBADO:", error);
