@@ -17,13 +17,15 @@ export async function GET(
       where: {
         property: {
           OR: [
-            { userId: userId }, // Soy el dueño
-            { assignment: { agencyId: userId, status: "ACTIVE" } } // O soy la agencia que la lleva
+            { userId: userId }, 
+            { assignment: { agencyId: userId, status: "ACTIVE" } } 
           ]
         }
       },
       include: {
-        property: { select: { refCode: true, title: true } }
+        property: { 
+          select: { refCode: true, title: true, user: { select: { avatar: true, companyLogo: true } } } 
+        }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -31,18 +33,21 @@ export async function GET(
     // ⚙️ Formateo para la app móvil
     const formattedLeads = leads.map((l: any) => ({
       id: l.id,
+      status: l.status, // 🔥 ¡ESTA ERA LA PIEZA QUE FALTABA PARA LA BURBUJA!
       name: l.name,
       email: l.email,
       phone: l.phone,
       message: l.message,
       source: l.source || "ORGANIC",
+      date: l.createdAt, 
       property: {
         refCode: l.property?.refCode || "Sin Ref",
-        title: l.property?.title || "Sin título"
+        title: l.property?.title || "Sin título",
+        user: { avatar: l.property?.user?.avatar || l.property?.user?.companyLogo || null }
       }
     }));
 
-    return NextResponse.json(formattedLeads);
+    return NextResponse.json({ success: true, data: formattedLeads }); // 👈 Lo metemos en data para que el móvil lo lea fácil
   } catch (error) {
     console.error("❌ Error API Leads:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });

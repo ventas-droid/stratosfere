@@ -3734,6 +3734,7 @@ export async function submitLeadAction(data: {
         const currentUser = await getCurrentUser(); 
 
         console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO", "| ORIGEN:", data.source || "ORGÁNICO");
+        
         // 2. GUARDAR EN LA BASE DE DATOS
         const newLead = await prisma.lead.create({
             data: {
@@ -3751,6 +3752,42 @@ export async function submitLeadAction(data: {
             } 
         });
 
+     // 🔥🔥🔥 GATILLO PUSHER: PAQUETE PESO PLUMA (ANTI-BLOQUEO 10KB) 🔥🔥🔥
+       try {
+    const ownerId = String(newLead?.property?.userId || "");
+    console.log("🧪 [LEAD] ownerId calculado =", ownerId);
+    console.log("🧪 [LEAD] property =", {
+      id: newLead?.property?.id,
+      refCode: newLead?.property?.refCode,
+      userId: newLead?.property?.userId,
+      title: newLead?.property?.title,
+    });
+
+    if (ownerId) {
+        const paqueteLigero = {
+            id: newLead.id,
+            status: "NEW",
+            name: newLead.name,
+            email: newLead.email,
+            phone: newLead.phone,
+            message: newLead.message,
+            property: {
+                refCode: newLead.property?.refCode || "REF",
+                title: newLead.property?.title || "Propiedad",
+            },
+        };
+
+        console.log("🧪 [LEAD] enviando Pusher a canal =", `user-${ownerId}`);
+
+        await pusherServer.trigger(`user-${ownerId}`, "new-lead", paqueteLigero);
+
+        console.log("✅ [LEAD] Pusher new-lead disparado OK a", `user-${ownerId}`);
+    } else {
+        console.log("❌ [LEAD] NO hay ownerId, no se dispara Pusher");
+    }
+} catch (pusherError) {
+    console.error("⚠️ Error disparando Pusher de Leads:", pusherError);
+}
         // 3. 🔥 ENVIAR EMAIL AL AGENTE (USANDO SU PATRÓN LOCAL)
         const agentEmail = newLead.property.user?.email;
         const resendApiKey = process.env.RESEND_API_KEY;
@@ -3810,7 +3847,7 @@ export async function submitLeadAction(data: {
         return { success: true, data: newLead };
 
     } catch (e) {
-        console.error("Error submitLeadAction:", e);
+        console.error("Error submitLeadAction:", e);   
         return { success: false, error: "Error al enviar solicitud." };
     }
 }

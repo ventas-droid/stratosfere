@@ -1,4 +1,6 @@
 import imageCompression from 'browser-image-compression';
+import { getUploadUrl } from './r2-server';
+
 
 // 🚁 DRON DE CARGA: MUNICIÓN UNIVERSAL COMPRIMIDA
 export const uploadToCloudinary = async (file: File) => {

@@ -24,7 +24,8 @@ import StepAgencyB2B from "./StepAgencyB2B"; // 👈 AÑADA ESTA LÍNEA
 //  Hemos añadido getUserMeAction para poder verificar el rol
 import { savePropertyAction, getUserMeAction } from '@/app/actions';
 import { getMarketRadarAction } from '@/app/actions-market';
-import { uploadToCloudinary } from '@/app/utils/upload';
+import { getUploadUrl } from '@/app/utils/r2-server'; // 📞 Nueva Radio R2 directa
+import imageCompression from 'browser-image-compression'; // 🗜️ Para comprimir
 
 const MAPBOX_TOKEN = "pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw";
 
@@ -1122,23 +1123,56 @@ const StepEnergy = ({ formData, updateData, setStep }: any) => {
 const StepMedia = ({ formData, updateData, setStep }: any) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 👇 LÓGICA MODIFICADA PARA CLOUDINARY
+  // 👇 NUEVA LÓGICA BLINDADA PARA CLOUDFLARE R2
   const handleFileUpload = async (e: any) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // 1. Enviamos cada archivo al Dron de Carga
+    // 1. Enviamos cada archivo a nuestro propio servidor (R2)
     const uploadPromises = files.map(async (file: any) => {
-        return await uploadToCloudinary(file);
+        try {
+            let fileToUpload = file;
+
+            // 🛡️ Comprimimos la imagen antes de enviarla
+            if (file.type.startsWith('image/')) {
+                fileToUpload = await imageCompression(file, { maxSizeMB: 2, maxWidthOrHeight: 1920, useWebWorker: true });
+            }
+
+            // 📡 Pedimos pista de aterrizaje a Cloudflare R2
+            const { success, uploadUrl, publicUrl } = await getUploadUrl(fileToUpload.name, fileToUpload.type);
+            
+            if (!success || !uploadUrl) {
+                console.error("❌ Cloudflare denegó el pase");
+                return null;
+            }
+
+            // 🚀 Disparamos el archivo directo al búnker
+            const response = await fetch(uploadUrl, {
+                method: "PUT",
+                body: fileToUpload,
+                headers: { "Content-Type": fileToUpload.type },
+            });
+
+            if (!response.ok) {
+                console.error("❌ Fallo en R2:", response.statusText);
+                return null;
+            }
+
+            console.log("✅ FOTO EN CLOUDFLARE R2:", publicUrl);
+            return publicUrl;
+        } catch (error) {
+            console.error("❌ Derribado en vuelo:", error);
+            return null;
+        }
     });
 
-    // 2. Esperamos a que el Dron vuelva con las URLs seguras
+    // 2. Esperamos a que la escuadra vuelva con las URLs seguras
     const uploadedUrls = await Promise.all(uploadPromises);
 
-    // 3. Filtramos si alguna falló
+    // 3. Filtramos las bajas (si alguna falló)
     const validUrls = uploadedUrls.filter(url => url !== null);
 
-    // 4. Actualizamos el formulario con las URLs de internet
+    // 4. Actualizamos el radar del formulario
     const currentImages = formData.images || [];
     const combined = [...currentImages, ...validUrls].slice(0, 10);
     updateData("images", combined);
