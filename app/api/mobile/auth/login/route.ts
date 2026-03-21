@@ -27,14 +27,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
     }
 
-    const userData = {
-      id: user.id,
-      email: user.email,
-      name: user.name || "Agente",
-      role: user.role,
-      avatar: user.avatar ?? null,
-      companyLogo: user.companyLogo ?? null,
-    };
+   const userData = {
+  id: user.id,
+  email: user.email,
+  name: user.name || "Agente",
+  role: user.role,
+  avatar: user.avatar ?? null,
+  companyLogo: user.companyLogo ?? null,
+  coverImage: user.coverImage ?? null,
+};
 
     return NextResponse.json({ message: "Acceso concedido", user: userData });
 
