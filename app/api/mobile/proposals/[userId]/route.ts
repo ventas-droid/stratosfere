@@ -3,11 +3,9 @@ import { prisma } from '../../../../lib/prisma';
 
 export async function GET(
   request: Request,
-  // 🔥 CORRECCIÓN PARA VERCEL: Ahora tipamos params como Promise
   { params }: { params: Promise<{ userId: string }> } 
 ) {
   try {
-    // 🔥 CORRECCIÓN PARA VERCEL: Ahora esperamos (await) a que llegue el parámetro
     const { userId } = await params; 
 
     if (!userId) {
@@ -25,14 +23,24 @@ export async function GET(
       include: {
         agency: {
           select: {
-            id: true, name: true, companyName: true, avatar: true,
-            email: true, phone: true, mobile: true,
+            id: true,
+            name: true,
+            companyName: true,
+            avatar: true,
+            companyLogo: true,
+            email: true,
+            phone: true,
+            mobile: true,
           }
         },
         property: {
           select: {
-            id: true, title: true, refCode: true,
-            address: true, city: true, price: true,
+            id: true,
+            title: true,
+            refCode: true,
+            address: true,
+            city: true,
+            price: true,
           }
         }
       },
