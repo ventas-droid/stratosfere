@@ -31,30 +31,87 @@ export async function GET(
     });
 
     // 2. LA MAGIA: Formateamos para que el móvil reciba exactamente lo que espera
-   const formattedProperties = properties.map((prop: any) => {
+  const formattedProperties = properties.map((prop: any) => {
   const activeCampaign =
-    prop.campaigns && prop.campaigns.length > 0
+    Array.isArray(prop.campaigns) && prop.campaigns.length > 0
       ? prop.campaigns[0]
       : null;
 
-  const isManaged = !!prop.assignment || !!activeCampaign;
-
-  const isCaptured =
-    !!prop.assignment &&
-    prop.assignment.status === 'ACTIVE' &&
-    !!activeCampaign;
-
-  const agencyName =
-    activeCampaign?.agency?.companyName ||
-    prop.assignment?.agency?.companyName ||
-    null;
+  const assignment = prop.assignment ?? null;
+  const managingAgency = activeCampaign?.agency || assignment?.agency || null;
+  const isManaged = !!assignment || !!activeCampaign;
 
   return {
     ...prop,
+
+    // 🔥 CONTEXTO PRINCIPAL PARA MÓVIL
     activeCampaign,
     isManaged,
-    isCaptured,
-    agencyName,
+    isCaptured: isManaged,
+    managerType: isManaged ? 'AGENCY' : 'OWNER',
+
+    // 🔥 AGENCIA RESUMIDA
+    agencyName:
+      managingAgency?.companyName ||
+      managingAgency?.name ||
+      null,
+
+    agency: managingAgency
+      ? {
+          id: managingAgency.id,
+          name: managingAgency.name ?? null,
+          companyName: managingAgency.companyName ?? null,
+          avatar: managingAgency.avatar ?? null,
+          companyLogo: managingAgency.companyLogo ?? null,
+        }
+      : null,
+
+    // 🔥 TÉRMINOS DE GESTIÓN / EXPEDIENTE
+    mandateType:
+      activeCampaign?.mandateType ??
+      prop.mandateType ??
+      null,
+
+    exclusiveMandate:
+      activeCampaign?.exclusiveMandate ??
+      null,
+
+    exclusiveMonths:
+      activeCampaign?.exclusiveMonths ??
+      null,
+
+    commissionPct:
+      activeCampaign?.commissionPct ??
+      prop.commissionPct ??
+      0,
+
+    sharePct:
+      activeCampaign?.commissionSharePct ??
+      prop.sharePct ??
+      0,
+
+    shareVisibility:
+      activeCampaign?.commissionShareVisibility ??
+      prop.shareVisibility ??
+      'PRIVATE',
+
+    // 🔥 BLOQUE B2B RESUMIDO
+    b2b: activeCampaign
+      ? {
+          sharePct:
+            activeCampaign?.commissionSharePct ??
+            prop.sharePct ??
+            0,
+          visibility:
+            activeCampaign?.commissionShareVisibility ??
+            prop.shareVisibility ??
+            'PRIVATE',
+        }
+      : null,
+
+    // ✅ SOLO OCULTAMOS LOS ARRAYS CRUDOS EN LA RESPUESTA
+    campaigns: undefined,
+    assignment: undefined,
   };
 });
 
