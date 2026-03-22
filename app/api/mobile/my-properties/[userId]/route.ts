@@ -31,31 +31,32 @@ export async function GET(
     });
 
     // 2. LA MAGIA: Formateamos para que el móvil reciba exactamente lo que espera
-    const formattedProperties = properties.map(prop => {
-      
-      // Fabricamos el "activeCampaign" que la app está buscando
-      const activeCampaign = prop.campaigns && prop.campaigns.length > 0 
-        ? prop.campaigns[0] 
-        : null;
+   const formattedProperties = properties.map((prop: any) => {
+  const activeCampaign =
+    prop.campaigns && prop.campaigns.length > 0
+      ? prop.campaigns[0]
+      : null;
 
-      // Determinamos si está gestionada
-      const isManaged = !!prop.assignment || !!activeCampaign;
-      
-      // Rescatamos el nombre de la agencia si existe
-      const agencyName = activeCampaign?.agency?.companyName 
-        || prop.assignment?.agency?.companyName 
-        || null;
+  const isManaged = !!prop.assignment || !!activeCampaign;
 
-      return {
-        ...prop,
-        activeCampaign, // Inyectamos la campaña activa
-        isManaged,      // Inyectamos el booleano
-        agencyName,     // Inyectamos el nombre
-        // Limpiamos los arrays crudos para no mandar datos innecesarios al móvil
-        campaigns: undefined, 
-        assignment: undefined 
-      };
-    });
+  const isCaptured =
+    !!prop.assignment &&
+    prop.assignment.status === 'ACTIVE' &&
+    !!activeCampaign;
+
+  const agencyName =
+    activeCampaign?.agency?.companyName ||
+    prop.assignment?.agency?.companyName ||
+    null;
+
+  return {
+    ...prop,
+    activeCampaign,
+    isManaged,
+    isCaptured,
+    agencyName,
+  };
+});
 
     return NextResponse.json(formattedProperties);
 
