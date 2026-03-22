@@ -10,115 +10,197 @@ export async function GET(
   try {
     const { userId } = await params;
 
-    // 1. Pedimos las propiedades con las relaciones REALES del schema
+    if (!userId) {
+      return NextResponse.json({ error: 'Falta userId' }, { status: 400 });
+    }
+
     const properties = await prisma.property.findMany({
-      where: { userId: userId },
+      where: {
+        OR: [
+          { userId: userId },
+          { campaigns: { some: { agencyId: userId, status: 'ACCEPTED' } } },
+          { assignment: { agencyId: userId, status: 'ACTIVE' } }
+        ]
+      },
       include: {
         images: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+            avatar: true,
+            companyLogo: true,
+            role: true,
+          }
+        },
         campaigns: {
-          where: { status: 'ACCEPTED' }, // Traemos solo las campañas aceptadas
+          where: { agencyId: userId, status: 'ACCEPTED' },
           include: {
-            agency: true // Traemos los datos de la agencia de esa campaña
+            agency: {
+              select: {
+                id: true,
+                name: true,
+                companyName: true,
+                avatar: true,
+                companyLogo: true,
+                role: true,
+              }
+            }
           }
         },
         assignment: {
           include: {
-            agency: true // Por si está asignada de forma directa
+            agency: {
+              select: {
+                id: true,
+                name: true,
+                companyName: true,
+                avatar: true,
+                companyLogo: true,
+                role: true,
+              }
+            }
           }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // 2. LA MAGIA: Formateamos para que el móvil reciba exactamente lo que espera
-  const formattedProperties = properties.map((prop: any) => {
-  const activeCampaign =
-    Array.isArray(prop.campaigns) && prop.campaigns.length > 0
-      ? prop.campaigns[0]
-      : null;
+    const formattedProperties = properties.map((prop: any) => {
+      const activeCampaign =
+        Array.isArray(prop.campaigns) && prop.campaigns.length > 0
+          ? prop.campaigns[0]
+          : null;
 
-  const assignment = prop.assignment ?? null;
-  const managingAgency = activeCampaign?.agency || assignment?.agency || null;
-  const isManaged = !!assignment || !!activeCampaign;
+      const assignmentMatch =
+        prop.assignment &&
+        String(prop.assignment.agencyId) === String(userId) &&
+        String(prop.assignment.status || '').toUpperCase() === 'ACTIVE'
+          ? prop.assignment
+          : null;
 
-  return {
-    ...prop,
+      const isAgencyOwned = String(prop.userId || '') === String(userId);
+      const isAgencyInherited = !!activeCampaign || !!assignmentMatch;
+      const isManaged = isAgencyInherited;
 
-    // 🔥 CONTEXTO PRINCIPAL PARA MÓVIL
-    activeCampaign,
-    isManaged,
-    isCaptured: isManaged,
-    managerType: isManaged ? 'AGENCY' : 'OWNER',
+      const managingAgency =
+        activeCampaign?.agency ||
+        assignmentMatch?.agency ||
+        (isAgencyOwned ? prop.user : null);
 
-    // 🔥 AGENCIA RESUMIDA
-    agencyName:
-      managingAgency?.companyName ||
-      managingAgency?.name ||
-      null,
+      const agencyName =
+        managingAgency?.companyName ||
+        managingAgency?.name ||
+        (isAgencyOwned ? 'Mi Agencia' : null);
 
-    agency: managingAgency
-      ? {
-          id: managingAgency.id,
-          name: managingAgency.name ?? null,
-          companyName: managingAgency.companyName ?? null,
-          avatar: managingAgency.avatar ?? null,
-          companyLogo: managingAgency.companyLogo ?? null,
-        }
-      : null,
+      const managementMode = isAgencyOwned
+        ? 'AGENCY_OWNED'
+        : isAgencyInherited
+          ? 'AGENCY_INHERITED'
+          : 'PARTICULAR';
 
-    // 🔥 TÉRMINOS DE GESTIÓN / EXPEDIENTE
-    mandateType:
-      activeCampaign?.mandateType ??
-      prop.mandateType ??
-      null,
+      return {
+        ...prop,
 
-    exclusiveMandate:
-      activeCampaign?.exclusiveMandate ??
-      null,
+        // contexto móvil
+        activeCampaign,
+        isAgencyOwned,
+        isAgencyInherited,
+        isManaged,
+        isCaptured: isAgencyInherited,
+        managementMode,
+        managerType: isAgencyOwned || isAgencyInherited ? 'AGENCY' : 'OWNER',
 
-    exclusiveMonths:
-      activeCampaign?.exclusiveMonths ??
-      null,
+        // agencia resumida
+        agencyName,
+        agency: managingAgency
+          ? {
+              id: managingAgency.id,
+              name: managingAgency.name ?? null,
+              companyName: managingAgency.companyName ?? null,
+              avatar: managingAgency.avatar ?? null,
+              companyLogo: managingAgency.companyLogo ?? null,
+              role: managingAgency.role ?? null,
+            }
+          : null,
 
-    commissionPct:
-      activeCampaign?.commissionPct ??
-      prop.commissionPct ??
-      0,
+        // términos visibles para la card / expediente
+        mandateType:
+          activeCampaign?.mandateType ??
+          prop.mandateType ??
+          null,
 
-    sharePct:
-      activeCampaign?.commissionSharePct ??
-      prop.sharePct ??
-      0,
+        exclusiveMandate:
+          activeCampaign?.exclusiveMandate ??
+          null,
 
-    shareVisibility:
-      activeCampaign?.commissionShareVisibility ??
-      prop.shareVisibility ??
-      'PRIVATE',
+        exclusiveMonths:
+          activeCampaign?.exclusiveMonths ??
+          null,
 
-    // 🔥 BLOQUE B2B RESUMIDO
-    b2b: activeCampaign
-      ? {
-          sharePct:
-            activeCampaign?.commissionSharePct ??
-            prop.sharePct ??
-            0,
-          visibility:
-            activeCampaign?.commissionShareVisibility ??
-            prop.shareVisibility ??
-            'PRIVATE',
-        }
-      : null,
+        commissionPct:
+          activeCampaign?.commissionPct ??
+          prop.commissionPct ??
+          0,
 
-    // ✅ SOLO OCULTAMOS LOS ARRAYS CRUDOS EN LA RESPUESTA
-    campaigns: undefined,
-    assignment: undefined,
-  };
-});
+        sharePct:
+          activeCampaign?.commissionSharePct ??
+          prop.sharePct ??
+          0,
+
+        shareVisibility:
+          activeCampaign?.commissionShareVisibility ??
+          prop.shareVisibility ??
+          'PRIVATE',
+
+        commissionBaseEur:
+          activeCampaign?.commissionBaseEur ??
+          0,
+
+        commissionIvaEur:
+          activeCampaign?.commissionIvaEur ??
+          0,
+
+        commissionTotalEur:
+          activeCampaign?.commissionTotalEur ??
+          0,
+
+        commissionShareEur:
+          activeCampaign?.commissionShareEur ??
+          0,
+
+        // bloque b2b resumido
+        b2b: activeCampaign
+          ? {
+              sharePct:
+                activeCampaign?.commissionSharePct ??
+                prop.sharePct ??
+                0,
+              visibility:
+                activeCampaign?.commissionShareVisibility ??
+                prop.shareVisibility ??
+                'PRIVATE',
+            }
+          : isAgencyOwned
+            ? {
+                sharePct: prop.sharePct ?? 0,
+                visibility: prop.shareVisibility ?? 'PRIVATE',
+              }
+            : null,
+
+        // limpiamos relaciones crudas para que el móvil no se lie
+        campaigns: undefined,
+        assignment: undefined,
+      };
+    });
 
     return NextResponse.json(formattedProperties);
-
   } catch (error) {
-    console.error("Error extrayendo inventario del usuario:", error);
-    return NextResponse.json({ error: "Interferencia en el servidor" }, { status: 500 });
+    console.error('Error extrayendo inventario del usuario:', error);
+    return NextResponse.json(
+      { error: 'Interferencia en el servidor' },
+      { status: 500 }
+    );
   }
 }
