@@ -67,133 +67,138 @@ export async function GET(
       orderBy: { createdAt: 'desc' }
     });
 
-    const formattedProperties = properties.map((prop: any) => {
-      const activeCampaign =
-        Array.isArray(prop.campaigns) && prop.campaigns.length > 0
-          ? prop.campaigns[0]
-          : null;
+   const formattedProperties = properties.map((prop: any) => {
+  const activeCampaign =
+    Array.isArray(prop.campaigns) && prop.campaigns.length > 0
+      ? prop.campaigns[0]
+      : null;
 
-      const assignmentMatch =
-        prop.assignment &&
-        String(prop.assignment.agencyId) === String(userId) &&
-        String(prop.assignment.status || '').toUpperCase() === 'ACTIVE'
-          ? prop.assignment
-          : null;
+  const assignmentMatch =
+    prop.assignment &&
+    String(prop.assignment.agencyId || '') === String(userId) &&
+    String(prop.assignment.status || '').toUpperCase() === 'ACTIVE'
+      ? prop.assignment
+      : null;
 
-      const isAgencyOwned = String(prop.userId || '') === String(userId);
-      const isAgencyInherited = !!activeCampaign || !!assignmentMatch;
-      const isManaged = isAgencyInherited;
+  const isAgencyOwned =
+    String(prop.userId || '') === String(userId);
 
-      const managingAgency =
-        activeCampaign?.agency ||
-        assignmentMatch?.agency ||
-        (isAgencyOwned ? prop.user : null);
+  const isAgencyInherited =
+    !!activeCampaign || !!assignmentMatch;
 
-      const agencyName =
-        managingAgency?.companyName ||
-        managingAgency?.name ||
-        (isAgencyOwned ? 'Mi Agencia' : null);
+  const isManaged =
+    isAgencyOwned || isAgencyInherited;
 
-      const managementMode = isAgencyOwned
-        ? 'AGENCY_OWNED'
-        : isAgencyInherited
-          ? 'AGENCY_INHERITED'
-          : 'PARTICULAR';
+  const managingAgency =
+    activeCampaign?.agency ||
+    assignmentMatch?.agency ||
+    (isAgencyOwned ? prop.user : null);
 
-      return {
-        ...prop,
+  const agencyName =
+    managingAgency?.companyName ||
+    managingAgency?.name ||
+    (isAgencyOwned ? 'Mi Agencia' : null);
 
-        // contexto móvil
-        activeCampaign,
-        isAgencyOwned,
-        isAgencyInherited,
-        isManaged,
-        isCaptured: isAgencyInherited,
-        managementMode,
-        managerType: isAgencyOwned || isAgencyInherited ? 'AGENCY' : 'OWNER',
+  const managementMode = isAgencyOwned
+    ? 'AGENCY_OWNED'
+    : isAgencyInherited
+      ? 'AGENCY_INHERITED'
+      : 'PARTICULAR';
 
-        // agencia resumida
-        agencyName,
-        agency: managingAgency
-          ? {
-              id: managingAgency.id,
-              name: managingAgency.name ?? null,
-              companyName: managingAgency.companyName ?? null,
-              avatar: managingAgency.avatar ?? null,
-              companyLogo: managingAgency.companyLogo ?? null,
-              role: managingAgency.role ?? null,
-            }
-          : null,
+  return {
+    ...prop,
 
-        // términos visibles para la card / expediente
-        mandateType:
-          activeCampaign?.mandateType ??
-          prop.mandateType ??
-          null,
+    // contexto móvil
+    activeCampaign,
+    isAgencyOwned,
+    isAgencyInherited,
+    isManaged,
+    isCaptured: isAgencyInherited,
+    managementMode,
+    managerType: isManaged ? 'AGENCY' : 'OWNER',
 
-        exclusiveMandate:
-          activeCampaign?.exclusiveMandate ??
-          null,
+    // agencia resumida
+    agencyName,
+    agency: managingAgency
+      ? {
+          id: managingAgency.id ?? null,
+          name: managingAgency.name ?? null,
+          companyName: managingAgency.companyName ?? null,
+          avatar: managingAgency.avatar ?? null,
+          companyLogo: managingAgency.companyLogo ?? null,
+          role: managingAgency.role ?? null,
+        }
+      : null,
 
-        exclusiveMonths:
-          activeCampaign?.exclusiveMonths ??
-          null,
+    // términos visibles para la card / expediente
+    mandateType:
+      activeCampaign?.mandateType ??
+      prop.mandateType ??
+      null,
 
-        commissionPct:
-          activeCampaign?.commissionPct ??
-          prop.commissionPct ??
-          0,
+    exclusiveMandate:
+      activeCampaign?.exclusiveMandate ??
+      null,
 
-        sharePct:
-          activeCampaign?.commissionSharePct ??
-          prop.sharePct ??
-          0,
+    exclusiveMonths:
+      activeCampaign?.exclusiveMonths ??
+      null,
 
-        shareVisibility:
-          activeCampaign?.commissionShareVisibility ??
-          prop.shareVisibility ??
-          'PRIVATE',
+    commissionPct:
+      activeCampaign?.commissionPct ??
+      prop.commissionPct ??
+      0,
 
-        commissionBaseEur:
-          activeCampaign?.commissionBaseEur ??
-          0,
+    sharePct:
+      activeCampaign?.commissionSharePct ??
+      prop.sharePct ??
+      0,
 
-        commissionIvaEur:
-          activeCampaign?.commissionIvaEur ??
-          0,
+    shareVisibility:
+      activeCampaign?.commissionShareVisibility ??
+      prop.shareVisibility ??
+      'PRIVATE',
 
-        commissionTotalEur:
-          activeCampaign?.commissionTotalEur ??
-          0,
+    commissionBaseEur:
+      activeCampaign?.commissionBaseEur ??
+      0,
 
-        commissionShareEur:
-          activeCampaign?.commissionShareEur ??
-          0,
+    commissionIvaEur:
+      activeCampaign?.commissionIvaEur ??
+      0,
 
-        // bloque b2b resumido
-        b2b: activeCampaign
-          ? {
-              sharePct:
-                activeCampaign?.commissionSharePct ??
-                prop.sharePct ??
-                0,
-              visibility:
-                activeCampaign?.commissionShareVisibility ??
-                prop.shareVisibility ??
-                'PRIVATE',
-            }
-          : isAgencyOwned
-            ? {
-                sharePct: prop.sharePct ?? 0,
-                visibility: prop.shareVisibility ?? 'PRIVATE',
-              }
-            : null,
+    commissionTotalEur:
+      activeCampaign?.commissionTotalEur ??
+      0,
 
-        // limpiamos relaciones crudas para que el móvil no se lie
-        campaigns: undefined,
-        assignment: undefined,
-      };
-    });
+    commissionShareEur:
+      activeCampaign?.commissionShareEur ??
+      0,
+
+    // bloque b2b resumido
+    b2b: activeCampaign
+      ? {
+          sharePct:
+            activeCampaign?.commissionSharePct ??
+            prop.sharePct ??
+            0,
+          visibility:
+            activeCampaign?.commissionShareVisibility ??
+            prop.shareVisibility ??
+            'PRIVATE',
+        }
+      : isAgencyOwned
+        ? {
+            sharePct: prop.sharePct ?? 0,
+            visibility: prop.shareVisibility ?? 'PRIVATE',
+          }
+        : null,
+
+    // limpiamos relaciones crudas para que el móvil no se lie
+    campaigns: undefined,
+    assignment: undefined,
+  };
+});
 
     return NextResponse.json(formattedProperties);
   } catch (error) {
