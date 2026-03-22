@@ -9,6 +9,8 @@ export async function GET() {
     const properties = await prisma.property.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
+        // 🔥 Aseguramos que viajen las fotos
+        images: true, 
         // Incluimos los datos del usuario creador
         user: {
           select: { role: true, name: true, companyName: true, companyLogo: true, avatar: true, tagline: true }
@@ -17,7 +19,7 @@ export async function GET() {
         assignment: {
           include: { agency: { select: { companyName: true, companyLogo: true, avatar: true, tagline: true } } }
         },
-        // Incluimos datos de campaña activa
+        // Incluimos datos de campaña activa (CONTRATO B2B)
         campaigns: {
           where: { status: 'ACCEPTED' },
           include: { agency: { select: { companyName: true, companyLogo: true, avatar: true, tagline: true } } }
@@ -28,7 +30,7 @@ export async function GET() {
   // Formateamos para el móvil pero CONSERVANDO (...p) todos los campos originales
     const formattedProperties = properties.map((p: any) => {
       
-      // 📸 PURIFICADOR DE GALERÍA
+      // 📸 PURIFICADOR DE GALERÍA (Intacto)
       let cleanImages = [];
       if (Array.isArray(p.images)) {
         cleanImages = p.images.map((img: any) => typeof img === 'string' ? img : (img.url || img));
@@ -37,6 +39,12 @@ export async function GET() {
       } else if (Array.isArray(p.gallery)) {
         cleanImages = p.gallery.map((img: any) => typeof img === 'string' ? img : (img.url || img));
       }
+
+      // 🔥 EL CABLE MÁGICO PARA QUE EL MÓVIL PINTE LA TARJETA AZUL 🔥
+      // Cogemos la campaña aceptada de la lista que nos dio Prisma
+      const activeCampaign = p.campaigns && p.campaigns.length > 0 ? p.campaigns[0] : null;
+      // Extraemos el nombre de la agencia para mandárselo en bandeja de plata al móvil
+      const agencyName = activeCampaign?.agency?.companyName || p.assignment?.agency?.companyName || null;
 
       return {
         ...p, 
@@ -48,6 +56,10 @@ export async function GET() {
         sqm: p.mBuilt || p.surface || 0,
         rawPrice: p.price, 
         price: p.price ? `${p.price.toLocaleString('es-ES')} €` : 'Consultar',
+        
+        // 👉 AQUÍ INYECTAMOS LOS DATOS QUE EL MÓVIL ESTABA ESPERANDO
+        activeCampaign: activeCampaign,
+        agencyName: agencyName
       };
     });
 
