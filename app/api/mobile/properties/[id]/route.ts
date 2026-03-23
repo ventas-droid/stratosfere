@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const prisma = new PrismaClient();
-
-const isActiveStatus = (value: any) =>
-  String(value || '').toUpperCase() === 'ACTIVE';
-
-const isAcceptedStatus = (value: any) =>
-  String(value || '').toUpperCase() === 'ACCEPTED';
 
 export async function GET(
   request: Request,
@@ -31,12 +28,14 @@ export async function GET(
           },
         },
         campaigns: {
+          where: { status: 'ACCEPTED' },
           include: {
             agency: true,
           },
           orderBy: {
             updatedAt: 'desc',
           },
+          take: 1,
         },
         user: true,
       },
@@ -44,49 +43,53 @@ export async function GET(
     });
 
     const formattedProperties = properties.map((p: any) => {
-      const assignments = Array.isArray(p.assignment)
-        ? p.assignment
-        : p.assignment
-          ? [p.assignment]
-          : [];
-
-      const campaigns = Array.isArray(p.campaigns)
-        ? p.campaigns
-        : p.campaigns
-          ? [p.campaigns]
-          : [];
-
       const activeAssignment =
-        assignments.find(
-          (a: any) =>
-            isActiveStatus(a?.status) && !!(a?.agencyId || a?.agency?.id)
-        ) || null;
+        p.assignment && String(p.assignment.status || '').toUpperCase() === 'ACTIVE'
+          ? p.assignment
+          : null;
 
       const activeCampaign =
-        campaigns.find(
-          (c: any) =>
-            isAcceptedStatus(c?.status) && !!(c?.agencyId || c?.agency?.id)
-        ) || null;
+        Array.isArray(p.campaigns) && p.campaigns.length > 0
+          ? p.campaigns[0]
+          : null;
 
-      const managingAgency = activeAssignment?.agency || activeCampaign?.agency || null;
+      let managingAgency =
+        activeAssignment?.agency ||
+        activeCampaign?.agency ||
+        null;
 
-      const agencyName =
+      // 🛡️ EL ESCUDO ANTI-ISIDRO (AUTOASIGNACIÓN):
+      // Si la agencia que gestiona tiene tu mismo ID, la anulamos. Es un dato de prueba.
+      if (managingAgency && (managingAgency.id === targetId || managingAgency.id === p.userId)) {
+          managingAgency = null;
+      }
+
+      let agencyName =
         managingAgency?.companyName ||
         managingAgency?.name ||
         null;
 
-      const isManaged = Boolean(
-        (activeAssignment && (activeAssignment?.agencyId || activeAssignment?.agency?.id)) ||
-        (activeCampaign && (activeCampaign?.agencyId || activeCampaign?.agency?.id))
-      );
+      // Doble comprobación por nombre
+      if (agencyName && (agencyName === p.user?.name || agencyName === p.user?.companyName || agencyName === "Agencia Gestora")) {
+          agencyName = null;
+          managingAgency = null;
+      }
+
+      // La verdad absoluta:
+      const isManaged = !!managingAgency;
+
+      // 🔥 CÁLCULO DEL FUEGO DESDE EL SERVIDOR
+      const promotedUntilMs = p.promotedUntil ? new Date(p.promotedUntil).getTime() : 0;
+      const isPremiumFlag = p.isFire === true || p.isPromoted === true || String(p.promotedTier || '').toUpperCase() === 'PREMIUM';
+      const hasFire = !!promotedUntilMs && promotedUntilMs > Date.now() && isPremiumFlag;
 
       return {
         ...p,
         assignment: activeAssignment,
         activeCampaign,
         agencyName,
-        isManaged,
-        managementMode: isManaged ? 'AGENCY' : 'OWNER',
+        isManaged, // Se envía limpio al móvil
+        hasFire,   // Se envía limpio al móvil
       };
     });
 
