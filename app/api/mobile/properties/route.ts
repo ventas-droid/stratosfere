@@ -38,6 +38,14 @@ export async function GET() {
         cleanImages = p.gallery.map((img: any) => typeof img === 'string' ? img : (img.url || img));
       }
 
+      // 🧠 CEREBRO B2B: IDENTIFICADOR DE AGENCIA PARA EL MARKETPLACE MÓVIL
+      const activeAssignment = p.assignment && String(p.assignment.status || '').toUpperCase() === 'ACTIVE' ? p.assignment : null;
+      const activeCampaign = Array.isArray(p.campaigns) && p.campaigns.length > 0 ? p.campaigns[0] : null;
+
+      const managingAgency = activeAssignment?.agency || activeCampaign?.agency || null;
+      const agencyName = managingAgency?.companyName || managingAgency?.name || null;
+      const isManaged = !!managingAgency;
+
       return {
         ...p, 
         image: p.mainImage || cleanImages[0] || null,
@@ -48,6 +56,11 @@ export async function GET() {
         sqm: p.mBuilt || p.surface || 0,
         rawPrice: p.price, 
         price: p.price ? `${p.price.toLocaleString('es-ES')} €` : 'Consultar',
+        
+        // 🔥 LAS 3 VARIABLES VITALES PARA QUE EL MÓVIL PINTE EL AZUL CORRECTAMENTE 🔥
+        activeCampaign: activeCampaign,
+        agencyName: agencyName,
+        isManaged: isManaged
       };
     });
 
