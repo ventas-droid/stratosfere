@@ -41,9 +41,7 @@ export async function GET(
 
     const formattedProperties = properties.map((p: any) => {
       const activeAssignment =
-        p.assignment &&
-        String(p.assignment.status || '').toUpperCase() === 'ACTIVE' &&
-        p.assignment.agency
+        p.assignment && String(p.assignment.status || '').toUpperCase() === 'ACTIVE'
           ? p.assignment
           : null;
 
@@ -52,10 +50,9 @@ export async function GET(
           ? p.campaigns[0]
           : null;
 
-      // ✅ La campaña aceptada manda sobre assignment
       const managingAgency =
-        activeCampaign?.agency ||
         activeAssignment?.agency ||
+        activeCampaign?.agency ||
         null;
 
       const agencyName =
@@ -71,7 +68,6 @@ export async function GET(
         activeCampaign,
         agencyName,
         isManaged,
-        managedSource: activeCampaign ? 'CAMPAIGN' : activeAssignment ? 'ASSIGNMENT' : null,
       };
     });
 
