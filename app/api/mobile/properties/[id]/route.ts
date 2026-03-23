@@ -60,10 +60,7 @@ export async function GET(
         managingAgency?.name ||
         null;
 
-      const isManaged =
-        !!activeAssignment ||
-        !!activeCampaign ||
-        !!agencyName;
+      const isManaged = !!managingAgency;
 
       return {
         ...p,
