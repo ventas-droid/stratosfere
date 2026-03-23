@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 const prisma = new PrismaClient();
 
 export async function GET(
@@ -19,7 +16,32 @@ export async function GET(
     }
 
     const properties = await prisma.property.findMany({
-      where: { userId: targetId },
+      where: {
+        OR: [
+          // 1) Propiedades propias del usuario/agencia
+          { userId: targetId },
+
+          // 2) Propiedades cedidas activamente a esta agencia
+          {
+            assignment: {
+              is: {
+                agencyId: targetId,
+                status: 'ACTIVE',
+              },
+            },
+          },
+
+          // 3) Propiedades con campaña aceptada para esta agencia
+          {
+            campaigns: {
+              some: {
+                agencyId: targetId,
+                status: 'ACCEPTED',
+              },
+            },
+          },
+        ],
+      },
       include: {
         images: true,
         assignment: {
@@ -49,47 +71,23 @@ export async function GET(
           : null;
 
       const activeCampaign =
-        Array.isArray(p.campaigns) && p.campaigns.length > 0
-          ? p.campaigns[0]
-          : null;
+        Array.isArray(p.campaigns) && p.campaigns.length > 0 ? p.campaigns[0] : null;
 
-      let managingAgency =
-        activeAssignment?.agency ||
-        activeCampaign?.agency ||
-        null;
+      const managingAgency = activeAssignment?.agency || activeCampaign?.agency || null;
 
-      // 🛡️ EL ESCUDO ANTI-ISIDRO (AUTOASIGNACIÓN):
-      // Si la agencia que gestiona tiene tu mismo ID, la anulamos. Es un dato de prueba.
-      if (managingAgency && (managingAgency.id === targetId || managingAgency.id === p.userId)) {
-          managingAgency = null;
-      }
-
-      let agencyName =
+      const agencyName =
         managingAgency?.companyName ||
         managingAgency?.name ||
         null;
 
-      // Doble comprobación por nombre
-      if (agencyName && (agencyName === p.user?.name || agencyName === p.user?.companyName || agencyName === "Agencia Gestora")) {
-          agencyName = null;
-          managingAgency = null;
-      }
-
-      // La verdad absoluta:
       const isManaged = !!managingAgency;
-
-      // 🔥 CÁLCULO DEL FUEGO DESDE EL SERVIDOR
-      const promotedUntilMs = p.promotedUntil ? new Date(p.promotedUntil).getTime() : 0;
-      const isPremiumFlag = p.isFire === true || p.isPromoted === true || String(p.promotedTier || '').toUpperCase() === 'PREMIUM';
-      const hasFire = !!promotedUntilMs && promotedUntilMs > Date.now() && isPremiumFlag;
 
       return {
         ...p,
         assignment: activeAssignment,
         activeCampaign,
         agencyName,
-        isManaged, // Se envía limpio al móvil
-        hasFire,   // Se envía limpio al móvil
+        isManaged,
       };
     });
 
