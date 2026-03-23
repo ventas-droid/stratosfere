@@ -1,46 +1,24 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as {
-  __mobileMyPropertiesPrisma?: PrismaClient;
-};
+const prisma = new PrismaClient();
 
-const prisma =
-  globalForPrisma.__mobileMyPropertiesPrisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.__mobileMyPropertiesPrisma = prisma;
-}
-
-const normalizeRole = (role: any) => String(role || '').toUpperCase();
-
-const isAgencyRole = (role: any) => {
-  const r = normalizeRole(role);
-  return r.includes('AGENCIA') || r.includes('AGENCY') || r === 'ADMIN';
-};
-
-const toNumber = (value: any) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  const raw = String(value ?? '')
-    .replace(/[^\d.,-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
-};
-
-const buildFinancials = (priceValue: any, commissionPctValue: any) => {
-  const price = toNumber(priceValue);
-  const commissionPct = toNumber(commissionPctValue);
-  const base = price * (commissionPct / 100);
-  const ivaAmount = base * 0.21;
-  const total = base + ivaAmount;
-
-  return {
-    base,
-    ivaAmount,
-    total,
-  };
+const USER_SELECT = {
+  id: true,
+  name: true,
+  surname: true,
+  email: true,
+  role: true,
+  avatar: true,
+  companyName: true,
+  companyLogo: true,
+  coverImage: true,
+  phone: true,
+  mobile: true,
+  website: true,
+  licenseNumber: true,
+  tagline: true,
+  zone: true,
 };
 
 export async function GET(
@@ -49,33 +27,27 @@ export async function GET(
 ) {
   try {
     const resolvedParams = await params;
-    const targetId = String(
-      resolvedParams.userId || resolvedParams.id || ''
-    ).trim();
+    const targetId = String(resolvedParams.userId || resolvedParams.id || '').trim();
 
     if (!targetId) {
       return NextResponse.json({ error: 'Falta ID' }, { status: 400 });
     }
 
-    const currentUser = await prisma.user.findUnique({
+    const targetUser = await prisma.user.findUnique({
       where: { id: targetId },
-      select: {
-        id: true,
-        role: true,
-      },
+      select: { id: true, role: true, name: true, companyName: true },
     });
 
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'Usuario no encontrado' },
-        { status: 404 }
-      );
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
     }
 
-    const agencyView = isAgencyRole(currentUser.role);
+    const isAgencyViewer =
+      String(targetUser.role || '').toUpperCase() === 'AGENCIA' ||
+      String(targetUser.role || '').toUpperCase() === 'ADMIN';
 
     const properties = await prisma.property.findMany({
-      where: agencyView
+      where: isAgencyViewer
         ? {
             OR: [
               { userId: targetId },
@@ -102,30 +74,27 @@ export async function GET(
           },
       include: {
         images: true,
+        user: { select: USER_SELECT },
         assignment: {
           include: {
-            agency: true,
+            agency: { select: USER_SELECT },
           },
         },
         campaigns: {
-          where: {
-            status: 'ACCEPTED',
-          },
+          where: { status: 'ACCEPTED' },
           include: {
-            agency: true,
+            agency: { select: USER_SELECT },
           },
           orderBy: {
             updatedAt: 'desc',
           },
         },
-        user: true,
       },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['id'],
+      orderBy: { updatedAt: 'desc' },
     });
 
     const formattedProperties = properties.map((p: any) => {
-      const ownerId = String(p.userId || p.user?.id || '');
+      const ownerId = String(p.userId || '');
       const isOwnProperty = ownerId === targetId;
 
       const activeAssignment =
@@ -136,89 +105,65 @@ export async function GET(
       const acceptedCampaigns = Array.isArray(p.campaigns) ? p.campaigns : [];
 
       const activeCampaign =
-        (agencyView && !isOwnProperty
-          ? acceptedCampaigns.find(
-              (c: any) =>
-                String(c.agencyId || c.agency?.id || '') === targetId
-            )
-          : null) ||
-        acceptedCampaigns[0] ||
-        null;
+        isAgencyViewer
+          ? acceptedCampaigns.find((c: any) => String(c.agencyId || '') === targetId) ||
+            acceptedCampaigns[0] ||
+            null
+          : acceptedCampaigns[0] || null;
 
-      const assignmentAgencyId = String(
-        activeAssignment?.agencyId || activeAssignment?.agency?.id || ''
-      );
-
-      const campaignAgencyId = String(
-        activeCampaign?.agencyId || activeCampaign?.agency?.id || ''
-      );
-
-      const assignmentMatchesAgency =
-        !!activeAssignment && assignmentAgencyId === targetId;
-
-      const campaignMatchesAgency =
-        !!activeCampaign && campaignAgencyId === targetId;
-
-      let managingAgency =
+      const managingAgency =
         activeAssignment?.agency ||
         activeCampaign?.agency ||
         null;
 
-      if (String(managingAgency?.id || '') === ownerId) {
-        managingAgency = null;
-      }
+      const managingAgencyId = String(
+        activeAssignment?.agencyId ||
+          activeCampaign?.agencyId ||
+          managingAgency?.id ||
+          ''
+      );
 
-      const agencyName =
-        managingAgency?.companyName ||
-        managingAgency?.name ||
-        null;
+      const isManagedByExternalAgency =
+        !!managingAgency &&
+        !!managingAgencyId &&
+        managingAgencyId !== ownerId;
 
-      const isManaged =
-        !!activeAssignment ||
-        !!(
-          activeCampaign &&
-          String(activeCampaign.status || '').toUpperCase() === 'ACCEPTED'
-        );
-
-      const isCaptured =
-        agencyView &&
+      const isInheritedForAgency =
+        isAgencyViewer &&
         !isOwnProperty &&
-        (assignmentMatchesAgency || campaignMatchesAgency);
-
-      const financials =
-        activeCampaign?.financials ||
-        buildFinancials(
-          p.rawPrice ?? p.price,
-          activeCampaign?.commissionPct ?? p.commissionPct
+        (
+          (activeAssignment && String(activeAssignment.agencyId || '') === targetId) ||
+          (activeCampaign && String(activeCampaign.agencyId || '') === targetId)
         );
+
+      const agencyName = isManagedByExternalAgency
+        ? managingAgency?.companyName || managingAgency?.name || null
+        : null;
+
+      const portfolioKind = isAgencyViewer
+        ? (isInheritedForAgency ? 'INHERITED' : 'OWN')
+        : (isManagedByExternalAgency ? 'MANAGED' : 'OWNER');
 
       return {
         ...p,
         assignment: activeAssignment,
-        activeCampaign: activeCampaign
-          ? {
-              ...activeCampaign,
-              financials,
-            }
-          : null,
+        activeCampaign,
         agencyName,
-        isManaged,
-        isCaptured,
+        isManaged: !isAgencyViewer && isManagedByExternalAgency,
         isOwnProperty,
-        portfolioKind: agencyView
-          ? isOwnProperty
-            ? 'OWN'
-            : 'INHERITED'
-          : 'OWNER',
+        isCaptured: isInheritedForAgency,
+        portfolioKind,
+        isAgencyViewer,
+        isPromoted: !!p.isPromoted,
+        isFire: !!p.isFire,
+        isPremium: !!p.isPremium,
+        promotedTier: p.promotedTier || 'FREE',
       };
     });
 
     return NextResponse.json(formattedProperties);
   } catch (error) {
     console.error('Error cargando mis propiedades:', error);
-    return NextResponse.json(
-      { error: 'Error en el servidor' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error en el servidor' }, { status: 500 });
   }
 }
