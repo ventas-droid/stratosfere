@@ -15,8 +15,15 @@ export async function GET(
       return NextResponse.json({ error: 'Falta ID' }, { status: 400 });
     }
 
+    // 🔥 EL CEREBRO B2B: BÚSQUEDA INTELIGENTE 🔥
+    // Ahora busca propiedades que son TUYAS (Owner) o que has CAPTADO (Agencia)
     const properties = await prisma.property.findMany({
-      where: { userId: targetId },
+      where: {
+        OR: [
+          { userId: targetId },
+          { campaigns: { some: { agencyId: targetId, status: 'ACCEPTED' } } }
+        ]
+      },
       include: {
         images: true,
         assignment: {
@@ -34,7 +41,7 @@ export async function GET(
           },
           take: 1,
         },
-        user: true,
+        user: true, // El dueño original
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -61,6 +68,10 @@ export async function GET(
         null;
 
       const isManaged = !!managingAgency;
+      
+      // 🔥 INDICADORES CLAVE PARA EL MÓVIL 🔥
+      const isOwner = p.userId === targetId; // ¿Soy yo el dueño real?
+      const isCaptured = !isOwner && isManaged; // Si no soy el dueño, pero está gestionada por mí -> ¡Capturada!
 
       return {
         ...p,
@@ -68,6 +79,8 @@ export async function GET(
         activeCampaign,
         agencyName,
         isManaged,
+        isCaptured, // Mandamos la señal al radar del móvil
+        isOwner
       };
     });
 
