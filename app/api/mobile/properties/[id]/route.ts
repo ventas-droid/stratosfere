@@ -40,19 +40,29 @@ export async function GET(
     });
 
     const formattedProperties = properties.map((p: any) => {
+      const assignmentList = Array.isArray(p.assignment)
+        ? p.assignment
+        : p.assignment
+          ? [p.assignment]
+          : [];
+
       const activeAssignment =
-        p.assignment && String(p.assignment.status || '').toUpperCase() === 'ACTIVE'
-          ? p.assignment
-          : null;
+        assignmentList.find(
+          (a: any) =>
+            String(a?.status || '').toUpperCase() === 'ACTIVE'
+        ) || null;
+
+      const campaignList = Array.isArray(p.campaigns) ? p.campaigns : [];
 
       const activeCampaign =
-        Array.isArray(p.campaigns) && p.campaigns.length > 0
-          ? p.campaigns[0]
-          : null;
+        campaignList.find(
+          (c: any) =>
+            String(c?.status || '').toUpperCase() === 'ACCEPTED'
+        ) || null;
 
       const managingAgency =
-        activeAssignment?.agency ||
         activeCampaign?.agency ||
+        activeAssignment?.agency ||
         null;
 
       const agencyName =
@@ -60,7 +70,8 @@ export async function GET(
         managingAgency?.name ||
         null;
 
-      const isManaged = !!managingAgency;
+      // ✅ IMPORTANTE: azul si hay campaign aceptada o assignment activo
+      const isManaged = !!(activeCampaign || activeAssignment);
 
       return {
         ...p,
@@ -68,6 +79,7 @@ export async function GET(
         activeCampaign,
         agencyName,
         isManaged,
+        managedSource: activeCampaign ? 'CAMPAIGN' : activeAssignment ? 'ASSIGNMENT' : null,
       };
     });
 
