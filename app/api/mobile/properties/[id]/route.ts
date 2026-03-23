@@ -16,47 +16,17 @@ export async function GET(
     }
 
     const properties = await prisma.property.findMany({
-      where: {
-        OR: [
-          // 1) Propiedades propias del usuario/agencia
-          { userId: targetId },
-
-          // 2) Propiedades cedidas activamente a esta agencia
-          {
-            assignment: {
-              is: {
-                agencyId: targetId,
-                status: 'ACTIVE',
-              },
-            },
-          },
-
-          // 3) Propiedades con campaña aceptada para esta agencia
-          {
-            campaigns: {
-              some: {
-                agencyId: targetId,
-                status: 'ACCEPTED',
-              },
-            },
-          },
-        ],
-      },
+      where: { userId: targetId },
       include: {
         images: true,
         assignment: {
-          include: {
-            agency: true,
-          },
+          where: { status: 'ACTIVE' },
+          include: { agency: true },
         },
         campaigns: {
           where: { status: 'ACCEPTED' },
-          include: {
-            agency: true,
-          },
-          orderBy: {
-            updatedAt: 'desc',
-          },
+          include: { agency: true },
+          orderBy: { updatedAt: 'desc' },
           take: 1,
         },
         user: true,
@@ -65,29 +35,28 @@ export async function GET(
     });
 
     const formattedProperties = properties.map((p: any) => {
-      const activeAssignment =
-        p.assignment && String(p.assignment.status || '').toUpperCase() === 'ACTIVE'
-          ? p.assignment
-          : null;
+      // 1. Extraemos los contratos vigentes de los arrays que manda Prisma
+      const activeAssignment = Array.isArray(p.assignment) && p.assignment.length > 0 
+        ? p.assignment[0] 
+        : (!Array.isArray(p.assignment) ? p.assignment : null);
+        
+      const activeCampaign = Array.isArray(p.campaigns) && p.campaigns.length > 0 
+        ? p.campaigns[0] 
+        : null;
 
-      const activeCampaign =
-        Array.isArray(p.campaigns) && p.campaigns.length > 0 ? p.campaigns[0] : null;
+      // 2. Extraer nombre de agencia estrictamente del contrato
+      const agencyObj = activeCampaign?.agency || activeAssignment?.agency || null;
+      const agencyName = agencyObj?.companyName || agencyObj?.name || p.agencyName || null;
 
-      const managingAgency = activeAssignment?.agency || activeCampaign?.agency || null;
-
-      const agencyName =
-        managingAgency?.companyName ||
-        managingAgency?.name ||
-        null;
-
-      const isManaged = !!managingAgency;
+      // 3. Verdad absoluta para el backend
+      const isReallyManaged = !!agencyObj;
 
       return {
         ...p,
         assignment: activeAssignment,
-        activeCampaign,
-        agencyName,
-        isManaged,
+        activeCampaign: activeCampaign,
+        agencyName: isReallyManaged ? agencyName : null,
+        isManaged: isReallyManaged, 
       };
     });
 
