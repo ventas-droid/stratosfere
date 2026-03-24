@@ -108,6 +108,26 @@ export async function GET(
       ? 'AGENCY_INHERITED'
       : 'PARTICULAR';
 
+  // 🛡️ EL ESCUDO DE SEGURIDAD B2B
+  let b2bData = null;
+  if (activeCampaign) {
+    const visibility = String(activeCampaign.commissionShareVisibility || 'PRIVATE').toUpperCase();
+    const sharePct = Number(activeCampaign.commissionSharePct || 0);
+
+    if (isAgencyOwned || String(managingAgency?.id) === String(userId)) {
+      // Soy la agencia gestora: LO VEO TODO
+      b2bData = { sharePct, visibility };
+    } else if (visibility === 'PUBLIC' || visibility === 'PÚBLICO') {
+      // Soy el dueño (Particular), pero la agencia lo puso PÚBLICO: LO VEO
+      b2bData = { sharePct, visibility };
+    } else {
+      // Soy el dueño (Particular) y está en PRIVADO o SOLO AGENCIAS: NO LO VEO
+      b2bData = null;
+    }
+  } else if (isAgencyOwned) {
+    b2bData = { sharePct: prop.sharePct ?? 0, visibility: prop.shareVisibility ?? 'PRIVATE' };
+  }
+
   return {
     ...prop,
 
@@ -178,24 +198,8 @@ export async function GET(
       activeCampaign?.commissionShareEur ??
       0,
 
-    // bloque b2b resumido
-    b2b: activeCampaign
-      ? {
-          sharePct:
-            activeCampaign?.commissionSharePct ??
-            prop.sharePct ??
-            0,
-          visibility:
-            activeCampaign?.commissionShareVisibility ??
-            prop.shareVisibility ??
-            'PRIVATE',
-        }
-      : isAgencyOwned
-        ? {
-            sharePct: prop.sharePct ?? 0,
-            visibility: prop.shareVisibility ?? 'PRIVATE',
-          }
-        : null,
+    // 🔥 bloque b2b blindado por el escudo superior
+    b2b: b2bData,
 
     // limpiamos relaciones crudas para que el móvil no se lie
     campaigns: undefined,
