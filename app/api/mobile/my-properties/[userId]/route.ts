@@ -34,8 +34,9 @@ export async function GET(
             role: true,
           }
         },
+        // 🔥 CORRECCIÓN 1: Quitamos el 'agencyId: userId' para que el dueño reciba la agencia
         campaigns: {
-          where: { agencyId: userId, status: 'ACCEPTED' },
+          where: { status: 'ACCEPTED' },
           include: {
             agency: {
               select: {
@@ -49,7 +50,9 @@ export async function GET(
             }
           }
         },
+        // 🔥 CORRECCIÓN 2: Aseguramos que solo traiga la asignación activa sin bloquear por userId
         assignment: {
+          where: { status: 'ACTIVE' },
           include: {
             agency: {
               select: {
@@ -73,9 +76,9 @@ export async function GET(
       ? prop.campaigns[0]
       : null;
 
+  // 🔥 CORRECCIÓN 3: Quitamos la restricción de que la agencia tenga que ser el userId
   const assignmentMatch =
     prop.assignment &&
-    String(prop.assignment.agencyId || '') === String(userId) &&
     String(prop.assignment.status || '').toUpperCase() === 'ACTIVE'
       ? prop.assignment
       : null;
@@ -86,8 +89,8 @@ export async function GET(
   const isAgencyInherited =
     !!activeCampaign || !!assignmentMatch;
 
-  const isManaged =
-    isAgencyOwned || isAgencyInherited;
+  // 🔥 CORRECCIÓN 4: Si hay un contrato/asignación, está GESTIONADA (enciende la tarjeta azul)
+  const isManaged = isAgencyInherited;
 
   const managingAgency =
     activeCampaign?.agency ||
