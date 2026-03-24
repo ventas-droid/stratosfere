@@ -14,6 +14,14 @@ export async function GET(
       return NextResponse.json({ error: 'Falta userId' }, { status: 400 });
     }
 
+    // 🛡️ ESCÁNER DE IDENTIDAD (CRÍTICO): 
+    // Averiguamos si el usuario de la App Móvil es PARTICULAR o AGENCIA
+    const requestingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+    const requesterRole = String(requestingUser?.role || "PARTICULAR").toUpperCase();
+
     const properties = await prisma.property.findMany({
       where: {
         OR: [
@@ -108,24 +116,31 @@ export async function GET(
       ? 'AGENCY_INHERITED'
       : 'PARTICULAR';
 
-  // 🛡️ EL ESCUDO DE SEGURIDAD B2B (CON DESTRUCCIÓN DE DOCUMENTOS)
+  // 🛡️ EL ESCUDO DE SEGURIDAD B2B (REPARADO Y BLINDADO)
   let b2bData = null;
+  
   if (activeCampaign) {
     const visibility = String(activeCampaign.commissionShareVisibility || 'PRIVATE').toUpperCase();
     const sharePct = Number(activeCampaign.commissionSharePct || 0);
+    
+    // ¿Soy la propia agencia que captó la casa?
+    const isManagingAgency = String(managingAgency?.id) === String(userId);
 
-    if (isAgencyOwned || String(managingAgency?.id) === String(userId)) {
-      // Soy la agencia gestora: LO VEO TODO
+    if (isManagingAgency) {
+      // A. CREADOR: Soy la agencia gestora, LO VEO TODO
       b2bData = { sharePct, visibility };
     } else if (visibility === 'PUBLIC' || visibility === 'PÚBLICO') {
-      // Soy el dueño (Particular), pero la agencia lo puso PÚBLICO: LO VEO
+      // B. PÚBLICO: Lo ven todos (Particular, Otras Agencias, etc.)
+      b2bData = { sharePct, visibility };
+    } else if ((visibility === 'AGENCIES' || visibility === 'AGENCIAS') && requesterRole === 'AGENCIA') {
+      // C. AGENCIAS: Lo veo SOLO si mi rol en la App es AGENCIA
       b2bData = { sharePct, visibility };
     } else {
-      // Soy el dueño (Particular) y está en PRIVADO: NO LO VEO
+      // D. BLOQUEO TOTAL: El dueño particular cae aquí si está en PRIVADO o SOLO AGENCIAS
       b2bData = null;
       
-      // 🔥 DESTRUCCIÓN DE DATOS CRUDOS: 
-      // Borramos las huellas de la campaña original para que el móvil no pueda leerlas de reojo.
+      // 🔥 DESTRUCCIÓN DE DATOS CRUDOS EN VUELO: 
+      // Borramos las huellas de la campaña para que la App no pueda hackear los datos.
       activeCampaign.commissionSharePct = 0;
       activeCampaign.commissionShareEur = 0;
       activeCampaign.commissionShareVisibility = 'PRIVATE';
@@ -133,8 +148,9 @@ export async function GET(
   } else if (isAgencyOwned) {
     b2bData = { sharePct: prop.sharePct ?? 0, visibility: prop.shareVisibility ?? 'PRIVATE' };
     
-    // Si soy mi propia agencia pero lo puse privado, también me aseguro de ocultarlo al exterior
-    if (b2bData.visibility !== 'PUBLIC') {
+    // Si soy mi propia agencia pero lo puse privado o es de particular a particular
+    if (b2bData.visibility !== 'PUBLIC' && requesterRole !== 'AGENCIA') {
+       b2bData = null;
        prop.sharePct = 0;
     }
   }
