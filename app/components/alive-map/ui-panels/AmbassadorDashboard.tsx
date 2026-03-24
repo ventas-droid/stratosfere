@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-    Wallet, Users, Copy, Check, ArrowUpRight, Mail, 
-    Link as LinkIcon, MousePointerClick, Zap, Loader2, Inbox, 
+    Wallet, Users, Copy, Check, ArrowUpRight, Mail, Star,
+    Link as LinkIcon, MousePointerClick, Zap, Loader2, Inbox, Play, Film,
     ArrowLeft, Search, MapPin, X, Building2, ExternalLink, Megaphone, PlusCircle, Maximize2,
     BadgeCheck, ChevronDown, Filter, Hash, ShieldCheck, Info, Briefcase, User, Lock, Handshake
 } from 'lucide-react';
@@ -133,6 +133,7 @@ export default function AmbassadorDashboard() {
         return allZones.filter(z => z.toLowerCase().includes(zoneSearch.toLowerCase()));
     }, [zoneStats, zoneSearch]);
 
+  // 🧠 FILTRADO DE PROPIEDADES EN EL RADAR
     const filteredProperties = useMemo(() => {
         let result = [...properties];
         if (searchTerm) {
@@ -149,6 +150,14 @@ export default function AmbassadorDashboard() {
         result.sort((a, b) => sortOrder === "HIGHEST" ? b.commission - a.commission : a.commission - b.commission);
         return result;
     }, [properties, searchTerm, selectedZone, sortOrder]);
+
+    // 💰 CÁLCULO DE LA BOLSA B2B TOTAL (Suma de todas las comisiones compartidas)
+    const totalBolsaB2B = useMemo(() => {
+        return properties.reduce((total, prop) => {
+            const amount = Number(prop.commission || prop.b2b?.shareEstimatedEur || 0);
+            return total + amount;
+        }, 0);
+    }, [properties]);
 
     // 📋 COPIAR LINK
     const handleCopyLink = async (textToCopy: string, id: string) => {
@@ -187,99 +196,154 @@ export default function AmbassadorDashboard() {
         <div className="h-screen bg-[#F5F5F7] flex flex-col font-sans text-slate-900 overflow-hidden">
             <Toaster position="bottom-center" richColors theme="light" />
 
-            {/* --- CABECERA DEFINITIVA Y OPERATIVA --- */}
-            <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex-shrink-0 z-20 sticky top-0">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
+           {/* --- CABECERA FLOTANTE (ESTILO GLASS PREMIUM) --- */}
+            <div className="sticky top-4 z-30 px-4 md:px-8 pointer-events-none">
+                <header className="max-w-7xl mx-auto bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[28px] px-4 py-3 flex items-center justify-between pointer-events-auto">
                     
+                    {/* IZQUIERDA: Back + Logo */}
                     <div className="flex items-center gap-4">
-                        <button onClick={() => router.back()} className="p-2.5 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-all active:scale-95 shadow-sm group">
+                        <button onClick={() => router.back()} className="w-10 h-10 bg-slate-50 hover:bg-slate-100 rounded-full border border-slate-200/60 flex items-center justify-center transition-all active:scale-95 shadow-sm group">
                             <ArrowLeft size={18} className="text-slate-700 group-hover:-translate-x-0.5 transition-transform"/>
                         </button>
-                        <AmbassadorLogo /> 
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => { setProfileStartTab("INBOX"); setView("PROFILE"); }} 
-                            className="relative p-2.5 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-all active:scale-95 shadow-sm group flex items-center gap-2"
-                        >
-                            <Inbox size={18} className="text-slate-600 group-hover:text-emerald-600 transition-colors" />
-                            <span className="hidden md:inline text-xs font-bold text-slate-700 uppercase tracking-widest group-hover:text-emerald-700 transition-colors">Buzón</span>
-                            {hasUnread && (
-                                <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500 border-2 border-white shadow-sm"></span>
-                                </span>
-                            )}
-                        </button>
-
-                        <button 
-                            onClick={() => { setProfileStartTab("PROFILE"); setView("PROFILE"); }} 
-                            className="hidden sm:flex items-center gap-2 p-2.5 px-4 bg-white hover:bg-slate-50 rounded-xl border border-slate-200 transition-all active:scale-95 shadow-sm group"
-                        >
-                            <User size={16} className="text-slate-500 group-hover:text-slate-800 transition-colors" />
-                            <span className="hidden md:inline text-xs font-bold text-slate-700 uppercase tracking-widest">Mi Ficha</span>
-                        </button>
-
-                        <div className="flex items-center gap-2 bg-slate-900 text-white pl-4 pr-2 py-1.5 rounded-full shadow-lg shadow-slate-200 ml-2">
-                            <span className="text-[10px] font-black tracking-widest uppercase">{stats.rank}</span>
-                            <div className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-mono">{stats.score}/10</div>
+                        <div className="scale-90 origin-left md:scale-100">
+                            <AmbassadorLogo /> 
                         </div>
                     </div>
-                </div>
-            </header>
+                    
+                    {/* DERECHA: Controles y Rango */}
+                    <div className="flex items-center gap-4">
+                        {/* 🛡️ Centro de Control Unificado */}
+                        <div className="flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
+                            <button 
+                                onClick={() => { setProfileStartTab("INBOX"); setView("PROFILE"); }} 
+                                className="relative p-2.5 rounded-xl hover:bg-white hover:shadow-sm transition-all text-slate-500 hover:text-indigo-600 group"
+                                title="Buzón de Mensajes"
+                            >
+                                <Inbox size={18} className="group-hover:scale-110 transition-transform" />
+                                {hasUnread && (
+                                    <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span>
+                                    </span>
+                                )}
+                            </button>
+                            
+                            <div className="w-px h-5 bg-slate-200 mx-1"></div>
+                            
+                            <button 
+                                onClick={() => { setProfileStartTab("PROFILE"); setView("PROFILE"); }} 
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white hover:shadow-sm transition-all text-slate-700 font-black text-[10px] uppercase tracking-widest group"
+                            >
+                                <User size={16} className="text-slate-400 group-hover:text-slate-900 transition-colors" />
+                                <span className="hidden sm:inline">Mi Ficha</span>
+                            </button>
+                        </div>
+
+                        {/* 🏅 Rango Táctico */}
+                        <div className="hidden sm:flex items-center gap-3 bg-slate-900 text-white pl-4 pr-2 py-1.5 rounded-full shadow-lg shadow-slate-300/50">
+                            <span className="text-[10px] font-black tracking-widest uppercase text-emerald-400">{stats.rank}</span>
+                            <div className="bg-white/20 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider flex items-center gap-1">
+                                <Star size={10} className="text-amber-400 fill-amber-400"/>
+                                {stats.score}/10
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            </div>
 
             {/* --- BODY --- */}
             <main className="flex-grow overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto space-y-8 pb-20">
 
-                    {/* METRICAS */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2 bg-[#0A0A0A] rounded-[32px] p-8 text-white relative overflow-hidden shadow-2xl shadow-slate-300/50">
-                            <div className="absolute -top-20 -right-20 w-80 h-80 bg-blue-600/20 rounded-full blur-[80px]"></div>
-                            <div className="relative z-10 flex flex-col h-full justify-between">
+                 {/* --- PANEL DE MÉTRICAS UNIFICADO (BÓVEDA DE MANDO) --- */}
+                    <div className="relative bg-slate-900 rounded-[32px] p-2 shadow-2xl shadow-slate-300/50 overflow-hidden mt-16 mb-12">
+                        {/* Efectos de fondo y luces de neón */}
+                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
+                        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/30 rounded-full blur-[100px] pointer-events-none"></div>
+                        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 relative z-10">
+                            
+                            {/* 💰 ZONA CARTERA (Izquierda) */}
+                            <div className="lg:col-span-2 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[28px] p-8 flex flex-col justify-between min-h-[240px]">
                                 <div className="flex justify-between items-start mb-8">
-                                    <div className="flex items-center gap-3 text-white/50">
-                                        <Wallet size={20}/> <span className="text-xs font-bold uppercase tracking-widest">Cartera</span>
+                                    <div className="flex items-center gap-3 text-white/60">
+                                        <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/5">
+                                            <Wallet size={18} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest block text-white">Bóveda B2B</span>
+                                            <span className="text-xs font-medium">Balance Operativo</span>
+                                        </div>
                                     </div>
-                                    <button className="bg-white text-black px-5 py-2.5 rounded-full text-xs font-bold hover:scale-105 transition-transform flex items-center gap-2">
-                                        Retirar <ArrowUpRight size={14}/>
+                                    <button className="bg-white/10 hover:bg-white text-white hover:text-black border border-white/20 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 group">
+                                        Retirar Fondos <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"/>
                                     </button>
                                 </div>
-                                <div className="grid grid-cols-2 gap-12">
+                                
+                              <div className="flex flex-col sm:flex-row gap-6 sm:gap-10 items-start sm:items-end">
+                                    {/* 1. EL GRAN MARCADOR: VOLUMEN COMPARTIDO A LA RED */}
                                     <div>
-                                        <p className="text-4xl md:text-5xl font-black tracking-tighter mb-1">{formatMoney(stats.availablePayout)}</p>
-                                        <p className="text-white/40 text-xs font-bold">Disponible</p>
+                                        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <Handshake size={12} className="text-amber-400"/> Volumen en Red
+                                        </p>
+                                        <p className="text-4xl md:text-5xl font-black tracking-tighter text-white drop-shadow-md leading-none">
+                                            {formatMoney(totalBolsaB2B)}
+                                        </p>
                                     </div>
-                                    <div className="border-l border-white/10 pl-8">
-                                        <p className="text-2xl md:text-3xl font-bold text-emerald-400 tracking-tight mb-1">{formatMoney(stats.pendingPayout)}</p>
-                                        <p className="text-white/40 text-xs font-bold">En Proceso</p>
+                                    
+                                    {/* 2. TUS INGRESOS DISPONIBLES */}
+                                    <div className="sm:border-l sm:border-white/10 sm:pl-6">
+                                        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2">
+                                            Tus Ingresos
+                                        </p>
+                                        <p className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">
+                                            {formatMoney(stats.availablePayout)}
+                                        </p>
+                                    </div>
+
+                                    {/* 3. DINERO EN PROCESO */}
+                                    <div className="sm:border-l sm:border-white/10 sm:pl-6">
+                                        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            En Proceso <Loader2 size={10} className="animate-spin text-emerald-400"/>
+                                        </p>
+                                        <p className="text-2xl md:text-3xl font-black text-emerald-400 tracking-tight leading-none">
+                                            {formatMoney(stats.pendingPayout)}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm"><MousePointerClick size={16} className="text-slate-400"/></div>
-                                        <span className="text-xs font-bold text-slate-600">Clicks</span>
+
+                            {/* 📊 ZONA ESTADÍSTICAS (Derecha) */}
+                            <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[28px] p-6 flex flex-col gap-3">
+                                <div className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 transition-colors rounded-2xl border border-white/5 group cursor-default">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-slate-700 transition-colors">
+                                            <MousePointerClick size={18} className="text-slate-400 group-hover:text-white transition-colors"/>
+                                        </div>
+                                        <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">Tráfico</span>
                                     </div>
-                                    <span className="font-black text-slate-900">{stats.totalClicks}</span>
+                                    <span className="font-black text-2xl text-white">{stats.totalClicks}</span>
                                 </div>
-                                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm"><Users size={16} className="text-blue-500"/></div>
-                                        <span className="text-xs font-bold text-blue-700">Leads</span>
+                                
+                                <div className="flex items-center justify-between p-4 bg-blue-500/10 hover:bg-blue-500/20 transition-colors rounded-2xl border border-blue-500/20 group cursor-default">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-blue-900/50 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-blue-800 transition-colors">
+                                            <Users size={18} className="text-blue-400 group-hover:text-blue-300 transition-colors"/>
+                                        </div>
+                                        <span className="text-[11px] font-black text-blue-200 uppercase tracking-widest">Leads</span>
                                     </div>
-                                    <span className="font-black text-blue-700">{stats.totalLeads}</span>
+                                    <span className="font-black text-2xl text-blue-400">{stats.totalLeads}</span>
                                 </div>
-                                <div className="flex justify-between items-center p-3 bg-amber-50 rounded-2xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm"><Zap size={16} className="text-amber-500"/></div>
-                                        <span className="text-xs font-bold text-amber-700">Ventas</span>
+                                
+                                <div className="flex items-center justify-between p-4 bg-amber-500/10 hover:bg-amber-500/20 transition-colors rounded-2xl border border-amber-500/20 group cursor-default flex-1">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-amber-900/50 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-amber-800 transition-colors">
+                                            <Zap size={18} className="text-amber-400 group-hover:text-amber-300 transition-colors"/>
+                                        </div>
+                                        <span className="text-[11px] font-black text-amber-200 uppercase tracking-widest">Conversiones</span>
                                     </div>
-                                    <span className="font-black text-amber-700">{stats.totalSales}</span>
+                                    <span className="font-black text-2xl text-amber-400">{stats.totalSales}</span>
                                 </div>
                             </div>
                         </div>
@@ -398,12 +462,41 @@ export default function AmbassadorDashboard() {
                                             }} 
                                             className="bg-white rounded-[28px] p-3 shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col"
                                         >
-                                            <div className="aspect-[4/3] bg-slate-100 rounded-[20px] overflow-hidden relative mb-4">
-                                                <img src={`${prop.image}?t=${Date.now()}`} className="w-full h-full object-cover" />                                        
-                                                <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-900 shadow-sm flex items-center gap-1">
-                                                    <Briefcase size={12} className="text-amber-600"/> B2B
-                                                </div>
-                                            </div>
+                                           <div className="aspect-[4/3] bg-slate-100 rounded-[20px] overflow-hidden relative mb-4">
+    {(() => {
+        // 1. Extraemos la URL de la imagen/vídeo
+        const mediaUrl = prop.img || prop.image || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80";
+        
+        // 2. Detective de formato (¿Es un vídeo?)
+        const isVideo = mediaUrl.match(/\.(mp4|mov|webm|mkv)$/i) || mediaUrl.includes("/video/upload");
+
+        if (isVideo) {
+            // 🎬 MODO VÍDEO ACTIVO
+            return (
+                <div className="w-full h-full relative bg-slate-900 flex items-center justify-center group-hover:scale-105 transition-transform duration-500">
+                    <video src={mediaUrl} className="w-full h-full object-cover opacity-70" muted playsInline loop autoPlay />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/50 shadow-lg">
+                            <Play size={16} className="text-white fill-white ml-0.5" />
+                        </div>
+                    </div>
+                    <span className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 rounded-lg text-[9px] font-bold text-white uppercase flex items-center gap-1 shadow-sm">
+                        <Film size={10} /> Video
+                    </span>
+                </div>
+            );
+        }
+
+        // 📸 MODO FOTO NORMAL
+        return (
+            <img src={mediaUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="Propiedad" />
+        );
+    })()}
+    
+    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-900 shadow-sm flex items-center gap-1 z-10">
+        <Briefcase size={12} className="text-amber-600"/> B2B
+    </div>
+</div>
                                       <div className="px-2 flex-grow">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider border border-slate-200 shrink-0">REF: {prop.refCode || "S/R"}</span>
@@ -520,32 +613,49 @@ export default function AmbassadorDashboard() {
                         {/* BODY SCROLLABLE */}
                         <div className="flex-grow overflow-y-auto p-6 space-y-8 bg-white custom-scrollbar">
                             
-                          {/* 🔥 NUEVA GALERÍA DE IMÁGENES (BOTÓN AL HOLINSPECTOR) 🔥 */}
+                        {/* 🔥 NUEVA GALERÍA DE IMÁGENES BLINDADA (FOTO + VÍDEO) 🔥 */}
                             <div className="w-full overflow-x-auto custom-scrollbar pb-2 -mx-2 px-2 snap-x snap-mandatory">
                                 <div className="flex gap-3">
                                     {(() => {
-                                        // 1. Preparamos la munición blindando el tipo Array
                                         const imagesList = Array.isArray(selectedProperty.images) && selectedProperty.images.length > 0 
                                             ? selectedProperty.images 
                                             : [selectedProperty.image || "https://images.unsplash.com/photo-1600596542815-27b5aec872c3?auto=format&fit=crop&w=800&q=80"];
 
-                                        // 2. Pintamos el resultado de forma segura
-                                        return imagesList.map((img: string, i: number) => (
-                                            <div 
-                                                key={i} 
-                                                onClick={() => setShowHolinspector(selectedProperty)}
-                                                className="aspect-video w-[85%] shrink-0 rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-slate-100 snap-center relative group cursor-pointer"
-                                            >
-                                                <img src={img} className="w-full h-full object-cover" alt={`Vista ${i+1}`} />                            
-                                                
-                                                {/* Efecto visual al pasar el ratón para indicar que se puede ampliar */}
-                                                <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/20 transition-all duration-300 flex items-center justify-center">
-                                                    <div className="bg-white/90 backdrop-blur text-slate-900 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center gap-1 shadow-lg transform translate-y-2 group-hover:translate-y-0">
-                                                        <Maximize2 size={12} /> Ver Fotos
+                                        return imagesList.map((img: string, i: number) => {
+                                            // 🕵️ Detective Multimedia
+                                            const isVideo = img.match(/\.(mp4|mov|webm|mkv)$/i) || img.includes("/video/upload");
+
+                                            return (
+                                                <div 
+                                                    key={i} 
+                                                    onClick={() => setShowHolinspector(selectedProperty)}
+                                                    className="aspect-video w-[85%] shrink-0 rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-slate-900 snap-center relative group cursor-pointer"
+                                                >
+                                                    {isVideo ? (
+                                                        <>
+                                                            <video src={img} className="w-full h-full object-cover opacity-80" muted playsInline loop autoPlay />
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                                <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/50 shadow-lg">
+                                                                    <Play size={16} className="text-white fill-white ml-0.5" />
+                                                                </div>
+                                                            </div>
+                                                            <span className="absolute bottom-2 right-2 px-2 py-1 bg-black/60 rounded-lg text-[9px] font-bold text-white uppercase flex items-center gap-1 shadow-sm">
+                                                                <Film size={10} /> Video
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <img src={img} className="w-full h-full object-cover" alt={`Vista ${i+1}`} />
+                                                    )}
+                                                    
+                                                    {/* Efecto visual al pasar el ratón para indicar que se puede ampliar */}
+                                                    <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/30 transition-all duration-300 flex items-center justify-center">
+                                                        <div className="bg-white/90 backdrop-blur text-slate-900 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center gap-1 shadow-lg transform translate-y-2 group-hover:translate-y-0">
+                                                            <Maximize2 size={12} /> Ver Expediente
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ));
+                                            );
+                                        });
                                     })()}
                                 </div>
                             </div>

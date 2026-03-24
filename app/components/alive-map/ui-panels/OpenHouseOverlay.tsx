@@ -7,8 +7,8 @@ import { X, Calendar, Clock, Ticket, MapPin, Check, Loader2,  Star, Users, LogOu
 import { joinOpenHouseAction, leaveOpenHouseAction, checkOpenHouseStatusAction, getUserMeAction } from "@/app/actions";
 import GuestList from "./GuestList"; 
 
-export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any) {
-  const [mounted, setMounted] = useState(false); // 🔥 Para activar el teletransporte
+export default function OpenHouseOverlay({ property, onClose, isOrganizer, isGuest }: any) {    
+    const [mounted, setMounted] = useState(false); // 🔥 Para activar el teletransporte
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(false);
   const [parsedOH, setParsedOH] = useState<any>(null);
@@ -95,7 +95,7 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
     }
   };
 
- const handleLeave = async () => {
+const handleLeave = async () => {
       if(!confirm("¿Seguro que quieres liberar tu plaza? Perderás tu entrada.")) return;
       setLoading(true);
       try {
@@ -103,7 +103,6 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
           if (res.success) {
               setIsRegistered(false);
               setIsSoldOut(false);
-              // 🔥 BENGALAS TÁCTICAS: Avisan a toda la pantalla que hemos cancelado
               if (typeof window !== 'undefined') {
                   window.dispatchEvent(new CustomEvent('refresh-user-tickets'));
                   window.dispatchEvent(new CustomEvent('refresh-open-house-status'));
@@ -116,6 +115,18 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
       }
   };
 
+ // 🔥 FUNCIÓN PARA INVITADOS (Misil guiado hacia el formulario)
+  const handleGuestContact = () => {
+      onClose(); // Cierra el cartel del Open House
+      setTimeout(() => {
+          // Busca la diana (el ID del formulario) y hace scroll directo hacia ella
+          const formElement = document.getElementById('lead-contact-form');
+          if (formElement) {
+              formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+      }, 300); 
+  };
+  
   // 🔥 Si Next.js aún no ha montado el componente en el cliente, no renderizamos
   if (!mounted) return null;
 
@@ -285,10 +296,10 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
                                 </span>
                             </div>
 
-                            <button 
-                                onClick={handleRegister}
+                         <button 
+                                onClick={isGuest ? handleGuestContact : handleRegister}
                                 disabled={loading || isSoldOut || isPast}
-                                className={`w-full h-16 rounded-2xl font-black tracking-wider text-base transition-all shadow-xl flex items-center justify-center gap-4 relative overflow-hidden group
+                                className={`w-full h-16 rounded-2xl font-black tracking-wider text-sm md:text-base transition-all shadow-xl flex items-center justify-center gap-3 relative overflow-hidden group px-2
                                     ${isPast || isSoldOut 
                                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none' 
                                         : 'bg-[#1c1c1e] text-white hover:bg-black active:scale-[0.98]'
@@ -296,7 +307,7 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
                             >
                                 {loading ? (
                                     <span className="flex items-center gap-2">
-                                        <Loader2 className="animate-spin h-5 w-5" /> Procesando...
+                                        <Loader2 className="animate-spin h-5 w-5" /> PROCESANDO...
                                     </span>
                                 ) : isPast ? (
                                     <>
@@ -308,7 +319,14 @@ export default function OpenHouseOverlay({ property, onClose, isOrganizer }: any
                                         <X size={20} className="shrink-0" />
                                         <span>AGOTADO (SOLD OUT)</span>
                                     </>
+                                ) : isGuest ? (
+                                    // 🔥 BOTÓN EXCLUSIVO PARA EL INVITADO PÚBLICO
+                                    <>
+                                        <Ticket size={24} className="shrink-0 group-hover:scale-110 transition-transform text-emerald-400"/> 
+                                        <span>CONTACTAR PARA INVITACIÓN</span>
+                                    </>
                                 ) : (
+                                    // BOTÓN NORMAL PARA USUARIOS REGISTRADOS
                                     <>
                                         <Ticket size={24} className="shrink-0 group-hover:rotate-12 transition-transform text-yellow-400"/> 
                                         <span>RESERVAR ENTRADA</span>
