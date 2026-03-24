@@ -23,11 +23,11 @@ export async function GET(
           where: { status: 'ACTIVE' },
           include: { agency: true },
         },
+        // 🔥 LA CLAVE: Buscamos SENT y ACCEPTED igual que en la Web
         campaigns: {
-          where: { status: 'ACCEPTED' },
+          where: { OR: [{ status: 'ACCEPTED' }, { status: 'SENT' }] },
           include: { agency: true },
           orderBy: { updatedAt: 'desc' },
-          take: 1,
         },
         user: true,
       },
@@ -35,27 +35,22 @@ export async function GET(
     });
 
     const formattedProperties = properties.map((p: any) => {
-      // 1. Extraemos los contratos vigentes de los arrays que manda Prisma
-      const activeAssignment = Array.isArray(p.assignment) && p.assignment.length > 0 
-        ? p.assignment[0] 
-        : (!Array.isArray(p.assignment) ? p.assignment : null);
-        
-      const activeCampaign = Array.isArray(p.campaigns) && p.campaigns.length > 0 
-        ? p.campaigns[0] 
-        : null;
+      // 1. Filtramos estrictamente la campaña aceptada
+      const activeCampaign = p.campaigns?.find((c: any) => String(c.status).toUpperCase() === 'ACCEPTED') || null;
+      const activeAssignment = Array.isArray(p.assignment) ? p.assignment[0] : (p.assignment?.status === 'ACTIVE' ? p.assignment : null);
 
-      // 2. Extraer nombre de agencia estrictamente del contrato
+      // 2. Extraer nombre de agencia real
       const agencyObj = activeCampaign?.agency || activeAssignment?.agency || null;
       const agencyName = agencyObj?.companyName || agencyObj?.name || p.agencyName || null;
 
-      // 3. Verdad absoluta para el backend
-      const isReallyManaged = !!agencyObj;
+      // 3. Verdad absoluta: Está gestionada si logramos cazar el contrato de la agencia
+      const isReallyManaged = !!agencyObj || !!activeCampaign;
 
       return {
         ...p,
         assignment: activeAssignment,
         activeCampaign: activeCampaign,
-        agencyName: isReallyManaged ? agencyName : null,
+        agencyName: agencyName,
         isManaged: isReallyManaged, 
       };
     });

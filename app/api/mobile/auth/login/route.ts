@@ -27,15 +27,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Credenciales incorrectas" }, { status: 401 });
     }
 
-   const userData = {
-  id: user.id,
-  email: user.email,
-  name: user.name || "Agente",
-  role: user.role,
-  avatar: user.avatar ?? null,
-  companyLogo: user.companyLogo ?? null,
-  coverImage: user.coverImage ?? null,
-};
+    // 🔥 EL BLINDAJE: Metemos en la maleta TODO lo que la app móvil necesita saber
+    const userData = {
+      id: user.id,
+      email: user.email,
+      name: user.name || "Usuario",
+      role: user.role,
+      avatar: user.avatar ?? null,
+      coverImage: user.coverImage ?? null,
+      
+      // DATOS DE AGENCIA DESBLOQUEADOS
+      companyName: user.companyName ?? null, 
+      companyLogo: user.companyLogo ?? null,
+      tagline: user.tagline ?? null,
+      
+      // DATOS DE CONTACTO (Por si los necesita en el futuro)
+      phone: user.phone ?? null,
+      mobile: user.mobile ?? null,
+      website: user.website ?? null,
+      licenseNumber: user.licenseNumber ?? null,
+    };
 
     return NextResponse.json({ message: "Acceso concedido", user: userData });
 
