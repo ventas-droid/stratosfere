@@ -108,7 +108,7 @@ export async function GET(
       ? 'AGENCY_INHERITED'
       : 'PARTICULAR';
 
-  // 🛡️ EL ESCUDO DE SEGURIDAD B2B
+  // 🛡️ EL ESCUDO DE SEGURIDAD B2B (CON DESTRUCCIÓN DE DOCUMENTOS)
   let b2bData = null;
   if (activeCampaign) {
     const visibility = String(activeCampaign.commissionShareVisibility || 'PRIVATE').toUpperCase();
@@ -121,11 +121,22 @@ export async function GET(
       // Soy el dueño (Particular), pero la agencia lo puso PÚBLICO: LO VEO
       b2bData = { sharePct, visibility };
     } else {
-      // Soy el dueño (Particular) y está en PRIVADO o SOLO AGENCIAS: NO LO VEO
+      // Soy el dueño (Particular) y está en PRIVADO: NO LO VEO
       b2bData = null;
+      
+      // 🔥 DESTRUCCIÓN DE DATOS CRUDOS: 
+      // Borramos las huellas de la campaña original para que el móvil no pueda leerlas de reojo.
+      activeCampaign.commissionSharePct = 0;
+      activeCampaign.commissionShareEur = 0;
+      activeCampaign.commissionShareVisibility = 'PRIVATE';
     }
   } else if (isAgencyOwned) {
     b2bData = { sharePct: prop.sharePct ?? 0, visibility: prop.shareVisibility ?? 'PRIVATE' };
+    
+    // Si soy mi propia agencia pero lo puse privado, también me aseguro de ocultarlo al exterior
+    if (b2bData.visibility !== 'PUBLIC') {
+       prop.sharePct = 0;
+    }
   }
 
   return {

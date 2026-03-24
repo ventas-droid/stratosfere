@@ -414,20 +414,54 @@ export async function getPropertyByIdAction(propertyId: string) {
         activeCampaign.financials = { base, ivaAmount: iva, total };
     }
 
-    // --- B2B DATA ---
-    let b2bData = null;
-    if (activeCampaign) {
-         b2bData = {
-            sharePct: Number(activeCampaign.commissionSharePct || 0),
-            visibility: activeCampaign.commissionShareVisibility || 'PRIVATE'
-         };
-    } else {
-         b2bData = {
-            sharePct: Number(p.sharePct || 0),
-            visibility: p.shareVisibility || 'PRIVATE'
-         };
-    }
+   // --- B2B DATA (ESCUDO DE 3 ESTADOS) ---
+    // 1. Identificamos quién está mirando la pantalla (CRÍTICO PARA NO ROMPER NADA)
+    const currentUser = await getCurrentUser();
+    const currentUserId = String(currentUser?.id || "");
+    const currentUserRole = String(currentUser?.role || "PARTICULAR").toUpperCase();
 
+    let b2bData = null;
+
+    if (activeCampaign) {
+         const visibility = String(activeCampaign.commissionShareVisibility || 'PRIVATE').toUpperCase();
+         const sharePct = Number(activeCampaign.commissionSharePct || 0);
+
+         // ¿El que mira es la propia agencia que gestiona la casa?
+         const isManagingAgency = String(activeCampaign.agencyId) === currentUserId;
+
+         if (isManagingAgency) {
+             // A. CREADOR: El que gestiona la casa lo ve SIEMPRE.
+             b2bData = { sharePct, visibility };
+         } else if (visibility === 'PUBLIC' || visibility === 'PÚBLICO') {
+             // B. PÚBLICO: Lo ven todos (Particulares y otras Agencias).
+             b2bData = { sharePct, visibility };
+         } else if ((visibility === 'AGENCIES' || visibility === 'AGENCIAS') && currentUserRole === 'AGENCIA') {
+             // C. SOLO AGENCIAS: Lo ven otras agencias, pero los particulares NO.
+             b2bData = { sharePct, visibility };
+         } else {
+             // D. BLOQUEO TOTAL: Particular intentando ver datos de agencia, o Agencia viendo datos privados.
+             b2bData = null;
+             activeCampaign.commissionSharePct = 0;
+             activeCampaign.commissionShareEur = 0;
+             activeCampaign.commissionShareVisibility = 'PRIVATE';
+         }
+    } else {
+         // Si la gestiona el propio particular y no hay campaña
+         const visibility = String(p.shareVisibility || 'PRIVATE').toUpperCase();
+         const sharePct = Number(p.sharePct || 0);
+         const isOwner = String(p.userId) === currentUserId;
+
+         if (isOwner || visibility === 'PUBLIC' || visibility === 'PÚBLICO') {
+             b2bData = { sharePct, visibility };
+         } else if ((visibility === 'AGENCIES' || visibility === 'AGENCIAS') && currentUserRole === 'AGENCIA') {
+             b2bData = { sharePct, visibility };
+         } else {
+             b2bData = null;
+             p.sharePct = 0;
+             p.shareVisibility = 'PRIVATE';
+         }
+    }
+    
     // 🔥 FIX COORDENADAS
     const lng = Number(p.longitude);
     const lat = Number(p.latitude);
@@ -3603,14 +3637,24 @@ export async function getMyPropertiesAction() {
             const ivaAmt = (base * ivaPct) / 100;
             const total = base + ivaAmt;
 
-            activeCampaign.financials = {
+           activeCampaign.financials = {
                 base: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(base),
                 ivaAmount: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(ivaAmt),
                 total: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(total),
                 ivaPct: ivaPct
             };
-        }
 
+            // 2. ESTO SE AÑADE DEBAJO: El Escudo B2B para ocultar tratos entre agencias
+            const visibility = String(activeCampaign.commissionShareVisibility || 'PRIVATE').toUpperCase();
+            
+            // Si el que mira es el dueño (porque esta función es 'getMyProperties') y no es PÚBLICO...
+            if (visibility !== 'PUBLIC' && visibility !== 'PÚBLICO') {
+                // ...Destruimos los datos de colaboración B2B
+                activeCampaign.commissionSharePct = 0;
+                activeCampaign.commissionShareEur = 0;
+                activeCampaign.commissionShareVisibility = 'PRIVATE';
+            }
+        }
         // Nombre para la tarjeta
         const agencyName = activeCampaign?.agency?.companyName || activeCampaign?.agency?.name || "Agencia Asociada";
 
