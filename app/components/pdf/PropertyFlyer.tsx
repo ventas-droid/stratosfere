@@ -1,365 +1,318 @@
 "use client";
 
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Image, Font } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
 
 // ==========================================
-// 1. ESTILOS INTELIGENTES (MULTIPÁGINA)
+// 1. DICCIONARIOS DE COLORES Y DATOS TÁCTICOS
+// ==========================================
+const ratingColors = {
+    A: '#387c53', B: '#689f53', C: '#b3cf55', D: '#f3d65b', 
+    E: '#ed9a5c', F: '#df665c', G: '#b32e2e', N_A: '#AAA'
+};
+
+// ==========================================
+// 2. ESTILOS EDITORIALES "STRATOS BLACK PREMIUM"
 // ==========================================
 const styles = StyleSheet.create({
   page: { 
-    paddingTop: 30,
-    paddingLeft: 30,
-    paddingRight: 30,
-    paddingBottom: 80, // 🔥 IMPORTANTE: Espacio reservado para el footer en TODAS las páginas
-    fontFamily: 'Helvetica', 
-    backgroundColor: '#ffffff',
-    flexDirection: 'column',
+    paddingTop: 0, paddingLeft: 0, paddingRight: 0, paddingBottom: 90, 
+    fontFamily: 'Helvetica', backgroundColor: '#FFFFFF', flexDirection: 'column',
   },
   
-  // CABECERA (Solo en primera página o fija si se desea, aquí la dejamos fluida al inicio)
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 20, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#eee', 
-    paddingBottom: 15 
-  },
-  agentLogo: { 
-    width: 60, 
-    height: 60, 
-    borderRadius: 10, 
-    objectFit: 'cover', 
-    backgroundColor: '#f0f0f0' 
-  }, 
-  agentInfo: { 
-    flexDirection: 'column', 
-    alignItems: 'flex-end' 
-  },
-  agentName: { fontSize: 12, fontWeight: 'bold', color: '#111', marginBottom: 2 },
-  agentContact: { fontSize: 9, color: '#555', marginTop: 2 },
-  
-  // IMAGEN HERO
-  heroImage: { 
-    width: '100%', 
-    height: 250, 
-    borderRadius: 6, 
-    objectFit: 'cover', 
-    marginBottom: 20,
-    backgroundColor: '#f0f0f0' 
-  },
+  heroSection: { position: 'relative', width: '100%', height: 350, backgroundColor: '#111' },
+  heroImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 },
+  heroOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 120, backgroundColor: '#000000', opacity: 0.5 },
+  heroContent: { position: 'absolute', bottom: 50, left: 35, right: 35 }, 
+  badgeTag: { backgroundColor: '#2563EB', color: '#FFF', fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 8 },
+  heroTitle: { fontSize: 26, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 6, lineHeight: 1.1 },
+  heroAddress: { fontSize: 10, color: '#F1F5F9', marginBottom: 10, fontWeight: 'normal' },
+  heroPrice: { fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' },
 
-  // INFO PRINCIPAL
-  titleRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    marginBottom: 5,
-    alignItems: 'flex-start'
-  },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#000', width: '65%' },
-  price: { fontSize: 20, fontWeight: 'bold', color: '#000', textAlign: 'right' }, 
-  address: { fontSize: 9, color: '#666', marginBottom: 15 },
+  contentWrapper: { paddingLeft: 35, paddingRight: 35, paddingTop: 10, flex: 1 },
 
-  // MÉTRICAS
-  metricsRow: { 
-    flexDirection: 'row', 
-    backgroundColor: '#F5F5F7', 
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8, 
-    justifyContent: 'space-between', 
-    marginBottom: 20 
-  },
+  metricsCard: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 20, marginTop: -40, marginBottom: 25, justifyContent: 'space-around', borderWidth: 1, borderColor: '#E5E7EB' },
   metricItem: { alignItems: 'center', flexDirection: 'column' },
-  metricValue: { fontSize: 12, fontWeight: 'bold', color: '#000' },
-  metricLabel: { fontSize: 7, color: '#888', textTransform: 'uppercase', marginTop: 2 },
+  metricValue: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
+  metricLabel: { fontSize: 8, color: '#64748B', textTransform: 'uppercase', marginTop: 4, letterSpacing: 0.5 },
 
-  // TEXTOS (Descripción larga)
-  sectionTitle: { 
-    fontSize: 10, 
-    fontWeight: 'bold', 
-    textTransform: 'uppercase', 
-    color: '#000', 
-    marginTop: 10,
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 4
-  },
-  description: { 
-    fontSize: 10, 
-    lineHeight: 1.6, 
-    color: '#444', 
-    marginBottom: 20, 
-    textAlign: 'justify' 
-  },
+  twoColLayout: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
+  mainCol: { width: '58%' },
+  sideCol: { width: '38%' },
 
-  // GALERÍA EXTRA (Grid inteligente)
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  gridImage: {
-    width: '48%', // Dos columnas
-    height: 120,
-    borderRadius: 6,
-    marginBottom: 10,
-    objectFit: 'cover',
-    backgroundColor: '#eee'
-  },
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', color: '#0F172A', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5, borderBottomWidth: 1, borderBottomColor: '#EEE', paddingBottom: 4 },
+  descriptionText: { fontSize: 9, lineHeight: 1.6, color: '#475569', textAlign: 'justify' },
 
-  // CARACTERÍSTICAS
-  featuresGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  featureBadge: { 
-    backgroundColor: '#fff', 
-    borderWidth: 1, 
-    borderColor: '#e5e5e5', 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    borderRadius: 4, 
-    marginBottom: 4
-  },
-  featureText: { fontSize: 8, color: '#555' },
+  featureItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  featureBullet: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#2563EB', marginRight: 6 },
+  featureText: { fontSize: 9, color: '#334155' },
 
-  // PIE DE PÁGINA (FLOTANTE / FIJO)
-  footer: { 
-    position: 'absolute', 
-    bottom: 30, 
-    left: 30, 
-    right: 30, 
-    borderTopWidth: 1, 
-    borderTopColor: '#eee', 
-    paddingTop: 10, 
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  disclaimer: { fontSize: 7, color: '#aaa' },
-  branding: { fontSize: 7, color: '#000', fontWeight: 'bold', textTransform: 'uppercase' },
-  pageNumber: { fontSize: 7, color: '#aaa' }
+  energySection: { marginTop: 20, marginBottom: 10, padding: 20, backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1, borderColor: '#EEE', flexDirection: 'column', gap: 15 },
+  energyScaleLabel: { fontSize: 9, fontWeight: 'bold', color: '#0F172A', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  energyGrid: { flexDirection: 'row', gap: 2 },
+  energyBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  energyLetter: { fontSize: 10, fontWeight: 'bold', color: '#94A3B8' },
+  pendingBadge: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#DBEAFE', color: '#1E40AF', fontSize: 10, fontWeight: 'bold', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, alignSelf: 'flex-start', marginTop: 5 },
+
+  agentCard: { marginBottom: 25, padding: 25, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, flexDirection: 'column', gap: 15 },
+  agentHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#EEE', paddingBottom: 15, justifyContent: 'space-between' },
+  agentIdentity: { flexDirection: 'row', alignItems: 'center' },
+  agentLogo: { width: 48, height: 48, borderRadius: 8, objectFit: 'cover', backgroundColor: '#FFF', marginRight: 12 }, 
+  agentBrandingText: { flexDirection: 'column' },
+  agentName: { fontSize: 12, fontWeight: 'bold', color: '#0F172A', marginBottom: 2 },
+  agentRoleText: { fontSize: 8, color: '#2563EB', textTransform: 'uppercase', fontWeight: 'bold' },
+  stratosBranding: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  stratosBrandingLabel: { fontSize: 8, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 'normal', pt: 2 },
+  stratosLogoText: { fontSize: 12, fontWeight: 'black', color: '#000000' },
+  stratosDot: { color: '#2563EB' },
+  agentDataSection: { flexDirection: 'row', flexWrap: 'wrap', gap: 15 },
+  agentDataItem: { width: '45%', flexDirection: 'column', gap: 2 }, 
+  agentDataLabel: { fontSize: 7, color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 'bold' },
+  agentDataValue: { fontSize: 9, fontWeight: 'bold', color: '#0F172A' },
+
+  pageTwoWrapper: { padding: 35, flex: 1, backgroundColor: '#FFF' },
+
+  footer: { position: 'absolute', bottom: 25, left: 35, right: 35, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#EEE', paddingTop: 10 },
+  disclaimer: { fontSize: 7, color: '#A1A1AA' },
+  pageNumber: { fontSize: 7, color: '#A1A1AA', fontWeight: 'bold' },
+
+  backCoverPage: { padding: 0, backgroundColor: '#F8FAFC', flex: 1, justifyContent: 'center', alignItems: 'center' },
+  backCoverLogo: { width: 120, height: 120, borderRadius: 20, objectFit: 'cover', marginBottom: 20 },
+  backCoverName: { fontSize: 18, fontWeight: 'bold', color: '#0F172A', marginBottom: 5 },
+  backCoverWeb: { fontSize: 10, color: '#64748B', marginBottom: 20 },
+  backCoverBranding: { position: 'absolute', bottom: 40, alignItems: 'center' }
 });
 
+// ==========================================
+// 3. FUNCIONES TÁCTICAS
+// ==========================================
 const formatPrice = (p: any) => {
-    if (!p) return "Consultar";
-    return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(p));
+    if (!p) return "Consultar Precio";
+    const numericString = String(p).replace(/[^0-9]/g, '');
+    if (!numericString) return "Consultar Precio";
+    return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(numericString));
 };
 
+const getSafeImageUrl = (url: string) => {
+    if (!url) return "https://dummyimage.com/800x600/f1f5f9/94a3b8&text=Imagen+No+Disponible";
+    if (url.startsWith('data:')) return url;
+    return `https://wsrv.nl/?url=${encodeURIComponent(url)}&output=jpg`;
+};
+
+// ==========================================
+// 4. COMPONENTE DEL DOSSIER PDF
+// ==========================================
 export const PropertyFlyer = ({ property, agent }: any) => {
   const prop = property || {};
   const ag = agent || {};
 
-  // Gestión de imágenes (Principal + Extras)
   let allImages = prop.images || [];
   if (!Array.isArray(allImages)) allImages = prop.mainImage ? [prop.mainImage] : [];
   if (allImages.length === 0 && prop.mainImage) allImages = [prop.mainImage];
+  if (allImages.length === 0 && prop.img) allImages = [prop.img];
 
-  const heroImg = allImages.length > 0 ? allImages[0] : "https://dummyimage.com/600x400/eee/aaa&text=Stratos";
-  // Tomamos hasta 6 fotos extra para el dossier (si hay más, las ignoramos para no saturar)
-  const extraImages = allImages.slice(1, 7); 
-
-  // Datos Agente
-  const agentImg = ag.companyLogo || ag.avatar || "https://dummyimage.com/100x100/eee/aaa&text=Agente";
-
-
- // --- 🔥 LÓGICA DE EXTRACCIÓN MAESTRA (TIPOLOGÍA + COMUNIDAD + CARACTERÍSTICAS) 🔥 ---
+  const imageUrls = allImages.map((i: any) => getSafeImageUrl(typeof i === 'string' ? i : i.url));
+  const heroImg = imageUrls.length > 0 ? imageUrls[0] : getSafeImageUrl("");
   
-  // A) DICCIONARIO
+  // Extraemos las imágenes para la galería (pueden ser muchas)
+  const extraImages = imageUrls.slice(1); 
+
+  // 🔥 TÁCTICA DE FILAS BLINDADAS: Agrupamos las fotos de 2 en 2
+  const imageRows = [];
+  for (let i = 0; i < extraImages.length; i += 2) {
+      imageRows.push(extraImages.slice(i, i + 2));
+  }
+
+  const agentImg = getSafeImageUrl(ag.companyLogo || ag.avatar || "");
+
+  const featuresSet = new Set<string>();
+  if (prop.type) featuresSet.add(`Tipo: ${prop.type.charAt(0).toUpperCase() + prop.type.slice(1)}`);
+  if (prop.communityFees && Number(String(prop.communityFees).replace(/[^0-9.]/g, '')) > 0) {
+      featuresSet.add(`Comunidad: ${Number(String(prop.communityFees).replace(/[^0-9.]/g, ''))}€/m`);
+  }
+
   const getNiceLabel = (key: string) => {
-      const k = String(key).replace(/[\[\]"']/g, "").toLowerCase().trim();
       const map: Record<string, string> = {
-          'pool': 'Piscina', 'piscina': 'Piscina',
-          'garage': 'Garaje', 'garaje': 'Garaje', 'parking': 'Garaje',
-          'garden': 'Jardín', 'jardin': 'Jardín', 'jardín': 'Jardín',
-          'elevator': 'Ascensor', 'ascensor': 'Ascensor', 'lift': 'Ascensor',
-          'terrace': 'Terraza', 'terraza': 'Terraza',
-          'storage': 'Trastero', 'trastero': 'Trastero',
-          'ac': 'Aire Acond.', 'aire': 'Aire Acond.',
-          'heating': 'Calefacción', 'calefaccion': 'Calefacción',
-          'security': 'Seguridad', 'seguridad': 'Seguridad', 'alarm': 'Alarma',
-          'furnished': 'Amueblado', 'amueblado': 'Amueblado',
-          'wardrobes': 'Armarios', 'armarios': 'Armarios',
-          'exterior': 'Exterior', 'interior': 'Interior',
-          'gym': 'Gimnasio', 'gimnasio': 'Gimnasio'
+          'pool': 'Piscina Privada', 'garage': 'Garaje Incluido', 'garden': 'Jardín',
+          'elevator': 'Ascensor', 'terrace': 'Terraza', 'storage': 'Trastero',
+          'ac': 'Aire Acondicionado', 'heating': 'Calefacción Central', 'security': 'Sistema de Seguridad',
+          'furnished': 'Amueblado', 'wardrobes': 'Armarios Empotrados', 'exterior': 'Totalmente Exterior'
       };
-      return map[k] || (k.charAt(0).toUpperCase() + k.slice(1));
+      return map[String(key).replace(/[\[\]"']/g, "").toLowerCase().trim()] || null;
   };
 
-  // B) LISTA NEGRA
-  const BLACKLIST = ['pack_basic', 'pack_pro', 'destacado', 'oferta', 'undefined', 'null', 'true', 'false'];
-
-  // C) RECOLECTOR
-  const uniqueFeaturesMap = new Map<string, string>();
-
-  const addFeature = (rawKey: string) => {
-      if (!rawKey) return;
-      const cleanKey = String(rawKey).replace(/[\[\]"']/g, "").toLowerCase().trim();
-      if (!cleanKey || BLACKLIST.includes(cleanKey)) return;
-      const label = getNiceLabel(cleanKey);
-      uniqueFeaturesMap.set(label, label);
-  };
-
-  // --- 1. INYECCIÓN DE DATOS ESTRUCTURALES (LO QUE FALTABA) ---
-  
-  // Tipología (Ej: "Tipo: Ático")
-  if (prop.type) {
-      const typeMap: Record<string, string> = {
-          'flat': 'Piso', 'penthouse': 'Ático', 'duplex': 'Dúplex',
-          'house': 'Casa', 'villa': 'Villa', 'chalet': 'Chalet',
-          'studio': 'Estudio', 'commercial': 'Local', 'office': 'Oficina',
-          'land': 'Terreno', 'plot': 'Parcela'
-      };
-      const label = typeMap[String(prop.type).toLowerCase()] || prop.type;
-      // Lo ponemos al principio con un prefijo para que se entienda
-      uniqueFeaturesMap.set('zzz_type', `Tipo: ${label.charAt(0).toUpperCase() + label.slice(1)}`);
-  }
-
-  // Gastos de Comunidad (Ej: "Comunidad: 78€")
-  if (prop.communityFees && Number(prop.communityFees) > 0) {
-      uniqueFeaturesMap.set('zzz_community', `Comunidad: ${prop.communityFees}€`);
-  }
-
-  // --- 2. FUENTE: SelectedServices ---
   if (prop.selectedServices) {
       let raw = String(prop.selectedServices);
       if (raw.trim().startsWith('[')) raw = raw.replace(/[\[\]]/g, ""); 
-      const services = raw.split(',');
-      services.forEach((s) => addFeature(s));
+      raw.split(',').forEach((s) => { const label = getNiceLabel(s); if (label) featuresSet.add(label); });
   }
 
-  // --- 3. FUENTE: Booleanos ---
-  const booleanKeys = ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac', 'heating', 'furnished', 'wardrobes', 'security'];
-  booleanKeys.forEach(k => {
+  ['garage', 'pool', 'garden', 'terrace', 'elevator', 'ascensor', 'storage', 'ac', 'heating', 'furnished', 'wardrobes', 'security'].forEach(k => {
       if (prop[k] === true || prop[k] === 1 || prop[k] === "true") {
-          addFeature(k);
+          const label = getNiceLabel(k); if (label) featuresSet.add(label);
       }
   });
 
-  // D) LISTA FINAL
-  const featuresList = Array.from(uniqueFeaturesMap.values());
+  const featuresList = Array.from(featuresSet).slice(0, 10); 
+  const hasEnergyData = prop.energyConsumption || prop.energyEmissions || prop.energyPending;
 
+  const renderRatingScale = (rating: string | undefined, label: string) => {
+      const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+      return (
+          <View>
+              <Text style={styles.energyScaleLabel}>{label}</Text>
+              <View style={styles.energyGrid}>
+                  {letters.map(letter => {
+                      const isActive = rating?.toUpperCase() === letter;
+                      const letterColor = isActive ? ratingColors[letter as keyof typeof ratingColors] : ratingColors.N_A;
+                      return (
+                          <View key={letter} style={[styles.energyBox, isActive && { backgroundColor: letterColor, borderColor: letterColor }]}>
+                              <Text style={[styles.energyLetter, isActive && { color: '#FFF' }]}>{letter}</Text>
+                          </View>
+                      );
+                  })}
+              </View>
+          </View>
+      );
+  };
 
-  // 2. RECOLECTOR DE CARACTERÍSTICAS (BOOLEANOS + TEXTO)
-  const featuresSet = new Set<string>();
-
-  // A) Rastrear 'selectedServices' (Texto separado por comas)
-  if (prop.selectedServices) {
-      const services = Array.isArray(prop.selectedServices) 
-          ? prop.selectedServices 
-          : prop.selectedServices.split(',');
-      
-      services.forEach((s: string) => {
-          const clean = s.trim().toLowerCase();
-          if(clean) featuresSet.add(clean);
-      });
-  }
-
-  
   return (
     <Document>
-      <Page size="A4" style={styles.page} wrap>
-        
-        {/* === PIE DE PÁGINA REPETIDO (FIXED) === */}
-        {/* Al poner 'fixed', esto se repite en CADA página automáticamente */}
-        <View style={styles.footer} fixed>
-            <Text style={styles.disclaimer}>
-                Documento informativo sin valor contractual. Ref: {prop.refCode || prop.id || 'N/A'}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Text style={styles.branding}>AGENCIA PARTNER Stratosfere OS</Text>
-                {/* Número de página automático */}
-                <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => (
-                    `${pageNumber} / ${totalPages}`
-                )} />
+      {/* ================= PÁGINA 1: FICHA TÉCNICA ================= */}
+      <Page size="A4" style={styles.page}>
+        <View style={styles.heroSection}>
+            <Image src={heroImg} style={styles.heroImage} />
+            <View style={styles.heroOverlay} />
+            <View style={styles.heroContent}>
+                <Text style={styles.badgeTag}>{prop.type || "EXCLUSIVA"}</Text>
+                <Text style={styles.heroTitle}>{prop.title || "Propiedad de Lujo"}</Text>
+                <Text style={styles.heroAddress}>{prop.city ? String(prop.city).toUpperCase() : "UBICACIÓN PRIVADA"}</Text>
+                <Text style={styles.heroPrice}>{formatPrice(prop.price)}</Text>
             </View>
         </View>
 
-        {/* === CABECERA (Solo página 1) === */}
-        <View style={styles.header}>
-            <Image src={agentImg} style={styles.agentLogo} />
-            <View style={styles.agentInfo}>
-                <Text style={styles.agentName}>{ag.companyName || ag.name || "Agencia Partner"}</Text>
-                <Text style={styles.agentContact}>{ag.email || "info@stratos.os"}</Text>
-                {ag.mobile ? <Text style={styles.agentContact}>Móvil: {ag.mobile}</Text> : null}
-                {ag.phone ? <Text style={styles.agentContact}>Fijo: {ag.phone}</Text> : null}
-                {ag.website && <Text style={styles.agentContact}>{ag.website}</Text>}
+        <View style={styles.contentWrapper}>
+            <View style={styles.metricsCard}>
+                <View style={styles.metricItem}><Text style={styles.metricValue}>{prop.rooms || 0}</Text><Text style={styles.metricLabel}>Dormitorios</Text></View>
+                <View style={styles.metricItem}><Text style={styles.metricValue}>{prop.baths || 0}</Text><Text style={styles.metricLabel}>Baños</Text></View>
+                <View style={styles.metricItem}><Text style={styles.metricValue}>{prop.mBuilt || prop.m2 || 0}</Text><Text style={styles.metricLabel}>Metros M²</Text></View>
             </View>
-        </View>
 
-        {/* === CONTENIDO PRINCIPAL === */}
-        <Image src={heroImg} style={styles.heroImage} />
-
-        <View style={styles.titleRow}>
-            <Text style={styles.title}>{prop.title || "Oportunidad Exclusiva"}</Text>
-            <Text style={styles.price}>{formatPrice(prop.price)}</Text>
-        </View>
-        
-        <Text style={styles.address}>
-            {prop.address ? `${prop.address}, ` : ''}{prop.city || "Ubicación consultable"}
-        </Text>
-
-        <View style={styles.metricsRow}>
-            <View style={styles.metricItem}>
-                <Text style={styles.metricValue}>{prop.rooms || 0}</Text>
-                <Text style={styles.metricLabel}>Dormitorios</Text>
-            </View>
-            <View style={styles.metricItem}>
-                <Text style={styles.metricValue}>{prop.baths || 0}</Text>
-                <Text style={styles.metricLabel}>Baños</Text>
-            </View>
-            <View style={styles.metricItem}>
-                <Text style={styles.metricValue}>{prop.mBuilt || 0} m²</Text>
-                <Text style={styles.metricLabel}>Construidos</Text>
-            </View>
-            {prop.mPlot ? (
-                <View style={styles.metricItem}>
-                    <Text style={styles.metricValue}>{prop.mPlot} m²</Text>
-                    <Text style={styles.metricLabel}>Parcela</Text>
+            <View style={styles.twoColLayout}>
+                <View style={styles.mainCol}>
+                    <Text style={styles.sectionTitle}>Memoria Descriptiva</Text>
+                    <Text style={styles.descriptionText}>
+                        {prop.description ? prop.description.replace(/<[^>]+>/g, '').substring(0, 1000) + (prop.description.length > 1000 ? '...' : '') : "Este inmueble representa una oportunidad única. Para más detalles, contacte con el agente."}
+                    </Text>
                 </View>
-            ) : null}
-        </View>
-
-       {/* === CARACTERÍSTICAS (DINÁMICAS E INTELIGENTES) === */}
-        <View wrap={false}> 
-            <Text style={styles.sectionTitle}>Características</Text>
-            <View style={styles.featuresGrid}>
-                {featuresList.length > 0 ? (
-                    // Aquí pintamos TODO lo que el sistema ha encontrado (Texto + Booleanos)
-                    featuresList.map((feat, i) => (
-                        <View key={i} style={styles.featureBadge}>
-                            <Text style={styles.featureText}>{feat}</Text>
-                        </View>
-                    ))
-                ) : (
-                    // Si no hay nada, mensaje discreto
-                    <Text style={{ fontSize: 9, color: '#999' }}>Consultar detalles.</Text>
-                )}
+                <View style={styles.sideCol}>
+                    <Text style={styles.sectionTitle}>Ficha Técnica</Text>
+                    {featuresList.length > 0 ? featuresList.map((feat, i) => (
+                        <View key={i} style={styles.featureItem}><View style={styles.featureBullet} /><Text style={styles.featureText}>{feat}</Text></View>
+                    )) : <Text style={styles.featureText}>Consultar equipamiento completo.</Text>}
+                </View>
             </View>
         </View>
-        {/* === DESCRIPCIÓN (Puede romper página) === */}
-        <Text style={styles.sectionTitle}>Descripción</Text>
-        <Text style={styles.description}>
-            {prop.description 
-                ? prop.description.replace(/<[^>]+>/g, '') // Quitamos HTML
-                : "Sin descripción detallada disponible."}
-        </Text>
 
-        {/* === GALERÍA (Puede romper página) === */}
-        {extraImages.length > 0 && (
-            <>
-                <Text style={styles.sectionTitle} break={extraImages.length > 2}>Galería</Text>
-                <View style={styles.gridContainer}>
-                    {extraImages.map((img: string, i: number) => (
-                        <Image key={i} src={img} style={styles.gridImage} />
+        <View style={styles.footer} fixed>
+            <Text style={styles.disclaimer}>Documento informativo sin valor contractual. Ref: {prop.refCode || prop.id || 'N/A'}</Text>
+            <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pág. ${pageNumber} de ${totalPages}`} />
+        </View>
+      </Page>
+
+     {/* ================= PÁGINAS FLUIDAS (AGENCIA -> FOTOS -> ENERGÍA) ================= */}
+      {/* 🔥 TÁCTICA: "ZONA DE RESPIRACIÓN TÁCTICA". Añadimos un padding top global (style={[...]}) para que el contenido no machaque el borde superior en las páginas nuevas 2, 3, etc. */}
+      <Page size="A4" style={[styles.page, { paddingTop: 40 }]}>
+        <View style={styles.pageTwoWrapper}>
+            
+            {/* 1. TARJETA DE AGENCIA */}
+            <View style={styles.agentCard} wrap={false}>
+                <View style={styles.agentHeader}>
+                    <View style={styles.agentIdentity}>
+                        <Image src={agentImg} style={styles.agentLogo} />
+                        <View style={styles.agentBrandingText}>
+                             <Text style={styles.agentName}>{ag.companyName || ag.name || "Agencia Partner Stratosfere"}</Text>
+                             <Text style={styles.agentRoleText}>Agente Gestor Exclusivo</Text>
+                        </View>
+                    </View>
+                    <View style={styles.stratosBranding}>
+                         <Text style={styles.stratosBrandingLabel}>Socio de</Text>
+                         <Text style={styles.stratosLogoText}>Stratosfere OS<Text style={styles.stratosDot}>.</Text></Text>
+                    </View>
+                </View>
+
+                <View style={styles.agentDataSection}>
+                    {ag.zone && (
+                        <View style={styles.agentDataItem}><Text style={styles.agentDataLabel}>Zona Operativa</Text><Text style={styles.agentDataValue}>{ag.zone}</Text></View>
+                    )}
+                    {(ag.mobile || ag.phone) && (
+                        <View style={styles.agentDataItem}><Text style={styles.agentDataLabel}>Teléfono Contacto</Text><Text style={styles.agentDataValue}>{ag.mobile || ag.phone}</Text></View>
+                    )}
+                    {(ag.address || ag.hqAddress) && (
+                        <View style={styles.agentDataItem}><Text style={styles.agentDataLabel}>Sede / Dirección</Text><Text style={styles.agentDataValue}>{ag.address || ag.hqAddress}</Text></View>
+                    )}
+                    {ag.website && (
+                        <View style={styles.agentDataItem}><Text style={styles.agentDataLabel}>Sitio Web</Text><Text style={styles.agentDataValue}>{ag.website}</Text></View>
+                    )}
+                </View>
+            </View>
+
+            {/* 2. ANEXO VISUAL FLUIDO (SE ROMPE NATURALMENTE POR PÁGINAS) */}
+            {imageRows.length > 0 && (
+                <View>
+                    <Text style={[styles.sectionTitle, { marginBottom: 15 }]} wrap={false}>Anexo Visual</Text>
+                    {imageRows.map((row, rowIndex) => (
+                        <View key={rowIndex} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }} wrap={false}>
+                            {row.map((img, colIndex) => (
+                                <Image key={colIndex} src={img} style={{ width: '48%', height: 160, borderRadius: 8, objectFit: 'cover', backgroundColor: '#F1F5F9' }} />
+                            ))}
+                        </View>
                     ))}
                 </View>
-            </>
-        )}
+            )}
 
+            {/* 3. CERTIFICADO ENERGÉTICO (FLUYE DESPUÉS DE LAS FOTOS) */}
+            {hasEnergyData && (
+                <View style={styles.energySection} wrap={false}>
+                    <View style={{ marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEE', paddingBottom: 6 }}>
+                         <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#0F172A', textTransform: 'uppercase' }}>Certificación de Eficiencia</Text>
+                    </View>
+                    {prop.energyPending ? (
+                        <View style={{ alignItems: 'flex-start', gap: 5 }}>
+                            <Text style={styles.energyScaleLabel}>Situación actual</Text>
+                            <Text style={styles.pendingBadge}>Trámite / Exento</Text>
+                            <Text style={{ fontSize: 8, color: '#64748B', fontStyle: 'italic', marginTop: 3 }}>Aún no se dispone del certificado oficial.</Text>
+                        </View>
+                    ) : (
+                        <View style={{ flexDirection: 'row', gap: 25, flexWrap: 'wrap' }}>
+                            {renderRatingScale(prop.energyConsumption, "Consumo de Energía")}
+                            {renderRatingScale(prop.energyEmissions, "Emisiones CO₂")}
+                        </View>
+                    )}
+                </View>
+            )}
+        </View>
+
+        <View style={styles.footer} fixed>
+            <Text style={styles.disclaimer}>Documento informativo sin valor contractual. Ref: {prop.refCode || prop.id || 'N/A'}</Text>
+            <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pág. ${pageNumber} de ${totalPages}`} />
+        </View>
       </Page>
+
+      {/* ================= PÁGINA FINAL: CONTRAPORTADA (BACK COVER) ================= */}
+      <Page size="A4" style={styles.backCoverPage}>
+           <Image src={agentImg} style={styles.backCoverLogo} />
+           <Text style={styles.backCoverName}>{ag.companyName || ag.name || "Agencia Partner"}</Text>
+           <Text style={styles.backCoverWeb}>{ag.website || ag.email}</Text>
+
+           <View style={styles.backCoverBranding}>
+               <Text style={styles.stratosBrandingLabel}>Generado con la tecnología de</Text>
+               <Text style={[styles.stratosLogoText, { fontSize: 16, marginTop: 4 }]}>
+                   Stratosfere OS<Text style={styles.stratosDot}>.</Text>
+               </Text>
+           </View>
+      </Page>
+
     </Document>
   );
 };

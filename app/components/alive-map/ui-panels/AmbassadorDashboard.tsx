@@ -667,64 +667,122 @@ export default function AmbassadorDashboard() {
                                 if (isPublicDetail) {
                                     return (
                                         <>
-                                            {/* LINK SECTION (PÚBLICO) */}
-                                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                                                <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                                    <LinkIcon size={14} className="text-green-700"/> Enlace Único (B2B)
-                                                </h3>
-                                                <div className="flex gap-2 mb-3">
-                                                    <div className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-600 font-mono truncate select-all cursor-text">
-                                                        {generatedLink || "Cargando..."}
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => handleCopyLink(generatedLink, "link-main")}
-                                                        className={`px-4 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${copiedId === "link-main" ? "bg-green-500 text-white" : "bg-slate-900 text-white hover:bg-black"}`}
-                                                    >
-                                                        {copiedId === "link-main" ? <Check size={16}/> : <Copy size={16}/>}
-                                                    </button>
-                                                </div>
-                                                <button onClick={() => window.open(generatedLink, '_blank')} className="w-full py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                                                    <ExternalLink size={14}/> Probar Enlace
-                                                </button>
-                                            </div>
+                                        {/* 🔥 PANEL DE DIFUSIÓN DUO TÁCTICO 🔥 */}
+                                        <div className="bg-slate-50 rounded-[24px] p-2 mb-2 border border-slate-200 shadow-sm">
+                                            <h3 className="text-center text-[11px] font-black text-slate-900 uppercase tracking-widest py-3 mb-2 border-b border-slate-200/50">
+                                                Centro de Enlaces de Difusión
+                                            </h3>
 
-                                        {/* DETAILS SECTION (PÚBLICO) CON HONORARIOS TOTALES */}
-                                            <div className="space-y-4 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                                                {/* Precio de Venta */}
-                                                <div className="flex justify-between items-center text-sm">
-                                                    <span className="text-slate-500 font-bold">Precio Inversor</span>
-                                                    <span className="font-black text-slate-900">{formatMoney(selectedProperty.price)}</span>
-                                                </div>
+                                            <div className="p-1 space-y-3">
                                                 
-                                                <div className="h-px bg-slate-200"></div>
-                                                
-                                                {/* 🧮 Lógica de cálculo matemático */}
-                                                {(() => {
-                                                    const sharePct = selectedProperty.b2b?.sharePct || 0;
-                                                    const myCommission = selectedProperty.commission || 0;
-                                                    const totalCommission = sharePct > 0 ? (myCommission * 100) / sharePct : 0;
+                                                {/* ==========================================
+                                                    ENLACE PÚBLICO (MARCA BLANCA)
+                                                ========================================== */}
+                                                <div className="bg-white rounded-[20px] p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+                                                    <div className="absolute top-0 left-0 w-full h-1 bg-slate-200"></div>
                                                     
-                                                    return (
+                                                    <div className="flex justify-between items-center mb-3">
+                                                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                                            <LinkIcon size={14} className="text-slate-400" /> Enlace Público <span className="text-[10px] text-slate-400 font-bold">(Marca Blanca)</span>
+                                                        </h4>
+                                                    </div>
+                                                    
+                                                    <p className="text-[10px] font-bold text-slate-500 mb-2 leading-tight">
+                                                        Oculta la agencia gestora y detalles de comisión. Ideal para tus clientes directos.
+                                                    </p>
+
+                                                    <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                                                        <div className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-xs text-slate-600 font-mono truncate select-all cursor-text flex items-center">
+                                                            {generatedLink ? generatedLink.replace('/vip/', '/p/') : "Cargando..."}
+                                                        </div>
+                                                        <div className="flex gap-2 shrink-0">
+                                                            <button 
+                                                                onClick={() => handleCopyLink(generatedLink ? generatedLink.replace('/vip/', '/p/') : "", "link-white")}
+                                                                className={`px-5 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${copiedId === "link-white" ? "bg-green-500 text-white shadow-lg shadow-green-500/30" : "bg-slate-900 text-white hover:bg-black"}`}
+                                                            >
+                                                                {copiedId === "link-white" ? <Check size={16}/> : <Copy size={16}/>} Copiar
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => window.open(generatedLink ? generatedLink.replace('/vip/', '/p/') : "", '_blank')} 
+                                                                className="px-5 py-3 border border-slate-200 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center font-bold bg-white gap-2"
+                                                                title="Probar Enlace"
+                                                            >
+                                                                <ExternalLink size={16}/> Abrir
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* ==========================================
+                                                    ENLACE PROFESIONAL (B2B)
+                                                ========================================== */}
+                                                <div className="bg-white rounded-[20px] p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+                                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-300"></div>
+
+                                                    {(() => {
+                                                        const sharePct = selectedProperty.b2b?.sharePct || 0;
+                                                        const myCommission = selectedProperty.commission || 0;
+                                                        const totalCommission = sharePct > 0 ? (myCommission * 100) / sharePct : 0;
+                                                        
+                                                        return (
                                                         <>
-                                                            {/* Honorarios Totales */}
-                                                            <div className="flex justify-between items-center text-sm">
-                                                                <span className="text-slate-500 font-bold">
-                                                                    Honorarios Totales {selectedProperty.totalCommissionPct > 0 ? `(${selectedProperty.totalCommissionPct}%)` : ''}
+                                                            <div className="flex justify-between items-center mb-3">
+                                                                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                                                                    <Handshake size={14} className="text-amber-600"/> Enlace Profesional <span className="text-[10px] text-amber-600 font-bold">(B2B)</span>
+                                                                </h4>
+                                                                <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded-md text-[9px] font-black tracking-widest border border-amber-200">
+                                                                    {sharePct}% B2B
                                                                 </span>
-                                                                <span className="font-black text-slate-700">{formatMoney(totalCommission)}</span>
+                                                            </div>
+                                                            
+                                                            <p className="text-[10px] font-bold text-slate-500 mb-4 leading-tight">
+                                                                Acceso a protocolos de alianza, cookie a 30 días y detalles financieros. Exclusivo para agentes.
+                                                            </p>
+
+                                                            {/* Finanzas Compactas B2B */}
+                                                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                                <div className="flex flex-col border-b sm:border-b-0 sm:border-r border-slate-200/60 pb-2 sm:pb-0">
+                                                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Precio Inversor</span>
+                                                                    <span className="font-black text-slate-900 text-sm">{formatMoney(selectedProperty.price)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col border-b sm:border-b-0 sm:border-r border-slate-200/60 pb-2 sm:pb-0">
+                                                                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Total {selectedProperty.totalCommissionPct > 0 ? `(${selectedProperty.totalCommissionPct}%)` : ''}</span>
+                                                                    <span className="font-black text-slate-700 text-sm">{formatMoney(totalCommission)}</span>
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[9px] text-green-700 font-bold uppercase tracking-widest mb-1">Tu Comisión ({sharePct}%)</span>
+                                                                    <span className="font-black text-green-600 text-sm">{formatMoney(myCommission)}</span>
+                                                                </div>
                                                             </div>
 
-                                                            <div className="h-px bg-slate-200/50"></div>
-
-                                                            {/* Tu Comisión */}
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="font-black text-slate-900">COMISIÓN (TÚ) {sharePct > 0 ? `(${sharePct}%)` : ''}</span>
-                                                                <span className="text-2xl font-black text-green-700">{formatMoney(myCommission)}</span>
+                                                            {/* Controles de Enlace B2B */}
+                                                            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                                                                <div className="flex-grow bg-amber-50/50 border border-amber-200/60 rounded-xl px-3 py-3 text-xs text-slate-700 font-mono truncate select-all cursor-text flex items-center">
+                                                                    {generatedLink || "Cargando..."}
+                                                                </div>
+                                                                <div className="flex gap-2 shrink-0">
+                                                                    <button 
+                                                                        onClick={() => handleCopyLink(generatedLink, "link-black")}
+                                                                        className={`px-5 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${copiedId === "link-black" ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30" : "bg-slate-900 text-white hover:bg-black"}`}
+                                                                    >
+                                                                        {copiedId === "link-black" ? <><Check size={16}/> Copiado</> : <><Copy size={16}/> Copiar B2B</>}
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => window.open(generatedLink, '_blank')} 
+                                                                        className="px-5 py-3 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl transition-colors flex items-center justify-center gap-2 font-bold border border-amber-300/50"
+                                                                    >
+                                                                        <ExternalLink size={16}/> Abrir
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </>
-                                                    );
-                                                })()}
+                                                        );
+                                                    })()}
+                                                </div>
+                                                
                                             </div>
+                                        </div>
+                                        
                                         </>
                                     );
                                 } else {
