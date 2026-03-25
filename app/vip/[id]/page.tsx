@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { getPropertyByIdAction, getActiveManagementAction, submitLeadAction } from "@/app/actions";
-import { Loader2, Phone, Mail, ShieldCheck, Check, MapPin, Maximize2, Bed, Bath, User, Briefcase, Camera, Send, Handshake, Lock, Coins, FileText, Building2, ChevronRight } from "lucide-react";
+import { Loader2, Phone, Mail, ShieldCheck, Check, MapPin, Maximize2, Bed, Bath, User, Briefcase, Camera, Send, Handshake, Lock, Coins, FileText, Building2, ChevronRight, X } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { useParams } from "next/navigation";
 
@@ -17,6 +17,9 @@ export default function VipB2BPropertyPage() {
 
     const [sending, setSending] = useState(false);
     const [leadForm, setLeadForm] = useState({ name: '', email: '', phone: '', message: '' });
+    
+    // 🔥 ESTADO DEL MODAL B2B
+    const [showB2BModal, setShowB2BModal] = useState(false);
 
     useEffect(() => {
         if (!propertyId) return;
@@ -99,7 +102,7 @@ export default function VipB2BPropertyPage() {
     if (allImages.length === 0 && prop.img) allImages = [prop.img];
     
     const img = allImages.length > 0 ? (typeof allImages[0] === 'string' ? allImages[0] : allImages[0].url) : "https://dummyimage.com/800x600/1e293b/94a3b8&text=Imagen+No+Disponible";
-    const galleryImages = allImages.slice(1, 5); // Cogemos 4 fotos extra
+    const galleryImages = allImages.slice(1, 5); 
 
     const avatar = owner?.companyLogo || owner?.avatar || null;
     const numericPrice = Number(String(prop.price).replace(/\D/g, ''));
@@ -187,7 +190,7 @@ export default function VipB2BPropertyPage() {
                     {/* COLUMNA IZQUIERDA: FOTOS Y DATOS */}
                     <div className="lg:col-span-2 space-y-8">
                         
-                        {/* GALERÍA DE FOTOS (NUEVO) */}
+                        {/* GALERÍA DE FOTOS */}
                         {galleryImages.length > 0 && (
                             <div className="bg-[#111] rounded-[24px] p-5 border border-white/5">
                                 <h3 className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -206,7 +209,7 @@ export default function VipB2BPropertyPage() {
                             </div>
                         )}
 
-                        {/* DESCRIPCIÓN Y ESPECIFICACIONES (NUEVO) */}
+                        {/* DESCRIPCIÓN Y ESPECIFICACIONES */}
                         <div className="bg-[#111] rounded-[24px] p-6 sm:p-8 border border-white/5">
                             <div className="grid grid-cols-3 gap-4 mb-8 border-b border-white/5 pb-8">
                                 <div className="flex flex-col items-center justify-center p-4 bg-black/50 rounded-2xl border border-white/5">
@@ -256,7 +259,7 @@ export default function VipB2BPropertyPage() {
                         </div>
 
                         {/* Formulario de Contacto B2B */}
-                        <div className="bg-gradient-to-b from-[#1A1A1A] to-[#0A0A0A] rounded-[24px] p-1 shadow-2xl border border-white/10 relative overflow-hidden sticky top-24">
+                        <div id="b2b-form" className="bg-gradient-to-b from-[#1A1A1A] to-[#0A0A0A] rounded-[24px] p-1 shadow-2xl border border-white/10 relative overflow-hidden sticky top-24">
                             <div className="bg-[#111] rounded-[20px] p-6">
                                 <div className="text-center mb-6">
                                     <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
@@ -269,7 +272,7 @@ export default function VipB2BPropertyPage() {
                                 <form onSubmit={handleSendLead} className="space-y-3">
                                     <div>
                                         <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Tu Agencia / Nombre</label>
-                                        <input className="w-full p-3.5 bg-black text-white rounded-xl text-sm font-medium border border-white/10 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none placeholder:text-slate-600 transition-all" placeholder="Ej: Inmobiliaria Centro" value={leadForm.name} onChange={e => setLeadForm({...leadForm, name: e.target.value})} required />
+                                        <input id="agent-name-input" className="w-full p-3.5 bg-black text-white rounded-xl text-sm font-medium border border-white/10 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none placeholder:text-slate-600 transition-all" placeholder="Ej: Inmobiliaria Centro" value={leadForm.name} onChange={e => setLeadForm({...leadForm, name: e.target.value})} required />
                                     </div>
                                     <div>
                                         <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Email Profesional</label>
@@ -302,6 +305,109 @@ export default function VipB2BPropertyPage() {
                     </p>
                 </div>
             </div>
+
+            {/* 🚀 FOOTER FLOTANTE B2B (COMO EN EL PANEL NATIVO) */}
+            <div className="fixed bottom-0 left-0 w-full p-4 sm:p-5 bg-[#0A0A0A]/90 backdrop-blur-xl border-t border-white/10 flex justify-center z-40">
+                <div className="w-full max-w-4xl flex gap-3">
+                    <button 
+                        onClick={() => setShowB2BModal(true)} 
+                        className="w-14 h-14 bg-gradient-to-br from-amber-200 to-yellow-400 text-yellow-900 rounded-[20px] border border-yellow-300 shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 animate-pulse-slow shrink-0" 
+                        title={`Colaboración disponible: ${sharePercent}%`}
+                    >
+                        <Handshake size={24} strokeWidth={2.5} />
+                    </button>
+                    <button 
+                        onClick={() => {
+                            document.getElementById('b2b-form')?.scrollIntoView({ behavior: 'smooth' });
+                            setTimeout(() => document.getElementById('agent-name-input')?.focus(), 500);
+                        }} 
+                        className="flex-1 h-14 bg-white text-black rounded-[20px] font-black shadow-xl flex items-center justify-center gap-2 hover:bg-slate-200 transition-all active:scale-95 uppercase tracking-wider text-xs"
+                    >
+                        <Send size={18} className="text-amber-600"/> Enviar Petición
+                    </button>
+                </div>
+            </div>
+
+            {/* 🔥 MODAL B2B ULTRA PREMIUM 🔥 */}
+            {showB2BModal && (
+                <div className="fixed inset-0 z-[60000] flex items-center justify-center bg-slate-950/80 backdrop-blur-xl p-4 sm:p-6 animate-fade-in" onClick={() => setShowB2BModal(false)}>
+                    <div className="bg-[#0A0A0A] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-white/10 relative animate-scale-in" onClick={(e) => e.stopPropagation()}>
+                        
+                        {/* Luces de fondo */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-[80px] pointer-events-none"/>
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] pointer-events-none"/>
+                        
+                        <button onClick={() => setShowB2BModal(false)} className="absolute top-4 right-4 w-10 h-10 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-md border border-white/10 text-slate-400 hover:text-white z-20">
+                            <X size={20} />
+                        </button>
+                        
+                        <div className="p-8 relative z-10">
+                            {/* Cabecera */}
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-300/50 shrink-0">
+                                    <Handshake size={28} className="text-black drop-shadow-sm"/>
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-white leading-tight">Alianza B2B</h3>
+                                    <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mt-1">Protocolo Abierto</p>
+                                </div>
+                            </div>
+
+                            <p className="text-slate-400 text-xs font-medium mb-6 leading-relaxed">
+                                Esta propiedad admite colaboración inmediata. Rellene el formulario seguro para notificar a la agencia gestora y dejar constancia de su lead.
+                            </p>
+
+                            {/* La Bóveda Financiera */}
+                            {(() => {
+                                return (
+                                    <div className="bg-gradient-to-br from-slate-900 to-black border border-white/10 rounded-[24px] p-5 mb-8 relative overflow-hidden">
+                                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
+                                        
+                                        <div className="flex justify-between items-end mb-4 border-b border-white/5 pb-4">
+                                            <div>
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Precio Inversor</p>
+                                                <p className="text-lg font-black text-slate-200">{formatMoney(numericPrice)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Honorarios Totales</p>
+                                                <p className="text-lg font-black text-slate-400">{formatMoney(totalCommissionEur)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Tu Comisión B2B</p>
+                                                <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[9px] font-black border border-amber-500/30">
+                                                    {sharePercent}% DEL TOTAL
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                             <p className="text-3xl font-black text-white tracking-tighter drop-shadow-[0_0_10px_rgba(245,158,11,0.3)] flex items-center gap-2 justify-end">
+                                                    <Coins size={20} className="text-amber-500"/> {formatMoney(estimatedEarnings)}
+                                                </p>
+                                                <p className="text-[8px] text-slate-500 mt-1 font-mono uppercase tracking-widest">Estimado (+ IVA)</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Botón de Acción Táctico (Baja al formulario) */}
+                            <button 
+                                onClick={() => { 
+                                    setShowB2BModal(false); 
+                                    document.getElementById('b2b-form')?.scrollIntoView({ behavior: 'smooth' });
+                                    setTimeout(() => document.getElementById('agent-name-input')?.focus(), 500);
+                                }} 
+                                className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <ShieldCheck size={18}/> Iniciar Trámite de Alianza
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
