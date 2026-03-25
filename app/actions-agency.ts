@@ -97,7 +97,7 @@ export async function getAgencyLeadsAction() {
                 };
             }
 
-            return {
+           return {
                 id: l.id,
                 name: l.name,
                 email: l.email,
@@ -106,6 +106,7 @@ export async function getAgencyLeadsAction() {
                 createdAt: l.createdAt,
                 status: l.status,
                 ambassador: l.ambassador,
+                source: l.source, // 🔥 LA LÍNEA DEL CHIVATO QUE FALTABA
                 
                 // 📦 PAQUETE BLINDADO
                 property: {

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { 
-    Users, ShieldCheck, X, Search, 
+    Users, ShieldCheck, X, Search, Handshake,
     MessageSquare, Phone, MapPin, Trash2, Navigation, 
     Loader2, TrendingUp, Mail, Award, Clock, Crown
 } from 'lucide-react';
@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 
 // IMPORTAMOS LA INTELIGENCIA
 import { getAgencyAmbassadorsAction, getAgencyLeadsAction, deleteAgencyLeadAction } from '@/app/actions-agency';
+import { getPusherClient } from '@/app/utils/pusher';
+import { getUserMeAction } from '@/app/actions';
 
 export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void }) {
     
@@ -19,7 +21,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     const [leads, setLeads] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
 
-    // 🔄 CARGA DE DATOS
+ // 🔄 CARGA DE DATOS INICIAL
     useEffect(() => {
         loadIntelligence();
     }, []);
@@ -39,6 +41,46 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
         }
     };
 
+    // 📡 ANTENA DE TIEMPO REAL: Escucha las bengalas del servidor
+    useEffect(() => {
+        let channelName = "";
+        const pusher = getPusherClient(); // 🔥 ENCENDEMOS EL MOTOR DE PUSHER AQUÍ
+
+        const turnOnRadar = async () => {
+            try {
+                // 1. Identificamos nuestra propia frecuencia (nuestro ID)
+                const meRes = await getUserMeAction();
+                const myId = meRes?.data?.id;
+                
+                if (myId) {
+                    channelName = `user-${myId}`;
+                    
+                    // 2. Nos sintonizamos a nuestro canal privado
+                    pusher.subscribe(channelName);
+                    
+                    // 3. Cuando escuchemos "new-lead", disparamos la alarma y recargamos
+                    pusher.bind("new-lead", (incomingLead: any) => {
+                        toast.success("🎯 ¡Nuevo contacto B2B detectado en el radar!");
+                        // Recargamos la lista en segundo plano para traer el lead completo
+                        loadIntelligence(); 
+                    });
+                }
+            } catch (error) {
+                console.error("Error sintonizando radar:", error);
+            }
+        };
+
+        turnOnRadar();
+
+        // 4. Apagamos la radio si cerramos el panel (limpieza táctica)
+        return () => {
+            if (channelName) {
+                pusher.unbind("new-lead");
+                pusher.unsubscribe(channelName);
+            }
+        };
+    }, []);
+
     // 🔙 MANIOBRA DE RETIRADA
     const handleBackToProfile = () => {
         onClose(); 
@@ -46,7 +88,6 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
             if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-agency-profile'));
         }, 50);
     };
-
     // 🔥 VUELO TÁCTICO Y FILTRO DE PRIVACIDAD (INTACTO)
     const handleFlyTo = (e: any, p: any) => {
         e.stopPropagation();
@@ -286,22 +327,29 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                         {isNew && <span className="bg-rose-500 text-white text-[9px] px-2 py-0.5 rounded-full font-black tracking-widest shadow-sm animate-pulse">NUEVO</span>}
                                                     </div>
                                                     
-                                                <div className="flex items-center gap-2 mb-2 flex-wrap">
-    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border border-slate-200">
-        REF: {p?.refCode || "---"}
-    </span>
-    
-    {/* 🔥 DETONADOR INFALIBLE: Se enciende si viene del mapa o si el nombre contiene "VIP" */}
-    {(lead.source === 'MARKET_NETWORK' || lead.campaignId || lead.name?.includes('VIP')) && (
-        <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm border border-orange-400">
-            <Crown size={10} className="text-white"/> ROI CAMPAÑA VIP
-        </span>
-    )}
-</div>
+                                               <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border border-slate-200">
+                                                        REF: {p?.refCode || "---"}
+                                                    </span>
+                                                    
+                                                    {/* 🔥 ROI CAMPAÑA VIP (Intacto) */}
+                                                    {(lead.source === 'MARKET_NETWORK' || lead.campaignId || lead.name?.includes('VIP')) && (
+                                                        <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm border border-orange-400">
+                                                            <Crown size={10} className="text-white"/> ROI CAMPAÑA VIP
+                                                        </span>
+                                                    )}
 
-<div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold truncate">
-                                                        <MapPin size={12} className="text-indigo-400"/> <span className="truncate">{p?.address || p?.title || "Propiedad en Radar"}</span>
-                                                    </div>
+                                                    {/* 🏎️ 🔥 EL NUEVO CHIVATO FERRARI NEGRO (B2B) 🔥 🏎️ */}
+                                                    {lead.source === 'B2B_NETWORK' && (
+                                                        <span className="bg-slate-900 text-amber-400 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm border border-amber-500/30">
+                                                            <Handshake size={10} className="text-amber-500"/> ALIANZA B2B
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold truncate">
+                                                    <MapPin size={12} className="text-indigo-400"/> <span className="truncate">{p?.address || p?.title || "Propiedad en Radar"}</span>
+                                                </div>
                                                 </div>
                                             </div>
 

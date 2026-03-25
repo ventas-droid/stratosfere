@@ -688,7 +688,7 @@ export default function AmbassadorDashboard() {
                                                     </div>
                                                     
                                                     <p className="text-[10px] font-bold text-slate-500 mb-2 leading-tight">
-                                                        Oculta la agencia gestora y detalles de comisión. Ideal para tus clientes directos.
+                                                        Oculta los detalles de comisión. Ideal para tus clientes directos.
                                                     </p>
 
                                                     <div className="flex flex-col sm:flex-row gap-2 mt-4">
@@ -757,22 +757,24 @@ export default function AmbassadorDashboard() {
 
                                                             {/* Controles de Enlace B2B */}
                                                             <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                                                                <div className="flex-grow bg-amber-50/50 border border-amber-200/60 rounded-xl px-3 py-3 text-xs text-slate-700 font-mono truncate select-all cursor-text flex items-center">
-                                                                    {generatedLink || "Cargando..."}
-                                                                </div>
-                                                                <div className="flex gap-2 shrink-0">
-                                                                    <button 
-                                                                        onClick={() => handleCopyLink(generatedLink, "link-black")}
-                                                                        className={`px-5 py-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${copiedId === "link-black" ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30" : "bg-slate-900 text-white hover:bg-black"}`}
-                                                                    >
-                                                                        {copiedId === "link-black" ? <><Check size={16}/> Copiado</> : <><Copy size={16}/> Copiar B2B</>}
-                                                                    </button>
-                                                                    <button 
-                                                                        onClick={() => window.open(generatedLink, '_blank')} 
-                                                                        className="px-5 py-3 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl transition-colors flex items-center justify-center gap-2 font-bold border border-amber-300/50"
-                                                                    >
-                                                                        <ExternalLink size={16}/> Abrir
-                                                                    </button>
+                                                                <div className="flex flex-col gap-2 flex-grow min-w-0">
+                                                                    <div className="flex-grow bg-amber-50/50 border border-amber-200/60 rounded-xl px-3 py-2.5 text-xs text-slate-700 font-mono truncate select-all cursor-text flex items-center">
+                                                                        {generatedLink ? generatedLink.replace('/p/', '/vip/') : "Cargando..."}
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        <button 
+                                                                            onClick={() => handleCopyLink(generatedLink ? generatedLink.replace('/p/', '/vip/') : "", "link-black")}
+                                                                            className={`flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${copiedId === "link-black" ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30" : "bg-slate-900 text-white hover:bg-black"}`}
+                                                                        >
+                                                                            {copiedId === "link-black" ? <><Check size={14}/> Copiado</> : <><Copy size={14}/> Copiar B2B</>}
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => window.open(generatedLink ? generatedLink.replace('/p/', '/vip/') : "", '_blank')} 
+                                                                            className="flex-1 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl transition-colors flex items-center justify-center gap-1.5 font-bold border border-amber-300/50"
+                                                                        >
+                                                                            <ExternalLink size={14}/> Abrir
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </>
@@ -782,7 +784,7 @@ export default function AmbassadorDashboard() {
                                                 
                                             </div>
                                         </div>
-                                        
+
                                         </>
                                     );
                                 } else {
