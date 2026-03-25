@@ -212,13 +212,27 @@ export default function PremiumPublicPropertyPage() {
                 {/* ZONA DE CONTACTO Y DESCARGAS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
                     
-                    {/* Tarjeta del Agente */}
+                  {/* Tarjeta del Gestor (Agencia o Particular) */}
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center">
                         <div className="w-20 h-20 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden shadow-inner mb-4 flex items-center justify-center">
-                            {avatar ? <img src={avatar} className="w-full h-full object-cover" alt="Agente"/> : <User size={32} className="text-slate-400"/>}
+                            {avatar ? (
+                                <img src={avatar} className="w-full h-full object-cover" alt="Gestor"/>
+                            ) : (
+                                isAgency ? <Briefcase size={32} className="text-slate-400"/> : <User size={32} className="text-slate-400"/>
+                            )}
                         </div>
-                        <h2 className="text-lg font-black text-slate-900 leading-tight mb-1">{owner?.companyName || owner?.name || "Agencia Exclusiva"}</h2>
-                        <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full uppercase tracking-wider mb-6">
+                        
+                        <h2 className="text-lg font-black text-slate-900 leading-tight mb-1">
+                            {isAgency 
+                                ? (owner?.companyName || owner?.name || "Agencia Exclusiva") 
+                                : (owner?.name || "Propietario")}
+                        </h2>
+                        
+                        <p className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-6 border ${
+                            isAgency 
+                                ? 'text-emerald-600 bg-emerald-50 border-emerald-100' 
+                                : 'text-blue-600 bg-blue-50 border-blue-100'
+                        }`}>
                             {isAgency ? "Agencia Certificada" : "Particular Verificado"}
                         </p>
                         
