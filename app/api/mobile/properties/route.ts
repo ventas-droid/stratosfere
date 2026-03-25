@@ -5,27 +5,22 @@ const prisma = new PrismaClient();
 
 export async function GET() {
   try {
-    // Extraemos TODAS las propiedades con sus relaciones completas
     const properties = await prisma.property.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
-        // Incluimos los datos del usuario creador
         user: {
-          select: { role: true, name: true, companyName: true, companyLogo: true, avatar: true, tagline: true }
+          select: { role: true, name: true, companyName: true, companyLogo: true, avatar: true, tagline: true, phone: true, mobile: true, email: true }
         },
-        // Incluimos los datos de la agencia asignada (si la hay)
         assignment: {
-          include: { agency: { select: { companyName: true, companyLogo: true, avatar: true, tagline: true } } }
+          include: { agency: { select: { companyName: true, companyLogo: true, avatar: true, tagline: true, phone: true, mobile: true, email: true } } }
         },
-        // Incluimos datos de campaña activa
         campaigns: {
           where: { status: 'ACCEPTED' },
-          include: { agency: { select: { companyName: true, companyLogo: true, avatar: true, tagline: true } } }
+          include: { agency: { select: { companyName: true, companyLogo: true, avatar: true, tagline: true, phone: true, mobile: true, email: true } } }
         }
       }
     });
 
-  // Formateamos para el móvil pero CONSERVANDO (...p) todos los campos originales
     const formattedProperties = properties.map((p: any) => {
       
       // 📸 PURIFICADOR DE GALERÍA
@@ -38,8 +33,19 @@ export async function GET() {
         cleanImages = p.gallery.map((img: any) => typeof img === 'string' ? img : (img.url || img));
       }
 
+      // 🎭 TRANSMUTACIÓN GLOBAL 🎭
+      let finalUser = p.user;
+      const managingAgency = p.assignment?.agency || (p.campaigns && p.campaigns.length > 0 ? p.campaigns[0].agency : null);
+      if (managingAgency) {
+          finalUser = { ...managingAgency, role: 'AGENCIA' };
+      }
+
       return {
         ...p, 
+        
+        // 🔥 REEMPLAZO DEL USUARIO ORIGINAL
+        user: finalUser,
+
         image: p.mainImage || cleanImages[0] || null,
         images: cleanImages, 
         location: [p.address, p.city, p.region].filter(Boolean).join(', '),
