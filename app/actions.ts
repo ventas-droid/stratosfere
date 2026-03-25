@@ -461,7 +461,7 @@ export async function getPropertyByIdAction(propertyId: string) {
              p.shareVisibility = 'PRIVATE';
          }
     }
-    
+
     // 🔥 FIX COORDENADAS
     const lng = Number(p.longitude);
     const lat = Number(p.latitude);
@@ -3408,10 +3408,10 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
       data: auditData
     });
 
-    // 3. SI ACEPTA -> TRANSFERENCIA DE PODERES
+   // 3. SI ACEPTA -> TRANSFERENCIA DE PODERES
     if (decision === "ACCEPT") {
       
-      // A) Crear asignación
+      // A) Crear asignación (INTACTO - NO SE TOCA)
       await prisma.propertyAssignment.upsert({
         where: { propertyId: campaign.propertyId }, 
         update: {
@@ -3427,32 +3427,90 @@ export async function respondToCampaignAction(campaignId: string, decision: "ACC
         }
       });
 
-      // B) ENVIAR EMAIL DE ÉXITO A LA AGENCIA
+      // B) ENVIAR DOBLE EMAIL (PROPIETARIO Y AGENCIA)
       const resendApiKey = process.env.RESEND_API_KEY;
       if (resendApiKey) {
         try {
             // Importación dinámica por seguridad
             const { Resend } = require('resend');
             const resend = new Resend(resendApiKey);
-            await resend.emails.send({
-                from: 'Stratosfere <info@stratosfere.com>',
-                to: campaign.agency.email, 
-                subject: `🚀 ¡CAPTACIÓN ÉXITO! ${campaign.property.address}`,
-                html: `
-                  <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                    <h2 style="color: #059669;">¡Nuevo Mandato Conseguido!</h2>
-                    <p>El propietario ha aceptado tu propuesta para <strong>${campaign.property.address}</strong>.</p>
-                    <p>Ya tienes acceso completo al expediente.</p>
-                    <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir al Panel</a>
-                  </div>
-                `
-            });
-            console.log("✅ [SERVER] Email enviado a la agencia.");
+
+            // Extracción segura de datos para los correos
+            const ownerName = campaign.property.user?.name || "Propietario";
+            const ownerEmail = campaign.property.user?.email;
+            
+            const agencyName = campaign.agency?.companyName || campaign.agency?.name || "La Agencia";
+            const agencyEmail = campaign.agency?.email;
+            
+            const propAddress = campaign.property.address || "Propiedad";
+            const refCode = campaign.property.refCode || "S/R";
+            const priceFormatted = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(campaign.property.price || 0));
+            
+            const commission = campaign.commissionPct || 0;
+            const months = campaign.exclusiveMonths || 6;
+            const isExclusive = campaign.exclusiveMandate ?? true;
+
+            // 1. CORREO A LA AGENCIA (Mejorado con datos)
+            if (agencyEmail) {
+                await resend.emails.send({
+                    from: 'Stratosfere <info@stratosfere.com>',
+                    to: agencyEmail, 
+                    subject: `🚀 ¡CAPTACIÓN ÉXITO! Ref: ${refCode}`,
+                    html: `
+                      <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #059669; margin-top: 0;">¡Nuevo Mandato Conseguido!</h2>
+                        <p style="color: #374151; font-size: 16px;">El propietario <strong>${ownerName}</strong> ha aceptado tu propuesta para <strong>${propAddress}</strong>.</p>
+                        
+                        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                          <h3 style="margin-top: 0; font-size: 14px; color: #064e3b; text-transform: uppercase;">Resumen del Acuerdo:</h3>
+                          <ul style="color: #064e3b; font-size: 14px; line-height: 1.6; padding-left: 20px; margin-bottom: 0;">
+                            <li><strong>Referencia:</strong> ${refCode}</li>
+                            <li><strong>Precio Base:</strong> ${priceFormatted}</li>
+                            <li><strong>Tus Honorarios:</strong> ${commission}%</li>
+                            <li><strong>Mandato:</strong> ${isExclusive ? 'Exclusiva' : 'Abierto'} (${months} Meses)</li>
+                          </ul>
+                        </div>
+                        
+                        <p style="color: #4b5563; font-size: 14px;">Ya tienes acceso completo al expediente.</p>
+                        <a href="https://stratosfere.com/dashboard" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">Ir al Panel</a>
+                      </div>
+                    `
+                });
+            }
+
+            // 2. NUEVO: CORREO AL PROPIETARIO (Acuse de recibo)
+            if (ownerEmail) {
+                await resend.emails.send({
+                    from: 'Stratosfere <info@stratosfere.com>',
+                    to: ownerEmail, 
+                    subject: `🤝 Traspaso Confirmado: Tu propiedad en manos de ${agencyName}`,
+                    html: `
+                      <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #0f172a; margin-top: 0;">Acuerdo de Gestión Confirmado</h2>
+                        <p style="color: #374151; font-size: 16px;">Hola ${ownerName},</p>
+                        <p style="color: #374151; font-size: 16px;">Te confirmamos que has cedido con éxito la gestión comercial de tu propiedad (<strong>REF: ${refCode}</strong>) a la agencia <strong>${agencyName}</strong>.</p>
+                        
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                          <h3 style="margin-top: 0; font-size: 14px; color: #475569; text-transform: uppercase;">Condiciones Aceptadas:</h3>
+                          <ul style="color: #334155; font-size: 14px; line-height: 1.6; padding-left: 20px; margin-bottom: 0;">
+                            <li><strong>Honorarios de Agencia:</strong> ${commission}%</li>
+                            <li><strong>Duración del acuerdo:</strong> ${months} Meses</li>
+                            <li><strong>Modalidad:</strong> ${isExclusive ? 'Exclusiva' : 'Abierto'}</li>
+                          </ul>
+                        </div>
+                        
+                        <p style="color: #4b5563; font-size: 14px;">La agencia ya ha recibido el acceso al expediente y se pondrá a trabajar en la venta de inmediato.</p>
+                      </div>
+                    `
+                });
+            }
+
+            console.log("✅ [SERVER] Doble email enviado a la agencia y al propietario.");
         } catch (mailError) {
             console.error("⚠️ [SERVER] Falló email (pero la DB está OK):", mailError);
         }
       }
-    } 
+    }
     // 🔥 EL MISIL DE DEMOLICIÓN Y PROTOCOLO 48H 🔥
     else if (decision === "REJECT") {
       // A. Destruimos la asignación. La casa deja de ser de la Agencia.
