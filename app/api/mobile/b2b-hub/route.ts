@@ -7,10 +7,8 @@ export async function POST(req: Request) {
         if (!userId) return NextResponse.json({ error: "Falta ID" }, { status: 400 });
 
         // ========================================================
-        // 1. RECOGER CHIVATOS (Maniobra de Flanqueo a Dos Pasos)
+        // 1. RECOGER CHIVATOS (INBOUND: Profesionales tocando MIS propiedades)
         // ========================================================
-        
-        // PASO 1: Buscamos las conversaciones (Sin pedir la propiedad aún)
         const alliances = await prisma.conversation.findMany({
             where: {
                 participants: { some: { userId: userId } },
@@ -21,45 +19,44 @@ export async function POST(req: Request) {
             }
         });
 
-        // PASO 2: Extraemos los IDs de las propiedades y las buscamos de golpe
         const propertyIds = alliances.map((c: any) => c.propertyId).filter(Boolean);
         let properties: any[] = [];
-        
         if (propertyIds.length > 0) {
             properties = await prisma.property.findMany({
                 where: { id: { in: propertyIds } }
             });
         }
 
-        // PASO 3: Unimos la información y BLINDAMOS LA PRIVACIDAD (Filtro B2B estricto)
         const formattedAlliances = alliances
             .filter((conv: any) => {
-                // 1. Buscamos quién es el OTRO participante en este chat
                 const other = conv.participants.find((p: any) => p.userId !== userId)?.user;
                 if (!other) return false;
                 
-                // 2. 🔥 EL PORTERO DE DISCOTECA: ¿Es una Agencia o Admin?
-                // Si es un Particular, lo bloqueamos y no entra en la pestaña B2B
-                return other.role === 'AGENCIA' || other.role === 'ADMIN';
+                // 🔥 FILTRO 1: ¿Es un profesional (Agencia, Admin o Difusor)?
+                const isProfessional = other.role === 'AGENCIA' || other.role === 'ADMIN' || other.role === 'DIFUSOR';
+                
+                // 🔥 FILTRO 2 (LA REGLA DE ORO): ¿La propiedad es MÍA?
+                const p = properties.find((prop: any) => prop.id === conv.propertyId);
+                const isMyProperty = p && p.userId === userId;
+
+                // SOLO entra en el radar si es un profesional interesándose por SU producto
+                return isProfessional && isMyProperty;
             })
             .map((conv: any) => {
                 const other = conv.participants.find((p: any) => p.userId !== userId)?.user || {};
-                // Buscamos la propiedad en el array que acabamos de descargar
                 const p = properties.find((prop: any) => prop.id === conv.propertyId) || {};
                 
-                // Cálculos blindados
                 const sharePct = p.sharePct || p.commissionSharePct || 0;
                 const priceNum = p.price ? Number(String(p.price).replace(/\D/g, "")) : 0;
                 const commPct = p.commissionPct || 3;
-                const imageStr = p.mainImage || "https://via.placeholder.com/150";
                 
                 return {
                     id: `ali_${conv.id}`,
-                    cardType: 'ALIANZA', // 👈 ETIQUETA CLAVE
+                    cardType: 'ALIANZA', 
                     date: conv.updatedAt,
                     chatId: conv.id,
                     agency: { 
-                        id: other.id, // 🔥 El DNI de la Agencia para que abra el perfil al instante
+                        id: other.id, 
                         name: other.companyName || other.name || "Agencia", 
                         avatar: other.companyLogo || other.avatar, 
                         phone: other.mobile || other.phone, 
@@ -71,7 +68,7 @@ export async function POST(req: Request) {
                         title: p.title || "Propiedad", 
                         ref: p.refCode || "S/R", 
                         price: priceNum, 
-                        image: imageStr, 
+                        image: p.mainImage || "https://via.placeholder.com/150", 
                         sharePercent: sharePct, 
                         earnings: priceNum * (commPct / 100) * (sharePct / 100) 
                     }
@@ -79,9 +76,10 @@ export async function POST(req: Request) {
             });
 
         // ========================================================
-        // 2. RECOGER PROPUESTAS (Respuestas a Demandas)
+        // 2. RECOGER PROPUESTAS (INBOUND: Profesionales respondiendo a MIS demandas)
         // ========================================================
         const proposals = await prisma.b2bProposal.findMany({
+            // 🔥 BLINDAJE: Solo las propuestas que usted RECIBE
             where: { receiverId: userId },
             include: { demand: true, sender: true }
         });
@@ -91,11 +89,15 @@ export async function POST(req: Request) {
             const isAgency = String(sender.role).toUpperCase() === 'AGENCIA';
             return {
                 id: `prop_${p.id}`,
-                cardType: 'PROPUESTA', // 👈 ETIQUETA CLAVE
+                cardType: 'PROPUESTA', 
                 date: p.createdAt,
                 status: p.status || "NUEVO",
                 demandTitle: p.demand?.title || "Demanda",
-                sender: { name: isAgency ? (sender.companyName || sender.name) : sender.name, avatar: isAgency ? (sender.companyLogo || sender.avatar) : sender.avatar, role: sender.role || 'PARTICULAR' },
+                sender: { 
+                    name: isAgency ? (sender.companyName || sender.name) : sender.name, 
+                    avatar: isAgency ? (sender.companyLogo || sender.avatar) : sender.avatar, 
+                    role: sender.role || 'PARTICULAR' 
+                },
                 mode: p.mode,
                 phone: p.phone,
                 reference: p.reference,
@@ -104,7 +106,7 @@ export async function POST(req: Request) {
         });
 
         // ========================================================
-        // 3. FUSIÓN Y ORDEN CRONOLÓGICO (Más recientes arriba)
+        // 3. FUSIÓN Y ORDEN CRONOLÓGICO
         // ========================================================
         const b2bFeed = [...formattedAlliances, ...formattedProposals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
