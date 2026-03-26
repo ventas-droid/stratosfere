@@ -4052,62 +4052,49 @@ export async function registerPhoneRevealAction(propertyId: string) {
 }
 
 // =========================================================
-// 📬 BUZÓN DE ENTRADA (LEADS - BÓVEDA CERRADA)
+// 📬 BUZÓN DE ENTRADA (LEADS - FILTRO BLINDADO EN RAM)
 // =========================================================
 export async function getMyReceivedLeadsAction() {
     try {
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "No autorizado" };
 
-        const leads = await prisma.lead.findMany({
+        // 1. RED DE ARRASTRE: Traemos todo lo que tenga que ver con este usuario
+        const rawLeads = await prisma.lead.findMany({
             where: {
                 OR: [
-                    // TÁCTICA 1 (La Nueva): Si el lead lleva mi nombre grabado a fuego como manager.
                     { managerId: user.id },
-                    
-                    // TÁCTICA 2 (Retrocompatibilidad Blindada): 
-                    // Soy la agencia gestora activa de esa propiedad.
-                    { 
-                        property: { 
-                            assignment: { agencyId: user.id, status: 'ACTIVE' } 
-                        } 
-                    },
-                    
-                    // TÁCTICA 3 (El Cortafuegos del Particular):
-                    // Soy el dueño original de la casa, PERO SOLO si la casa NO tiene a ninguna agencia gestionándola.
-                    { 
-                        property: { 
-                            userId: user.id,
-                            assignment: { is: null } // 🔥 LA CLAVE: "assignment is null" significa "no hay agencia"
-                        } 
-                    }
+                    { property: { userId: user.id } },
+                    { property: { assignment: { agencyId: user.id } } }
                 ]
             },
             include: {
-                // 🔥 TRAEMOS TODO: Imágenes, Usuario, Campañas
                 property: {
                     include: {
                         images: true,
-                        user: { 
-                            select: { 
-                                id: true, name: true, email: true, avatar: true, 
-                                companyName: true, companyLogo: true, phone: true 
-                            } 
-                        },
-                        campaigns: { 
-                            where: { status: 'ACCEPTED' },
-                            select: { commissionSharePct: true, commissionShareVisibility: true }
-                        }
+                        user: { select: { id: true, name: true, email: true, avatar: true, companyName: true, companyLogo: true, phone: true } },
+                        assignment: { select: { agencyId: true, status: true } }, 
+                        campaigns: { where: { status: 'ACCEPTED' }, select: { commissionSharePct: true, commissionShareVisibility: true } }
                     }
                 }
             },
             orderBy: { createdAt: 'desc' }
         });
 
-        // Limpiamos los datos para el frontend (INTACTO)
-        const cleanLeads = leads.map(l => {
+        // 2. EL BISTURÍ DE JAVASCRIPT (100% SEGURO)
+        const myRealLeads = rawLeads.filter((l: any) => {
+            // Si el lead nuevo ya tiene el jefe grabado a fuego
+            if (l.managerId) return l.managerId === user.id;
+
+            // Para leads antiguos: Si hay agencia activa, es de la agencia. Si no, del dueño.
+            const isAgencyActive = l.property?.assignment?.status === 'ACTIVE';
+            if (isAgencyActive) return user.id === l.property?.assignment?.agencyId;
+            return user.id === l.property?.userId;
+        });
+
+        // 3. EMPAQUETADO PARA EL FRONTEND
+        const cleanLeads = myRealLeads.map((l: any) => {
             const p: any = l.property;
-            
             const lng = Number(p.longitude);
             const lat = Number(p.latitude);
             const hasCoords = (lng && lat && lng !== 0);
@@ -4120,8 +4107,6 @@ export async function getMyReceivedLeadsAction() {
                 message: l.message,
                 date: l.createdAt,
                 status: l.status,
-                
-                // 📦 EMPAQUETADO BLINDADO
                 property: {
                     ...p, 
                     id: p.id,

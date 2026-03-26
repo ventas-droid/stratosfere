@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '../../../../lib/prisma'; // Asegúrese de que la ruta sea correcta
+import { prisma } from '../../../../lib/prisma';
 
 export async function GET(
   request: NextRequest,
@@ -7,39 +7,41 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
+    if (!userId) return NextResponse.json({ error: "Falta ID" }, { status: 400 });
 
-    if (!userId) {
-      return NextResponse.json({ error: "Falta ID" }, { status: 400 });
-    }
-
-    // 🛡️ EL MISMO CORTAFUEGOS DE LA WEB APLICADO AL MÓVIL
-    const leads = await prisma.lead.findMany({
+    // 1. RED DE ARRASTRE
+    const rawLeads = await prisma.lead.findMany({
       where: {
         OR: [
-          { managerId: userId }, // Táctica 1: Soy el jefe asignado
-          { property: { assignment: { agencyId: userId, status: "ACTIVE" } } }, // Táctica 2: Soy la agencia gestora
-          { property: { userId: userId, assignment: { is: null } } } // Táctica 3: Soy el dueño Y NO hay agencia
+          { managerId: userId },
+          { property: { userId: userId } },
+          { property: { assignment: { agencyId: userId } } }
         ]
       },
       include: {
         property: {
           select: {
+            userId: true,
             refCode: true,
             title: true,
-            user: {
-              select: {
-                avatar: true,
-                companyLogo: true
-              }
-            }
+            assignment: { select: { agencyId: true, status: true } },
+            user: { select: { avatar: true, companyLogo: true } }
           }
         }
       },
       orderBy: { createdAt: "desc" }
     });
 
-    // ⚙️ Formateo para la app móvil
-    const formattedLeads = leads.map((l: any) => ({
+    // 2. EL BISTURÍ MÓVIL
+    const myRealLeads = rawLeads.filter(l => {
+        if (l.managerId) return l.managerId === userId;
+        const isAgencyActive = l.property?.assignment?.status === 'ACTIVE';
+        if (isAgencyActive) return userId === l.property?.assignment?.agencyId;
+        return userId === l.property?.userId;
+    });
+
+    // 3. FORMATEO MÓVIL
+    const formattedLeads = myRealLeads.map((l: any) => ({
       id: l.id,
       status: l.status,
       name: l.name,
@@ -51,15 +53,13 @@ export async function GET(
       property: {
         refCode: l.property?.refCode || "Sin Ref",
         title: l.property?.title || "Sin título",
-        user: {
-          avatar: l.property?.user?.avatar || l.property?.user?.companyLogo || null
-        }
+        user: { avatar: l.property?.user?.avatar || l.property?.user?.companyLogo || null }
       }
     }));
 
     return NextResponse.json(formattedLeads);
   } catch (error) {
-    console.error("❌ Error API Leads Móvil:", error);
+    console.error("❌ Error API Leads:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
