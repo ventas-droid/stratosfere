@@ -6,7 +6,7 @@ export async function POST(req: Request) {
         const { userId } = await req.json();
         if (!userId) return NextResponse.json({ error: "Falta ID" }, { status: 400 });
 
-     // ========================================================
+        // ========================================================
         // 1. RECOGER CHIVATOS (Maniobra de Flanqueo a Dos Pasos)
         // ========================================================
         
@@ -31,42 +31,52 @@ export async function POST(req: Request) {
             });
         }
 
-        // PASO 3: Unimos la información en la tarjeta final
-        const formattedAlliances = alliances.map((conv: any) => {
-            const other = conv.participants.find((p: any) => p.userId !== userId)?.user || {};
-            // Buscamos la propiedad en el array que acabamos de descargar
-            const p = properties.find((prop: any) => prop.id === conv.propertyId) || {};
-            
-            // Cálculos blindados
-            const sharePct = p.sharePct || p.commissionSharePct || 0;
-            const priceNum = p.price ? Number(String(p.price).replace(/\D/g, "")) : 0;
-            const commPct = p.commissionPct || 3;
-            const imageStr = p.mainImage || "https://via.placeholder.com/150";
-            
-            return {
-                id: `ali_${conv.id}`,
-                cardType: 'ALIANZA', // 👈 ETIQUETA CLAVE
-                date: conv.updatedAt,
-                chatId: conv.id,
-               agency: { 
-                    id: other.id, // 🔥 ESTA ES LA CLAVE QUE FALTABA (El DNI de la Agencia)
-                    name: other.companyName || other.name || "Agencia", 
-                    avatar: other.companyLogo || other.avatar, 
-                    phone: other.mobile || other.phone, 
-                    email: other.email, 
-                    role: other.role || 'AGENCIA' 
-                },
-                property: { 
-                    id: p.id, 
-                    title: p.title || "Propiedad", 
-                    ref: p.refCode || "S/R", 
-                    price: priceNum, 
-                    image: imageStr, 
-                    sharePercent: sharePct, 
-                    earnings: priceNum * (commPct / 100) * (sharePct / 100) 
-                }
-            };
-        });
+        // PASO 3: Unimos la información y BLINDAMOS LA PRIVACIDAD (Filtro B2B estricto)
+        const formattedAlliances = alliances
+            .filter((conv: any) => {
+                // 1. Buscamos quién es el OTRO participante en este chat
+                const other = conv.participants.find((p: any) => p.userId !== userId)?.user;
+                if (!other) return false;
+                
+                // 2. 🔥 EL PORTERO DE DISCOTECA: ¿Es una Agencia o Admin?
+                // Si es un Particular, lo bloqueamos y no entra en la pestaña B2B
+                return other.role === 'AGENCIA' || other.role === 'ADMIN';
+            })
+            .map((conv: any) => {
+                const other = conv.participants.find((p: any) => p.userId !== userId)?.user || {};
+                // Buscamos la propiedad en el array que acabamos de descargar
+                const p = properties.find((prop: any) => prop.id === conv.propertyId) || {};
+                
+                // Cálculos blindados
+                const sharePct = p.sharePct || p.commissionSharePct || 0;
+                const priceNum = p.price ? Number(String(p.price).replace(/\D/g, "")) : 0;
+                const commPct = p.commissionPct || 3;
+                const imageStr = p.mainImage || "https://via.placeholder.com/150";
+                
+                return {
+                    id: `ali_${conv.id}`,
+                    cardType: 'ALIANZA', // 👈 ETIQUETA CLAVE
+                    date: conv.updatedAt,
+                    chatId: conv.id,
+                    agency: { 
+                        id: other.id, // 🔥 El DNI de la Agencia para que abra el perfil al instante
+                        name: other.companyName || other.name || "Agencia", 
+                        avatar: other.companyLogo || other.avatar, 
+                        phone: other.mobile || other.phone, 
+                        email: other.email, 
+                        role: other.role || 'AGENCIA' 
+                    },
+                    property: { 
+                        id: p.id, 
+                        title: p.title || "Propiedad", 
+                        ref: p.refCode || "S/R", 
+                        price: priceNum, 
+                        image: imageStr, 
+                        sharePercent: sharePct, 
+                        earnings: priceNum * (commPct / 100) * (sharePct / 100) 
+                    }
+                };
+            });
 
         // ========================================================
         // 2. RECOGER PROPUESTAS (Respuestas a Demandas)
