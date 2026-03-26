@@ -39,6 +39,21 @@ export async function createDemandAction(data: {
     }
 }
 
+// =========================================================
+// 🎭 BISTURÍ DE IDENTIDAD CORPORATIVA (Helper)
+// =========================================================
+const getUnifiedCorporateProfile = (dbUser: any) => {
+    if (!dbUser) return null;
+    const isAgency = String(dbUser.role || '').toUpperCase() === 'AGENCIA';
+    return {
+        ...dbUser,
+        id: dbUser.id,
+        name: isAgency && dbUser.companyName ? dbUser.companyName : (dbUser.name || 'Usuario B2B'),
+        avatar: isAgency && dbUser.companyLogo ? dbUser.companyLogo : (dbUser.avatar || null),
+        role: dbUser.role || 'PARTICULAR'
+    };
+};
+
 // 🚀 2. MISIL PARA LEER LAS DEMANDAS DEL MERCADO
 export async function getActiveDemandsAction() {
     try {
@@ -47,17 +62,25 @@ export async function getActiveDemandsAction() {
             orderBy: { createdAt: 'desc' }, // Las más nuevas primero
             include: {
                 user: {
-                    select: { name: true, companyName: true, avatar: true } // Traemos datos básicos del publicador
+                    // 🔥 CORRECCIÓN: Traemos logo y rol para saber si es Agencia
+                    select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } 
                 }
             }
         });
 
-        return { success: true, data: demands };
+        // 🔥 APLICAMOS EL FILTRO CORPORATIVO
+        const formattedDemands = demands.map((d: any) => ({
+            ...d,
+            user: getUnifiedCorporateProfile(d.user)
+        }));
+
+        return { success: true, data: formattedDemands };
     } catch (error) {
         console.error("Error al obtener demandas:", error);
         return { success: false, error: "Error de lectura en Base de Datos." };
     }
 }
+
 // 🚀 3. MISIL PARA ENVIAR UNA PROPUESTA (EL CHIVATO B2B)
 export async function sendProposalAction(data: {
     demandId: string;
@@ -101,6 +124,7 @@ export async function sendProposalAction(data: {
         return { success: false, error: "Error de comunicaciones al enviar la propuesta." };
     }
 }
+
 // 🚀 4. MISIL PARA LEER EL BUZÓN DE PROPUESTAS RECIBIDAS
 export async function getReceivedProposalsAction() {
     try {
@@ -122,12 +146,19 @@ export async function getReceivedProposalsAction() {
                 },
                 // Traemos los datos básicos del cazador que nos envía la propuesta
                 sender: {
-                    select: { name: true, companyName: true, avatar: true }
+                    // 🔥 CORRECCIÓN: Traemos logo y rol para saber si es Agencia
+                    select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true }
                 }
             }
         });
 
-        return { success: true, data: proposals };
+        // 🔥 APLICAMOS EL FILTRO CORPORATIVO
+        const formattedProposals = proposals.map((p: any) => ({
+            ...p,
+            sender: getUnifiedCorporateProfile(p.sender)
+        }));
+
+        return { success: true, data: formattedProposals };
     } catch (error) {
         console.error("Error al leer el buzón:", error);
         return { success: false, error: "Error al cargar el buzón de operaciones." };
