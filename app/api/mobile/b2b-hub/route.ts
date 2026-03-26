@@ -30,11 +30,12 @@ export async function POST(req: Request) {
                 const other = conv.participants.find((p: any) => p.userId !== userId)?.user || {};
                 const p = conv.propertyId ? properties.find((prop: any) => prop.id === conv.propertyId) : null;
                 
-                // 🔥 BRÚJULA INVERTIDA Y ZONA GRIS ELIMINADA 🔥
-                let direction = 'INBOUND'; // Por defecto todo es RECIBIDO si no hay casa
+                // 🔥 LÓGICA CORREGIDA: LA VERDAD ABSOLUTA 🔥
+                let direction = 'INBOUND'; // Por defecto si no hay casa (chat desde perfil)
                 if (p) { 
-                    // Hemos invertido la polaridad a petición de mando
-                    direction = p.userId === userId ? 'OUTBOUND' : 'INBOUND'; 
+                    // Si la casa es MÍA, vienen a mí = RECIBIDO (INBOUND)
+                    // Si la casa es de OTRO, yo fui a él = ENVIADO (OUTBOUND)
+                    direction = p.userId === userId ? 'INBOUND' : 'OUTBOUND'; 
                 }
 
                 const sharePct = p?.sharePct || p?.commissionSharePct || 0;
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
             });
 
         // ========================================================
-        // 2. PROPUESTAS DEMANDAS (BIDIRECCIONAL INVERTIDO)
+        // 2. PROPUESTAS DEMANDAS (LÓGICA CORREGIDA)
         // ========================================================
         const proposals = await prisma.b2bProposal.findMany({
             where: { OR: [{ receiverId: userId }, { senderId: userId }] }, 
@@ -71,8 +72,10 @@ export async function POST(req: Request) {
                 id: `prop_${p.id}`,
                 cardType: 'PROPUESTA', 
                 date: p.createdAt,
-                // 🔥 Polaridad invertida también para las demandas
-                direction: isMeSender ? 'INBOUND' : 'OUTBOUND', 
+                // 🔥 LÓGICA CORREGIDA: LA VERDAD ABSOLUTA 🔥
+                // Si yo soy el remitente (sender) = ENVIADO (OUTBOUND)
+                // Si a mí me la enviaron (!isMeSender) = RECIBIDO (INBOUND)
+                direction: isMeSender ? 'OUTBOUND' : 'INBOUND', 
                 status: p.status || "NUEVO",
                 demandTitle: p.demand?.title || "Demanda",
                 sender: { name: other?.companyName || other?.name, avatar: other?.companyLogo || other?.avatar, role: other?.role || 'AGENCIA' },
