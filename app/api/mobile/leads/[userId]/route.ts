@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '../../../../lib/prisma';
+import { prisma } from '../../../../lib/prisma'; // Asegúrese de que la ruta sea correcta
 
 export async function GET(
   request: NextRequest,
@@ -12,15 +12,14 @@ export async function GET(
       return NextResponse.json({ error: "Falta ID" }, { status: 400 });
     }
 
-    // 📡 Buscamos Leads en propiedades mías o que gestiono
+    // 🛡️ EL MISMO CORTAFUEGOS DE LA WEB APLICADO AL MÓVIL
     const leads = await prisma.lead.findMany({
       where: {
-        property: {
-          OR: [
-            { userId: userId },
-            { assignment: { agencyId: userId, status: "ACTIVE" } }
-          ]
-        }
+        OR: [
+          { managerId: userId }, // Táctica 1: Soy el jefe asignado
+          { property: { assignment: { agencyId: userId, status: "ACTIVE" } } }, // Táctica 2: Soy la agencia gestora
+          { property: { userId: userId, assignment: { is: null } } } // Táctica 3: Soy el dueño Y NO hay agencia
+        ]
       },
       include: {
         property: {
@@ -58,10 +57,9 @@ export async function GET(
       }
     }));
 
-    // ✅ IMPORTANTE: devolvemos ARRAY plano porque inbox.tsx espera un array
     return NextResponse.json(formattedLeads);
   } catch (error) {
-    console.error("❌ Error API Leads:", error);
+    console.error("❌ Error API Leads Móvil:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

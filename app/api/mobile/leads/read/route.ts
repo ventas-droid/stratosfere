@@ -7,23 +7,22 @@ export async function POST(req: Request) {
     
     if (!userId) return NextResponse.json({ success: false, error: "Falta ID" });
 
-    // 🧹 Pasamos TODOS los leads "NEW" de este usuario a "READ"
+    // 🧹 Pasamos TODOS los leads "NEW" a "READ", pero SOLO si nos pertenecen 100%
     await prisma.lead.updateMany({
       where: {
         status: 'NEW',
-        property: {
-          OR: [
-            { userId: userId },
-            { assignment: { agencyId: userId, status: 'ACTIVE' } }
-          ]
-        }
+        OR: [
+          { managerId: userId },
+          { property: { assignment: { agencyId: userId, status: 'ACTIVE' } } },
+          { property: { userId: userId, assignment: { is: null } } }
+        ]
       },
       data: { status: 'READ' }
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error borrando burbuja:", error);
+    console.error("Error borrando burbuja móvil:", error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }
