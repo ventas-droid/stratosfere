@@ -3837,7 +3837,7 @@ export async function submitLeadAction(data: {
 
         console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO", "| ORIGEN:", data.source || "ORGÁNICO");
         
-        // 2. GUARDAR EN LA BASE DE DATOS
+     // 2. GUARDAR EN LA BASE DE DATOS (CON DETECCIÓN DE AGENCIA CORREGIDA)
         const newLead = await prisma.lead.create({
             data: {
                 name: data.name,
@@ -3847,50 +3847,61 @@ export async function submitLeadAction(data: {
                 propertyId: data.propertyId,
                 status: "NEW",
                 ambassadorId: ambassadorId ? ambassadorId : undefined,
-                source: data.source || "ORGANIC" // 🔥 2. GUARDAMOS LA MEDALLA EN LA BASE DE DATOS
+                source: data.source || "ORGANIC"
             },
             include: { 
-                property: { include: { user: true } } // Traemos al dueño para saber su email
+                property: { 
+                    include: { 
+                        user: true,
+                        // 🔥 EL PUESTO DE CONTROL CORREGIDO AL SCHEMA REAL
+                        assignment: {
+                            include: { agency: true }
+                        }
+                    } 
+                } 
             } 
         });
 
-     // 🔥🔥🔥 GATILLO PUSHER: PAQUETE PESO PLUMA (ANTI-BLOQUEO 10KB) 🔥🔥🔥
+     // 🔥🔥🔥 GATILLO PUSHER: ENRUTAMIENTO INTELIGENTE B2B 🔥🔥🔥
        try {
-    const ownerId = String(newLead?.property?.userId || "");
-    console.log("🧪 [LEAD] ownerId calculado =", ownerId);
-    console.log("🧪 [LEAD] property =", {
-      id: newLead?.property?.id,
-      refCode: newLead?.property?.refCode,
-      userId: newLead?.property?.userId,
-      title: newLead?.property?.title,
-    });
+        // 1. Verificamos si el puente de la agencia está activo
+        const activeAssignment = newLead.property?.assignment;
+        const isAgencyActive = activeAssignment?.status === 'ACTIVE';
+        
+        // 2. DECISIÓN DE MANDO: Si hay agencia activa, el lead va a la agencia. Si no, al dueño.
+        const targetUserId = isAgencyActive 
+            ? activeAssignment?.agencyId 
+            : newLead.property?.userId;
+            
+        const ownerId = String(targetUserId || "");
 
-    if (ownerId) {
-        const paqueteLigero = {
-            id: newLead.id,
-            status: "NEW",
-            name: newLead.name,
-            email: newLead.email,
-            phone: newLead.phone,
-            message: newLead.message,
-            property: {
-                refCode: newLead.property?.refCode || "REF",
-                title: newLead.property?.title || "Propiedad",
-            },
-        };
+        console.log("🧪 [LEAD] ownerId FINAL calculado =", ownerId, isAgencyActive ? "(AGENCIA)" : "(PARTICULAR)");
 
-        console.log("🧪 [LEAD] enviando Pusher a canal =", `user-${ownerId}`);
+        if (ownerId) {
+            const paqueteLigero = {
+                id: newLead.id,
+                status: "NEW",
+                name: newLead.name,
+                email: newLead.email,
+                phone: newLead.phone,
+                message: newLead.message,
+                property: {
+                    refCode: newLead.property?.refCode || "REF",
+                    title: newLead.property?.title || "Propiedad",
+                },
+            };
 
-        await pusherServer.trigger(`user-${ownerId}`, "new-lead", paqueteLigero);
-
-        console.log("✅ [LEAD] Pusher new-lead disparado OK a", `user-${ownerId}`);
-    } else {
-        console.log("❌ [LEAD] NO hay ownerId, no se dispara Pusher");
+            console.log("🧪 [LEAD] enviando Pusher a canal =", `user-${ownerId}`);
+            await pusherServer.trigger(`user-${ownerId}`, "new-lead", paqueteLigero);
+            console.log("✅ [LEAD] Pusher new-lead disparado OK a", `user-${ownerId}`);
+        } else {
+            console.log("❌ [LEAD] NO hay ownerId, no se dispara Pusher");
+        }
+    } catch (pusherError) {
+        console.error("⚠️ Error disparando Pusher de Leads:", pusherError);
     }
-} catch (pusherError) {
-    console.error("⚠️ Error disparando Pusher de Leads:", pusherError);
-}
-        // 3. 🔥 ENVIAR EMAIL AL AGENTE (USANDO SU PATRÓN LOCAL)
+       
+// 3. 🔥 ENVIAR EMAIL AL AGENTE (USANDO SU PATRÓN LOCAL)
         const agentEmail = newLead.property.user?.email;
         const resendApiKey = process.env.RESEND_API_KEY;
         
