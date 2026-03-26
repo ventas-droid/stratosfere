@@ -4052,7 +4052,7 @@ export async function registerPhoneRevealAction(propertyId: string) {
 }
 
 // =========================================================
-// 📬 BUZÓN DE ENTRADA (LEADS - VERSIÓN "FULL DATA" CORREGIDA)
+// 📬 BUZÓN DE ENTRADA (LEADS - BÓVEDA CERRADA)
 // =========================================================
 export async function getMyReceivedLeadsAction() {
     try {
@@ -4061,12 +4061,27 @@ export async function getMyReceivedLeadsAction() {
 
         const leads = await prisma.lead.findMany({
             where: {
-                property: {
-                    OR: [
-                        { userId: user.id }, // Soy dueño
-                        { assignment: { agencyId: user.id, status: 'ACTIVE' } } // Soy agencia gestora
-                    ]
-                }
+                OR: [
+                    // TÁCTICA 1 (La Nueva): Si el lead lleva mi nombre grabado a fuego como manager.
+                    { managerId: user.id },
+                    
+                    // TÁCTICA 2 (Retrocompatibilidad Blindada): 
+                    // Soy la agencia gestora activa de esa propiedad.
+                    { 
+                        property: { 
+                            assignment: { agencyId: user.id, status: 'ACTIVE' } 
+                        } 
+                    },
+                    
+                    // TÁCTICA 3 (El Cortafuegos del Particular):
+                    // Soy el dueño original de la casa, PERO SOLO si la casa NO tiene a ninguna agencia gestionándola.
+                    { 
+                        property: { 
+                            userId: user.id,
+                            assignment: { is: null } // 🔥 LA CLAVE: "assignment is null" significa "no hay agencia"
+                        } 
+                    }
+                ]
             },
             include: {
                 // 🔥 TRAEMOS TODO: Imágenes, Usuario, Campañas
@@ -4089,12 +4104,10 @@ export async function getMyReceivedLeadsAction() {
             orderBy: { createdAt: 'desc' }
         });
 
-        // Limpiamos los datos para el frontend
+        // Limpiamos los datos para el frontend (INTACTO)
         const cleanLeads = leads.map(l => {
-            // 🔥 TRUCO: Convertimos a 'any' para que TypeScript no se queje de 'm2'
             const p: any = l.property;
             
-            // Lógica de coordenadas segura
             const lng = Number(p.longitude);
             const lat = Number(p.latitude);
             const hasCoords = (lng && lat && lng !== 0);
@@ -4115,26 +4128,17 @@ export async function getMyReceivedLeadsAction() {
                     title: p.title || "Sin Título",
                     refCode: p.refCode,
                     ref: p.refCode, 
-             // Imágenes (PESO PLUMA)
                     img: optimizeImage((p.images && p.images.length > 0) ? p.images[0].url : (p.mainImage || "/placeholder.jpg")),
                     images: (p.images || []).map((i: any) => optimizeImage(i.url)).filter(Boolean),
-
-                    // Datos Físicos (Aquí ya no dará error porque p es 'any')
                     price: new Intl.NumberFormat("es-ES").format(Number(p.price || 0)),
                     rawPrice: Number(p.price || 0),
                     rooms: Number(p.rooms || 0),
                     baths: Number(p.baths || 0),
-                    mBuilt: Number(p.mBuilt || p.m2 || 0), // <--- ¡Arreglado!
-
-                    // Coordenadas
+                    mBuilt: Number(p.mBuilt || p.m2 || 0),
                     coordinates: hasCoords ? [lng, lat] : null,
                     longitude: lng,
                     latitude: lat,
-
-                    // Identidad
                     user: p.user || { name: "Agencia" },
-                    
-                    // B2B
                     b2b: (p.campaigns && p.campaigns[0]) ? {
                         sharePct: Number(p.campaigns[0].commissionSharePct || 0),
                         visibility: p.campaigns[0].commissionShareVisibility
@@ -4150,7 +4154,6 @@ export async function getMyReceivedLeadsAction() {
         return { success: false, error: "Error cargando mensajes" };
     }
 }
-
 // =========================================================
 // 👁️ MARCAR MENSAJES COMO LEÍDOS
 // =========================================================
