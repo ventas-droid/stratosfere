@@ -48,7 +48,8 @@ export async function POST(req: Request) {
                 cardType: 'ALIANZA', // 👈 ETIQUETA CLAVE
                 date: conv.updatedAt,
                 chatId: conv.id,
-                agency: { 
+               agency: { 
+                    id: other.id, // 🔥 ESTA ES LA CLAVE QUE FALTABA (El DNI de la Agencia)
                     name: other.companyName || other.name || "Agencia", 
                     avatar: other.companyLogo || other.avatar, 
                     phone: other.mobile || other.phone, 
