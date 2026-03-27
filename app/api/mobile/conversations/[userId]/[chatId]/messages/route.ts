@@ -83,35 +83,35 @@ export async function POST(
       console.error("⚠️ Error disparando Pusher a chat:", pusherError);
     }
 
-    // 5. 🌍 Disparo al canal global del receptor
-    try {
-      const conversation = await prisma.conversation.findUnique({
-        where: { id: chatId },
-        include: { participants: true }
-      });
+    // 5. 🌍 Disparo al canal global de todos los receptores reales
+try {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: chatId },
+    include: { participants: true }
+  });
 
-      if (conversation) {
-        const receiverParticipant = conversation.participants.find(
-          (p: any) => String(p.userId) !== String(senderId)
-        );
+  if (conversation?.participants?.length) {
+    const receivers = conversation.participants.filter(
+      (p: any) => String(p.userId) !== String(senderId)
+    );
 
-        if (receiverParticipant) {
-          await pusherServer.trigger(
-            `user-${receiverParticipant.userId}`,
-            "new-message",
-            payload
-          );
-          console.log(`🌍 [PUSHER MÓVIL] Busca disparado al usuario: ${receiverParticipant.userId}`);
-        }
-      }
-    } catch (pusherError) {
-      console.error("⚠️ Error disparando Pusher a user channel:", pusherError);
+    for (const receiver of receivers) {
+      await pusherServer.trigger(
+        `user-${receiver.userId}`,
+        "new-message",
+        payload
+      );
+      console.log(`🌍 [PUSHER MÓVIL] new-message disparado a user-${receiver.userId}`);
     }
-
-    return NextResponse.json(payload);
-
-  } catch (error) {
-    console.error("❌ Error enviando mensaje:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
+} catch (pusherError) {
+  console.error("⚠️ Error disparando Pusher a user channel:", pusherError);
+}
+
+return NextResponse.json(payload);
+
+} catch (error) {
+  console.error("❌ Error enviando mensaje:", error);
+  return NextResponse.json({ error: "Error interno" }, { status: 500 });
+}
 }
