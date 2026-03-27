@@ -1096,11 +1096,11 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                     <div className="flex items-center justify-center gap-3 mt-4"><Coins size={28} className="text-amber-400"/><span className="text-4xl font-black text-white tracking-tight">{formattedEarnings}</span></div>
                                     <p className="text-[9px] text-slate-500 mt-2 font-mono uppercase">ESTIMADO (+ IVA)</p>
                                 </div>
-                                <button 
-                                    onClick={() => { 
+                               <button 
+                                    onClick={async () => { 
                                         setShowB2BModal(false); 
                                         if (typeof window !== 'undefined') { 
-                                            // 1. Abrimos el chat con el mensaje de B2B
+                                            // 1. Abrimos el chat B2B
                                             window.dispatchEvent(new CustomEvent('open-chat-signal', { 
                                                 detail: { 
                                                     propertyId: selectedProp?.id, 
@@ -1109,10 +1109,26 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                                 } 
                                             })); 
 
-                                            // 🔥 2. BENGALA TÁCTICA: Forzamos la actualización de la columna izquierda (B2B)
+                                            // 🔥 2. EL DISPARO DEL LEAD: Forzamos la creación del Lead para que el móvil pite
+                                            if (selectedProp?.id) {
+                                                try {
+                                                    await submitLeadAction({
+                                                        propertyId: selectedProp.id,
+                                                        name: currentUser?.companyName || currentUser?.name || "Agencia Colaboradora",
+                                                        email: currentUser?.email || "b2b@stratosfere.com",
+                                                        phone: currentUser?.mobile || currentUser?.phone || "Contacto B2B",
+                                                        message: `[ALIANZA B2B] Solicitud de colaboración aceptada al ${sharePercent}% para la REF: ${selectedProp?.refCode || 'S/R'}.`,
+                                                        source: "B2B_NETWORK" 
+                                                    });
+                                                } catch (err) {
+                                                    console.warn("Fallo al enviar el Lead B2B silencioso", err);
+                                                }
+                                            }
+
+                                            // 3. Bengala Táctica para refrescar listas
                                             setTimeout(() => {
                                                 window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
-                                            }, 800); // Pequeño retraso para dar tiempo a que la DB cree el chat
+                                            }, 800);
                                         } 
                                     }} 
                                     className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
