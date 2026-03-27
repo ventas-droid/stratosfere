@@ -70,21 +70,22 @@ export async function POST(req: Request) {
             include: { demand: true, sender: true, receiver: true }
         });
 
-        const formattedProposals = proposals.map((p: any) => {
-            const isMeSender = p.senderId === userId;
-            const other = isMeSender ? p.receiver : p.sender;
-            
-            return {
-                id: `prop_${p.id}`,
-                cardType: 'PROPUESTA', 
-                date: p.createdAt,
-                direction: isMeSender ? 'OUTBOUND' : 'INBOUND', 
-                status: p.status || "NUEVO",
-                demandTitle: p.demand?.title || "Demanda",
-                sender: { name: other?.companyName || other?.name, avatar: other?.companyLogo || other?.avatar, role: other?.role || 'AGENCIA' },
-                mode: p.mode, phone: p.phone, reference: p.reference, message: p.notes
-            };
-        });
+       const formattedProposals = proposals.map((p: any) => {
+    const isMeSender = p.senderId === userId;
+    const other = isMeSender ? p.receiver : p.sender;
+    const rawStatus = String(p.status || "").toUpperCase().trim();
+    
+    return {
+        id: `prop_${p.id}`,
+        cardType: 'PROPUESTA', 
+        date: p.createdAt,
+        direction: isMeSender ? 'OUTBOUND' : 'INBOUND', 
+        status: rawStatus === 'UNREAD' ? 'NUEVO' : (rawStatus || 'NUEVO'),
+        demandTitle: p.demand?.title || "Demanda",
+        sender: { name: other?.companyName || other?.name, avatar: other?.companyLogo || other?.avatar, role: other?.role || 'AGENCIA' },
+        mode: p.mode, phone: p.phone, reference: p.reference, message: p.notes
+    };
+});
 
         const b2bFeed = [...formattedAlliances, ...formattedProposals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         return NextResponse.json({ success: true, data: b2bFeed });

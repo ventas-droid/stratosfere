@@ -2,7 +2,7 @@
 
 import { prisma } from "./lib/prisma";
 import { getUserMeAction } from "./actions"; 
-
+import { pusherServer } from '@/app/utils/pusher';
 
 export async function createDemandAction(data: {
     title: string;
@@ -84,14 +84,13 @@ export async function getActiveDemandsAction() {
 // 🚀 3. MISIL PARA ENVIAR UNA PROPUESTA (EL CHIVATO B2B)
 export async function sendProposalAction(data: {
     demandId: string;
-    receiverId: string; // El dueño de la demanda
+    receiverId: string;
     mode: "REF" | "OFF_MARKET";
     reference?: string;
     phone?: string;
     notes?: string;
 }) {
     try {
-        // 1. Verificamos quién dispara
         const userRes = await getUserMeAction();
         if (!userRes?.success || !userRes?.data?.id) {
             return { success: false, error: "No autorizado. Debes iniciar sesión." };
@@ -99,12 +98,10 @@ export async function sendProposalAction(data: {
 
         const senderId = userRes.data.id;
 
-        // 2. Comprobamos que no se envíe propuestas a sí mismo
         if (senderId === data.receiverId) {
             return { success: false, error: "No puedes enviar propuestas a tus propias demandas." };
         }
 
-        // 3. Guardamos la propuesta blindada
         const newProposal = await prisma.b2bProposal.create({
             data: {
                 demandId: data.demandId,
@@ -117,6 +114,25 @@ export async function sendProposalAction(data: {
                 status: "UNREAD"
             }
         });
+
+        try {
+            await pusherServer.trigger(`user-${data.receiverId}`, 'new-b2b-proposal', {
+                id: newProposal.id,
+                demandId: newProposal.demandId,
+                senderId: newProposal.senderId,
+                receiverId: newProposal.receiverId,
+                mode: newProposal.mode,
+                reference: newProposal.reference,
+                phone: newProposal.phone,
+                notes: newProposal.notes,
+                status: newProposal.status,
+                createdAt: newProposal.createdAt,
+            });
+
+            console.log(`📡 [PUSHER] Propuesta B2B disparada a user-${data.receiverId}`);
+        } catch (pusherError) {
+            console.error("⚠️ Error disparando Pusher B2B:", pusherError);
+        }
 
         return { success: true, data: newProposal };
     } catch (error) {
