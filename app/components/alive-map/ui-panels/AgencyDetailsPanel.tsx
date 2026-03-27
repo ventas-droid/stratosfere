@@ -1111,9 +1111,13 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                             })); 
 
                                             // 🔥 2. REFRESCO WEB: Actualiza su columna lateral B2B al instante
-                                            setTimeout(() => {
-                                                window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
-                                            }, 800);
+                                           setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
+}, 400);
+
+setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
+}, 1200);
                                         } 
                                     }} 
                                     className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"

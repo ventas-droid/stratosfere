@@ -1684,7 +1684,7 @@ const propIds = Array.from(
         });
     });
 
-   const normalized = (items || []).map((c: any) => {
+ const normalized = (items || []).map((c: any) => {
   const pid = c?.propertyId ? String(c.propertyId) : null;
   const prop = pid ? propMap.get(pid) : null;
 
@@ -1694,24 +1694,43 @@ const propIds = Array.from(
 
   const unreadCount = Number(unreadCountMap.get(String(c.id)) || 0);
 
+  // ✅ dirección B2B: recibido / enviado
+  const ownerOrManagerId = String(
+    prop?.assignment?.agency?.id ||
+    prop?.activeCampaign?.agencyId ||
+    prop?.user?.id ||
+    prop?.userId ||
+    ""
+  );
+
+  const direction =
+    ownerOrManagerId && ownerOrManagerId === String(me.id)
+      ? "INBOUND"
+      : "OUTBOUND";
+
   return normalizeThread(
     {
       ...(c as any),
       property: prop,
       lastMessage,
       unreadCount,
+      direction,
     } as any,
     me.id
   );
 });
 
 normalized.sort((a: any, b: any) => {
-  const ta = a?.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0;
-  const tb = b?.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0;
+  const ta = a?.lastMessage?.createdAt
+    ? new Date(a.lastMessage.createdAt).getTime()
+    : 0;
+  const tb = b?.lastMessage?.createdAt
+    ? new Date(b.lastMessage.createdAt).getTime()
+    : 0;
   return tb - ta;
 });
 
-    return { success: true, data: normalized };
+return { success: true, data: normalized };
   } catch (e: any) {
     return { success: false, error: String(e?.message || e) };
   }

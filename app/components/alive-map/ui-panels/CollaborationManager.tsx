@@ -66,10 +66,18 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
         loadData();
 
         // 2. Escuchador: Cuando el botón amarillo grita "¡Actualiza!", recargamos
-        const handleRefresh = () => {
-            console.log("⚡ Señal recibida: Recargando lista B2B...");
-            loadData();
-        };
+      const handleRefresh = () => {
+    console.log("⚡ Señal recibida: Recargando lista B2B...");
+    loadData();
+
+    setTimeout(() => {
+        loadData();
+    }, 700);
+
+    setTimeout(() => {
+        loadData();
+    }, 1600);
+};
 
         if (typeof window !== 'undefined') {
             window.addEventListener('refresh-b2b-list', handleRefresh);
@@ -171,7 +179,9 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
                  collabs.map((collab) => {
                         const other = collab.otherUser || {};
                         const prop = collab.property || {};
-                        
+                        const direction = String(collab.direction || "").toUpperCase();
+                        const isInbound = direction === "INBOUND";
+                        const isOutbound = direction === "OUTBOUND";
                         // 🔥 RADIOGRAFÍA DE ROL BLINDADA (Como en el Radar) 🔥
                         const rawRole = String(other.role || other.userRole || "").toUpperCase();
                         const isAgency = rawRole.includes("AGENC") || rawRole.includes("PRO") || !!other.companyName || !!other.agencyId;
@@ -215,9 +225,23 @@ export default function CollaborationManager({ onClose, onBack, onOpenChat }: an
                                                 {displayName}
                                             </h4>
                                             {/* Etiqueta Rol Dinámica */}
-                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${isAgency ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
-                                                {isAgency ? "Agencia" : "Particular"}
-                                            </span>
+                                           <div className="flex items-center gap-2 shrink-0">
+    {(isInbound || isOutbound) && (
+        <span
+            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                isInbound
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-amber-50 text-amber-700"
+            }`}
+        >
+            {isInbound ? "Recibida" : "Enviada"}
+        </span>
+    )}
+
+    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${isAgency ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
+        {isAgency ? "Agencia" : "Particular"}
+    </span>
+</div>
                                         </div>
                                         
                                         {/* 🔥 BOTONERA DE CONTACTO (CLICK TO COPY) 🔥 */}
