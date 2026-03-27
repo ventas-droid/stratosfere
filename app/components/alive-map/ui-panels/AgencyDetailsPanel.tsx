@@ -1097,35 +1097,20 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                     <p className="text-[9px] text-slate-500 mt-2 font-mono uppercase">ESTIMADO (+ IVA)</p>
                                 </div>
                                <button 
-                                    onClick={async () => { 
+                                    onClick={() => { 
                                         setShowB2BModal(false); 
                                         if (typeof window !== 'undefined') { 
-                                            // 1. Abrimos el chat B2B
+                                            // 🔥 1. EL DETONADOR B2B: Crea el vínculo en la BD, abre el chat, 
+                                            // manda el aviso a Pusher y dibuja la tarjeta con los datos de contacto.
                                             window.dispatchEvent(new CustomEvent('open-chat-signal', { 
                                                 detail: { 
                                                     propertyId: selectedProp?.id, 
                                                     toUserId: activeOwner?.id || selectedProp?.userId, 
-                                                    message: `Hola, compañero. Me interesa la colaboración al ${sharePercent}% para la propiedad REF: ${selectedProp?.refCode || 'Sin Ref'}. ¿Hablamos?` 
+                                                    message: `[ALIANZA B2B ACEPTADA] Colaboración al ${sharePercent}% para la REF: ${selectedProp?.refCode || 'S/R'}.` 
                                                 } 
                                             })); 
 
-                                            // 🔥 2. EL DISPARO DEL LEAD: Forzamos la creación del Lead para que el móvil pite
-                                            if (selectedProp?.id) {
-                                                try {
-                                                    await submitLeadAction({
-                                                        propertyId: selectedProp.id,
-                                                        name: currentUser?.companyName || currentUser?.name || "Agencia Colaboradora",
-                                                        email: currentUser?.email || "b2b@stratosfere.com",
-                                                        phone: currentUser?.mobile || currentUser?.phone || "Contacto B2B",
-                                                        message: `[ALIANZA B2B] Solicitud de colaboración aceptada al ${sharePercent}% para la REF: ${selectedProp?.refCode || 'S/R'}.`,
-                                                        source: "B2B_NETWORK" 
-                                                    });
-                                                } catch (err) {
-                                                    console.warn("Fallo al enviar el Lead B2B silencioso", err);
-                                                }
-                                            }
-
-                                            // 3. Bengala Táctica para refrescar listas
+                                            // 🔥 2. REFRESCO WEB: Actualiza su columna lateral B2B al instante
                                             setTimeout(() => {
                                                 window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
                                             }, 800);
