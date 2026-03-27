@@ -762,7 +762,9 @@ const handleOpenChatSignal = async (e: any) => {
 
   try {
     const d = e?.detail || {};
-// ✅ NUEVO: soporta abrir chat DIRECTO por conversationId (sin toUserId)
+const initialMessage = String(d?.message || d?.text || "").trim();
+
+    // ✅ NUEVO: soporta abrir chat DIRECTO por conversationId (sin toUserId)
 const passedConversationId =
   asId(d?.conversationId) ||
   asId(d?.convId) ||
@@ -885,8 +887,27 @@ if (passedConversationId) {
       console.warn("setChatThreads merge failed (non-blocking):", err);
     }
 
-    // 3) Abrimos esa conversación y cargamos mensajes
+      // 3) Abrimos esa conversación y cargamos mensajes
     await openConversation(String(convId));
+
+    // ✅ Si el evento trae mensaje automático y el hilo aún no tenía último mensaje,
+    // lo enviamos una sola vez para disparar Pusher en web + móvil
+  const lastText = String(
+  thread?.lastMessage?.text ||
+  thread?.lastMessage?.content ||
+  ""
+).trim();
+
+if (initialMessage && lastText !== initialMessage) {
+  const sendRes = await sendMessageAction({
+    conversationId: String(convId),
+    text: initialMessage,
+  });
+
+  if (!sendRes?.success) {
+    console.warn("⚠️ No se pudo enviar el mensaje automático de colaboración", sendRes);
+  }
+}
 
     addNotification("✅ Canal de comunicación abierto");
   } catch (err) {
