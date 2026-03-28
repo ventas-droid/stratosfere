@@ -4295,3 +4295,67 @@ export async function checkMeetingStatusAction(propertyId: string, agencyId: str
     return { success: false };
   }
 }
+
+// =========================================================
+// 🤝 ALIANZAS B2B - MOTOR DE DISPARO INSTANTÁNEO
+// =========================================================
+export async function createB2bAlianzaAction(propertyId: string, fromUserId: string, toUserId: string, messageText: string) {
+  try {
+    // 1. Buscamos si ya hay un chat abierto para esta propiedad
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        propertyId: propertyId,
+        AND: [
+          { participants: { some: { userId: fromUserId } } },
+          { participants: { some: { userId: toUserId } } }
+        ]
+      }
+    });
+
+    // 2. Si no existe, creamos la sala
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          propertyId: propertyId,
+          participants: {
+            create: [{ userId: fromUserId }, { userId: toUserId }]
+          }
+        }
+      });
+    }
+
+    // 3. Inyectamos el chivato en la base de datos
+    const msg = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        senderId: fromUserId,
+        text: messageText,
+      }
+    });
+
+    // 4. Lo ponemos de los primeros en la lista
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() }
+    });
+
+    // 🔥 5. LA BENGALA TÁCTICA (Esto es lo que hace vibrar al móvil del receptor)
+    try {
+      const payload = { ...msg, content: messageText, text: messageText };
+      
+      // Avisamos a la sala de chat
+      await pusherServer.trigger(`chat-${conversation.id}`, 'new-message', payload);
+      
+      // 🌍 EL BUSCA: Hacemos sonar el móvil del receptor
+      await pusherServer.trigger(`user-${toUserId}`, 'new-message', payload);
+      console.log(`🌍 [B2B ALIANZA] Pusher disparado a user-${toUserId}`);
+    } catch (pusherError) {
+      console.error("⚠️ Error disparando Pusher B2B:", pusherError);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error crítico creando Alianza B2B:", error);
+    return { success: false };
+  }
+}

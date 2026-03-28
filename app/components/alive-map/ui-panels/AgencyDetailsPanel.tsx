@@ -8,7 +8,8 @@ import {
     getPropertyByIdAction,
     getActiveManagementAction,
     incrementStatsAction,
-    submitLeadAction
+    submitLeadAction,
+    createB2bAlianzaAction // 🔥 ASEGÚRESE DE QUE ESTA LÍNEA ESTÉ AQUÍ
 } from "@/app/actions";
 import { checkVanguardVipStatusAction } from '@/app/actions-zones';
 // 🔔 NOTIFICACIONES
@@ -1096,34 +1097,75 @@ const [showB2BModal, setShowB2BModal] = useState(false);
                                     <div className="flex items-center justify-center gap-3 mt-4"><Coins size={28} className="text-amber-400"/><span className="text-4xl font-black text-white tracking-tight">{formattedEarnings}</span></div>
                                     <p className="text-[9px] text-slate-500 mt-2 font-mono uppercase">ESTIMADO (+ IVA)</p>
                                 </div>
-                               <button 
-                                    onClick={() => { 
-                                        setShowB2BModal(false); 
-                                        if (typeof window !== 'undefined') { 
-                                            // 🔥 1. EL DETONADOR B2B: Crea el vínculo en la BD, abre el chat, 
-                                            // manda el aviso a Pusher y dibuja la tarjeta con los datos de contacto.
-                                            window.dispatchEvent(new CustomEvent('open-chat-signal', { 
-                                                detail: { 
-                                                    propertyId: selectedProp?.id, 
-                                                    toUserId: activeOwner?.id || selectedProp?.userId, 
-                                                    message: `[ALIANZA B2B ACEPTADA] Colaboración al ${sharePercent}% para la REF: ${selectedProp?.refCode || 'S/R'}.` 
-                                                } 
-                                            })); 
+                         <button
+  onClick={() => {
+    setShowB2BModal(false);
 
-                                            // 🔥 2. REFRESCO WEB: Actualiza su columna lateral B2B al instante
-                                           setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
-}, 400);
+    if (typeof window !== "undefined") {
+      const toUserId = activeOwner?.id || selectedProp?.userId;
+      const propertyId = selectedProp?.id;
+      const fromUserId = currentUser?.id;
+      const msgText = `[ALIANZA B2B ACEPTADA] Colaboración al ${sharePercent}% para la REF: ${selectedProp?.refCode || "S/R"}.`;
 
-setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('refresh-b2b-list'));
-}, 1200);
-                                        } 
-                                    }} 
-                                    className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
-                                >
-                                    <Briefcase size={16}/> Aceptar Colaboración
-                                </button>
+      // 🔥 1. DISPARO SILENCIOSO AL SERVIDOR (Sin 'await' para que sea instantáneo)
+      if (propertyId && toUserId && fromUserId) {
+          createB2bAlianzaAction(propertyId, fromUserId, toUserId, msgText);
+      }
+
+      // 2. Abrimos chat en la interfaz
+      window.dispatchEvent(
+        new CustomEvent("open-chat-signal", {
+          detail: {
+            propertyId: propertyId,
+            toUserId: toUserId,
+            message: msgText,
+          },
+        })
+      );
+
+      // 3. Pintado inmediato de la tarjeta (Su código intacto)
+      window.dispatchEvent(
+        new CustomEvent("b2b-optimistic-created", {
+          detail: {
+            id: `tmp-${Date.now()}`,
+            direction: "OUTBOUND",
+            __optimistic: true, // ⚠️ MUY IMPORTANTE ESTA ETIQUETA
+            property: {
+              id: selectedProp?.id,
+              refCode: selectedProp?.refCode,
+              title: selectedProp?.title,
+              priceValue: selectedProp?.priceValue || selectedProp?.rawPrice || Number(selectedProp?.price || 0),
+              rawPrice: selectedProp?.rawPrice || selectedProp?.priceValue || Number(selectedProp?.price || 0),
+              img: selectedProp?.img || selectedProp?.mainImage || selectedProp?.images?.[0] || null,
+              mainImage: selectedProp?.mainImage || selectedProp?.img || selectedProp?.images?.[0] || null,
+              b2b: { sharePct: sharePercent || 0 },
+            },
+            otherUser: {
+              id: toUserId,
+              name: activeOwner?.name,
+              companyName: activeOwner?.companyName,
+              avatar: activeOwner?.avatar,
+              companyLogo: activeOwner?.companyLogo,
+              phone: activeOwner?.mobile || activeOwner?.phone,
+              mobile: activeOwner?.mobile,
+              email: activeOwner?.email,
+              role: activeOwner?.role,
+            },
+          },
+        })
+      );
+
+      // 4. Refrescos contra el servidor
+      window.dispatchEvent(new CustomEvent("refresh-b2b-list"));
+      setTimeout(() => window.dispatchEvent(new CustomEvent("refresh-b2b-list")), 150);
+      setTimeout(() => window.dispatchEvent(new CustomEvent("refresh-b2b-list")), 500);
+    }
+  }}
+  className="w-full mt-8 py-4 bg-gradient-to-r from-amber-400 to-yellow-500 text-yellow-950 font-black text-xs rounded-xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 cursor-pointer"
+>
+  <Briefcase size={16} />
+  Aceptar Colaboración
+</button>
                             </div>
                         </div>
                     </div>

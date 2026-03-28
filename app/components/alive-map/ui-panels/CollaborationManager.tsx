@@ -6,7 +6,14 @@ import {
     ShieldCheck, ArrowRight, ArrowLeft, Copy, Check, Smartphone, 
     ExternalLink
 } from 'lucide-react';
-import { getMyConversationsAction, deleteConversationAction, getPropertyByIdAction } from '@/app/actions';
+
+import { 
+    getMyConversationsAction,
+    deleteConversationAction,
+    getUserMeAction
+} from '@/app/actions';
+
+import { getPusherClient } from '@/app/utils/pusher';
 
 // --- SUB-COMPONENTE DE CONTACTO INTELIGENTE (COPIAR SIN SALIR) ---
 const ContactItem = ({ icon: Icon, value, label }: { icon: any, value: string | null | undefined, label: string }) => {
@@ -59,61 +66,226 @@ const ContactItem = ({ icon: Icon, value, label }: { icon: any, value: string | 
 export default function CollaborationManager({ onClose, onBack, onOpenChat }: any) {
     const [collabs, setCollabs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // 🔥 1. EL NÚCLEO DEL ESCUDO: Lleva la cuenta de los disparos
+    const fetchIdRef = React.useRef(0);
 
-   // 🔥 EL RECEPTOR DE BENGALAS TÁCTICAS 🔥
-    useEffect(() => {
-        // 1. Carga inicial al abrir el panel
-        loadData();
+    const loadData = async (silent = false) => {
+        if (!silent) setLoading(true);
+        
+        // Asignamos una matrícula única a este disparo
+        const currentFetchId = ++fetchIdRef.current;
 
-        // 2. Escuchador: Cuando el botón amarillo grita "¡Actualiza!", recargamos
-      const handleRefresh = () => {
-    console.log("⚡ Señal recibida: Recargando lista B2B...");
-    loadData();
-
-    setTimeout(() => {
-        loadData();
-    }, 700);
-
-    setTimeout(() => {
-        loadData();
-    }, 1600);
-};
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('refresh-b2b-list', handleRefresh);
-            // Por si el sistema usa directamente el evento de abrir chat para recargar
-            window.addEventListener('open-chat-signal', handleRefresh); 
-        }
-
-        // 3. Limpieza táctica al cerrar
-        return () => {
-            if (typeof window !== 'undefined') {
-                window.removeEventListener('refresh-b2b-list', handleRefresh);
-                window.removeEventListener('open-chat-signal', handleRefresh);
-            }
-        };
-    }, []);
-
-    const loadData = async () => {
-        setLoading(true);
         try {
-            // 🔥 AHORA EL SERVIDOR DEVUELVE TODO LISTO Y EMPAQUETADO EN 1 VIAJE 🔥
+            const meRes: any = await getUserMeAction();
+            const meId = meRes?.data?.id;
+
             const res: any = await getMyConversationsAction();
-            
-            if (res.success && res.data) {
-                // 1. Filtramos conversaciones de negocio (con propiedad vinculada)
-                const businessChats = res.data.filter((c: any) => c.property || c.propertyRef);
-                
-                // 2. Inyección directa: Como el servidor ya trae todo (fotos, precios, B2B), 
-                // ya no hacemos peticiones extra. Lo metemos directo al radar.
+
+            // 🔥 2. EL ESCUDO ANTIMISILES: Si esta petición es vieja y lenta, la aniquilamos.
+            if (currentFetchId !== fetchIdRef.current) {
+                console.log("🛡️ [RADAR] Descartando datos viejos que causan parpadeo...");
+                return; 
+            }
+
+            if (res?.success && Array.isArray(res.data)) {
+                const businessChats = res.data
+                    .filter((c: any) => c.property || c.propertyRef)
+                    .map((c: any) => {
+                        // Cálculo blindado de la etiqueta
+                        let dir = "INBOUND"; 
+                        if (c.property && meId) {
+                            const isMyProperty = String(c.property.userId) === String(meId) || 
+                                                 String(c.property.user?.id) === String(meId) ||
+                                                 String(c.property.assignment?.agencyId) === String(meId);
+                            dir = isMyProperty ? "INBOUND" : "OUTBOUND";
+                        }
+                        return { ...c, direction: dir };
+                    });
+
+                // 🔥 3. PINTADO DIRECTO: Sin mezclas que confundan a la web
                 setCollabs(businessChats);
             }
         } catch (e) {
             console.error("Error cargando B2B:", e);
         } finally {
-            setLoading(false);
+            // Solo quitamos el "Cargando" si es la petición correcta
+            if (currentFetchId === fetchIdRef.current && !silent) {
+                setLoading(false);
+            }
         }
     };
+
+    // ⚡ INSERCIÓN INMEDIATA (optimista) para que aparezca al instante sin esperar a la BD
+useEffect(() => {
+    const handleOptimisticCreated = (e: any) => {
+        const optimistic = e?.detail;
+        if (!optimistic?.id) return;
+
+        setCollabs((prev: any[]) => {
+            const list = Array.isArray(prev) ? prev : [];
+
+            const existingIndex = list.findIndex((item: any) => {
+                const sameTmp = String(item?.id || "") === String(optimistic?.id || "");
+                const sameProperty =
+                    String(item?.property?.id || "") === String(optimistic?.property?.id || "");
+                const sameDirection =
+                    String(item?.direction || "").toUpperCase() ===
+                    String(optimistic?.direction || "").toUpperCase();
+                const sameOther =
+                    String(item?.otherUser?.id || "") === String(optimistic?.otherUser?.id || "");
+
+                return sameTmp || (sameProperty && sameDirection && sameOther);
+            });
+
+            if (existingIndex >= 0) {
+                return list.map((item: any, index: number) =>
+                    index === existingIndex
+                        ? {
+                              ...item,
+                              ...optimistic,
+                              property: optimistic?.property || item?.property || null,
+                              otherUser: optimistic?.otherUser || item?.otherUser || {},
+                              direction: optimistic?.direction || item?.direction || "",
+                              __optimistic: true,
+                          }
+                        : item
+                );
+            }
+
+            return [
+                {
+                    ...optimistic,
+                    property: optimistic?.property || null,
+                    otherUser: optimistic?.otherUser || {},
+                    direction: optimistic?.direction || "",
+                    __optimistic: true,
+                },
+                ...list,
+            ];
+        });
+    };
+
+    if (typeof window !== "undefined") {
+        window.addEventListener("b2b-optimistic-created", handleOptimisticCreated);
+    }
+
+    return () => {
+        if (typeof window !== "undefined") {
+            window.removeEventListener("b2b-optimistic-created", handleOptimisticCreated);
+        }
+    };
+}, []);
+
+// 🔥 EL RECEPTOR DE BENGALAS TÁCTICAS 🔥
+useEffect(() => {
+    loadData();
+
+    let t1: any = null;
+    let t2: any = null;
+
+    const handleRefresh = () => {
+        console.log("⚡ Señal recibida: Recargando lista B2B...");
+
+        if (t1) clearTimeout(t1);
+        if (t2) clearTimeout(t2);
+
+        loadData(true);
+
+        t1 = setTimeout(() => {
+            loadData(true);
+        }, 250);
+
+        t2 = setTimeout(() => {
+            loadData(true);
+        }, 700);
+    };
+
+    if (typeof window !== "undefined") {
+        window.addEventListener("refresh-b2b-list", handleRefresh);
+        window.addEventListener("open-chat-signal", handleRefresh);
+    }
+
+    return () => {
+        if (t1) clearTimeout(t1);
+        if (t2) clearTimeout(t2);
+
+        if (typeof window !== "undefined") {
+            window.removeEventListener("refresh-b2b-list", handleRefresh);
+            window.removeEventListener("open-chat-signal", handleRefresh);
+        }
+    };
+}, []);
+
+// ⚡ REFRESCO EN TIEMPO REAL POR PUSHER
+useEffect(() => {
+    let pusher: any = null;
+    let channel: any = null;
+    let channelName = "";
+    let isAlive = true;
+    let t1: any = null;
+    let t2: any = null;
+
+    const bootRealtime = async () => {
+        try {
+            const meRes: any = await getUserMeAction();
+            const me = meRes?.data;
+            if (!me?.id || !isAlive) return;
+
+            pusher = getPusherClient();
+            if (!pusher) return;
+
+            channelName = `user-${me.id}`;
+            channel = pusher.subscribe(channelName);
+
+            const onRealtimeRefresh = () => {
+                if (!isAlive) return;
+
+                console.log("⚡ Pusher detectado en CollaborationManager -> recargando B2B");
+
+                if (t1) clearTimeout(t1);
+                if (t2) clearTimeout(t2);
+
+                loadData(true);
+
+                t1 = setTimeout(() => {
+                    if (isAlive) loadData(true);
+                }, 200);
+
+                t2 = setTimeout(() => {
+                    if (isAlive) loadData(true);
+                }, 550);
+            };
+
+            channel.bind("new-message", onRealtimeRefresh);
+            channel.bind("new-b2b-proposal", onRealtimeRefresh);
+            channel.bind("new-lead", onRealtimeRefresh);
+
+            (channel as any).__refreshHandler = onRealtimeRefresh;
+        } catch (e) {
+            console.error("❌ Error conectando realtime B2B:", e);
+        }
+    };
+
+    bootRealtime();
+
+    return () => {
+        isAlive = false;
+
+        if (t1) clearTimeout(t1);
+        if (t2) clearTimeout(t2);
+
+        if (channel && (channel as any).__refreshHandler) {
+            channel.unbind("new-message", (channel as any).__refreshHandler);
+            channel.unbind("new-b2b-proposal", (channel as any).__refreshHandler);
+            channel.unbind("new-lead", (channel as any).__refreshHandler);
+        }
+
+        if (pusher && channelName) {
+            pusher.unsubscribe(channelName);
+        }
+    };
+}, []);
 
     const handleDelete = async (e: any, conversationId: string) => {
         e.stopPropagation(); 

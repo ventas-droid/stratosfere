@@ -755,29 +755,30 @@ const handleOpenChatSignal = async (e: any) => {
   const asId = (v: any) => {
     if (!v) return "";
     if (typeof v === "string" || typeof v === "number") return String(v);
-    if (typeof v === "object")
+    if (typeof v === "object") {
       return String(v.id || v.userId || v.ownerId || v._id || v.uuid || "");
+    }
     return "";
   };
 
   try {
     const d = e?.detail || {};
-const initialMessage = String(d?.message || d?.text || "").trim();
+    const initialMessage = String(d?.message || d?.text || "").trim();
 
     // ✅ NUEVO: soporta abrir chat DIRECTO por conversationId (sin toUserId)
-const passedConversationId =
-  asId(d?.conversationId) ||
-  asId(d?.convId) ||
-  asId(d?.conversation?.id) ||
-  "";
+    const passedConversationId =
+      asId(d?.conversationId) ||
+      asId(d?.convId) ||
+      asId(d?.conversation?.id) ||
+      "";
 
-// ✅ NUEVO: campaña/propuesta (para abrir columna derecha)
-const campaignId =
-  asId(d?.campaignId) ||
-  asId(d?.campaign?.id) ||
-  "";
+    // ✅ NUEVO: campaña/propuesta (para abrir columna derecha)
+    const campaignId =
+      asId(d?.campaignId) ||
+      asId(d?.campaign?.id) ||
+      "";
 
-const openProposal = !!d?.openProposal || !!campaignId;
+    const openProposal = !!d?.openProposal || !!campaignId;
 
     // 🔥 IDs robustos
     const propertyId =
@@ -796,29 +797,29 @@ const openProposal = !!d?.openProposal || !!campaignId;
       asId(d?.owner?.id) ||
       asId(d?.ownerSnapshot?.id);
 
+    // ⚡ ABRIR UI AL INSTANTE, SIN ESPERAR A RED
+    setChatOpen(true);
+    const warmPanelPromise = Promise.resolve(openChatPanel?.()).catch(() => null);
+
     // ✅ Si ya me pasan conversationId, abro directamente y no exijo toUserId
-if (passedConversationId) {
-  await openChatPanel();
-  await openConversation(String(passedConversationId));
+    if (passedConversationId) {
+      await openConversation(String(passedConversationId));
 
-    if (openProposal && systemMode === "EXPLORER") {
-    setActiveCampaignId(campaignId || null);
-    setRightPanel("OWNER_PROPOSALS");
-  }
+      if (openProposal && systemMode === "EXPLORER") {
+        setActiveCampaignId(campaignId || null);
+        setRightPanel("OWNER_PROPOSALS");
+      }
 
-  addNotification("✅ Canal de comunicación abierto");
-  return;
-}
-
+      await warmPanelPromise;
+      addNotification("✅ Canal de comunicación abierto");
+      return;
+    }
 
     // 🚫 Evitar chat contigo mismo
     if (String(toUserId) === String(activeUserKey)) {
       addNotification("⚠️ No puedes abrir chat contigo mismo");
       return;
     }
-
-    // 1) Abrimos el panel (carga threads)
-    await openChatPanel();
 
     // 2) Creamos/obtenemos conversación (server) — soporta varias firmas
     let res: any = null;
@@ -833,7 +834,10 @@ if (passedConversationId) {
     // B) firma ({ propertyId, toUserId })
     if (!res?.success) {
       try {
-        res = await (getOrCreateConversationAction as any)({ propertyId: propertyId || null, toUserId });
+        res = await (getOrCreateConversationAction as any)({
+          propertyId: propertyId || null,
+          toUserId,
+        });
       } catch {}
     }
 
@@ -887,28 +891,36 @@ if (passedConversationId) {
       console.warn("setChatThreads merge failed (non-blocking):", err);
     }
 
-      // 3) Abrimos esa conversación y cargamos mensajes
+    // 3) Abrimos esa conversación y cargamos mensajes
     await openConversation(String(convId));
 
+    if (openProposal && systemMode === "EXPLORER") {
+      setActiveCampaignId(campaignId || null);
+      setRightPanel("OWNER_PROPOSALS");
+    }
+
     // ✅ Si el evento trae mensaje automático y el hilo aún no tenía último mensaje,
-    // lo enviamos una sola vez para disparar Pusher en web + móvil
-  const lastText = String(
-  thread?.lastMessage?.text ||
-  thread?.lastMessage?.content ||
-  ""
-).trim();
+    // lo enviamos SIN bloquear la apertura del chat
+    const lastText = String(
+      thread?.lastMessage?.text ||
+      thread?.lastMessage?.content ||
+      ""
+    ).trim();
 
-if (initialMessage && lastText !== initialMessage) {
-  const sendRes = await sendMessageAction({
-    conversationId: String(convId),
-    text: initialMessage,
-  });
+    if (initialMessage && lastText !== initialMessage) {
+      void sendMessageAction({
+        conversationId: String(convId),
+        text: initialMessage,
+      }).then((sendRes: any) => {
+        if (!sendRes?.success) {
+          console.warn("⚠️ No se pudo enviar el mensaje automático de colaboración", sendRes);
+        }
+      }).catch((err: any) => {
+        console.warn("⚠️ Error enviando mensaje automático de colaboración", err);
+      });
+    }
 
-  if (!sendRes?.success) {
-    console.warn("⚠️ No se pudo enviar el mensaje automático de colaboración", sendRes);
-  }
-}
-
+    await warmPanelPromise;
     addNotification("✅ Canal de comunicación abierto");
   } catch (err) {
     console.error(err);
