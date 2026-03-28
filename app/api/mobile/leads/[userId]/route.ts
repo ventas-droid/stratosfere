@@ -9,14 +9,14 @@ export async function GET(
     const { userId } = await params;
     if (!userId) return NextResponse.json({ error: "Falta ID" }, { status: 400 });
 
-   // 1. RED DE ARRASTRE
+  // 1. RED DE ARRASTRE
     const rawLeads = await prisma.lead.findMany({
       where: {
         OR: [
           { managerId: userId },
           { property: { userId: userId } },
-          { property: { assignment: { is: { agencyId: userId } } } }, // 🛡️ El 'is:' es vital para que Prisma no dé error 500
-          { property: { campaigns: { some: { agencyId: userId, status: 'ACCEPTED' } } } } // 🛡️ Blindaje B2B
+          { property: { assignment: { is: { agencyId: userId } } } },
+          { property: { campaigns: { some: { agencyId: userId } } } } // 🛡️ ELIMINAMOS 'ACCEPTED' AQUÍ PARA VER SIEMPRE EL LOGO
         ]
       },
       include: {
@@ -26,7 +26,6 @@ export async function GET(
             userId: true,
             refCode: true,
             title: true,
-            // 🔥 Extraemos los datos COMPLETOS del dueño y de la agencia
             user: { select: { id: true, name: true, surname: true, avatar: true, companyLogo: true, role: true } },
             assignment: { 
               select: { 
@@ -36,12 +35,13 @@ export async function GET(
               } 
             },
             campaigns: {
-              where: { status: 'ACCEPTED' },  // 👑 SU CÓDIGO INTACTO
-              orderBy: { createdAt: "desc" }, // 👑 SU CÓDIGO INTACTO
-              take: 1,
+              // 🔥 BORRE ESTA LÍNEA DE AQUÍ ABAJO: where: { status: 'ACCEPTED' }
+              // 🔥 BORRE ESTA LÍNEA DE AQUÍ ABAJO: orderBy: { createdAt: "desc" }
+              take: 1, // Nos quedamos con la más reciente
               select: {
                 agencyId: true,
-                conversationId: true,
+                conversationId: true, // ✅ AHORA SÍ VIAJARÁ EL ID DEL CHAT
+                status: true,
                 agency: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } }
               }
             }
@@ -50,6 +50,7 @@ export async function GET(
       },
       orderBy: { createdAt: "desc" }
     });
+    
    // 2. EL BISTURÍ MÓVIL (CORREGIDO PARA ACCIÓN BIDIRECCIONAL)
     const myRealLeads = rawLeads.filter(l => {
         if (l.managerId === userId) return true;
