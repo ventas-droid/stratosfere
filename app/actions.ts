@@ -4078,45 +4078,67 @@ export async function getMyReceivedLeadsAction() {
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "No autorizado" };
 
-        // 1. RED DE ARRASTRE: Traemos todo lo que tenga que ver con este usuario
+        // 1. RED DE ARRASTRE TÁCTICA (Con blindaje de logos B2B)
         const rawLeads = await prisma.lead.findMany({
             where: {
                 OR: [
                     { managerId: user.id },
                     { property: { userId: user.id } },
-                    { property: { assignment: { agencyId: user.id } } }
+                    { property: { assignment: { is: { agencyId: user.id } } } },
+                    { property: { campaigns: { some: { agencyId: user.id } } } } // 🛡️ Permite ver citas previas a la firma
                 ]
             },
             include: {
                 property: {
                     include: {
                         images: true,
-                        user: { select: { id: true, name: true, email: true, avatar: true, companyName: true, companyLogo: true, phone: true } },
-                        assignment: { select: { agencyId: true, status: true } }, 
-                        campaigns: { where: { status: 'ACCEPTED' }, select: { commissionSharePct: true, commissionShareVisibility: true } }
+                        // Traemos al dueño
+                        user: { select: { id: true, name: true, surname: true, email: true, avatar: true, companyName: true, companyLogo: true, phone: true, role: true } },
+                        // Traemos a la agencia oficial
+                        assignment: { 
+                            select: { 
+                                agencyId: true, status: true, 
+                                agency: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } } 
+                            } 
+                        },
+                        // Traemos a las agencias en campaña
+                        campaigns: { 
+                            take: 1,
+                            orderBy: { createdAt: 'desc' },
+                            select: { 
+                                agencyId: true, status: true, conversationId: true, commissionSharePct: true, commissionShareVisibility: true,
+                                agency: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } }
+                            } 
+                        }
                     }
                 }
             },
             orderBy: { createdAt: 'desc' }
         });
 
-        // 2. EL BISTURÍ DE JAVASCRIPT (100% SEGURO)
+        // 2. EL BISTURÍ DE JAVASCRIPT (Acción Bidireccional 100% Segura)
         const myRealLeads = rawLeads.filter((l: any) => {
-            // Si el lead nuevo ya tiene el jefe grabado a fuego
-            if (l.managerId) return l.managerId === user.id;
-
-            // Para leads antiguos: Si hay agencia activa, es de la agencia. Si no, del dueño.
-            const isAgencyActive = l.property?.assignment?.status === 'ACTIVE';
-            if (isAgencyActive) return user.id === l.property?.assignment?.agencyId;
-            return user.id === l.property?.userId;
+            if (l.managerId === user.id) return true;
+            if (l.property?.assignment?.status === 'ACTIVE' && l.property?.assignment?.agencyId === user.id) return true;
+            if (l.property?.campaigns?.length > 0 && l.property?.campaigns[0].agencyId === user.id) return true;
+            if (l.property?.userId === user.id) return true;
+            return false;
         });
 
-        // 3. EMPAQUETADO PARA EL FRONTEND
+        // 3. EMPAQUETADO PARA EL FRONTEND (Detector de Bandos Web)
         const cleanLeads = myRealLeads.map((l: any) => {
             const p: any = l.property;
             const lng = Number(p.longitude);
             const lat = Number(p.latitude);
             const hasCoords = (lng && lat && lng !== 0);
+
+            // 👑 DETECTOR DE BANDOS: ¿Quién está mirando la pantalla Web?
+            const isOwner = p.userId === user.id;
+            const managerAgency = p.assignment?.agency || (p.campaigns?.length > 0 ? p.campaigns[0].agency : null);
+            
+            // Si soy el Propietario y hay una Agencia gestionando, quiero ver la cara de la Agencia.
+            // Si soy la Agencia, quiero ver la cara del Propietario (p.user).
+            const finalUserToDisplay = (isOwner && managerAgency) ? managerAgency : (p.user || { name: "Usuario" });
 
             return {
                 id: l.id,
@@ -4142,7 +4164,10 @@ export async function getMyReceivedLeadsAction() {
                     coordinates: hasCoords ? [lng, lat] : null,
                     longitude: lng,
                     latitude: lat,
-                    user: p.user || { name: "Agencia" },
+                    
+                    // 🛡️ AQUÍ VIAJA EL LOGO Y NOMBRE CORRECTO PARA LA WEB
+                    user: finalUserToDisplay,
+                    
                     b2b: (p.campaigns && p.campaigns[0]) ? {
                         sharePct: Number(p.campaigns[0].commissionSharePct || 0),
                         visibility: p.campaigns[0].commissionShareVisibility
