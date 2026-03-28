@@ -9,26 +9,24 @@ export async function GET(
     const { userId } = await params;
     if (!userId) return NextResponse.json({ error: "Falta ID" }, { status: 400 });
 
-    // 1. RED DE ARRASTRE (Su código exacto, solo blindamos la relación 1 a 1 con "is:")
+    // 1. RED DE ARRASTRE
     const rawLeads = await prisma.lead.findMany({
       where: {
         OR: [
           { managerId: userId },
           { property: { userId: userId } },
-          { property: { assignment: { is: { agencyId: userId } } } },
-          // Respaldo B2B (Por si la agencia viene de una campaña compartida)
-          { property: { campaigns: { some: { agencyId: userId, status: 'ACCEPTED' } } } }
+          { property: { assignment: { agencyId: userId } } }
         ]
       },
       include: {
         property: {
           select: {
-            id: true, // Vital para el chat del móvil
+            id: true, // Vital para conectar el chat
             userId: true,
             refCode: true,
             title: true,
-            // 🔥 AQUÍ ESTÁ LA CURA: Pedimos los datos completos del Dueño Y de la Agencia
-            user: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } },
+            // 🔥 AQUÍ ESTÁ EL ARREGLO: Extraemos los datos COMPLETOS del dueño y de la agencia
+            user: { select: { id: true, name: true, surname: true, avatar: true, companyLogo: true, role: true } },
             assignment: { 
               select: { 
                 agencyId: true, 
@@ -41,6 +39,7 @@ export async function GET(
               take: 1,
               select: {
                 agencyId: true,
+                conversationId: true,
                 agency: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } }
               }
             }
@@ -50,21 +49,17 @@ export async function GET(
       orderBy: { createdAt: "desc" }
     });
 
-    // 2. EL BISTURÍ MÓVIL (SU LÓGICA MAESTRA INTACTA)
+    // 2. EL BISTURÍ MÓVIL (Intacto, su lógica maestra no se toca)
     const myRealLeads = rawLeads.filter(l => {
         if (l.managerId) return l.managerId === userId;
-        
         const isAgencyActive = l.property?.assignment?.status === 'ACTIVE';
         if (isAgencyActive) return userId === l.property?.assignment?.agencyId;
-
-        // Capa de seguridad B2B para que el bisturí no corte leads de campañas aceptadas
-        const isB2BActive = l.property?.campaigns && l.property.campaigns.length > 0;
-        if (isB2BActive) return userId === l.property?.campaigns[0].agencyId;
-
+        const isCampaignActive = l.property?.campaigns && l.property.campaigns.length > 0;
+        if (isCampaignActive) return userId === l.property?.campaigns[0].agencyId;
         return userId === l.property?.userId;
     });
 
-    // 3. FORMATEO MÓVIL (Ahora mandamos la maleta completa sin recortar a la Agencia)
+    // 3. FORMATEO MÓVIL (Empaquetamos la info sin recortarla)
     const formattedLeads = myRealLeads.map((l: any) => ({
       id: l.id,
       status: l.status,
@@ -74,12 +69,12 @@ export async function GET(
       message: l.message,
       source: l.source || "ORGANIC",
       date: l.createdAt,
-      propertyId: l.property?.id || l.propertyId, // El móvil lo necesita para abrir el chat
+      propertyId: l.property?.id || null,
       property: {
-        id: l.property?.id,
+        id: l.property?.id || null,
         refCode: l.property?.refCode || "Sin Ref",
         title: l.property?.title || "Sin título",
-        // 🔥 Mandamos los bloques enteros. El móvil ya sabe cómo leerlos gracias a nuestro código anterior.
+        // Pasamos los bloques enteros al móvil
         user: l.property?.user || null,
         assignment: l.property?.assignment || null,
         campaigns: l.property?.campaigns || []
