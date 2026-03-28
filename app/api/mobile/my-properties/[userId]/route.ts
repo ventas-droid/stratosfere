@@ -33,7 +33,7 @@ export async function GET(
         user: {
           select: {
             id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true, 
-            phone: true, mobile: true, email: true // 🔥 AÑADIDO: VITAL PARA CONTACTO
+            phone: true, mobile: true, email: true
           }
         },
         campaigns: {
@@ -42,18 +42,17 @@ export async function GET(
             agency: {
               select: {
                 id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true,
-                phone: true, mobile: true, email: true // 🔥 AÑADIDO: VITAL PARA CONTACTO
+                phone: true, mobile: true, email: true
               }
             }
           }
         },
-        assignment: {
-          where: { status: 'ACTIVE' },
+        assignment: { // 🔥 CORREGIDO: Sin 'where' porque es 1 a 1
           include: {
             agency: {
               select: {
                 id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true,
-                phone: true, mobile: true, email: true // 🔥 AÑADIDO: VITAL PARA CONTACTO
+                phone: true, mobile: true, email: true
               }
             }
           }
@@ -64,6 +63,7 @@ export async function GET(
 
    const formattedProperties = properties.map((prop: any) => {
       const activeCampaign = Array.isArray(prop.campaigns) && prop.campaigns.length > 0 ? prop.campaigns[0] : null;
+      // 🔥 CORREGIDO: Validamos en memoria el status de assignment
       const assignmentMatch = prop.assignment && String(prop.assignment.status || '').toUpperCase() === 'ACTIVE' ? prop.assignment : null;
 
       const isAgencyOwned = String(prop.userId || '') === String(userId);
@@ -74,7 +74,6 @@ export async function GET(
       const agencyName = managingAgency?.companyName || managingAgency?.name || (isAgencyOwned ? 'Mi Agencia' : null);
       const managementMode = isAgencyOwned ? 'AGENCY_OWNED' : isAgencyInherited ? 'AGENCY_INHERITED' : 'PARTICULAR';
 
-      // 🛡️ EL ESCUDO DE SEGURIDAD B2B
       let b2bData = null;
       if (activeCampaign) {
         const visibility = String(activeCampaign.commissionShareVisibility || 'PRIVATE').toUpperCase();
@@ -98,22 +97,17 @@ export async function GET(
         }
       }
 
-      // 🎭 LA MAGIA DE LA TRANSMUTACIÓN 🎭
-      // Si está gestionada por una agencia, sobreescribimos al "user" original.
       let finalUser = prop.user;
       if (isManaged && managingAgency) {
         finalUser = {
             ...managingAgency,
-            role: 'AGENCIA' // Forzamos el rol para que la App pinte el modal oscuro
+            role: 'AGENCIA'
         };
       }
 
       return {
         ...prop,
-        
-        // 🔥 APLASTAMOS AL DUEÑO ORIGINAL CON LA AGENCIA 🔥
         user: finalUser,
-
         activeCampaign,
         isAgencyOwned,
         isAgencyInherited,

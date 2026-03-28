@@ -3,147 +3,70 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+// 🔥 LISTA GENERAL: SIN PARÁMETROS
+export async function GET() {
   try {
-    const propertyData = await prisma.property.findUnique({
-      where: { id: params.id },
+    const properties = await prisma.property.findMany({
+      orderBy: { createdAt: 'desc' },
       include: {
-        images: true,
-
         user: {
-          select: {
-            id: true,
-            name: true,
-            surname: true,
-            companyName: true,
-            companyLogo: true,
-            avatar: true,
-            role: true,
-            phone: true,
-            mobile: true,
-            email: true,
-            licenseType: true,
-            website: true,
-            coverImage: true,
-          },
+          select: { id: true, role: true, name: true, companyName: true, companyLogo: true, avatar: true, tagline: true, phone: true, mobile: true, email: true, licenseType: true }
         },
-
-        assignment: {
-          include: {
-            agency: {
-              select: {
-                id: true,
-                name: true,
-                surname: true,
-                companyName: true,
-                companyLogo: true,
-                avatar: true,
-                role: true,
-                phone: true,
-                mobile: true,
-                email: true,
-                licenseType: true,
-                website: true,
-                coverImage: true,
-              },
-            },
-          },
+        assignment: { // 🔥 CORREGIDO: Sin 'where' porque es 1 a 1
+          include: { 
+            agency: { 
+              select: { id: true, role: true, name: true, companyName: true, companyLogo: true, avatar: true, tagline: true, phone: true, mobile: true, email: true, licenseType: true } 
+            } 
+          }
         },
-
         campaigns: {
-          where: { status: "ACCEPTED" },
-          take: 1,
-          include: {
-            agency: {
-              select: {
-                id: true,
-                name: true,
-                surname: true,
-                companyName: true,
-                companyLogo: true,
-                avatar: true,
-                role: true,
-                phone: true,
-                mobile: true,
-                email: true,
-                licenseType: true,
-                website: true,
-                coverImage: true,
-              },
-            },
-          },
+          where: { status: 'ACCEPTED' },
+          include: { 
+            agency: { 
+              select: { id: true, role: true, name: true, companyName: true, companyLogo: true, avatar: true, tagline: true, phone: true, mobile: true, email: true, licenseType: true } 
+            } 
+          }
         },
-      },
+        images: true 
+      }
     });
 
-    if (!propertyData) {
-      return NextResponse.json(
-        { success: false, error: "Expediente no encontrado" },
-        { status: 404 }
-      );
-    }
+    const formattedProperties = properties.map((p: any) => {
+      let cleanImages = [];
+      if (Array.isArray(p.images)) {
+        cleanImages = p.images.map((img: any) => typeof img === 'string' ? img : (img.url || img));
+      } else if (typeof p.images === 'string') {
+        try { cleanImages = JSON.parse(p.images); } catch (e) {}
+      } else if (Array.isArray(p.gallery)) {
+        cleanImages = p.gallery.map((img: any) => typeof img === 'string' ? img : (img.url || img));
+      }
 
-    const activeCampaign =
-      propertyData.campaigns && propertyData.campaigns.length > 0
-        ? propertyData.campaigns[0]
-        : null;
+      // Validamos status del assignment en memoria
+      const assignmentMatch = p.assignment && String(p.assignment.status || '').toUpperCase() === 'ACTIVE' ? p.assignment : null;
 
-    const activeAssignment =
-      propertyData.assignment && propertyData.assignment.status === "ACTIVE"
-        ? propertyData.assignment
-        : null;
+      let finalUser = p.user;
+      const managingAgency = assignmentMatch?.agency || (p.campaigns && p.campaigns.length > 0 ? p.campaigns[0].agency : null);
+      if (managingAgency) {
+          finalUser = { ...managingAgency, role: 'AGENCIA' };
+      }
 
-    const activeAgency = activeAssignment?.agency || activeCampaign?.agency || null;
+      return {
+        ...p, 
+        user: finalUser,
+        image: p.mainImage || cleanImages[0] || null,
+        images: cleanImages, 
+        location: [p.address, p.city, p.region].filter(Boolean).join(', '),
+        beds: p.rooms || p.bedrooms || 0,
+        baths: p.baths || p.bathrooms || 0,
+        sqm: p.mBuilt || p.surface || 0,
+        rawPrice: p.price,
+        priceValue: p.price, 
+        price: p.price ? `${p.price.toLocaleString('es-ES')} €` : 'Consultar',
+      };
+    });
 
-    let finalUser = propertyData.user;
-    if (activeAgency) {
-      finalUser = { ...activeAgency, role: 'AGENCIA' };
-    }
-
-    const b2bData = activeCampaign
-      ? {
-          sharePct: Number(activeCampaign.commissionSharePct || 0),
-          visibility: activeCampaign.commissionShareVisibility || "PRIVATE",
-        }
-      : {
-          sharePct: Number(propertyData.sharePct || 0),
-          visibility: propertyData.shareVisibility || "PRIVATE",
-        };
-
-    const numericPrice = Number(propertyData.price || 0);
-
-    let cleanImages: string[] = [];
-    if (Array.isArray(propertyData.images)) {
-      cleanImages = propertyData.images.map((img: any) => img?.url || img).filter(Boolean);
-    }
-
-    const payload = {
-      ...propertyData,
-      activeCampaign,
-      user: finalUser,
-      ownerSnapshot: finalUser,
-      b2b: b2bData,
-
-      rawPrice: numericPrice,
-      priceValue: numericPrice,
-      price: numericPrice > 0 ? `${numericPrice.toLocaleString('es-ES')} €` : 'Consultar',
-
-      images: cleanImages,
-      img: cleanImages.length > 0 ? cleanImages[0] : propertyData.mainImage || null,
-      mainImage: cleanImages.length > 0 ? cleanImages[0] : propertyData.mainImage || null,
-
-      location: [propertyData.address, propertyData.city, propertyData.region].filter(Boolean).join(', '),
-      beds: propertyData.rooms || 0,
-      baths: propertyData.baths || 0,
-      sqm: propertyData.mBuilt || 0,
-    };
-
-    return NextResponse.json({ success: true, data: payload });
+    return NextResponse.json(formattedProperties);
   } catch (error) {
-    console.error(`💥 Error táctico pidiendo expediente B2B ${params.id}:`, error);
-    return NextResponse.json(
-      { success: false, error: "Fallo en el servidor central" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error de servidor" }, { status: 500 });
   }
 }

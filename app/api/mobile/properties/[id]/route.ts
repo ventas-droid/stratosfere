@@ -3,61 +3,103 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ userId?: string; id?: string }> }
-) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const resolvedParams = await params;
-    const targetId = resolvedParams.userId || resolvedParams.id;
+    const resolvedParams = await context.params;
+    const targetId = resolvedParams.id;
 
-    if (!targetId) {
-      return NextResponse.json({ error: 'Falta ID' }, { status: 400 });
-    }
-
-    const properties = await prisma.property.findMany({
-      where: { userId: targetId },
+    const propertyData = await prisma.property.findUnique({
+      where: { id: targetId },
       include: {
         images: true,
+        user: {
+          select: {
+            id: true, name: true, surname: true, companyName: true,
+            companyLogo: true, avatar: true, role: true, phone: true,
+            mobile: true, email: true, licenseType: true, website: true,
+            coverImage: true,
+          },
+        },
         assignment: {
-          where: { status: 'ACTIVE' },
-          include: { agency: true },
+          include: {
+            agency: {
+              select: {
+                id: true, name: true, surname: true, companyName: true,
+                companyLogo: true, avatar: true, role: true, phone: true,
+                mobile: true, email: true, licenseType: true, website: true,
+                coverImage: true,
+              },
+            },
+          },
         },
-        // 🔥 LA CLAVE: Buscamos SENT y ACCEPTED igual que en la Web
         campaigns: {
-          where: { OR: [{ status: 'ACCEPTED' }, { status: 'SENT' }] },
-          include: { agency: true },
-          orderBy: { updatedAt: 'desc' },
+          where: { status: "ACCEPTED" },
+          take: 1,
+          include: {
+            agency: {
+              select: {
+                id: true, name: true, surname: true, companyName: true,
+                companyLogo: true, avatar: true, role: true, phone: true,
+                mobile: true, email: true, licenseType: true, website: true,
+                coverImage: true,
+              },
+            },
+          },
         },
-        user: true,
       },
-      orderBy: { createdAt: 'desc' },
     });
 
-    const formattedProperties = properties.map((p: any) => {
-      // 1. Filtramos estrictamente la campaña aceptada
-      const activeCampaign = p.campaigns?.find((c: any) => String(c.status).toUpperCase() === 'ACCEPTED') || null;
-      const activeAssignment = Array.isArray(p.assignment) ? p.assignment[0] : (p.assignment?.status === 'ACTIVE' ? p.assignment : null);
+    if (!propertyData) {
+      return NextResponse.json(
+        { success: false, error: "Expediente no encontrado" },
+        { status: 404 }
+      );
+    }
 
-      // 2. Extraer nombre de agencia real
-      const agencyObj = activeCampaign?.agency || activeAssignment?.agency || null;
-      const agencyName = agencyObj?.companyName || agencyObj?.name || p.agencyName || null;
+    const activeCampaign = propertyData.campaigns && propertyData.campaigns.length > 0 ? propertyData.campaigns[0] : null;
+    const activeAssignment = propertyData.assignment && propertyData.assignment.status === "ACTIVE" ? propertyData.assignment : null;
+    const activeAgency = activeAssignment?.agency || activeCampaign?.agency || null;
 
-      // 3. Verdad absoluta: Está gestionada si logramos cazar el contrato de la agencia
-      const isReallyManaged = !!agencyObj || !!activeCampaign;
+    let finalUser = propertyData.user;
+    if (activeAgency) {
+      finalUser = { ...activeAgency, role: 'AGENCIA' };
+    }
 
-      return {
-        ...p,
-        assignment: activeAssignment,
-        activeCampaign: activeCampaign,
-        agencyName: agencyName,
-        isManaged: isReallyManaged, 
-      };
-    });
+    const b2bData = activeCampaign
+      ? { sharePct: Number(activeCampaign.commissionSharePct || 0), visibility: activeCampaign.commissionShareVisibility || "PRIVATE" }
+      : { sharePct: Number(propertyData.sharePct || 0), visibility: propertyData.shareVisibility || "PRIVATE" };
 
-    return NextResponse.json(formattedProperties);
+    const numericPrice = Number(propertyData.price || 0);
+
+    let cleanImages: string[] = [];
+    if (Array.isArray(propertyData.images)) {
+      cleanImages = propertyData.images.map((img: any) => img?.url || img).filter(Boolean);
+    }
+
+    const payload = {
+      ...propertyData,
+      activeCampaign,
+      user: finalUser,
+      ownerSnapshot: finalUser,
+      b2b: b2bData,
+      rawPrice: numericPrice,
+      priceValue: numericPrice,
+      price: numericPrice > 0 ? `${numericPrice.toLocaleString('es-ES')} €` : 'Consultar',
+      images: cleanImages,
+      img: cleanImages.length > 0 ? cleanImages[0] : propertyData.mainImage || null,
+      mainImage: cleanImages.length > 0 ? cleanImages[0] : propertyData.mainImage || null,
+      location: [propertyData.address, propertyData.city, propertyData.region].filter(Boolean).join(', '),
+      beds: propertyData.rooms || 0,
+      baths: propertyData.baths || 0,
+      sqm: propertyData.mBuilt || 0,
+    };
+
+    return NextResponse.json({ success: true, data: payload });
   } catch (error) {
-    console.error('Error cargando mis propiedades:', error);
-    return NextResponse.json({ error: 'Error en el servidor' }, { status: 500 });
+    console.error(`💥 Error táctico pidiendo expediente B2B:`, error);
+    return NextResponse.json(
+      { success: false, error: "Fallo en el servidor central" },
+      { status: 500 }
+    );
   }
 }
