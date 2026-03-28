@@ -9,13 +9,14 @@ export async function GET(
     const { userId } = await params;
     if (!userId) return NextResponse.json({ error: "Falta ID" }, { status: 400 });
 
-    // 1. RED DE ARRASTRE
+   // 1. RED DE ARRASTRE
     const rawLeads = await prisma.lead.findMany({
       where: {
         OR: [
           { managerId: userId },
           { property: { userId: userId } },
-          { property: { assignment: { agencyId: userId } } }
+          { property: { assignment: { is: { agencyId: userId } } } }, // 🛡️ El 'is:' es vital para que Prisma no dé error 500
+          { property: { campaigns: { some: { agencyId: userId, status: 'ACCEPTED' } } } } // 🛡️ Blindaje B2B
         ]
       },
       include: {
@@ -25,7 +26,7 @@ export async function GET(
             userId: true,
             refCode: true,
             title: true,
-            // 🔥 AQUÍ ESTÁ EL ARREGLO: Extraemos los datos COMPLETOS del dueño y de la agencia
+            // 🔥 Extraemos los datos COMPLETOS del dueño y de la agencia
             user: { select: { id: true, name: true, surname: true, avatar: true, companyLogo: true, role: true } },
             assignment: { 
               select: { 
@@ -35,7 +36,8 @@ export async function GET(
               } 
             },
             campaigns: {
-              where: { status: 'ACCEPTED' },
+              where: { status: 'ACCEPTED' },  // 👑 SU CÓDIGO INTACTO
+              orderBy: { createdAt: "desc" }, // 👑 SU CÓDIGO INTACTO
               take: 1,
               select: {
                 agencyId: true,
@@ -48,15 +50,13 @@ export async function GET(
       },
       orderBy: { createdAt: "desc" }
     });
-
-    // 2. EL BISTURÍ MÓVIL (Intacto, su lógica maestra no se toca)
+   // 2. EL BISTURÍ MÓVIL (CORREGIDO PARA ACCIÓN BIDIRECCIONAL)
     const myRealLeads = rawLeads.filter(l => {
-        if (l.managerId) return l.managerId === userId;
-        const isAgencyActive = l.property?.assignment?.status === 'ACTIVE';
-        if (isAgencyActive) return userId === l.property?.assignment?.agencyId;
-        const isCampaignActive = l.property?.campaigns && l.property.campaigns.length > 0;
-        if (isCampaignActive) return userId === l.property?.campaigns[0].agencyId;
-        return userId === l.property?.userId;
+        if (l.managerId === userId) return true;
+        if (l.property?.assignment?.status === 'ACTIVE' && l.property?.assignment?.agencyId === userId) return true;
+        if (l.property?.campaigns?.length > 0 && l.property?.campaigns[0].agencyId === userId) return true;
+        if (l.property?.userId === userId) return true;
+        return false;
     });
 
     // 3. FORMATEO MÓVIL (Empaquetamos la info sin recortarla)
