@@ -1118,7 +1118,7 @@ const [showB2BModal, setShowB2BModal] = useState(false);
           detail: {
             propertyId: propertyId,
             toUserId: toUserId,
-            message: msgText,
+            
           },
         })
       );
