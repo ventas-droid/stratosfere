@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { 
     X, ArrowLeft, Phone, Calendar, Mail, 
-    MessageCircle, Clock, MapPin, ShieldCheck, Sparkles, Loader2, CheckCircle2, User, CalendarPlus
+    MessageCircle, Clock, MapPin, ShieldCheck, Sparkles, Loader2, CheckCircle2, User, CalendarPlus, Home, Trash2 // 👈 Añadido Trash2
 } from "lucide-react";
 
-import { getAgencyLeadsAction, confirmLeadMeetingAction } from "@/app/actions-agenda";
+import { getAgencyLeadsAction, confirmLeadMeetingAction, deleteAgencyLeadAction } from "@/app/actions-agenda"; // 👈 Añadida la acción
 
 export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
     const [leads, setLeads] = useState<any[]>([]);
@@ -41,12 +41,13 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
         fetchRealLeads();
     }, []);
 
-    const submitMeeting = async (e: React.FormEvent, lead: any) => {
+   const submitMeeting = async (e: React.FormEvent, lead: any) => {
         e.preventDefault();
         setIsConfirming(true);
 
         const propRef = lead.property?.refCode || lead.propertyRef || "SF-N/A";
-        const clientName = lead.user?.name || lead.clientName || "Propietario";
+        // 🔥 Usamos el nombre inyectado del backend si existe
+        const clientName = lead.name || lead.user?.name || lead.clientName || "Propietario";
         const email = lead.user?.email || lead.email || "";
 
         try {
@@ -66,11 +67,9 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
                 setLeads(prev => prev.map(l => l.id === lead.id ? { 
                     ...l, 
                     status: "MANAGED",
-                    // Añadimos el texto histórico visualmente sin recargar
                     message: `${l.message}\n\n✅ GESTIONADO POR: ${meetingForm.agentName} | ${meetingForm.date} a las ${meetingForm.time}`
                 } : l));
                 
-                // Guardar link de Google Calendar
                 if (res.gcalLink) {
                     setGcalLinks(prev => ({ ...prev, [lead.id]: res.gcalLink }));
                 }
@@ -83,6 +82,25 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
             console.error("Error:", error);
         } finally {
             setIsConfirming(false);
+        }
+    };
+
+    // 🔥 EL MISIL DE BORRADO 🔥
+    const handleDeleteLead = async (leadId: string) => {
+        // Doble confirmación táctica para no borrar sin querer
+        if (!window.confirm("⚠️ TÁCTICA IRREVERSIBLE: ¿Está seguro de que desea eliminar este expediente de su agenda?")) return;
+        
+        try {
+            const res = await deleteAgencyLeadAction(leadId);
+            if (res.success) {
+                // Lo borramos de la memoria RAM (pantalla) instantáneamente
+                setLeads(prev => prev.filter(l => l.id !== leadId));
+            } else {
+                alert("Error al eliminar la tarjeta: " + res.error);
+            }
+        } catch (error) {
+            console.error("Error eliminando expediente:", error);
+            alert("Fallo de comunicaciones al intentar destruir el expediente.");
         }
     };
 
@@ -126,9 +144,29 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
                     leads.map((lead) => {
                         const isPending = lead.status !== "MANAGED" && lead.status !== "CONTACTED";
                         const isManagingThis = managingId === lead.id;
+                        
+                        // 🔥 1. EXTRACCIÓN VISUAL REFORZADA 🔥
                         const propRef = lead.property?.refCode || lead.propertyRef || "SF-N/A";
-                        const clientName = lead.user?.name || lead.clientName || "Propietario";
-                        const phone = lead.user?.phone || lead.phone || "---";
+                        const propImage = lead.property?.img || lead.property?.mainImage || (lead.property?.images?.length > 0 ? lead.property.images[0] : null);
+                        
+                        // Nombre y Avatar (Prioridad a lo que inyectó el servidor)
+                    // 🔥 2. DETECTOR DE NOMBRE REAL (Prioridad absoluta al Perfil Editado) 🔥
+const profileUser = lead.property?.user || lead.user || {};
+const realProfileName = profileUser.companyName || profileUser.name || profileUser.surname;
+
+let finalName = lead.name || "Usuario";
+
+// Si el sistema puso "Propietario (SF-XXX)" por defecto, pero el usuario rellenó su perfil (ej. "Tania")
+if (finalName.toUpperCase().includes("PROPIETARIO") && realProfileName) {
+    finalName = `${realProfileName} (${propRef})`; // Resultado: "Tania (SF-V010M0)"
+} else if (realProfileName) {
+    // Si no es el texto por defecto, priorizamos siempre el nombre real de la base de datos
+    finalName = realProfileName;
+}
+
+const finalAvatar = lead.avatar || profileUser.avatar || profileUser.companyLogo || null;
+                        
+                        const phone = lead.user?.phone || lead.user?.mobile || lead.phone || "---";
                         const email = lead.user?.email || lead.email || "---";
 
                         // Extraer histórico si existe
@@ -136,56 +174,84 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
                         const originalMsg = msgParts[0];
                         const historicalData = msgParts.length > 1 ? msgParts[1] : null;
 
-                        // Igual si se acaba de confirmar en la misma sesión
                         const manualHistory = (lead.message || "").split("✅ GESTIONADO POR:");
                         const hasManualHistory = manualHistory.length > 1;
 
                         return (
                             <div key={lead.id} className={`bg-white rounded-[24px] border transition-all duration-300 shadow-sm overflow-hidden ${isPending ? 'border-indigo-200 shadow-indigo-500/10' : 'border-slate-200'}`}>
                                 
-                                <div className={`px-5 py-3 border-b flex justify-between items-center ${isPending ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
+                              <div className={`px-5 py-3 border-b flex justify-between items-center ${isPending ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
                                     <div className="flex items-center gap-2">
                                         <span className={`relative inline-flex rounded-full h-2 w-2 ${isPending ? 'bg-indigo-500' : 'bg-emerald-500'}`}></span>
                                         <span className={`text-[10px] font-black uppercase tracking-widest ${isPending ? 'text-indigo-600' : 'text-emerald-600'}`}>
                                             {isPending ? 'Pendiente de Cita' : 'Cita Agendada'}
                                         </span>
                                     </div>
-                                    <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                                        <Clock size={10} /> {new Date(lead.createdAt || Date.now()).toLocaleDateString()}
-                                    </span>
+                                    
+                                    {/* 🔥 ZONA DERECHA: Fecha y Botón de Destrucción acoplados 🔥 */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                                            <Clock size={10} /> {new Date(lead.createdAt || Date.now()).toLocaleDateString()}
+                                        </span>
+                                        
+                                        <button 
+                                            onClick={() => handleDeleteLead(lead.id)}
+                                            className="w-7 h-7 rounded-full bg-white border border-red-100 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all shadow-sm active:scale-95"
+                                            title="Eliminar expediente"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="p-5">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <MapPin size={14} className="text-slate-400" />
-                                        <span className="text-sm font-black text-slate-900 tracking-tight">REF: {propRef}</span>
+                                    {/* 🔥 INYECCIÓN 1: LA FOTO DEL PISO 🔥 */}
+                                    <div className="flex items-center gap-3 mb-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                        {propImage ? (
+                                            <img src={propImage} alt="Property" className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0 shadow-sm" />
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-lg bg-slate-200 text-slate-400 flex items-center justify-center shrink-0">
+                                                <Home size={20} />
+                                            </div>
+                                        )}
+                                        <div>
+                                            <span className="text-sm font-black text-slate-900 tracking-tight block">REF: {propRef}</span>
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block truncate max-w-[200px]">{lead.property?.title || "Propiedad en Gestión"}</span>
+                                        </div>
                                     </div>
 
-                                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-4">
-                                        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-200/60">
-                                            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200">
-                                                <ShieldCheck size={20} />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Propietario</p>
-                                                <p className="text-sm font-bold text-slate-900 leading-none">{clientName}</p>
+                                    <div className="bg-white rounded-2xl p-4 border border-slate-200 mb-4 shadow-sm">
+                                        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
+                                            {/* 🔥 INYECCIÓN 2: EL AVATAR REAL O LOGO DE EMPRESA 🔥 */}
+                                            {finalAvatar ? (
+                                                <img src={finalAvatar} alt={finalName} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-sm" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200">
+                                                    <User size={20} />
+                                                </div>
+                                            )}
+                                            
+                                            <div className="flex-1 overflow-hidden">
+                                                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest leading-none mb-1">Interlocutor</p>
+                                                <p className="text-sm font-black text-slate-900 leading-none truncate">{finalName}</p>
                                             </div>
                                         </div>
-                                        <div className="space-y-2">
-                                            <div className="flex items-start gap-2">
-                                                <Calendar size={14} className="text-indigo-400 shrink-0 mt-0.5" />
-                                                <div className="text-xs text-slate-600 font-medium whitespace-pre-line">
-                                                    <span className="font-bold text-slate-800">Mensaje original:</span> {originalMsg}
+                                        
+                                        <div className="space-y-3">
+                                            <div className="flex items-start gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                <MessageCircle size={14} className="text-indigo-400 shrink-0 mt-0.5" />
+                                                <div className="text-xs text-slate-600 font-medium whitespace-pre-line leading-relaxed">
+                                                    {originalMsg}
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 px-1">
                                                 <Phone size={14} className="text-emerald-500 shrink-0" />
                                                 <span className="text-xs font-bold text-slate-700">{phone}</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* 🔥 ZONA HISTÓRICA / CONFIRMADA 🔥 */}
+                                    {/* ZONA HISTÓRICA / CONFIRMADA */}
                                     {(!isPending || historicalData || hasManualHistory) && !isManagingThis && (
                                         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
                                             <div className="flex items-center gap-2 mb-2">
@@ -198,7 +264,7 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
                                         </div>
                                     )}
 
-                                    {/* 🔥 BOTONES DE GOOGLE CALENDAR 🔥 */}
+                                    {/* BOTONES DE GOOGLE CALENDAR */}
                                     {gcalLinks[lead.id] && !isManagingThis && (
                                         <a href={gcalLinks[lead.id]} target="_blank" rel="noopener noreferrer" className="w-full mb-4 py-3 bg-white border border-blue-200 text-blue-600 rounded-xl text-xs font-bold tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-blue-50 transition-all shadow-sm">
                                             <CalendarPlus size={14} /> Añadir a Google Calendar
@@ -256,11 +322,15 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
                                                     <Phone size={14} /> Llamar
                                                 </button>
 
-                                                <button 
+                                              <button 
                                                     onClick={() => {
+                                                        const historialChatId = lead.property?.campaigns?.[0]?.conversationId;
+                                                        
                                                         onOpenChat({ 
-                                                            propertyId: lead.propertyId, 
-                                                            toUserId: lead.userId || lead.user?.id 
+                                                            conversationId: historialChatId, 
+                                                            propertyId: lead.property?.id || lead.propertyId, 
+                                                            // 🔥 AQUÍ ESTABA EL FRANCOTIRADOR: El dueño está dentro de property 🔥
+                                                            toUserId: lead.property?.userId || lead.property?.user?.id 
                                                         });
                                                     }}
                                                     className="py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black active:scale-95 transition-all shadow-md shadow-slate-900/20"
@@ -273,7 +343,6 @@ export default function AgendaManager({ onBack, onClose, onOpenChat }: any) {
                                                 <button 
                                                     onClick={() => {
                                                         setManagingId(lead.id);
-                                                        // Pre-rellenamos la dirección de la casa si es posible
                                                         setMeetingForm({
                                                             agentName: "",
                                                             date: "",

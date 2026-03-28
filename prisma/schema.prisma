@@ -84,6 +84,9 @@ sentProposals     B2bProposal[] @relation("SentProposals")
 
   // 👑 VANGUARD MARKET NETWORK
   zoneCampaigns   ZoneCampaign[]
+
+  // 📡 ANTENA DE NOTIFICACIONES PUSH (EL RADAR DE EXPO) 🔥
+  expoPushToken   String?
 }
 model Property {
   id      String  @id @default(cuid())

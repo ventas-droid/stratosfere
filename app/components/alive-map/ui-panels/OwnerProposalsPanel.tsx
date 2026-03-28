@@ -477,68 +477,72 @@ export default function OwnerProposalsPanel({
   return (
     <>
       <div 
-        className="fixed inset-y-2 right-2 w-full md:w-[420px] z-[99999] flex flex-col pointer-events-auto animate-slide-in-right bg-[#F2F2F7]/95 backdrop-blur-xl shadow-2xl rounded-[24px] border border-white/50 overflow-hidden text-slate-900 font-sans"
+        className="fixed inset-y-0 right-0 h-full w-full md:w-[640px] z-[99999] flex flex-col pointer-events-auto animate-slide-in-right bg-[#F8FAFC]/95 backdrop-blur-3xl shadow-[-20px_0_80px_rgba(0,0,0,0.1)] md:rounded-l-[40px] border-l border-white/60 overflow-hidden text-slate-900 font-sans"
         style={{ isolation: 'isolate' }}
       >
         
-      <div className="shrink-0 px-6 pt-6 pb-4 border-b border-slate-200/50 bg-white/40 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            
-          {selected && (
-            <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault(); e.stopPropagation();
-                  if (soundEnabled && playSynthSound) playSynthSound("click");
-                  handleSelectionChange(null);
-                }}
-                className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all active:scale-95"
-                title="Volver al listado"
-            >
-                <ArrowLeft size={16} className="text-slate-700" />
-            </button>
-            )}
+        {/* CABECERA (HEADER) */}
+        <div className="shrink-0 px-8 pt-8 pb-5 border-b border-slate-200/50 bg-white/40 backdrop-blur-xl sticky top-0 z-20">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4">
+              
+            {selected && (
+              <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (soundEnabled && playSynthSound) playSynthSound("click");
+                    handleSelectionChange(null);
+                  }}
+                  className="w-10 h-10 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all active:scale-95"
+                  title="Volver al listado"
+              >
+                  <ArrowLeft size={18} className="text-slate-700" />
+              </button>
+              )}
 
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-none">
-                {selected ? "Detalle Propuesta" : "Propuestas"}
-              </h2>
-              <p className="text-xs text-slate-500 mt-1 font-medium">
-                {selected ? "Revisa condiciones y servicios" : "Gestión de campañas recibidas"}
-              </p>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">
+                  {selected ? "Expediente de Propuesta" : "Bandeja de Propuestas"}
+                </h2>
+                <p className="text-sm text-slate-500 mt-1.5 font-medium">
+                  {selected ? "Revisión de términos comerciales" : "Gestión de campañas recibidas"}
+                </p>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleRightPanel("NONE");
+              }}
+              className="w-10 h-10 rounded-full bg-slate-200/50 hover:bg-slate-300/50 flex items-center justify-center transition-colors"
+            >
+              <X size={18} className="text-slate-600" />
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleRightPanel("NONE");
-            }}
-            className="w-8 h-8 rounded-full bg-slate-200/50 hover:bg-slate-300/50 flex items-center justify-center transition-colors"
-          >
-            <X size={16} className="text-slate-600" />
-          </button>
         </div>
-      </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar space-y-4">
+        {/* ZONA DE SCROLL CENTRAL */}
+        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar space-y-6">
           
+          {/* VISTA LISTA VACÍA */}
           {!selected && items.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center px-6 opacity-60">
-              <div className="w-16 h-16 rounded-3xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)] flex items-center justify-center mb-6">
-                <Sparkles size={28} className="text-blue-500" />
+              <div className="w-20 h-20 rounded-[32px] bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)] flex items-center justify-center mb-6">
+                <Sparkles size={32} className="text-blue-500" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Sin propuestas activas</h3>
-              <p className="text-sm text-slate-500 mt-2 max-w-[250px]">
-                Tus inmuebles están visibles. Te avisaremos cuando una agencia envíe una oferta.
+              <h3 className="text-xl font-bold text-slate-900">Radar Despejado</h3>
+              <p className="text-base text-slate-500 mt-2 max-w-[300px] leading-relaxed">
+                Tus inmuebles están en el mercado. Te avisaremos en cuanto detectemos una nueva propuesta.
               </p>
             </div>
           )}
 
+          {/* VISTA LISTA LLENA */}
           {!selected && items.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {items.map((p) => {
                 const st = statusMeta(p.status);
                 const title = safeText(p?.property?.title) || "Activo sin nombre";
@@ -550,36 +554,36 @@ export default function OwnerProposalsPanel({
                   <button
                     key={p.id}
                     onClick={() => openDetail(p.id)}
-                    className="w-full text-left bg-white rounded-3xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-white/60 hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:scale-[1.01] transition-all duration-300 group relative overflow-hidden"
+                    className="w-full text-left bg-white rounded-[28px] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.03)] border border-slate-100 hover:border-blue-100 hover:shadow-[0_8px_25px_rgba(37,99,235,0.08)] hover:-translate-y-0.5 transition-all duration-300 group relative overflow-hidden"
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="min-w-0 pr-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${st.cls}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="min-w-0 pr-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${st.cls}`}>
                             {st.label}
                           </span>
-                          {ref && <span className="text-[10px] font-semibold text-slate-400">REF: {ref}</span>}
+                          {ref && <span className="text-[11px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">REF: {ref}</span>}
                         </div>
-                        <h3 className="text-base font-bold text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                        <h3 className="text-lg font-black text-slate-900 truncate group-hover:text-blue-600 transition-colors">
                           {title}
                         </h3>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Comisión</div>
-                        <div className="text-sm font-bold text-slate-900">
+                      <div className="shrink-0 text-right bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+                        <div className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-0.5">Honorarios</div>
+                        <div className="text-base font-black text-slate-900">
                           {Number.isFinite(Number(total)) ? euro(total) : "—"}
                         </div>
                       </div>
                     </div>
-                   <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                   <div className="flex items-center gap-3 pt-4 border-t border-slate-100/80">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border-2 border-white shadow-sm">
                         {(p?.agency?.companyLogo || p?.agency?.avatar || (p?.agency as any)?.image) ? (
                           <img src={p.agency.companyLogo || p.agency.avatar || (p.agency as any).image} alt="" className="w-full h-full object-cover bg-white" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center"><Building2 size={14} className="text-slate-400" /></div>
+                          <div className="w-full h-full flex items-center justify-center"><Building2 size={16} className="text-slate-400" /></div>
                         )}
                       </div>
-                      <div className="truncate"><span className="text-xs font-semibold text-slate-700">{agencyName}</span></div>
+                      <div className="truncate"><span className="text-sm font-bold text-slate-700">{agencyName}</span></div>
                     </div>
                   </button>
                 );
@@ -587,53 +591,35 @@ export default function OwnerProposalsPanel({
             </div>
           )}
 
+          {/* VISTA DETALLE (LA MAGIA EMPIEZA AQUÍ) */}
           {selected && (
-            <div className="space-y-4 animate-fade-in-up pb-10">
+            <div className="space-y-6 animate-fade-in-up">
               
-            <div className="bg-white rounded-[28px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-white/50">
-            <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                <div className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Activo</div>
-                <h3 className="text-xl font-black text-slate-900 mt-1 truncate">{safeText(selected?.property?.title) || "Activo"}</h3>
-                {(safeText(selected?.property?.location) || safeText(selected?.property?.address)) && (
-                    <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                    <MapPin size={14} className="shrink-0" />
-                    <span className="truncate">{safeText(selected?.property?.location) || safeText(selected?.property?.address)}</span>
-                    </div>
-                )}
-                </div>
-                {safeText(selected?.property?.refCode) ? (
-                <span className="shrink-0 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-700">
-                    {safeText(selected?.property?.refCode)}
-                </span>
-                ) : null}
-            </div>
-            {!!selected?.property?.rawPrice || !!selected?.property?.price ? (
-                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Precio</span>
-                <span className="text-base font-black text-slate-900">
-                {Number.isFinite(Number(selected?.property?.rawPrice)) ? formatEuro(selected?.property?.rawPrice) : formatEuro(selected?.property?.price)}
-                </span>
-                </div>
-            ) : null}
-            </div>
-
-              <div className="bg-white rounded-[32px] overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 relative group">
+              {/* 1. HERO Y PERFIL DE AGENCIA */}
+              <div className="bg-white rounded-[36px] overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 relative group">
                 
-                <div className="h-32 relative overflow-hidden bg-slate-900">
+                {/* Portada */}
+                <div className="h-44 relative overflow-hidden bg-slate-900">
                   {(selected.agency?.coverImage || (selected.agency as any)?.cover) ? (
-                    <img src={selected.agency.coverImage || (selected.agency as any).cover} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" alt="Cover" />
+                    <img src={selected.agency.coverImage || (selected.agency as any).cover} className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-700" alt="Cover" />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900" />
+                    <div className="w-full h-full bg-gradient-to-br from-blue-900 to-slate-900" />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent" />
+                  
+                  {/* Badge flotante de la casa */}
+                  <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
+                    <span className="px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-md border border-white/20 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                      {safeText(selected?.property?.refCode) || "N/A"}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="px-6 pb-6 relative">
-                  <div className="flex justify-between items-end -mt-12 mb-5">
-                    
-                    <div className="w-24 h-24 rounded-[22px] bg-white p-1.5 shadow-xl shadow-black/5 ring-1 ring-slate-100 relative z-10">
-                      <div className="w-full h-full rounded-[16px] overflow-hidden bg-slate-50 relative flex items-center justify-center">
+                  <div className="flex justify-between items-end -mt-14 mb-4">
+                    {/* Avatar sobrepuesto */}
+                    <div className="w-28 h-28 rounded-[28px] bg-white p-1.5 shadow-xl shadow-black/5 ring-1 ring-slate-100 relative z-10">
+                      <div className="w-full h-full rounded-[20px] overflow-hidden bg-slate-50 relative flex items-center justify-center">
                         {(selected.agency?.companyLogo || selected.agency?.avatar || (selected.agency as any)?.image) ? (
                           <img 
                             src={selected.agency.companyLogo || selected.agency.avatar || (selected.agency as any).image} 
@@ -641,36 +627,35 @@ export default function OwnerProposalsPanel({
                             alt="Logo" 
                           />
                         ) : (
-                          <Building2 size={32} className="text-slate-300" />
+                          <Building2 size={36} className="text-slate-300" />
                         )}
                       </div>
-                      <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1.5 rounded-full ring-4 ring-white shadow-sm">
-                        <Check size={12} strokeWidth={4} />
+                      <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-2 rounded-full ring-4 ring-white shadow-sm">
+                        <Check size={14} strokeWidth={4} />
                       </div>
                     </div>
 
                     <button
                       onClick={(e) => openChat(e, selected)}
-                      className="h-10 px-5 bg-slate-900 text-white rounded-full text-[11px] font-black tracking-widest uppercase shadow-lg shadow-slate-900/20 hover:bg-indigo-600 hover:shadow-indigo-600/30 transition-all flex items-center gap-2 active:scale-95 mb-1"
+                      className="h-11 px-6 bg-slate-900 text-white rounded-full text-xs font-black tracking-widest uppercase shadow-lg shadow-slate-900/20 hover:bg-indigo-600 hover:shadow-indigo-600/30 transition-all flex items-center gap-2 active:scale-95 mb-2"
                     >
-                      <MessageCircle size={14} /> Iniciar Chat
+                      <MessageCircle size={16} /> Iniciar Chat
                     </button>
                   </div>
 
                   <div className="mb-6">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-                        Agencia Candidata
-                      </span>
-                    </div>
-                    <h2 className="text-2xl font-black text-slate-900 leading-tight tracking-tight">
+                    <h2 className="text-3xl font-black text-slate-900 leading-tight tracking-tight">
                       {selected.agency?.companyName || selected.agency?.name || "Agencia Oficial"}
                     </h2>
+                    <p className="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2">
+                        <MapPin size={14}/> {safeText(selected?.property?.location) || safeText(selected?.property?.address) || "Ubicación Privada"}
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 bg-slate-50/50 p-1.5 rounded-3xl border border-slate-100">
+                  {/* Botones de contacto rápidos */}
+                  <div className="flex gap-3">
                     <div 
-                      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/50 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group/contact flex flex-col justify-between min-h-[90px]"
+                      className="flex-1 bg-slate-50 rounded-2xl p-3 border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50 transition-all cursor-pointer group/contact flex items-center justify-center gap-2"
                       title="Copiar teléfono"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -678,22 +663,14 @@ export default function OwnerProposalsPanel({
                         if (phone) navigator.clipboard.writeText(phone);
                       }}
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover/contact:bg-emerald-500 group-hover/contact:text-white transition-colors shrink-0">
-                          <Phone size={10} />
-                        </div>
-                        <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Teléfono</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-2 mt-auto">
-                        <p className="text-xs font-bold text-slate-700 break-all font-mono select-all leading-tight">
-                          {selected.agency?.mobile || selected.agency?.phone || "—"}
-                        </p>
-                        <Copy size={14} className="text-slate-300 group-hover/contact:text-emerald-500 transition-colors shrink-0" />
-                      </div>
+                      <Phone size={14} className="text-slate-400 group-hover/contact:text-emerald-600 transition-colors" />
+                      <span className="text-xs font-bold text-slate-700 group-hover/contact:text-emerald-700 transition-colors truncate">
+                          {selected.agency?.mobile || selected.agency?.phone || "Sin Teléfono"}
+                      </span>
                     </div>
 
                     <div 
-                      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100/50 hover:border-blue-200 hover:shadow-md transition-all cursor-pointer group/contact flex flex-col justify-between min-h-[90px]"
+                      className="flex-1 bg-slate-50 rounded-2xl p-3 border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer group/contact flex items-center justify-center gap-2"
                       title="Copiar email"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -701,118 +678,135 @@ export default function OwnerProposalsPanel({
                         if (email) navigator.clipboard.writeText(email);
                       }}
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover/contact:bg-blue-500 group-hover/contact:text-white transition-colors shrink-0">
-                          <Mail size={10} />
-                        </div>
-                        <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Email</span>
-                      </div>
-                      <div className="flex items-end justify-between gap-2 mt-auto">
-                        <p className="text-[11px] font-bold text-slate-700 break-all select-all leading-tight">
-                          {selected.agency?.email || "—"}
-                        </p>
-                        <Copy size={14} className="text-slate-300 group-hover/contact:text-blue-500 transition-colors shrink-0" />
-                      </div>
+                      <Mail size={14} className="text-slate-400 group-hover/contact:text-blue-600 transition-colors" />
+                      <span className="text-xs font-bold text-slate-700 group-hover/contact:text-blue-700 transition-colors truncate">
+                          {selected.agency?.email || "Sin Email"}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-blue-600 text-white p-6 rounded-[28px] shadow-lg shadow-blue-900/20 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none"><Sparkles size={120} /></div>
-                <h3 className="text-xs font-bold uppercase tracking-widest opacity-70 mb-2">Mensaje de propuesta</h3>
-                <p className="text-sm leading-relaxed font-medium relative z-10">{safeText(selected?.message) || buildDefaultMessage(selected)}</p>
+              {/* 2. MENSAJE TÁCTICO */}
+              <div className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white p-8 rounded-[36px] shadow-lg shadow-indigo-900/20 relative overflow-hidden">
+                <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none"><Sparkles size={200} /></div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-indigo-200 mb-3">Mensaje de Propuesta</h3>
+                <p className="text-base leading-relaxed font-medium relative z-10">"{safeText(selected?.message) || buildDefaultMessage(selected)}"</p>
               </div>
 
-              {(processedServices.online.length > 0 || processedServices.offline.length > 0) && (
-                <div className="bg-white rounded-[28px] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.04)] border border-white/50">
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4 flex items-center gap-2">
-                        <Sparkles size={16} className="text-slate-400"/> Servicios incluidos
-                    </h3>
-                    <div className="space-y-4">
-                        {processedServices.online.length > 0 && (
-                            <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1"><Globe size={12}/> Marketing, Online & OFFLINE</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {processedServices.online.map((s, i) => (
-                                        <span key={i} className="px-3 py-1.5 bg-white rounded-lg border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">{String(s.label).replace(/_/g, " ")}</span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {processedServices.offline.length > 0 && (
-                            <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1"><Key size={12}/> Visitas & Gestión</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {processedServices.offline.map((s, i) => (
-                                        <span key={i} className="px-3 py-1.5 bg-white rounded-lg border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">{String(s.label).replace(/_/g, " ")}</span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+              {/* 3. MODO GRID: CONDICIONES Y SERVICIOS (Lado a Lado) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                {/* Columna Izquierda: Condiciones */}
+                <div className="bg-white rounded-[32px] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Condiciones</h3>
+                    <div className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-600">
+                      {selected?.terms?.exclusive ? "Exclusiva" : "Abierto"}
                     </div>
+                  </div>
+                  
+                  <div className="space-y-4 flex-1">
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-100/80">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Honorarios</span>
+                      <span className="text-sm font-black text-slate-900 bg-slate-50 px-2 py-1 rounded-md">{pct(selected?.terms?.commissionPct)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-100/80">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">IVA Aplicable</span>
+                      <span className="text-sm font-black text-slate-900">{pct(selected?.terms?.ivaPct)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-3 border-b border-slate-100/80">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Duración</span>
+                      <span className="text-sm font-black text-slate-900">{selected?.terms?.months} Meses</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-slate-900 rounded-2xl p-4 flex justify-between items-center shadow-md shadow-slate-900/10">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Previsión<br/>Honorarios</span>
+                    <div className="text-right">
+                      <div className="text-xl font-black text-white tracking-tight">
+                        {Number.isFinite(Number(selected?.terms?.commissionTotalEur)) ? euro(selected?.terms?.commissionTotalEur) : "—"}
+                      </div>
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">IVA Incluido</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Columna Derecha: Servicios */}
+                {(processedServices.online.length > 0 || processedServices.offline.length > 0) ? (
+                    <div className="bg-white rounded-[32px] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col">
+                        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-5 flex items-center gap-2">
+                            <Sparkles size={16} className="text-indigo-400"/> Servicios
+                        </h3>
+                        <div className="space-y-4 flex-1">
+                            {processedServices.online.length > 0 && (
+                                <div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Globe size={12}/> Marketing & Online</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {processedServices.online.map((s, i) => (
+                                            <span key={i} className="px-3 py-1.5 bg-indigo-50 border border-indigo-100/50 rounded-xl text-[11px] font-bold text-indigo-700 shadow-sm">{String(s.label).replace(/_/g, " ")}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {processedServices.offline.length > 0 && (
+                                <div className="pt-2">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Key size={12}/> Visitas & Offline</div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {processedServices.offline.map((s, i) => (
+                                            <span key={i} className="px-3 py-1.5 bg-emerald-50 border border-emerald-100/50 rounded-xl text-[11px] font-bold text-emerald-700 shadow-sm">{String(s.label).replace(/_/g, " ")}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-slate-50/50 rounded-[32px] p-6 border border-slate-100 border-dashed flex flex-col items-center justify-center text-center">
+                        <Key size={24} className="text-slate-300 mb-2"/>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Servicios estándar</p>
+                    </div>
+                )}
+
+              </div>
+
+              {/* ZONA DE REVOCACIÓN (Solo si está aceptado) */}
+              {selected?.status === "ACCEPTED" && (
+                <div className="pt-6 relative z-10 border-t border-rose-100/50 mt-4">
+                  <button
+                    type="button"
+                    disabled={!!processing}
+                    onClick={(e) => { e.stopPropagation(); setShowRevokeModal(selected.id); }}
+                    className="w-full h-14 rounded-2xl bg-white border-2 border-rose-100 text-rose-600 font-black text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 hover:border-rose-200 transition-all shadow-sm cursor-pointer"
+                  >
+                    <XCircle size={18} /> Revocar Gestión Digital
+                  </button>
                 </div>
               )}
 
-              <div className="bg-white rounded-[28px] p-6 shadow-[0_2px_15px_rgba(0,0,0,0.04)] border border-white/50">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">Condiciones</h3>
-                  <div className="px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-600">
-                    {selected?.terms?.exclusive ? "Exclusiva" : "No Exclusiva"}
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                    <span className="text-sm text-slate-500 font-medium">Honorarios</span>
-                    <span className="text-sm font-bold text-slate-900">{pct(selected?.terms?.commissionPct)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                    <span className="text-sm text-slate-500 font-medium">IVA Aplicable</span>
-                    <span className="text-sm font-bold text-slate-900">{pct(selected?.terms?.ivaPct)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                    <span className="text-sm text-slate-500 font-medium">Duración Mandato</span>
-                    <span className="text-sm font-bold text-slate-900">{selected?.terms?.months} Meses</span>
-                  </div>
-                  <div className="mt-4 bg-slate-50 rounded-2xl p-4 flex justify-between items-center border border-slate-100">
-                    <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">Total Estimado</span>
-                    <div className="text-right">
-                      <div className="text-xl font-black text-slate-900">
-                        {Number.isFinite(Number(selected?.terms?.commissionTotalEur)) ? euro(selected?.terms?.commissionTotalEur) : "—"}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-medium">(IVA Incluido)</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            </div>
+          )}
+        </div>
 
-              <div className="px-2 pb-2">
-                <div className="flex items-center gap-3 opacity-60">
-                  <MapPin size={14} className="text-slate-500" />
-                  <span className="text-xs font-medium text-slate-600 truncate">
-                    {safeText(selected?.property?.title)}
-                    {(selected?.property?.location || selected?.property?.address) 
-                        ? ` • ${selected?.property?.location || selected?.property?.address}`
-                        : " • Madrid, España"} 
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 relative z-50 space-y-3">
+        {/* ============================================================== */}
+        {/* 🔥 COMAND CENTER (STICKY FOOTER CON ACCIONES) 🔥 */}
+        {/* ============================================================== */}
+        {selected && (
+            <div className="shrink-0 p-6 bg-white/80 backdrop-blur-2xl border-t border-slate-200/60 shadow-[0_-10px_40px_rgba(0,0,0,0.03)] relative z-30">
                 
-            {/* 🔥 TARJETA DE CONFIRMACIÓN DE CITA (NUEVO) 🔥 */}
+                {/* TARJETA DE CITA CONFIRMADA */}
                 {isMeetingConfirmed && meetingState.details && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-3 animate-fade-in-up">
-                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-1.5"><CheckCircle2 size={14}/> Cita Confirmada por la Agencia</h4>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4 animate-fade-in-up">
+                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-1.5"><CheckCircle2 size={14}/> Cita Confirmada</h4>
                         <div className="space-y-2">
-                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><p className="text-xs text-emerald-900"><strong>Asesor:</strong> {meetingState.details.agent}</p></div>
-                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><p className="text-xs text-emerald-900"><strong>Cuándo:</strong> {meetingState.details.date} a las {meetingState.details.time}</p></div>
-                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><p className="text-xs text-emerald-900"><strong>Dónde:</strong> {meetingState.details.address}</p></div>
+                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><p className="text-xs text-emerald-900 font-medium"><strong>Asesor:</strong> {meetingState.details.agent}</p></div>
+                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><p className="text-xs text-emerald-900 font-medium"><strong>Cuándo:</strong> {meetingState.details.date} a las {meetingState.details.time}</p></div>
+                            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><p className="text-xs text-emerald-900 font-medium"><strong>Dónde:</strong> {meetingState.details.address}</p></div>
                         </div>
                     </div>
                 )}
 
-               {/* 🔥 BOTÓN ASESORAMIENTO MUTANTE (LAS 4 FASES AHORA) 🔥 */}
+                {/* BOTÓN ASESORAMIENTO */}
                 {!isFinal && (
                   <button
                     type="button"
@@ -820,19 +814,15 @@ export default function OwnerProposalsPanel({
                     onClick={(e) => { 
                         e.stopPropagation(); 
                         if (isMeetingConfirmed) {
-                            // 🧠 FASE 4: MARCAMOS EN MEMORIA QUE YA LO HA GUARDADO
                             if (typeof window !== "undefined") {
                                 const nextSaved = [...addedToCalendar, selected.id];
                                 setAddedToCalendar(nextSaved);
                                 localStorage.setItem("stratos_calendar_saved", JSON.stringify(nextSaved));
                             }
-
-                            // GENERAR ENLACE GOOGLE CALENDAR
                             const d = meetingState.details;
                             const eventTitle = encodeURIComponent(`Asesoramiento Stratosfere: Ref ${selected?.property?.refCode || "N/A"}`);
                             const eventDetails = encodeURIComponent(`Cita con el asesor: ${d.agent}\nAgencia: ${selected?.agency?.companyName || "Asociada"}`);
                             const eventLocation = encodeURIComponent(d.address);
-                            
                             try {
                                 const [year, month, day] = d.date.split("-");
                                 const [hour, minute] = d.time.split(":");
@@ -849,14 +839,14 @@ export default function OwnerProposalsPanel({
                             setShowMeetingModal(selected.id); 
                         }
                     }}
-                    className={`w-full h-12 rounded-2xl font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer pointer-events-auto mb-3
+                    className={`w-full h-12 rounded-2xl font-black text-xs tracking-widest uppercase flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer mb-4
                         ${isMeetingConfirmed 
                             ? (addedToCalendar.includes(selected.id)
-                                ? "bg-white border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 active:scale-[0.98]" // 👈 FASE 4: Ya guardado
-                                : "bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20 active:scale-[0.98]") // Fase 3: Confirmado
+                                ? "bg-white border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50" 
+                                : "bg-emerald-600 border border-emerald-700 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20") 
                             : isMeetingPending
-                            ? "bg-amber-50 border border-amber-200 text-amber-600 scale-[0.98] cursor-not-allowed" // Fase 2: Esperando
-                            : "bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 active:scale-[0.98]" // Fase 1: Solicitar
+                            ? "bg-amber-50 border border-amber-200 text-amber-600 cursor-not-allowed"
+                            : "bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100"
                         }
                     `}
                   >
@@ -874,19 +864,18 @@ export default function OwnerProposalsPanel({
                   </button>
                 )}
 
+                {/* BOTONES PRINCIPALES ACEPTAR/RECHAZAR */}
                 <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       disabled={!!processing || isFinal}
                       onClick={(e) => handleDecision(e, selected.id, "REJECT")}
-                      className="h-14 rounded-2xl bg-white border border-rose-100 text-rose-600 font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 hover:border-rose-200 transition-all active:scale-[0.98] disabled:opacity-50 shadow-sm cursor-pointer relative z-50 pointer-events-auto"
+                      className="h-14 rounded-2xl bg-slate-100 text-slate-600 font-black text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 hover:text-rose-600 transition-all disabled:opacity-50 cursor-pointer"
                     >
                       {processing?.id === selected.id && processing?.decision === "REJECT" ? (
                         <Loader2 className="animate-spin" size={18} />
                       ) : (
-                        <>
-                          <XCircle size={18} /> Rechazar
-                        </>
+                        <>Rechazar</>
                       )}
                     </button>
 
@@ -897,33 +886,19 @@ export default function OwnerProposalsPanel({
                           e.stopPropagation(); 
                           setShowLegalTerms(selected.id); 
                       }}
-                      className="h-14 rounded-2xl bg-slate-900 text-white font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-[0.98] disabled:opacity-70 shadow-lg shadow-slate-900/20 cursor-pointer relative z-50 pointer-events-auto"
+                      className="h-14 rounded-2xl bg-blue-600 text-white font-black text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-70 shadow-lg shadow-blue-600/30 cursor-pointer"
                     >
                         <Check size={18} /> Aceptar Gestión
                     </button>
                 </div>
-              </div>
-
-              {selected?.status === "ACCEPTED" && (
-                <div className="pt-4 relative z-50 border-t border-rose-100 mt-4">
-                  <p className="text-[10px] text-center text-slate-400 font-bold uppercase tracking-widest mb-3">
-                    Zona de Peligro
-                  </p>
-                  <button
-                    type="button"
-                    disabled={!!processing}
-                    onClick={(e) => { e.stopPropagation(); setShowRevokeModal(selected.id); }}
-                    className="w-full h-12 rounded-2xl bg-white border border-rose-200 text-rose-600 font-bold text-xs tracking-widest uppercase flex items-center justify-center gap-2 hover:bg-rose-50 transition-all active:scale-[0.98] shadow-sm cursor-pointer pointer-events-auto"
-                  >
-                    <XCircle size={16} /> Revocar Gestión Digital
-                  </button>
-                </div>
-              )}
-
             </div>
-          )}
-        </div>
+        )}
+
       </div>
+
+      {/* ============================================================== */}
+      {/* MODALES DE SEGURIDAD (Sin cambios, se mantienen funcionales) */}
+      {/* ============================================================== */}
 
       {showLegalModal && (
         <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto" onClick={() => setShowLegalTerms(null)}>
@@ -1038,7 +1013,6 @@ export default function OwnerProposalsPanel({
         </div>
       )}
 
-      {/* 📅 MODAL DE SOLICITUD DE AGENDA (NUEVO PROTAGONISMO) */}
       {showMeetingModal && selected && (
         <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in pointer-events-auto" onClick={() => setShowMeetingModal(null)}>
           <div className="bg-white w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative animate-slide-up border border-indigo-100" onClick={(e) => e.stopPropagation()}>

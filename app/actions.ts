@@ -1888,11 +1888,42 @@ export async function sendMessageAction(a: any, b?: any) {
         if (receiverParticipant) {
           await pusherServer.trigger(`user-${receiverParticipant.userId}`, 'new-message', payload);
           console.log(`🌍 [PUSHER] ¡Busca disparado al usuario: ${receiverParticipant.userId}!`);
+
+          // 🔥 3. MISIL BALÍSTICO EXPO PUSH (App cerrada / Background) 🔥
+          try {
+            const receiverUser = await prisma.user.findUnique({
+              where: { id: receiverParticipant.userId },
+              select: { expoPushToken: true }
+            });
+
+            if (receiverUser?.expoPushToken) {
+              const senderName = me.companyName || me.name || 'Stratosfere';
+              
+              await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: {
+                  Accept: 'application/json',
+                  'Accept-encoding': 'application/json',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  to: receiverUser.expoPushToken,
+                  sound: 'default',
+                  title: senderName,
+                  body: text,
+                  data: { conversationId: conversationId }, 
+                }),
+              });
+              console.log(`🚀 [EXPO PUSH] Impacto confirmado en el móvil de ${receiverParticipant.userId}`);
+            }
+          } catch (expoError) {
+            console.error("⚠️ Error disparando misil Expo:", expoError);
+          }
         }
       }
 
     } catch (pusherError) {
-      console.error("⚠️ Error disparando Pusher:", pusherError);
+      console.error("⚠️ Error disparando Pusher o Expo:", pusherError);
     }
 
     return {
@@ -4125,24 +4156,28 @@ export async function getMyReceivedLeadsAction() {
             return false;
         });
 
-        // 3. EMPAQUETADO PARA EL FRONTEND (Detector de Bandos Web)
+     // 3. EMPAQUETADO PARA EL FRONTEND (Detector de Bandos Web Reforzado)
         const cleanLeads = myRealLeads.map((l: any) => {
             const p: any = l.property;
             const lng = Number(p.longitude);
             const lat = Number(p.latitude);
             const hasCoords = (lng && lat && lng !== 0);
 
-            // 👑 DETECTOR DE BANDOS: ¿Quién está mirando la pantalla Web?
             const isOwner = p.userId === user.id;
             const managerAgency = p.assignment?.agency || (p.campaigns?.length > 0 ? p.campaigns[0].agency : null);
-            
-            // Si soy el Propietario y hay una Agencia gestionando, quiero ver la cara de la Agencia.
-            // Si soy la Agencia, quiero ver la cara del Propietario (p.user).
             const finalUserToDisplay = (isOwner && managerAgency) ? managerAgency : (p.user || { name: "Usuario" });
+
+            // 🔥 TRUCO TÁCTICO: Forzamos el nombre y avatar reales en la raíz
+            const overrideName = isOwner 
+                ? (managerAgency?.companyName || managerAgency?.name || l.name || "Agencia")
+                : (p.user?.name || p.user?.surname || l.name || "Propietario");
+                
+            const overrideAvatar = finalUserToDisplay.avatar || finalUserToDisplay.companyLogo || null;
 
             return {
                 id: l.id,
-                name: l.name,
+                name: overrideName,     // 👈 Adiós al "Propietario" genérico
+                avatar: overrideAvatar, // 👈 Inyectamos la foto real del usuario/agencia
                 email: l.email,
                 phone: l.phone,
                 message: l.message,
@@ -4164,10 +4199,7 @@ export async function getMyReceivedLeadsAction() {
                     coordinates: hasCoords ? [lng, lat] : null,
                     longitude: lng,
                     latitude: lat,
-                    
-                    // 🛡️ AQUÍ VIAJA EL LOGO Y NOMBRE CORRECTO PARA LA WEB
                     user: finalUserToDisplay,
-                    
                     b2b: (p.campaigns && p.campaigns[0]) ? {
                         sharePct: Number(p.campaigns[0].commissionSharePct || 0),
                         visibility: p.campaigns[0].commissionShareVisibility

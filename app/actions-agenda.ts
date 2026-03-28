@@ -3,7 +3,7 @@
 import { prisma } from '@/app/lib/prisma';
 import { getUserMeAction, sendMessageAction } from '@/app/actions';
 
-// 🔥 BÚSQUEDA DE CITAS
+// 🔥 BÚSQUEDA DE CITAS (CON MALETA COMPLETA)
 export async function getAgencyLeadsAction() {
   try {
     const session = await getUserMeAction();
@@ -23,7 +23,24 @@ export async function getAgencyLeadsAction() {
             ]
         }
       },
-      include: { property: true },
+     // 🔥 LA TUBERÍA ABIERTA AL COMPLETO 🔥
+      include: { 
+        property: {
+            include: {
+                user: { 
+                    select: { id: true, name: true, surname: true, avatar: true, companyName: true, companyLogo: true, phone: true, email: true } 
+                },
+                assignment: {
+                    include: { agency: true }
+                },
+                // 📡 AQUÍ ESTÁ EL CABLE VITAL PARA QUE EL CHAT NO SALGA EN BLANCO
+                campaigns: {
+                    where: { status: 'ACCEPTED' },
+                    select: { conversationId: true }
+                }
+            }
+        } 
+      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -165,6 +182,48 @@ export async function confirmLeadMeetingAction(payload: {
 
     } catch (error: any) {
         console.error("Error confirmando cita:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+// 🗑️ PROTOCOLO DE DESTRUCCIÓN: BORRAR UNA CARTA DE LA AGENDA
+export async function deleteAgencyLeadAction(leadId: string) {
+    try {
+        const session = await getUserMeAction();
+        if (!session?.success || !session?.data?.id) {
+            return { success: false, error: "No autorizado" };
+        }
+        
+        const myId = session.data.id;
+
+        // 1. Verificamos que el lead existe y traemos los datos de la propiedad
+        const lead = await prisma.lead.findUnique({
+            where: { id: leadId },
+            include: { 
+                property: { 
+                    include: { assignment: true, campaigns: true } 
+                } 
+            }
+        });
+
+        if (!lead) return { success: false, error: "Expediente no encontrado" };
+
+        // 2. Control de Aduanas: ¿Eres el dueño o la agencia a cargo?
+        const isOwner = lead.property?.userId === myId;
+        const isAgency = lead.property?.assignment?.agencyId === myId || lead.property?.campaigns?.some((c: any) => c.agencyId === myId);
+
+        if (!isOwner && !isAgency) {
+            return { success: false, error: "No tienes autorización para destruir este expediente." };
+        }
+
+        // 3. Destrucción total
+        await prisma.lead.delete({
+            where: { id: leadId }
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("❌ Error crítico destruyendo lead:", error);
         return { success: false, error: error.message };
     }
 }
