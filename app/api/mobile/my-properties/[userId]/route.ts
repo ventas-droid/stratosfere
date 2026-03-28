@@ -22,12 +22,12 @@ export async function GET(
 
     const properties = await prisma.property.findMany({
       where: {
-        OR: [
-          { userId: userId },
-          { campaigns: { some: { agencyId: userId, status: 'ACCEPTED' } } },
-          { assignment: { agencyId: userId, status: 'ACTIVE' } }
-        ]
-      },
+  OR: [
+    { userId: userId },
+    { campaigns: { some: { agencyId: userId, status: 'ACCEPTED' } } },
+    { assignment: { is: { agencyId: userId, status: 'ACTIVE' } } }
+  ]
+},
       include: {
         images: true,
         user: {
