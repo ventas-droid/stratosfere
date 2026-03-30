@@ -232,9 +232,10 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
         );
     };
 
-    const handleMassEmail = () => {
+  const handleMassEmail = () => {
         const emails = ambassadors.filter(a => selectedTroops.includes(a.id)).map(a => a.email).filter(Boolean);
         if(emails.length) {
+            // Esto abre el correo PREDETERMINADO del usuario (Outlook, Mail, Gmail app...)
             window.location.href = `mailto:?bcc=${emails.join(',')}`;
             toast.success("Cliente de correo abierto en copia oculta.");
         } else {
@@ -243,13 +244,48 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     };
 
     const handleMassWhatsApp = () => {
-        toast.success(`Protocolo WhatsApp listo para ${selectedTroops.length} tropas.`);
+        // Extraemos y limpiamos los teléfonos de los seleccionados
+        const phones = ambassadors
+            .filter(a => selectedTroops.includes(a.id))
+            .map(a => a.phone || a.mobile)
+            .filter(Boolean)
+            .map(p => String(p).replace(/\D/g, '')); // Deja solo los números
+
+        if (phones.length === 0) {
+            toast.error("Ninguna de las tropas seleccionadas tiene teléfono.");
+            return;
+        }
+
+        if (phones.length === 1) {
+            // Si hay 1 solo, abrimos WhatsApp Web / App directo
+            window.open(`https://wa.me/${phones[0]}`, '_blank');
+        } else {
+            // Si hay varios, copiamos al portapapeles para lista de difusión
+            navigator.clipboard.writeText(phones.join(', '));
+            toast.success(`📱 ${phones.length} teléfonos copiados para Lista de Difusión.`);
+            alert(`WhatsApp Anti-Spam:\nNo se pueden abrir ${phones.length} chats a la vez.\n\nHemos copiado los números al portapapeles para que los pegue en una Lista de Difusión de WhatsApp:\n\n${phones.join(', ')}`);
+        }
     };
 
     const handleMassCall = () => {
-        toast.success(`Marcación simultánea iniciada...`);
-    };
+        const phones = ambassadors
+            .filter(a => selectedTroops.includes(a.id))
+            .map(a => a.phone || a.mobile)
+            .filter(Boolean)
+            .map(p => String(p).replace(/\D/g, ''));
 
+        if (phones.length === 0) {
+            toast.error("Ninguna de las tropas seleccionadas tiene teléfono.");
+            return;
+        }
+
+        if (phones.length === 1) {
+            // Llamada directa desde móvil o Mac
+            window.location.href = `tel:+${phones[0]}`;
+        } else {
+            toast.warning("Comandante, solo puede realizar 1 llamada telefónica a la vez. Seleccione solo 1 tropa.");
+        }
+    };
     // ============================================================================
     // 🎨 RENDERIZADO VISUAL - NIVEL ÉLITE MUNDIAL
     // ============================================================================
@@ -273,7 +309,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                         onClick={handleCopyInviteLink} 
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
                     >
-                        <LinkIcon size={14} strokeWidth={2.5}/> Reclutar
+                        <LinkIcon size={14} strokeWidth={2.5}/> Invitar a red
                     </button>
 
                     <div className="bg-indigo-50/80 text-indigo-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-indigo-100/50 shadow-inner">
@@ -375,7 +411,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                 {selectedTroops.length === filteredAmbassadors.length && <Check size={14} strokeWidth={3} />}
                                             </div>
                                             <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-indigo-600 transition-colors">
-                                                Seleccionar Todas las Tropas ({filteredAmbassadors.length})
+                                                Seleccionar Todos los Embajadores ({filteredAmbassadors.length})
                                             </span>
                                         </div>
                                     </div>
@@ -446,9 +482,9 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="bg-indigo-50 text-indigo-700 text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border border-indigo-100/50">
-                                                            {soldier.ambassadorStats?.rank || "RECLUTA"}
-                                                        </span>
+                                                       <span className="bg-indigo-50 text-indigo-700 text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border border-indigo-100/50">
+    {soldier.ambassadorStats?.rank || "NUEVO ALIADO"} 
+</span>
                                                         <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
                                                             <Award size={12}/> Score: {soldier.ambassadorStats?.score || "5.0"}
                                                         </span>
@@ -460,7 +496,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                 })}
                             </div>
                         )}
-                        
+
                         {/* ============================================================== */}
                         {/* 📡 VISTA DE LEADS (BUZÓN DE TRANSMISIONES) -> INTACTO DEL ORIGINAL */}
                         {/* ============================================================== */}
@@ -632,14 +668,14 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                         <div className="bg-indigo-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shadow-inner">
                             {selectedTroops.length}
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white leading-none">
-                                Tropas
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                Seleccionadas
-                            </span>
-                        </div>
+                       <div className="flex flex-col">
+    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white leading-none">
+        Contactos
+    </span>
+    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+        Seleccionados
+    </span>
+</div>
                     </div>
                     
                     <div className="flex gap-2">
