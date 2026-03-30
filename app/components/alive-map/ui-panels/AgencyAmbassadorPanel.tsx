@@ -4,12 +4,12 @@ import {
     Users, ShieldCheck, X, Search, Handshake,
     MessageSquare, Phone, MapPin, Trash2, Navigation, 
     Loader2, TrendingUp, Mail, Award, Clock, Crown,
-    Check, MessageCircle, Link as LinkIcon // 🔥 Añadidos los iconos para el panel masivo
+    Check, MessageCircle, Link as LinkIcon 
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // IMPORTAMOS LA INTELIGENCIA
-import { getAgencyAmbassadorsAction, getAgencyLeadsAction, deleteAgencyLeadAction } from '@/app/actions-agency';
+import { getAgencyAmbassadorsAction, getAgencyLeadsAction, deleteAgencyLeadAction, getMyCommanderAction  } from '@/app/actions-agency';
 import { getPusherClient } from '@/app/utils/pusher';
 import { getUserMeAction } from '@/app/actions';
 
@@ -25,6 +25,9 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     // 🔥 NUEVOS ESTADOS TÁCTICOS PARA BOMBARDERO MASIVO Y RECLUTAMIENTO
     const [selectedTroops, setSelectedTroops] = useState<string[]>([]);
     const [myAgencyId, setMyAgencyId] = useState<string>("");
+    
+    // 🛡️ NUEVO ESTADO: EL COMANDANTE (Para mostrar el escudo si fui reclutado)
+    const [myCommander, setMyCommander] = useState<any>(null);
 
     // 🔄 CARGA DE DATOS INICIAL
     useEffect(() => {
@@ -35,9 +38,17 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
         setLoading(true);
         try {
             // 🔥 Identificamos nuestra propia frecuencia (nuestro ID)
-            const meRes = await getUserMeAction();
+           const meRes = await getUserMeAction();
             if (meRes?.data?.id) {
                 setMyAgencyId(meRes.data.id);
+                
+                // 🛡️ BÚSQUEDA DEL COMANDANTE (Si me han reclutado)
+                if (meRes.data.recruitedById) {
+                    const cmdRes = await getMyCommanderAction();
+                    if (cmdRes?.success && cmdRes.data) {
+                        setMyCommander(cmdRes.data);
+                    }
+                }
             }
 
             const troopsRes = await getAgencyAmbassadorsAction();
@@ -189,18 +200,24 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     // ============================================================================
     // 🔥 NUEVA LÓGICA DE RECLUTAMIENTO Y PANEL MASIVO B2B
     // ============================================================================
-  const handleCopyInviteLink = async () => {
+    const handleCopyInviteLink = async () => {
         if (!myAgencyId) {
             alert("Radar no sincronizado. Imposible generar código.");
             return;
         }
-const inviteLink = `https://stratosfere.com/join?sponsor=${myAgencyId}`;        try {
+
+        // 🎯 LECTURA TÁCTICA AUTOMÁTICA: Detecta el dominio real sin fallos
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://stratosfere.com';
+        const inviteLink = `${baseUrl}/join?sponsor=${myAgencyId}`;        
+        
+        try {
             await navigator.clipboard.writeText(inviteLink);
             alert("🎯 ¡ENLACE COPIADO CON ÉXITO!\n\n" + inviteLink + "\n\nYa puede pegarlo en WhatsApp o Email.");
         } catch (err) {
             alert("Error al copiar. Copie este enlace manualmente:\n" + inviteLink);
         }
     };
+
     const handleSelectAll = () => {
         if (selectedTroops.length === filteredAmbassadors.length) {
             setSelectedTroops([]);
@@ -265,8 +282,41 @@ const inviteLink = `https://stratosfere.com/join?sponsor=${myAgencyId}`;        
                 </div>
             </div>
 
-            {/* --- CONTROLES INTELIGENTES --- */}
+            {/* ---{/* --- CONTROLES INTELIGENTES --- */}
             <div className="px-8 py-5 bg-white/40 backdrop-blur-md border-b border-black/5 space-y-4 z-10">
+                
+                {/* 🛡️ ESCUDO DE ALIANZA (SOLO VISIBLE SI FUI INVITADO POR ALGUIEN) */}
+                {myCommander && (
+                    <div className="bg-slate-900 rounded-[20px] p-4 flex items-center justify-between shadow-xl shadow-slate-900/10 border border-slate-800 animate-in fade-in slide-in-from-top-4 mb-2">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center overflow-hidden shrink-0">
+                                {myCommander.companyLogo || myCommander.avatar ? (
+                                    <img src={myCommander.companyLogo || myCommander.avatar} className="w-full h-full object-cover" alt="Comandante" />
+                                ) : (
+                                    <ShieldCheck className="text-amber-500" size={20} />
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-0.5 flex items-center gap-1">
+                                    <Handshake size={10} /> Alianza B2B Activa
+                                </p>
+                                <p className="text-sm font-bold text-white leading-none truncate">{myCommander.companyName || myCommander.name}</p>
+                            </div>
+                        </div>
+                        {(myCommander.mobile || myCommander.phone) && (
+                            <a 
+                                href={`https://wa.me/${String(myCommander.mobile || myCommander.phone).replace(/\D/g,'')}`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all border border-emerald-500/20 shrink-0"
+                                title="Contactar por WhatsApp"
+                            >
+                                <MessageCircle size={16} />
+                            </a>
+                        )}
+                    </div>
+                )}
+
                 {/* Switcher iOS Style */}
                 <div className="flex p-1 bg-slate-200/50 rounded-[18px] backdrop-blur-xl border border-white/50 shadow-inner">
                     <button 
@@ -350,7 +400,7 @@ const inviteLink = `https://stratosfere.com/join?sponsor=${myAgencyId}`;        
                                     </div>
                                 )}
 
-                                {/* 🔥 LISTA DE TROPAS MODIFICADA CON CHECKBOX 🔥 */}
+                                {/* 🔥 LISTA DE TROPAS MODIFICADA CON CHECKBOX Y TELÉFONO 🔥 */}
                                 {filteredAmbassadors.map((soldier) => {
                                     const isSelected = selectedTroops.includes(soldier.id);
                                     return (
@@ -360,17 +410,41 @@ const inviteLink = `https://stratosfere.com/join?sponsor=${myAgencyId}`;        
                                             className={`bg-white p-5 rounded-[28px] cursor-pointer shadow-[0_2px_20px_rgba(0,0,0,0.03)] border transition-all duration-300 group ${isSelected ? 'border-indigo-500 shadow-[0_10px_40px_rgba(79,70,229,0.15)] ring-1 ring-indigo-500' : 'border-slate-100 hover:border-indigo-200 hover:shadow-[0_10px_40px_rgba(79,70,229,0.08)] hover:-translate-y-1'}`}
                                         >
                                             <div className="flex items-center gap-5">
-                                                {/* CHECKBOX INDIVIDUAL */}
+                                            {/* CHECKBOX INDIVIDUAL */}
                                                 <div className={`shrink-0 w-6 h-6 rounded-[8px] border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-slate-50 group-hover:border-indigo-400'}`}>
                                                     {isSelected && <Check size={14} strokeWidth={3} />}
                                                 </div>
 
+                                                {/* AVATAR DEL SOLDADO */}
                                                 <div className="w-16 h-16 bg-slate-100 rounded-[20px] overflow-hidden border-2 border-white shadow-md relative group-hover:scale-105 transition-transform shrink-0">
-                                                    {soldier.avatar ? <img src={soldier.avatar} className="w-full h-full object-cover"/> : <div className="flex items-center justify-center h-full text-slate-300"><Users size={24}/></div>}
+                                                    {soldier.avatar ? (
+                                                        <img src={soldier.avatar} alt={soldier.name || "Avatar"} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="flex items-center justify-center h-full text-slate-300">
+                                                            <Users size={24} />
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                
+                                                {/* DATOS DEL SOLDADO */}
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className="font-black text-lg text-slate-900 leading-tight mb-0.5 truncate group-hover:text-indigo-600 transition-colors">{soldier.name}</h3>
-                                                    <p className="text-[11px] font-bold text-slate-400 mb-2 truncate">{soldier.email}</p>
+                                                    <h3 className="font-black text-lg text-slate-900 leading-tight mb-0.5 truncate group-hover:text-indigo-600 transition-colors">
+                                                        {soldier.name}
+                                                    </h3>
+                                                    
+                                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                        <p className="text-[11px] font-bold text-slate-400 truncate">
+                                                            {soldier.email}
+                                                        </p>
+                                                        
+                                                        {/* 📱 CHIVATO DEL TELÉFONO (Si el soldado lo ha facilitado) */}
+                                                        {(soldier.phone || soldier.mobile) && (
+                                                            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shadow-sm shrink-0">
+                                                                <Phone size={10} strokeWidth={2.5} /> 
+                                                                {soldier.phone || soldier.mobile}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="bg-indigo-50 text-indigo-700 text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border border-indigo-100/50">
                                                             {soldier.ambassadorStats?.rank || "RECLUTA"}
@@ -599,3 +673,4 @@ const inviteLink = `https://stratosfere.com/join?sponsor=${myAgencyId}`;        
         </div>
     );
 }
+

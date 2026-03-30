@@ -1,33 +1,30 @@
 import { db } from "@/app/lib/db";
 import JoinClient from "./JoinClient";
 
-export const metadata = {
-  title: "Alianza B2B | Stratosfere Vanguard",
-  description: "Únase a la red de agencias y comparta stock de forma bidireccional.",
-};
-
 export default async function JoinPage({ searchParams }: { searchParams: { sponsor?: string } }) {
+  // 1. Atrapamos el ID exacto que viene en el enlace
   const sponsorId = searchParams?.sponsor;
+  
   let sponsor = null;
 
-  // Si hay un ID de General en la URL, buscamos todos sus galones
+  // 2. Si hay ID, rastreamos la Base de Datos de Producción
   if (sponsorId) {
     sponsor = await db.user.findUnique({
       where: { id: sponsorId },
       select: {
         name: true,
         companyName: true,
-        avatar: true,
-        companyLogo: true,
+        companyLogo: true,  // 🔥 Vital para su escudo
+        avatar: true,       // 🔥 Por si no hay logo de empresa
         phone: true,
         mobile: true,
         email: true,
         zone: true,
-        address: true,
+        licenseNumber: true,
       }
     });
   }
 
-  // Le pasamos sus datos al diseño visual
+  // 3. Enviamos los datos reales a la pantalla oscura
   return <JoinClient sponsorId={sponsorId} sponsor={sponsor} />;
 }

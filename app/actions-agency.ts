@@ -189,3 +189,31 @@ export async function deleteAgencyLeadAction(leadId: string) {
         return { success: false, error: "Error al eliminar" };
     }
 }
+
+// =========================================================
+// 🛡️ BUSCAR A MI COMANDANTE (Para el Escudo de Alianza)
+// =========================================================
+export async function getMyCommanderAction() {
+    try {
+        const user = await getCurrentUser();
+        // Si no tengo a nadie que me haya reclutado, abortamos
+        if (!user || !user.recruitedById) return { success: false };
+
+        const commander = await prisma.user.findUnique({
+            where: { id: user.recruitedById },
+            select: { 
+                id: true, 
+                name: true, 
+                companyName: true, 
+                companyLogo: true, 
+                avatar: true, 
+                phone: true, 
+                mobile: true 
+            }
+        });
+
+        return { success: true, data: commander };
+    } catch (e) {
+        return { success: false };
+    }
+}
