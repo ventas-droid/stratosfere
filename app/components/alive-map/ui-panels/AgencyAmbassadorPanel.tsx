@@ -189,16 +189,18 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     // ============================================================================
     // 🔥 NUEVA LÓGICA DE RECLUTAMIENTO Y PANEL MASIVO B2B
     // ============================================================================
-    const handleCopyInviteLink = () => {
+  const handleCopyInviteLink = async () => {
         if (!myAgencyId) {
-            toast.error("Radar no sincronizado. Imposible generar código.");
+            alert("Radar no sincronizado. Imposible generar código.");
             return;
         }
-        const inviteLink = `https://stratosfere.com/register?sponsor=${myAgencyId}`;
-        navigator.clipboard.writeText(inviteLink);
-        toast.success("🎯 ¡Enlace de Reclutamiento Copiado! Envíelo a sus comerciales.");
+const inviteLink = `https://stratosfere.com/join?sponsor=${myAgencyId}`;        try {
+            await navigator.clipboard.writeText(inviteLink);
+            alert("🎯 ¡ENLACE COPIADO CON ÉXITO!\n\n" + inviteLink + "\n\nYa puede pegarlo en WhatsApp o Email.");
+        } catch (err) {
+            alert("Error al copiar. Copie este enlace manualmente:\n" + inviteLink);
+        }
     };
-
     const handleSelectAll = () => {
         if (selectedTroops.length === filteredAmbassadors.length) {
             setSelectedTroops([]);

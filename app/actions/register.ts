@@ -16,6 +16,12 @@ export async function registerUser(formData: FormData) {
   const companyName = formData.get("companyName") as string | null
   const cif = formData.get("cif") as string | null
   
+  // 🔥 NUEVO: CAPTURAMOS EL ID DEL GENERAL (SPONSOR)
+  const recruitedById = formData.get("sponsor") as string | null
+  
+  // 📱 NUEVO: CAPTURAMOS EL TELÉFONO DE LA PÁGINA B2B
+  const phone = formData.get("phone") as string | null
+  
   if (!email || !password || !name) {
     return { error: "Faltan datos obligatorios" }
   }
@@ -38,17 +44,23 @@ export async function registerUser(formData: FormData) {
   const hashedPassword = await hash(password, 10)
 
   try {
-   // 2. CREACIÓN DEL USUARIO (Su código intacto + CIF)
+   // 2. CREACIÓN DEL USUARIO
     await db.user.create({
       data: {
         email,
         password: hashedPassword,
         name,
         role: assignedRole as any, 
-        companyName: companyName || undefined, // 🔥 NUEVO: Guardamos la Empresa
-        cif: cif || undefined,                 // 🔥 NUEVO: Guardamos el CIF/NIF
+        companyName: companyName || undefined,
+        cif: cif || undefined,                 
+        recruitedById: recruitedById || undefined, // 🎯 SELLA LA ALIANZA B2B
+        phone: phone || undefined,                 // 📞 GUARDA EL WHATSAPP DIRECTO
       }
     })
+
+    if (recruitedById) {
+        console.log(`🎯 ALIANZA B2B REGISTRADA: El usuario ${email} ha sido reclutado por la Agencia ID: ${recruitedById}`);
+    }
 
     // --- 🎯 INICIO DE LA INYECCIÓN VIP (RASTREO BLINDADO) ---
     // Lo hacemos seguro: si esto falla por cualquier motivo, no rompe el registro.
@@ -72,7 +84,7 @@ export async function registerUser(formData: FormData) {
     }
     // --- FIN DE LA INYECCIÓN VIP ---
 
-    // 3. PROCESOS FINALES (Su código intacto)
+    // 3. PROCESOS FINALES
     sendWelcomeEmail(email, name);
 
     cookieStore.set('stratos_session_email', email, {
@@ -89,11 +101,11 @@ export async function registerUser(formData: FormData) {
 
   console.log(`👉 REGISTRO COMPLETADO: ${email} como ${assignedRole}`)
   
-  // 4. REDIRECCIÓN INTELIGENTE SEGÚN ROL (Su código intacto)
+  // 4. REDIRECCIÓN INTELIGENTE SEGÚN ROL
   if (assignedRole === 'AGENCIA') {
     redirect("/?access=agency")
   } else if (assignedRole === 'DIFUSOR') {
-    redirect("/?access=diffuser") // <--- NUEVA REDIRECCIÓN
+    redirect("/?access=diffuser") 
   } else {
     redirect("/?access=granted")
   }
