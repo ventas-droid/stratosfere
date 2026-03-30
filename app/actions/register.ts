@@ -16,10 +16,8 @@ export async function registerUser(formData: FormData) {
   const companyName = formData.get("companyName") as string | null
   const cif = formData.get("cif") as string | null
   
-  // 🔥 NUEVO: CAPTURAMOS EL ID DEL GENERAL (SPONSOR)
+  // 🔥 AÑADIDO PARA LA ALIANZA B2B
   const recruitedById = formData.get("sponsor") as string | null
-  
-  // 📱 NUEVO: CAPTURAMOS EL TELÉFONO DE LA PÁGINA B2B
   const phone = formData.get("phone") as string | null
   
   if (!email || !password || !name) {
@@ -30,7 +28,7 @@ export async function registerUser(formData: FormData) {
   let assignedRole = 'PARTICULAR'; // Por defecto
   
   if (roleRaw === 'AGENCIA') assignedRole = 'AGENCIA';
-  else if (roleRaw === 'DIFUSOR') assignedRole = 'DIFUSOR'; // <--- ¡NUEVA VÍA HABILITADA!
+  else if (roleRaw === 'DIFUSOR') assignedRole = 'DIFUSOR';
 
   try {
     const existingUser = await db.user.findUnique({ where: { email } })
@@ -51,32 +49,24 @@ export async function registerUser(formData: FormData) {
         password: hashedPassword,
         name,
         role: assignedRole as any, 
-        companyName: companyName || undefined,
-        cif: cif || undefined,                 
-        recruitedById: recruitedById || undefined, // 🎯 SELLA LA ALIANZA B2B
-        phone: phone || undefined,                 // 📞 GUARDA EL WHATSAPP DIRECTO
+        companyName: companyName || undefined, 
+        cif: cif || undefined,
+        recruitedById: recruitedById || undefined, // 🎯 Guarda el General que invitó
+        phone: phone || undefined,                 // 📞 Guarda el Teléfono B2B
       }
     })
 
-    if (recruitedById) {
-        console.log(`🎯 ALIANZA B2B REGISTRADA: El usuario ${email} ha sido reclutado por la Agencia ID: ${recruitedById}`);
-    }
-
     // --- 🎯 INICIO DE LA INYECCIÓN VIP (RASTREO BLINDADO) ---
-    // Lo hacemos seguro: si esto falla por cualquier motivo, no rompe el registro.
     const cookieStore = await cookies();
     const vipInviteCode = cookieStore.get('stratos_vip_invite')?.value;
     
     if (assignedRole === 'AGENCIA' && vipInviteCode) {
         try {
-            // Marcamos a la agencia como CAPTURADA en el CRM de su God Mode
             await db.agencyProspect.updateMany({ 
                 where: { id: vipInviteCode },
                 data: { status: 'REGISTERED' } 
             });
             console.log(`🎯 MISIL IMPACTADO: Agencia VIP capturada (${vipInviteCode})`);
-            
-            // Borramos la baliza del navegador del cliente para limpiar el rastro
             cookieStore.delete('stratos_vip_invite');
         } catch (e) {
             console.warn("⚠️ Aviso: La baliza VIP no se pudo procesar, pero el usuario se registró.", e);
