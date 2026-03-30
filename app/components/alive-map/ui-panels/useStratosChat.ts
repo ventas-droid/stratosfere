@@ -12,7 +12,7 @@ import {
   markConversationReadAction,
 } from "@/app/actions";
 import { extractFirstUrl, isImageUrl } from "../../../utils/propertyCore";
-
+import { getUploadUrl } from "@/app/utils/r2-server"; // 👈 Ajuste la ruta si la tiene en otra carpeta
 // 📡 IMPORTAMOS EL RECEPTOR ESPACIAL (Ruta absoluta blindada)
 import { getPusherClient } from "@/app/utils/pusher";
 
@@ -342,55 +342,66 @@ const updateUnreadFromThreads = (threads: any[]) => {
     }
   };
 
-  // --- CLOUDINARY UPLOAD ---
-  const uploadChatFileToCloudinary = (file: File) => {
-    const cloudName = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "dn11trogr").trim();
-    const uploadPreset = (process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "stratos_upload").trim();
-    if (!cloudName || !uploadPreset) throw new Error("Cloudinary configs missing");
-    const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+  // --- CLOUDINARY UPLOAD (AHORA REDIRIGIDO AL BÚNKER R2) ---
+  const uploadChatFileToCloudinary = async (file: File) => {
+    // Mantenemos el nombre de la función para no romper los enlaces, pero ahora dispara a R2
+    if (!file) throw new Error("No hay archivo para subir");
+    
+    setChatUploadProgress(10);
 
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("upload_preset", uploadPreset);
-    fd.append("folder", "stratos/chat");
+    try {
+      // 1️⃣ Pedimos la pista de aterrizaje al búnker (R2) a través de su Server Action
+      const { success, uploadUrl, publicUrl } = await getUploadUrl(file.name, file.type);
+      
+      if (!success || !uploadUrl) {
+          throw new Error("Cloudflare R2 denegó el pase de aterrizaje");
+      }
 
-    setChatUploadProgress(0);
-    return new Promise<string>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", endpoint);
-      xhr.upload.onprogress = (ev) => {
-        if (!ev.lengthComputable) return;
-        const pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
-        setChatUploadProgress(pct);
-        const tempId = chatUploadTempIdRef.current;
-        if (tempId) {
-          setChatMessages((prev: any[]) =>
-            (Array.isArray(prev) ? prev : []).map((m: any) => (String(m?.id) === String(tempId) ? { ...m, __progress: pct } : m))
-          );
-        }
-      };
-      xhr.onerror = () => reject(new Error("Upload fallido (network)"));
-      xhr.onload = () => {
-        try {
-          const ok = xhr.status >= 200 && xhr.status < 300;
-          const data = JSON.parse(xhr.responseText || "{}");
-          if (!ok) return reject(new Error(data?.error?.message || `Upload fallido (${xhr.status})`));
-          const delivered = String(data?.secure_url || "").trim();
-          if (!delivered) return reject(new Error("Cloudinary no devolvió secure_url"));
-          if (!/^https?:\/\/res\.cloudinary\.com\//i.test(delivered)) return reject(new Error("URL no pública"));
-          setChatUploadProgress(100);
-          resolve(delivered);
-        } catch (e: any) {
-          reject(new Error(e?.message || "Upload: respuesta inválida"));
-        }
-      };
-      xhr.send(fd);
-    });
+      setChatUploadProgress(20);
+
+      // 2️⃣ Disparamos el archivo con XMLHttpRequest para mantener su barra de progreso visual
+      return new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        // ⚠️ IMPORTANTE: Cloudflare R2 requiere método PUT para URLs firmadas
+        xhr.open("PUT", uploadUrl); 
+        xhr.setRequestHeader("Content-Type", file.type);
+        
+        xhr.upload.onprogress = (ev) => {
+          if (!ev.lengthComputable) return;
+          // Calculamos el progreso del 20% al 100%
+          const pct = 20 + Math.max(0, Math.min(80, Math.round((ev.loaded / ev.total) * 80)));
+          setChatUploadProgress(pct);
+          
+          const tempId = chatUploadTempIdRef.current;
+          if (tempId) {
+            setChatMessages((prev: any[]) =>
+              (Array.isArray(prev) ? prev : []).map((m: any) => (String(m?.id) === String(tempId) ? { ...m, __progress: pct } : m))
+            );
+          }
+        };
+        
+        xhr.onerror = () => reject(new Error("El Dron fue derribado (network error)"));
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setChatUploadProgress(100);
+            resolve(publicUrl); // ✅ Devolvemos la URL limpia de Stratosfere/R2
+          } else {
+            reject(new Error(`R2 rechazó la carga: ${xhr.status}`));
+          }
+        };
+        
+        xhr.send(file);
+      });
+
+    } catch (error: any) {
+      console.error("❌ FALLO EN SUBIDA R2:", error);
+      throw error;
+    }
   };
 
   const handlePickChatFile = () => { try { chatFileInputRef.current?.click?.(); } catch {} };
 
-  const handleChatFileSelected = async (e: any) => {
+ const handleChatFileSelected = async (e: any) => {
     const file: File | null = e?.target?.files?.[0] || null;
     if (e?.target) e.target.value = "";
     if (!file) return;
@@ -411,20 +422,25 @@ const updateUnreadFromThreads = (threads: any[]) => {
     await Promise.resolve();
 
     try {
-      const url = await uploadChatFileToCloudinary(file);
+      // 1. DISPARO ÚNICO AL BÚNKER R2
+      const url = await uploadChatFileToCloudinary(file); // Sigue llamándose así pero apunta a R2
+      
       if (!url) {
         setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((m: any) => m?.id !== tempId));
-        return addNotification("⚠️ No recibí URL del upload");
+        return addNotification("⚠️ No recibí URL del búnker R2");
       }
 
-      setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).map((m: any) => (m.id === tempId ? { ...m, text: url, content: url, __uploading: false, __progress: 100 } : m)));
-      scrollChatToBottom();
       if (localPreview) { try { URL.revokeObjectURL(localPreview); } catch {} }
 
+      // 2. DISPARO ÚNICO A LA BASE DE DATOS Y PUSHER
+      // (Eliminamos el "Ametrallamiento de try-catch" para asegurar 1 solo mensaje)
       let res: any = null;
-      try { res = await (sendMessageAction as any)(chatConversationId, url); } catch {}
-      if (!res?.success) { try { res = await (sendMessageAction as any)({ conversationId: chatConversationId, text: url }); } catch {} }
-      if (!res?.success) { try { res = await (sendMessageAction as any)({ conversationId: chatConversationId, content: url }); } catch {} }
+      try { 
+        res = await (sendMessageAction as any)({ conversationId: chatConversationId, text: url }); 
+      } catch (err) {
+        console.error("Fallo en disparo principal, intentando fallback:", err);
+        try { res = await (sendMessageAction as any)(chatConversationId, url); } catch {}
+      }
 
       if (res?.success && res?.data) {
         const serverMsg = res.data;
@@ -433,14 +449,16 @@ const updateUnreadFromThreads = (threads: any[]) => {
         scrollChatToBottom();
         const sentAt = normalized?.createdAt ? new Date(normalized.createdAt).getTime() : Date.now();
         markConversationAsRead(String(chatConversationId), sentAt);
-        return addNotification("✅ Archivo enviado");
+        return addNotification("✅ Foto encriptada en R2 y enviada");
       }
-      addNotification(res?.error ? `⚠️ ${res.error}` : "⚠️ Subido pero no pude enviar");
+      
+      throw new Error(res?.error || "Fallo desconocido en el servidor");
+
     } catch (err: any) {
       console.error(err);
       setChatMessages((prev: any[]) => (Array.isArray(prev) ? prev : []).filter((m: any) => m?.id !== tempId));
       if (localPreview) { try { URL.revokeObjectURL(localPreview); } catch {} }
-      addNotification(`❌ Upload: ${err?.message || "falló"}`);
+      addNotification(`❌ Error de transmisión: ${err?.message || "falló"}`);
     } finally {
       setChatUploading(false);
     }

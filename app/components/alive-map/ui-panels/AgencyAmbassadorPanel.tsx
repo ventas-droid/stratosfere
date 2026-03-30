@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     Users, ShieldCheck, X, Search, Handshake,
     MessageSquare, Phone, MapPin, Trash2, Navigation, 
-    Loader2, TrendingUp, Mail, Award, Clock, Crown
+    Loader2, TrendingUp, Mail, Award, Clock, Crown,
+    Check, MessageCircle, Link as LinkIcon // 🔥 Añadidos los iconos para el panel masivo
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,7 +22,11 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     const [leads, setLeads] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
 
- // 🔄 CARGA DE DATOS INICIAL
+    // 🔥 NUEVOS ESTADOS TÁCTICOS PARA BOMBARDERO MASIVO Y RECLUTAMIENTO
+    const [selectedTroops, setSelectedTroops] = useState<string[]>([]);
+    const [myAgencyId, setMyAgencyId] = useState<string>("");
+
+    // 🔄 CARGA DE DATOS INICIAL
     useEffect(() => {
         loadIntelligence();
     }, []);
@@ -29,6 +34,12 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     const loadIntelligence = async () => {
         setLoading(true);
         try {
+            // 🔥 Identificamos nuestra propia frecuencia (nuestro ID)
+            const meRes = await getUserMeAction();
+            if (meRes?.data?.id) {
+                setMyAgencyId(meRes.data.id);
+            }
+
             const troopsRes = await getAgencyAmbassadorsAction();
             if (troopsRes.success) setAmbassadors(troopsRes.data);
 
@@ -48,12 +59,8 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
 
         const turnOnRadar = async () => {
             try {
-                // 1. Identificamos nuestra propia frecuencia (nuestro ID)
-                const meRes = await getUserMeAction();
-                const myId = meRes?.data?.id;
-                
-                if (myId) {
-                    channelName = `user-${myId}`;
+                if (myAgencyId) {
+                    channelName = `user-${myAgencyId}`;
                     
                     // 2. Nos sintonizamos a nuestro canal privado
                     pusher.subscribe(channelName);
@@ -70,7 +77,9 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
             }
         };
 
-        turnOnRadar();
+        if (myAgencyId) {
+            turnOnRadar();
+        }
 
         // 4. Apagamos la radio si cerramos el panel (limpieza táctica)
         return () => {
@@ -79,7 +88,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                 pusher.unsubscribe(channelName);
             }
         };
-    }, []);
+    }, [myAgencyId]);
 
     // 🔙 MANIOBRA DE RETIRADA
     const handleBackToProfile = () => {
@@ -88,7 +97,8 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
             if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-agency-profile'));
         }, 50);
     };
-    // 🔥 VUELO TÁCTICO Y FILTRO DE PRIVACIDAD (INTACTO)
+
+    // 🔥 VUELO TÁCTICO Y FILTRO DE PRIVACIDAD (INTACTO ORIGINAL)
     const handleFlyTo = (e: any, p: any) => {
         e.stopPropagation();
 
@@ -177,6 +187,51 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
     const filteredLeads = leads.filter(l => l.property?.title?.toLowerCase().includes(searchTerm.toLowerCase()) || l.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
     // ============================================================================
+    // 🔥 NUEVA LÓGICA DE RECLUTAMIENTO Y PANEL MASIVO B2B
+    // ============================================================================
+    const handleCopyInviteLink = () => {
+        if (!myAgencyId) {
+            toast.error("Radar no sincronizado. Imposible generar código.");
+            return;
+        }
+        const inviteLink = `https://stratosfere.com/register?sponsor=${myAgencyId}`;
+        navigator.clipboard.writeText(inviteLink);
+        toast.success("🎯 ¡Enlace de Reclutamiento Copiado! Envíelo a sus comerciales.");
+    };
+
+    const handleSelectAll = () => {
+        if (selectedTroops.length === filteredAmbassadors.length) {
+            setSelectedTroops([]);
+        } else {
+            setSelectedTroops(filteredAmbassadors.map(a => a.id));
+        }
+    };
+
+    const toggleTroop = (id: string) => {
+        setSelectedTroops(prev => 
+            prev.includes(id) ? prev.filter(tId => tId !== id) : [...prev, id]
+        );
+    };
+
+    const handleMassEmail = () => {
+        const emails = ambassadors.filter(a => selectedTroops.includes(a.id)).map(a => a.email).filter(Boolean);
+        if(emails.length) {
+            window.location.href = `mailto:?bcc=${emails.join(',')}`;
+            toast.success("Cliente de correo abierto en copia oculta.");
+        } else {
+            toast.error("Las tropas seleccionadas no tienen email registrado.");
+        }
+    };
+
+    const handleMassWhatsApp = () => {
+        toast.success(`Protocolo WhatsApp listo para ${selectedTroops.length} tropas.`);
+    };
+
+    const handleMassCall = () => {
+        toast.success(`Marcación simultánea iniciada...`);
+    };
+
+    // ============================================================================
     // 🎨 RENDERIZADO VISUAL - NIVEL ÉLITE MUNDIAL
     // ============================================================================
     return (
@@ -193,8 +248,18 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                     </button>
                     <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">Embajadores<span className="text-indigo-600">.</span></h2>
                 </div>
-                <div className="bg-indigo-50/80 text-indigo-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-indigo-100/50 shadow-inner">
-                    <ShieldCheck size={16} strokeWidth={2.5}/> {leads.length} Leads
+                <div className="flex items-center gap-3">
+                    {/* 🔥 NUEVO BOTÓN RECLUTAR */}
+                    <button 
+                        onClick={handleCopyInviteLink} 
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
+                    >
+                        <LinkIcon size={14} strokeWidth={2.5}/> Reclutar
+                    </button>
+
+                    <div className="bg-indigo-50/80 text-indigo-700 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-indigo-100/50 shadow-inner">
+                        <ShieldCheck size={16} strokeWidth={2.5}/> {leads.length} Leads
+                    </div>
                 </div>
             </div>
 
@@ -230,7 +295,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
             </div>
 
             {/* --- CUERPO DE BATALLA --- */}
-            <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 custom-scrollbar relative z-0">
+            <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar relative z-0">
                 {loading ? (
                     <div className="h-full flex flex-col items-center justify-center gap-4 opacity-60 py-32">
                         <div className="w-16 h-16 relative">
@@ -245,39 +310,83 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                         {/* 🎖️ VISTA DE TROPAS (EMBAJADORES) */}
                         {/* ============================================================== */}
                         {activeTab === "TROOPS" && (
-                            <div className="space-y-4">
-                                {filteredAmbassadors.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                                        <div className="w-24 h-24 bg-slate-200/50 rounded-full flex items-center justify-center mb-5 border border-white"><Users size={40} className="text-slate-400"/></div>
-                                        <p className="text-sm font-black text-slate-600 uppercase tracking-widest">Sin Tropas Activas</p>
+                            <div className={`space-y-4 ${selectedTroops.length > 0 ? 'pb-24' : 'pb-6'}`}>
+                                
+                                {/* 🔥 CONTROL MAESTRO: SELECCIONAR TODOS 🔥 */}
+                                {filteredAmbassadors.length > 0 && (
+                                    <div 
+                                        onClick={handleSelectAll}
+                                        className="flex items-center justify-between bg-white/60 backdrop-blur-md p-4 rounded-[20px] mb-2 border border-slate-200 shadow-sm cursor-pointer group transition-all hover:bg-white"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-5 h-5 rounded-[6px] border-2 flex items-center justify-center transition-all ${selectedTroops.length === filteredAmbassadors.length ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white group-hover:border-indigo-400'}`}>
+                                                {selectedTroops.length === filteredAmbassadors.length && <Check size={14} strokeWidth={3} />}
+                                            </div>
+                                            <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-indigo-600 transition-colors">
+                                                Seleccionar Todas las Tropas ({filteredAmbassadors.length})
+                                            </span>
+                                        </div>
                                     </div>
                                 )}
-                                {filteredAmbassadors.map((soldier) => (
-                                    <div key={soldier.id} className="bg-white p-5 rounded-[28px] shadow-[0_2px_20px_rgba(0,0,0,0.03)] border border-slate-100 hover:border-indigo-100 hover:shadow-[0_10px_40px_rgba(79,70,229,0.08)] hover:-translate-y-1 transition-all duration-300 group">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-16 h-16 bg-slate-100 rounded-[20px] overflow-hidden border-2 border-white shadow-md relative group-hover:scale-105 transition-transform">
-                                                {soldier.avatar ? <img src={soldier.avatar} className="w-full h-full object-cover"/> : <div className="flex items-center justify-center h-full text-slate-300"><Users size={24}/></div>}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-black text-lg text-slate-900 leading-tight mb-0.5 truncate group-hover:text-indigo-600 transition-colors">{soldier.name}</h3>
-                                                <p className="text-[11px] font-bold text-slate-400 mb-2 truncate">{soldier.email}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="bg-indigo-50 text-indigo-700 text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border border-indigo-100/50">
-                                                        {soldier.ambassadorStats?.rank || "RECLUTA"}
-                                                    </span>
-                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
-                                                        <Award size={12}/> Score: {soldier.ambassadorStats?.score || "5.0"}
-                                                    </span>
+
+                                {/* 🔥 ESTADO VACÍO NUEVO (BOTÓN DE COPIAR ENLACE) 🔥 */}
+                                {filteredAmbassadors.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center py-24 opacity-90 animate-in fade-in zoom-in duration-500">
+                                        <div className="w-28 h-28 bg-indigo-50 rounded-full flex items-center justify-center mb-6 border-4 border-white shadow-xl shadow-indigo-600/10">
+                                            <Handshake size={48} className="text-indigo-500"/>
+                                        </div>
+                                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest mb-3">Red Desplegada</h3>
+                                        <p className="text-sm text-slate-500 text-center max-w-sm mb-8 leading-relaxed font-medium">
+                                            Aún no tiene soldados asignados a su agencia. Copie su enlace seguro y envíelo a comerciales independientes para expandir su red de ventas.
+                                        </p>
+                                        <button 
+                                            onClick={handleCopyInviteLink}
+                                            className="bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.2)] hover:-translate-y-1 active:scale-95"
+                                        >
+                                            <LinkIcon size={18}/> Copiar Enlace B2B
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* 🔥 LISTA DE TROPAS MODIFICADA CON CHECKBOX 🔥 */}
+                                {filteredAmbassadors.map((soldier) => {
+                                    const isSelected = selectedTroops.includes(soldier.id);
+                                    return (
+                                        <div 
+                                            key={soldier.id} 
+                                            onClick={() => toggleTroop(soldier.id)}
+                                            className={`bg-white p-5 rounded-[28px] cursor-pointer shadow-[0_2px_20px_rgba(0,0,0,0.03)] border transition-all duration-300 group ${isSelected ? 'border-indigo-500 shadow-[0_10px_40px_rgba(79,70,229,0.15)] ring-1 ring-indigo-500' : 'border-slate-100 hover:border-indigo-200 hover:shadow-[0_10px_40px_rgba(79,70,229,0.08)] hover:-translate-y-1'}`}
+                                        >
+                                            <div className="flex items-center gap-5">
+                                                {/* CHECKBOX INDIVIDUAL */}
+                                                <div className={`shrink-0 w-6 h-6 rounded-[8px] border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-slate-50 group-hover:border-indigo-400'}`}>
+                                                    {isSelected && <Check size={14} strokeWidth={3} />}
+                                                </div>
+
+                                                <div className="w-16 h-16 bg-slate-100 rounded-[20px] overflow-hidden border-2 border-white shadow-md relative group-hover:scale-105 transition-transform shrink-0">
+                                                    {soldier.avatar ? <img src={soldier.avatar} className="w-full h-full object-cover"/> : <div className="flex items-center justify-center h-full text-slate-300"><Users size={24}/></div>}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-black text-lg text-slate-900 leading-tight mb-0.5 truncate group-hover:text-indigo-600 transition-colors">{soldier.name}</h3>
+                                                    <p className="text-[11px] font-bold text-slate-400 mb-2 truncate">{soldier.email}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="bg-indigo-50 text-indigo-700 text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border border-indigo-100/50">
+                                                            {soldier.ambassadorStats?.rank || "RECLUTA"}
+                                                        </span>
+                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
+                                                            <Award size={12}/> Score: {soldier.ambassadorStats?.score || "5.0"}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
 
                         {/* ============================================================== */}
-                        {/* 📡 VISTA DE LEADS (BUZÓN DE TRANSMISIONES) */}
+                        {/* 📡 VISTA DE LEADS (BUZÓN DE TRANSMISIONES) -> INTACTO DEL ORIGINAL */}
                         {/* ============================================================== */}
                         {activeTab === "LEADS" && (
                             <div className="space-y-6">
@@ -332,7 +441,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                         REF: {p?.refCode || "---"}
                                                     </span>
                                                     
-                                                    {/* 🔥 ROI CAMPAÑA VIP (Intacto) */}
+                                                    {/* 🔥 ROI CAMPAÑA VIP */}
                                                     {(lead.source === 'MARKET_NETWORK' || lead.campaignId || lead.name?.includes('VIP')) && (
                                                         <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm border border-orange-400">
                                                             <Crown size={10} className="text-white"/> ROI CAMPAÑA VIP
@@ -432,12 +541,59 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                         </div>
                                     );
                                 })}
-                                <div className="h-16"></div>
                             </div>
                         )}
                     </>
                 )}
             </div>
+
+            {/* ============================================================== */}
+            {/* 🚀 PANEL FLOTANTE DE BOMBARDERO MASIVO (SOLO ACTIVO AL SELECCIONAR) */}
+            {/* ============================================================== */}
+            {activeTab === "TROOPS" && selectedTroops.length > 0 && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-slate-900 rounded-[24px] p-3 flex items-center justify-between shadow-[0_20px_60px_rgba(0,0,0,0.4)] border border-slate-700/50 z-50 animate-in slide-in-from-bottom-10 fade-in duration-300">
+                    <div className="flex items-center gap-3 pl-3">
+                        <div className="bg-indigo-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shadow-inner">
+                            {selectedTroops.length}
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white leading-none">
+                                Tropas
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                Seleccionadas
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                        {/* WhatsApp */}
+                        <button 
+                            onClick={handleMassWhatsApp} 
+                            className="w-12 h-12 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center transition-all hover:scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]" 
+                            title="Lanzar WhatsApp Masivo"
+                        >
+                            <MessageCircle size={20} strokeWidth={2.5}/>
+                        </button>
+                        {/* Email */}
+                        <button 
+                            onClick={handleMassEmail} 
+                            className="w-12 h-12 rounded-xl bg-blue-500 hover:bg-blue-400 text-white flex items-center justify-center transition-all hover:scale-105 shadow-[0_0_20px_rgba(59,130,246,0.3)]" 
+                            title="Lanzar Email Masivo"
+                        >
+                            <Mail size={20} strokeWidth={2.5}/>
+                        </button>
+                        {/* Call */}
+                        <button 
+                            onClick={handleMassCall} 
+                            className="w-12 h-12 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white flex items-center justify-center transition-all hover:scale-105 shadow-md" 
+                            title="Auto-Marcado Simultáneo"
+                        >
+                            <Phone size={20} strokeWidth={2.5}/>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

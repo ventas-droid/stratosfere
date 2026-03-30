@@ -284,9 +284,10 @@ if (systemMode === "EXPLORER") {
       <div className="bg-white/10 p-3 rounded-2xl text-xs text-white/70 border border-white/5">
         Aún no hay mensajes. Envía el primero.
       </div>
-    ) : (
+   ) : (
       <div className="space-y-2">
-        {(chatMessages || []).map((m: any) => {
+        {/* 🛡️ CÚPULA ANTI-CLONES: Filtramos los ecos de Pusher y HTTP para que nunca se dupliquen */}
+        {Array.from(new Map((chatMessages || []).map((m: any) => [String(m?.id || Math.random()), m])).values()).map((m: any) => {
           const mine = String(m?.senderId || "") === String(activeUserKey || "");
           const text = m?.text ?? m?.content ?? "";
 
