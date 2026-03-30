@@ -3,38 +3,60 @@
 import { prisma } from './lib/prisma';
 import { getCurrentUser } from './actions';
 
-// =========================================================
-// 1. INFORME DE TROPAS (MIS EMBAJADORES)
-// =========================================================
-// Misión: Devuelve la lista de usuarios que han sido reclutados por esta agencia
-// o que le han generado ventas/leads.
 export async function getAgencyAmbassadorsAction() {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
 
-    // Buscamos usuarios que tengan a esta agencia como 'recruitedBy'
+    // 1. Buscamos a los que YO he invitado (Mis reclutas)
     const recruits = await prisma.user.findMany({
-      where: {
-        recruitedById: user.id
-      },
+      where: { recruitedById: user.id },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
         avatar: true,
-        createdAt: true, // Fecha de alistamiento
-        ambassadorStats: true, // Sus estadísticas (Rango, Ventas, etc.)
-        ambassadorProfile: true // Su DNI y datos fiscales (Para pagarle)
+        companyName: true,
+        companyLogo: true, // Vital para ver el escudo de la otra agencia
+        createdAt: true,
+        ambassadorStats: true,
+        ambassadorProfile: true
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    return { success: true, data: recruits };
+    // 2. Buscamos a la agencia que ME invitó a mí (Mi Aliado inicial)
+    let commander = [];
+    if (user.recruitedById) {
+        const boss = await prisma.user.findUnique({
+            where: { id: user.recruitedById },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                avatar: true,
+                companyName: true,
+                companyLogo: true,
+                createdAt: true,
+                ambassadorStats: true,
+                ambassadorProfile: true
+            }
+        });
+        if (boss) {
+            // Le ponemos una marca de "COMANDANTE" para diferenciarlo si queremos, 
+            // pero irá en la misma lista
+            commander = [boss];
+        }
+    }
+
+    // 🤝 UNIFICACIÓN RECÍPROCA: Devolvemos a ambos en la misma columna
+    return { success: true, data: [...commander, ...recruits] };
+
   } catch (e) {
     console.error("Error fetching ambassadors:", e);
-    return { success: false, error: "Error al cargar tropas" };
+    return { success: false, error: "Error al cargar alianza" };
   }
 }
 

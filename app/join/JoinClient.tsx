@@ -9,16 +9,16 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
   const [message, setMessage] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Datos del General que invita (Si la URL lleva el ID correcto)
+  // 🛡️ EXTRACCIÓN DE SUS DATOS REALES
   const sponsorName = sponsor?.companyName || sponsor?.name || "Red Stratosfere";
-  const sponsorImage = sponsor?.companyLogo || sponsor?.avatar || "/placeholder.jpg"; 
+  const sponsorImage = sponsor?.companyLogo || sponsor?.avatar; 
   const sponsorPhone = sponsor?.mobile || sponsor?.phone || "";
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     setMessage(null);
     
-    // 🎯 REGLA DE GERENCIA: Todos los que se registran por aquí son PROFESIONALES/AGENCIAS
+    // Forzamos el rol para que los que se registran aquí sean Agencias/Profesionales
     formData.append('role', 'AGENCIA');
     
     const result = await registerUser(formData);
@@ -26,18 +26,16 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
         setMessage(`❌ ${result.error}`);
         setLoading(false);
     }
-    // Si hay éxito, su backend (register.ts) hace la redirección automática a la Torre de Control.
   }
 
   return (
     <div className="min-h-screen bg-[#0a0f1c] text-white flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      {/* Luces Tácticas de Fondo */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-amber-500/10 blur-[120px] rounded-full pointer-events-none"></div>
       
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
         
         {/* ========================================================= */}
-        {/* LADO IZQUIERDO: EL ESCUDO DEL GENERAL QUE INVITA */}
+        {/* LADO IZQUIERDO: SUS DATOS (EL GENERAL) */}
         {/* ========================================================= */}
         <div className="p-4 lg:pr-12">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black tracking-[0.2em] uppercase mb-6">
@@ -52,14 +50,13 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
             Únase a la red operativa de <strong className="text-white">{sponsorName}</strong>. Podrá compartir stock off-market, captar leads calificados y operar bajo un entorno de comisiones protegidas.
           </p>
 
-          {/* LA TARJETA DEL SPONSOR (SUS DATOS) */}
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden group">
+          {/* LA TARJETA DE SU AGENCIA */}
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full"></div>
             
             <div className="flex items-start gap-5">
               <div className="w-24 h-24 rounded-2xl bg-black border border-white/10 overflow-hidden shrink-0 shadow-[0_0_20px_rgba(245,158,11,0.15)] flex items-center justify-center">
-                 {/* Logo de su inmobiliaria o icono por defecto */}
-                 {sponsor && sponsorImage !== "/placeholder.jpg" ? (
+                 {sponsorImage ? (
                      <img src={sponsorImage} alt={sponsorName} className="w-full h-full object-cover" />
                  ) : (
                      <Building2 size={40} className="text-zinc-600" />
@@ -70,6 +67,7 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
                 <div className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-1">Invitación Oficial Emitida Por:</div>
                 <h3 className="text-2xl font-black text-white leading-none mb-3">{sponsorName}</h3>
                 
+                {/* SUS DATOS CORPORATIVOS */}
                 <div className="space-y-2 mt-4">
                   {sponsor?.licenseNumber && (
                     <div className="flex items-center gap-2 text-xs font-bold text-zinc-400">
@@ -86,11 +84,6 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
                       <Phone size={14} className="text-amber-500" /> {sponsorPhone}
                     </div>
                   )}
-                  {sponsor?.email && (
-                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-400">
-                      <Mail size={14} className="text-amber-500" /> {sponsor.email}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -98,7 +91,7 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
         </div>
 
         {/* ========================================================= */}
-        {/* LADO DERECHO: EL FORMULARIO PARA PROFESIONALES/GERENCIA */}
+        {/* LADO DERECHO: FORMULARIO DE REGISTRO */}
         {/* ========================================================= */}
         <div className="bg-zinc-900/80 backdrop-blur-xl p-8 lg:p-10 rounded-[40px] border border-zinc-800 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
           <div className="mb-8">
@@ -112,7 +105,7 @@ export default function JoinClient({ sponsorId, sponsor }: { sponsorId?: string,
           </div>
 
           <form action={handleSubmit} className="space-y-6">
-            {/* LA TRAMPA INVISIBLE CON SU ID */}
+            {/* 🎯 LA TRAMPA INVISIBLE: PASAMOS SU ID AL REGISTRO */}
             {sponsorId && <input type="hidden" name="sponsor" value={sponsorId} />}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

@@ -400,7 +400,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                     </div>
                                 )}
 
-                                {/* 🔥 LISTA DE TROPAS MODIFICADA CON CHECKBOX Y TELÉFONO 🔥 */}
+                             {/* 🔥 LISTA DE TROPAS MODIFICADA CON CHECKBOX Y TELÉFONO 🔥 */}
                                 {filteredAmbassadors.map((soldier) => {
                                     const isSelected = selectedTroops.includes(soldier.id);
                                     return (
@@ -415,10 +415,10 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                     {isSelected && <Check size={14} strokeWidth={3} />}
                                                 </div>
 
-                                                {/* AVATAR DEL SOLDADO */}
+                                                {/* AVATAR O LOGO DE LA AGENCIA */}
                                                 <div className="w-16 h-16 bg-slate-100 rounded-[20px] overflow-hidden border-2 border-white shadow-md relative group-hover:scale-105 transition-transform shrink-0">
-                                                    {soldier.avatar ? (
-                                                        <img src={soldier.avatar} alt={soldier.name || "Avatar"} className="w-full h-full object-cover" />
+                                                    {(soldier.companyLogo || soldier.avatar) ? (
+                                                        <img src={soldier.companyLogo || soldier.avatar} alt={soldier.companyName || soldier.name || "Avatar"} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="flex items-center justify-center h-full text-slate-300">
                                                             <Users size={24} />
@@ -426,10 +426,10 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                     )}
                                                 </div>
                                                 
-                                                {/* DATOS DEL SOLDADO */}
+                                                {/* DATOS DE LA AGENCIA / SOLDADO */}
                                                 <div className="flex-1 min-w-0">
                                                     <h3 className="font-black text-lg text-slate-900 leading-tight mb-0.5 truncate group-hover:text-indigo-600 transition-colors">
-                                                        {soldier.name}
+                                                        {soldier.companyName || soldier.name}
                                                     </h3>
                                                     
                                                     <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -460,7 +460,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                 })}
                             </div>
                         )}
-
+                        
                         {/* ============================================================== */}
                         {/* 📡 VISTA DE LEADS (BUZÓN DE TRANSMISIONES) -> INTACTO DEL ORIGINAL */}
                         {/* ============================================================== */}

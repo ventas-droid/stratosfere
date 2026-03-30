@@ -1,25 +1,36 @@
-import { db } from "@/app/lib/db"; // 🔥 USAMOS SU DB ORIGINAL
+import { db } from "@/app/lib/db";
 import JoinClient from "./JoinClient";
 
-export const dynamic = 'force-dynamic'; // 🔥 VITAL PARA QUE VERCEL LEA LA URL SIEMPRE
+// 🔥 ESTO ES VITAL PARA QUE VERCEL LEA LA URL SIEMPRE Y NO SE CONGELE
+export const dynamic = 'force-dynamic'; 
 
 export default async function JoinPage({ searchParams }: { searchParams: { sponsor?: string } }) {
   const sponsorId = searchParams?.sponsor;
-  let sponsor = null;
+  let sponsorData = null;
 
   if (sponsorId) {
     try {
-        sponsor = await db.user.findUnique({
+        // Buscamos toda la artillería pesada del General
+        sponsorData = await db.user.findUnique({
           where: { id: sponsorId },
           select: {
-            id: true, name: true, companyName: true, companyLogo: true, avatar: true,
-            phone: true, mobile: true, email: true, zone: true, licenseNumber: true, cif: true,
+            id: true,
+            name: true,
+            companyName: true,
+            companyLogo: true, // 🔥 LOGO
+            avatar: true,
+            phone: true,       // 🔥 TELÉFONO
+            mobile: true,
+            email: true,
+            zone: true,        // 🔥 ZONA
+            licenseNumber: true, // 🔥 LICENCIA
           }
         });
-    } catch(e) {
-        console.error("Error buscando al General:", e);
+    } catch(error) {
+        console.error("Error leyendo datos del General:", error);
     }
   }
 
-  return <JoinClient sponsorId={sponsorId} sponsor={sponsor} />;
+  // Le pasamos los datos reales al diseño visual
+  return <JoinClient sponsorId={sponsorId} sponsor={sponsorData} />;
 }
