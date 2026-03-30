@@ -243,24 +243,30 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
         }
     };
 
-    const handleMassWhatsApp = () => {
-        // Extraemos y limpiamos los teléfonos de los seleccionados
+   const handleMassWhatsApp = () => {
         const phones = ambassadors
             .filter(a => selectedTroops.includes(a.id))
             .map(a => a.phone || a.mobile)
             .filter(Boolean)
-            .map(p => String(p).replace(/\D/g, '')); // Deja solo los números
+            .map(p => String(p).replace(/\D/g, '')); 
 
         if (phones.length === 0) {
-            toast.error("Ninguna de las tropas seleccionadas tiene teléfono.");
+            toast.error("Ninguno de los contactos seleccionados tiene teléfono.");
             return;
         }
 
         if (phones.length === 1) {
-            // Si hay 1 solo, abrimos WhatsApp Web / App directo
-            window.open(`https://wa.me/${phones[0]}`, '_blank');
+            // 🛡️ DETECCIÓN INTELIGENTE DE DISPOSITIVO
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                // Si es un móvil, abrimos la App nativa directamente
+                window.open(`https://wa.me/${phones[0]}`, '_blank');
+            } else {
+                // Si es ordenador, FORZAMOS WhatsApp Web para evitar apps viejas o rotas
+                window.open(`https://web.whatsapp.com/send?phone=${phones[0]}`, '_blank');
+            }
         } else {
-            // Si hay varios, copiamos al portapapeles para lista de difusión
             navigator.clipboard.writeText(phones.join(', '));
             toast.success(`📱 ${phones.length} teléfonos copiados para Lista de Difusión.`);
             alert(`WhatsApp Anti-Spam:\nNo se pueden abrir ${phones.length} chats a la vez.\n\nHemos copiado los números al portapapeles para que los pegue en una Lista de Difusión de WhatsApp:\n\n${phones.join(', ')}`);
