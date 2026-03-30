@@ -1,29 +1,31 @@
 import { db } from "@/app/lib/db";
 import JoinClient from "./JoinClient";
 
-// 🔥 ESTO ES VITAL PARA QUE VERCEL LEA LA URL SIEMPRE Y NO SE CONGELE
-export const dynamic = 'force-dynamic'; 
+export const dynamic = 'force-dynamic';
 
-export default async function JoinPage({ searchParams }: { searchParams: { sponsor?: string } }) {
+export default async function JoinPage(props: any) {
+  // 🎯 EL ANTÍDOTO: Obligamos a Vercel a esperar y leer la URL completa
+  const searchParams = await props.searchParams;
   const sponsorId = searchParams?.sponsor;
+  
   let sponsorData = null;
 
   if (sponsorId) {
     try {
-        // Buscamos toda la artillería pesada del General
+        // Ahora sí buscará su ID exacto (cmlpolh8800046bsf0i2x9yw9)
         sponsorData = await db.user.findUnique({
           where: { id: sponsorId },
           select: {
             id: true,
             name: true,
             companyName: true,
-            companyLogo: true, // 🔥 LOGO
+            companyLogo: true,
             avatar: true,
-            phone: true,       // 🔥 TELÉFONO
+            phone: true,
             mobile: true,
             email: true,
-            zone: true,        // 🔥 ZONA
-            licenseNumber: true, // 🔥 LICENCIA
+            zone: true,
+            licenseNumber: true,
           }
         });
     } catch(error) {
@@ -31,6 +33,5 @@ export default async function JoinPage({ searchParams }: { searchParams: { spons
     }
   }
 
-  // Le pasamos los datos reales al diseño visual
   return <JoinClient sponsorId={sponsorId} sponsor={sponsorData} />;
 }
