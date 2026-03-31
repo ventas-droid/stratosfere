@@ -4429,3 +4429,168 @@ export async function createB2bAlianzaAction(propertyId: string, fromUserId: str
     return { success: false };
   }
 }
+
+// 🚁 AVIÓN DE CARGA PARA EL RADAR (Consulta Masiva BLINDADA)
+export async function getPropertiesBulkAction(ids: string[]) {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const safeIds = ids.map((x) => String(x).trim()).filter(Boolean);
+
+    const rawProperties = await prisma.property.findMany({
+      where: { id: { in: safeIds } },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        refCode: true,
+        price: true,
+        type: true,
+        address: true,
+        city: true,
+        region: true,
+        postcode: true,
+        latitude: true,
+        longitude: true,
+        mainImage: true,
+        images: {
+          take: 1,
+          select: { url: true }
+        },
+
+        // Propietario original
+        user: {
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+            role: true,
+            companyName: true,
+            avatar: true,
+            companyLogo: true
+          }
+        },
+
+        // Gestión activa
+        assignment: {
+          select: {
+            agencyId: true,
+            status: true,
+            agency: {
+              select: {
+                id: true,
+                name: true,
+                surname: true,
+                role: true,
+                companyName: true,
+                avatar: true,
+                companyLogo: true
+              }
+            }
+          }
+        },
+
+        // SOLO campaña aceptada = colaboración real
+        campaigns: {
+          where: { status: "ACCEPTED" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            agencyId: true,
+            status: true,
+            commissionPct: true,
+            commissionSharePct: true,
+            commissionShareVisibility: true
+          }
+        }
+      }
+    });
+
+    const formattedProperties = rawProperties.map((p: any) => {
+      const firstImage = Array.isArray(p.images) && p.images.length > 0
+        ? p.images[0]?.url || null
+        : null;
+
+      const activeCampaign =
+        Array.isArray(p.campaigns) && p.campaigns.length > 0
+          ? p.campaigns[0]
+          : null;
+
+      const hasActiveAssignment =
+        p.assignment &&
+        String(p.assignment.status || "").toUpperCase() === "ACTIVE" &&
+        p.assignment.agency;
+
+      // 👇 ESTA ES LA CLAVE: si la casa está gestionada por agencia,
+      // el radar debe "ver" la identidad de la agencia
+      const finalUser = hasActiveAssignment
+        ? {
+            ...p.assignment.agency,
+            role: "AGENCIA",
+            avatar:
+              p.assignment.agency.companyLogo ||
+              p.assignment.agency.avatar ||
+              null,
+            companyName:
+              p.assignment.agency.companyName ||
+              p.assignment.agency.name ||
+              null
+          }
+        : p.user;
+
+      const sharePct = Number(activeCampaign?.commissionSharePct || 0);
+      const shareVisibility = String(
+        activeCampaign?.commissionShareVisibility || "PRIVATE"
+      ).toUpperCase();
+
+      const rawPrice = Number(p.price || 0);
+      const formattedPrice = new Intl.NumberFormat("es-ES").format(rawPrice);
+
+      return {
+        ...p,
+
+        // identidad final que esperan badges/filtros
+        user: finalUser,
+
+        // imagen principal
+        img: p.mainImage || firstImage || null,
+        images: firstImage ? [{ url: firstImage }] : [],
+
+        // precio en formato UI
+        rawPrice,
+        price: formattedPrice,
+
+        // coordenadas por compatibilidad
+        coordinates:
+          Number.isFinite(Number(p.longitude)) &&
+          Number.isFinite(Number(p.latitude)) &&
+          Number(p.longitude) !== 0 &&
+          Number(p.latitude) !== 0
+            ? [Number(p.longitude), Number(p.latitude)]
+            : null,
+
+        // campaña activa que esperan algunos cálculos del radar
+        activeCampaign,
+
+        // compatibilidad total con motor B2B
+        b2b: activeCampaign
+          ? {
+              sharePct,
+              visibility: shareVisibility
+            }
+          : null,
+
+        // compatibilidad extra con helpers que leen raíz
+        sharePct,
+        shareVisibility
+      };
+    });
+
+    return { success: true, data: formattedProperties };
+  } catch (error) {
+    console.error("Error en getPropertiesBulkAction:", error);
+    return { success: false, error: "Error de carga masiva" };
+  }
+}

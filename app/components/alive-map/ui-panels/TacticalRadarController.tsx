@@ -28,7 +28,7 @@ import {
   getConversationMessagesAction,
   sendMessageAction,
   markConversationReadAction,
-
+getPropertiesBulkAction,
   // ✅ Abrir Details con snapshot completo
   getPropertyByIdAction,
 } from "@/app/actions";
@@ -45,7 +45,7 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
   // Chat Real
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [inputMsg, setInputMsg] = useState("");
-  const chatEndRef = useRef<HTMLDivElement>(null);
+ const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ✅ Estado “procesado” (SERVER TRUTH, ya no localStorage)
   const [processedIds, setProcessedIds] = useState<string[]>([]);
@@ -287,8 +287,10 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     );
   };
 
-// 🔥 MOTOR DE ENRIQUECIMIENTO (PRE-FETCH DE DATOS REALES) 🔥
+// // 🔥 MOTOR DE ENRIQUECIMIENTO (OPERACIÓN CARGUERO: 1 SOLO VIAJE) 🔥
   useEffect(() => {
+    let isActive = true;
+
     const enrichTargets = async () => {
       if (!targets || targets.length === 0) {
         setEnrichedTargets([]);
@@ -296,31 +298,44 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
       }
 
       setIsEnriching(true);
-      
-      const realDataArray = [];
 
-      for (const t of targets) {
-        const pid = String(t?.id || "").trim();
-        if (pid) {
-          try {
-            const res: any = await getPropertyByIdAction(pid);
-            if (res?.success && res?.data) {
-              realDataArray.push({ ...t, ...res.data });
-            } else {
-              realDataArray.push(t);
-            }
-          } catch (e) {
-            realDataArray.push(t);
-          }
+      // 1. Recogemos todos los IDs que ha detectado el mapa
+      const idsToFetch = targets.map((t: any) => String(t.id)).filter(Boolean);
+
+      try {
+        // 2. Mandamos un ÚNICO avión de carga a por toda la información de golpe
+        const res: any = await getPropertiesBulkAction(idsToFetch);
+
+        if (res?.success && res?.data && isActive) {
+          // 3. Cruzamos la información del mapa (lat/lng) con las fotos y badges de la base de datos
+          const dbDataMap = new Map(res.data.map((p: any) => [String(p.id), p]));
+          
+         const mergedTargets = targets.map((t: any) => {
+            const id = t && typeof t === 'object' && t.id ? String(t.id) : "";
+            const dbInfo = id ? (dbDataMap.get(id) || {}) : {};
+            
+            // 🛡️ VALIJA DIPLOMÁTICA: Usamos Object.assign en lugar de los tres puntos (...t). 
+            // TypeScript no puede bloquear esto y la fusión es perfecta.
+            return Object.assign({}, t, dbInfo);
+          });
+
+          setEnrichedTargets(mergedTargets);
+        } else if (isActive) {
+          setEnrichedTargets(targets); // Si algo falla, mostramos al menos la lista básica
         }
+      } catch (error) {
+        if (isActive) setEnrichedTargets(targets);
+      } finally {
+        if (isActive) setIsEnriching(false);
       }
-
-      setEnrichedTargets(realDataArray);
-      setIsEnriching(false);
     };
 
     enrichTargets();
-  }, [targets]); 
+
+    return () => {
+      isActive = false; // Cortafuegos si el usuario mueve el mapa rápido
+    };
+  }, [targets]);
 
   // --- 2. MEMORIA (SERVER) ---
   useEffect(() => {
@@ -819,19 +834,6 @@ export default function TacticalRadarController({ targets = [], onClose }: any) 
     });
   }, [enrichedTargets, roleFilter, meId]);
 
-// 👇 PEGAR AQUÍ EL PASO 1 (LA CALCULADORA) 👇
-  const getB2BData = (t: any) => {
-    const sharePercent = Number(t?.b2b?.sharePct ?? t?.campaign?.commissionSharePct ?? t?.campaigns?.[0]?.commissionSharePct ?? t?.sharePct ?? 0);
-    const numericPrice = Number(String(t?.price || "0").replace(/[^0-9]/g, ""));
-    const baseCommissionPct = Number(t?.activeCampaign?.commissionPct ?? t?.campaign?.commissionPct ?? t?.campaigns?.[0]?.commissionPct ?? t?.commissionPct ?? 3);
-    
-    const estimatedEarnings = numericPrice * (baseCommissionPct / 100) * (sharePercent / 100);
-    
-    return { 
-        sharePercent, 
-        formattedEarnings: new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(estimatedEarnings) 
-    };
-  };
 
   // --- RENDERIZADO ---
   return (
