@@ -4109,35 +4109,41 @@ export async function getMyReceivedLeadsAction() {
         const user = await getCurrentUser();
         if (!user) return { success: false, error: "No autorizado" };
 
-        // 1. RED DE ARRASTRE TÁCTICA (Con blindaje de logos B2B)
+        // 🛡️ 1. MURO CORTAFUEGOS LOPD (Búsqueda estricta en Base de Datos)
         const rawLeads = await prisma.lead.findMany({
             where: {
                 OR: [
+                    // A) Citas dirigidas EXPLÍCITAMENTE a esta agencia (Nadie más las ve)
                     { managerId: user.id },
-                    { property: { userId: user.id } },
-                    { property: { assignment: { is: { agencyId: user.id } } } },
-                    { property: { campaigns: { some: { agencyId: user.id } } } } // 🛡️ Permite ver citas previas a la firma
+                    
+                    // B) Leads ORGÁNICOS (sin agencia asignada) si soy el dueño de la casa
+                    {
+                        property: { userId: user.id },
+                        managerId: null 
+                    },
+                    
+                    // C) Leads ORGÁNICOS si soy la agencia con el mandato ACTIVO en este momento
+                    {
+                        property: { assignment: { agencyId: user.id, status: 'ACTIVE' } },
+                        managerId: null
+                    }
                 ]
             },
             include: {
                 property: {
                     include: {
                         images: true,
-                        // Traemos al dueño
                         user: { select: { id: true, name: true, surname: true, email: true, avatar: true, companyName: true, companyLogo: true, phone: true, role: true } },
-                        // Traemos a la agencia oficial
                         assignment: { 
                             select: { 
                                 agencyId: true, status: true, 
                                 agency: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } } 
                             } 
                         },
-                        // Traemos a las agencias en campaña
                         campaigns: { 
-                            take: 1,
                             orderBy: { createdAt: 'desc' },
                             select: { 
-                                agencyId: true, status: true, conversationId: true, commissionSharePct: true, commissionShareVisibility: true,
+                                id: true, agencyId: true, status: true, conversationId: true, commissionSharePct: true, commissionShareVisibility: true,
                                 agency: { select: { id: true, name: true, companyName: true, avatar: true, companyLogo: true, role: true } }
                             } 
                         }
@@ -4147,15 +4153,22 @@ export async function getMyReceivedLeadsAction() {
             orderBy: { createdAt: 'desc' }
         });
 
-        // 2. EL BISTURÍ DE JAVASCRIPT (Acción Bidireccional 100% Segura)
+        // 🛡️ 2. EL BISTURÍ DE DEFENSA (Bloqueo cruzado definitivo)
         const myRealLeads = rawLeads.filter((l: any) => {
+            // Si la cita es para MÍ, pasa.
             if (l.managerId === user.id) return true;
+            
+            // 🚨 EL BLOQUEO VITAL: Si la cita va dirigida a OTRA agencia (ej. Bernabéu), 
+            // Tecnocasa (o el dueño si no está invitado) NUNCA la ve. Cero cruce de datos.
+            if (l.managerId && l.managerId !== user.id) return false;
+
+            // Si es un lead orgánico (de la casa en general)
             if (l.property?.assignment?.status === 'ACTIVE' && l.property?.assignment?.agencyId === user.id) return true;
-            if (l.property?.campaigns?.length > 0 && l.property?.campaigns[0].agencyId === user.id) return true;
             if (l.property?.userId === user.id) return true;
+            
             return false;
         });
-
+        
      // 3. EMPAQUETADO PARA EL FRONTEND (Detector de Bandos Web Reforzado)
         const cleanLeads = myRealLeads.map((l: any) => {
             const p: any = l.property;
