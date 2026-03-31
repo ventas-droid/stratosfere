@@ -15,7 +15,8 @@ export default async function JoinPage({ searchParams }: any) {
 
   if (sponsorId) {
     try {
-        sponsorData = await db.user.findUnique({
+        // Buscamos al General y su mejor arma (la propiedad más cara que tenga compartida)
+        const sponsorRecord = await db.user.findUnique({
           where: { id: sponsorId },
           select: {
             id: true,
@@ -28,8 +29,27 @@ export default async function JoinPage({ searchParams }: any) {
             email: true,
             zone: true,
             licenseNumber: true,
+            // 🔥 LA INYECCIÓN TÁCTICA: Buscamos la propiedad gancho para el modal negro
+            properties: {
+                where: { shareVisibility: { in: ['PUBLIC', 'PÚBLICO', 'AGENCIES', 'AGENCIAS'] } },
+                take: 1, // Cogemos solo una
+                orderBy: { price: 'desc' }, // La más cara, para impactar con la comisión
+                select: {
+                    id: true, title: true, price: true, refCode: true, type: true,
+                    mainImage: true, city: true, sharePct: true, commissionPct: true
+                }
+            }
           }
         });
+
+        if (sponsorRecord) {
+            // Separamos la propiedad del resto de datos para no saturar al cliente
+            const { properties, ...rest } = sponsorRecord;
+            sponsorData = {
+                ...rest,
+                featuredProperty: properties?.length > 0 ? properties[0] : null
+            };
+        }
     } catch(error) {
         console.error("Error buscando al General:", error);
     }
