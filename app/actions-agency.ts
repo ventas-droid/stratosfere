@@ -8,7 +8,7 @@ export async function getAgencyAmbassadorsAction() {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "No autorizado" };
 
-    // 1. Buscamos a los que YO he invitado (Mis reclutas)
+   // 1. Buscamos a los que YO he invitado (Mis aliados)
     const recruits = await prisma.user.findMany({
       where: { recruitedById: user.id },
       select: {
@@ -18,10 +18,23 @@ export async function getAgencyAmbassadorsAction() {
         phone: true,
         avatar: true,
         companyName: true,
-        companyLogo: true, // Vital para ver el escudo de la otra agencia
+        companyLogo: true, 
         createdAt: true,
         ambassadorStats: true,
-        ambassadorProfile: true
+        ambassadorProfile: true,
+        // 🔥 INYECCIÓN B2B CORREGIDA: Nombres reales de la base de datos
+        properties: {
+          where: { 
+            shareVisibility: { in: ['PUBLIC', 'PÚBLICO', 'AGENCIES', 'AGENCIAS'] } 
+          },
+          select: {
+            id: true, title: true, price: true, refCode: true, type: true,
+            mainImage: true, latitude: true, longitude: true,
+            address: true, city: true, sharePct: true, shareVisibility: true,
+            rooms: true, baths: true, mBuilt: true,
+            commissionPct: true // 🔥 AÑADIDO: Necesitamos saber si firmó al 3%, 4% o 5%
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -41,18 +54,50 @@ export async function getAgencyAmbassadorsAction() {
                 companyLogo: true,
                 createdAt: true,
                 ambassadorStats: true,
-                ambassadorProfile: true
+                ambassadorProfile: true,
+                // 🔥 INYECCIÓN B2B CORREGIDA TAMBIÉN PARA EL COMANDANTE
+               properties: {
+          where: { 
+            shareVisibility: { in: ['PUBLIC', 'PÚBLICO', 'AGENCIES', 'AGENCIAS'] } 
+          },
+          select: {
+            id: true, title: true, price: true, refCode: true, type: true,
+            mainImage: true, latitude: true, longitude: true,
+            address: true, city: true, sharePct: true, shareVisibility: true,
+            rooms: true, baths: true, mBuilt: true,
+            commissionPct: true // 🔥 AÑADIDO: Necesitamos saber si firmó al 3%, 4% o 5%
+          }
+        }
             }
         });
         if (boss) {
-            // Le ponemos una marca de "COMANDANTE" para diferenciarlo si queremos, 
-            // pero irá en la misma lista
             commander = [boss];
         }
     }
 
-    // 🤝 UNIFICACIÓN RECÍPROCA: Devolvemos a ambos en la misma columna
-    return { success: true, data: [...commander, ...recruits] };
+    // 🤝 UNIFICACIÓN RECÍPROCA: Juntamos a ambos bandos
+    const allAllies = [...commander, ...recruits];
+
+    // 🎯 LA RULETA B2B: Procesamos la lista unificada
+    const processedAllies = allAllies.map(ally => {
+      let randomProperty = null;
+      if (ally.properties && ally.properties.length > 0) {
+        // Elegimos una propiedad al azar
+        const randomIndex = Math.floor(Math.random() * ally.properties.length);
+        randomProperty = ally.properties[randomIndex];
+      }
+      
+      // Borramos la lista completa de propiedades para que el panel no explote de datos
+      const { properties, ...allyData } = ally;
+      
+      return {
+        ...allyData,
+        featuredProperty: randomProperty // Solo enviamos la ganadora
+      };
+    });
+
+    // Devolvemos la columna recíproca intacta, ahora armada con la ruleta
+    return { success: true, data: processedAllies };
 
   } catch (e) {
     console.error("Error fetching ambassadors:", e);

@@ -4,7 +4,8 @@ import {
     Users, ShieldCheck, X, Search, Handshake,
     MessageSquare, Phone, MapPin, Trash2, Navigation, 
     Loader2, TrendingUp, Mail, Award, Clock, Crown,
-    Check, MessageCircle, Link as LinkIcon 
+    Check, MessageCircle, Link as LinkIcon, Coins, 
+    Building2, Heart, BedDouble, Bath, Maximize
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -442,14 +443,16 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                     </div>
                                 )}
 
-                             {/* 🔥 LISTA DE TROPAS MODIFICADA CON CHECKBOX Y TELÉFONO 🔥 */}
+                        {/* 🔥 LISTA DE ALIADOS MODIFICADA CON CHECKBOX Y NANO-CARD B2B 🔥 */}
                                 {filteredAmbassadors.map((soldier) => {
                                     const isSelected = selectedTroops.includes(soldier.id);
+                                    const property = soldier.featuredProperty; // 🎯 Capturamos la propiedad de la ruleta
+
                                     return (
                                         <div 
                                             key={soldier.id} 
                                             onClick={() => toggleTroop(soldier.id)}
-                                            className={`bg-white p-5 rounded-[28px] cursor-pointer shadow-[0_2px_20px_rgba(0,0,0,0.03)] border transition-all duration-300 group ${isSelected ? 'border-indigo-500 shadow-[0_10px_40px_rgba(79,70,229,0.15)] ring-1 ring-indigo-500' : 'border-slate-100 hover:border-indigo-200 hover:shadow-[0_10px_40px_rgba(79,70,229,0.08)] hover:-translate-y-1'}`}
+                                            className={`bg-white p-5 rounded-[28px] cursor-pointer shadow-[0_2px_20px_rgba(0,0,0,0.03)] border transition-all duration-300 group mb-4 ${isSelected ? 'border-indigo-500 shadow-[0_10px_40px_rgba(79,70,229,0.15)] ring-1 ring-indigo-500' : 'border-slate-100 hover:border-indigo-200 hover:shadow-[0_10px_40px_rgba(79,70,229,0.08)] hover:-translate-y-1'}`}
                                         >
                                             <div className="flex items-center gap-5">
                                             {/* CHECKBOX INDIVIDUAL */}
@@ -479,7 +482,7 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                             {soldier.email}
                                                         </p>
                                                         
-                                                        {/* 📱 CHIVATO DEL TELÉFONO (Si el soldado lo ha facilitado) */}
+                                                        {/* 📱 CHIVATO DEL TELÉFONO */}
                                                         {(soldier.phone || soldier.mobile) && (
                                                             <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shadow-sm shrink-0">
                                                                 <Phone size={10} strokeWidth={2.5} /> 
@@ -489,20 +492,137 @@ export default function AgencyAmbassadorPanel({ onClose }: { onClose: () => void
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                        <span className="bg-indigo-50 text-indigo-700 text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest border border-indigo-100/50">
-    {soldier.ambassadorStats?.rank || "NUEVO ALIADO"} 
-</span>
+                                                            {soldier.ambassadorStats?.rank || "NUEVO ALIADO"} 
+                                                        </span>
                                                         <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
                                                             <Award size={12}/> Score: {soldier.ambassadorStats?.score || "5.0"}
                                                         </span>
                                                     </div>
                                                 </div>
                                             </div>
+
+                                           {/* 🔥 LA FICHA TÁCTICA DE LA PROPIEDAD (LA QUE VUELA) 🔥 */}
+                                            {property && (
+                                                <div 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // 🛡️ Evita que se marque el checkbox del embajador
+                                                        
+                                                        const lng = parseFloat(String(property.longitude || 0));
+                                                        const lat = parseFloat(String(property.latitude || 0));
+                                                        const areCoordsValid = Number.isFinite(lng) && Number.isFinite(lat) && (Math.abs(lng) > 0.0001);
+
+                                                        let finalCoords = null;
+                                                        if (areCoordsValid) {
+                                                            finalCoords = (Math.abs(lng) > 30 && Math.abs(lat) < 20) ? [lat, lng] : [lng, lat];
+                                                        }
+
+                                                        const richPayload = {
+                                                            ...property,
+                                                            user: { 
+                                                                name: soldier.companyName || soldier.name, 
+                                                                companyLogo: soldier.companyLogo, 
+                                                                role: 'AGENCIA' 
+                                                            }
+                                                        };
+
+                                                        if (typeof window !== 'undefined') {
+                                                            window.dispatchEvent(new CustomEvent("select-property-signal", { detail: { id: String(property.id) } }));
+                                                            window.dispatchEvent(new CustomEvent('open-details-signal', { detail: richPayload }));
+                                                            
+                                                            if (finalCoords) {
+                                                                requestAnimationFrame(() => {
+                                                                    window.dispatchEvent(new CustomEvent('fly-to-location', { 
+                                                                        detail: { center: finalCoords, zoom: 18.5, pitch: 60, duration: 1500 } 
+                                                                    }));
+                                                                });
+                                                            }
+                                                        }
+                                                    }} 
+                                                    className="mt-5 bg-[#f8f9fa] border border-slate-200 rounded-[24px] flex flex-col md:flex-row min-h-[150px] cursor-pointer hover:border-amber-300 hover:shadow-xl transition-all duration-300 group/prop overflow-hidden relative"
+                                                >
+                                                    {/* FOTO IZQUIERDA */}
+                                                    <div className="w-full md:w-[150px] h-[150px] md:h-auto relative shrink-0 overflow-hidden bg-slate-200 border-r border-slate-200">
+                                                        <img 
+                                                            src={property.mainImage || "/placeholder.jpg"} 
+                                                            alt={property.title} 
+                                                            className="w-full h-full object-cover group-hover/prop:scale-110 transition-transform duration-700" 
+                                                        />
+                                                        {/* BADGE TIPO */}
+                                                        <div className="absolute top-3 left-3 bg-white px-2 py-1 rounded-[8px] flex items-center gap-1.5 shadow-sm">
+                                                            <Building2 size={12} className="text-indigo-600"/>
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">{property.type || "PISO"}</span>
+                                                        </div>
+                                                        {/* BADGE CORAZÓN */}
+                                                        <div className="absolute bottom-3 left-3 w-8 h-8 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
+                                                            <Heart size={14} className="text-white"/>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* DATOS DERECHA */}
+                                                    <div className="flex-1 min-w-0 flex flex-col justify-between bg-gradient-to-r from-transparent to-slate-50/50">
+                                                        <div className="p-4 pb-2 flex justify-between items-start gap-4">
+                                                            <div className="min-w-0">
+                                                                <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase mb-1 truncate">
+                                                                    {property.refCode || "REF. PENDIENTE"}
+                                                                </p>
+                                                                <h4 className="font-extrabold text-base text-slate-900 leading-tight truncate">
+                                                                    {property.title || "Propiedad Confidencial"}
+                                                                </h4>
+                                                                <div className="font-black text-[22px] tracking-tight text-slate-900 mt-1">
+                                                                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(property.price || 0)}
+                                                                </div>
+                                                                <p className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 mt-1.5 truncate">
+                                                                    <Navigation size={12} className="shrink-0"/> {property.address || property.city || "Ubicación Privada"}
+                                                                </p>
+                                                            </div>
+
+                                                            {/* 🔥 GANCHO B2B (Mano dorada) OPUESTO A LA FOTO 🔥 */}
+                                                            {Number(property.sharePct) > 0 && (
+                                                                <div className="shrink-0 flex flex-col items-center bg-white border border-amber-200 rounded-2xl p-2.5 shadow-[0_4px_15px_rgba(245,158,11,0.15)] group-hover/prop:border-amber-400 transition-all duration-300 group-hover/prop:-translate-y-1">
+                                                                    <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-500 rounded-full flex items-center justify-center text-white mb-1 shadow-inner">
+                                                                        <Handshake size={20} strokeWidth={2.5} />
+                                                                    </div>
+                                                                    <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest mt-1">Tu Comisión</span>
+                                                                    <span className="font-black text-amber-600 text-base leading-none mt-0.5">{property.sharePct}%</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {/* ICONOS BOTTOM */}
+                                                        <div className="px-4 pb-4 flex items-center gap-5 text-slate-500 mt-2">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <BedDouble size={14} strokeWidth={2}/>
+                                                                <span className="text-sm font-bold text-slate-700">{property.rooms || "-"}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Bath size={14} strokeWidth={2}/>
+                                                                <span className="text-sm font-bold text-slate-700">{property.baths || "-"}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Maximize size={14} strokeWidth={2}/>
+                                                                <span className="text-sm font-bold text-slate-700">{property.mBuilt || "-"} <span className="text-[10px]">m²</span></span>
+                                                            </div>
+                                                        </div>
+
+                                                   {/* 🔥 EL BANNER INFERIOR "QUIERO PULSAR" 🔥 */}
+                                                        {Number(property.sharePct) > 0 && (
+                                                            <div className="bg-slate-900 px-4 py-2.5 flex items-center justify-between group-hover/prop:bg-slate-950 transition-colors w-full border-t border-slate-800">
+                                                                <span className="text-xs font-black text-amber-400 tracking-widest uppercase flex items-center gap-2 group-hover/prop:translate-x-1 transition-transform">
+                                                                    ¡Cierra este acuerdo!
+                                                                </span>
+                                                                <span className="text-sm font-black text-white bg-white/10 px-2 py-0.5 rounded-md border border-white/10">
+                                                                    + {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(((Number(property.price || 0) * Number(property.commissionPct || 3)) / 100) * (Number(property.sharePct || 0) / 100))}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
                             </div>
                         )}
-
                         {/* ============================================================== */}
                         {/* 📡 VISTA DE LEADS (BUZÓN DE TRANSMISIONES) -> INTACTO DEL ORIGINAL */}
                         {/* ============================================================== */}
