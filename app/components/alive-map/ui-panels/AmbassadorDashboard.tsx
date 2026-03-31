@@ -151,12 +151,29 @@ export default function AmbassadorDashboard() {
         return result;
     }, [properties, searchTerm, selectedZone, sortOrder]);
 
-    // 💰 CÁLCULO DE LA BOLSA B2B TOTAL (Suma de todas las comisiones compartidas)
-    const totalBolsaB2B = useMemo(() => {
-        return properties.reduce((total, prop) => {
-            const amount = Number(prop.commission || prop.b2b?.shareEstimatedEur || 0);
-            return total + amount;
-        }, 0);
+   // 💰 CÁLCULO DE LA TRIPLE BÓVEDA B2B (El motor definitivo)
+    const { volumenEnRed, totalMisHonorarios, totalRecompensaB2B } = useMemo(() => {
+        let volumen = 0;
+        let misHonorarios = 0;
+        let recompensa = 0;
+
+        properties.forEach(prop => {
+            // 1. Volumen Global (La Bolsa General en Red)
+            volumen += Number(prop.commission || prop.b2b?.shareEstimatedEur || 0);
+
+            // 2. Mis Honorarios Totales
+            const miComisionRaw = Number(prop.commission || ((Number(prop.price || 0) * Number(prop.commissionPct || 3)) / 100));
+            misHonorarios += miComisionRaw;
+
+            // 3. Lo que comparto a la red (Bolsa Compartida)
+            const sharePct = Number(prop.b2b?.sharePct || prop.sharePct || 0);
+            if (sharePct > 0) {
+                const dineroCompartido = miComisionRaw * (sharePct / 100);
+                recompensa += dineroCompartido;
+            }
+        });
+
+        return { volumenEnRed: volumen, totalMisHonorarios: misHonorarios, totalRecompensaB2B: recompensa };
     }, [properties]);
 
     // 📋 COPIAR LINK
@@ -196,9 +213,9 @@ export default function AmbassadorDashboard() {
         <div className="h-screen bg-[#F5F5F7] flex flex-col font-sans text-slate-900 overflow-hidden">
             <Toaster position="bottom-center" richColors theme="light" />
 
-           {/* --- CABECERA FLOTANTE (ESTILO GLASS PREMIUM) --- */}
-            <div className="sticky top-4 z-30 px-4 md:px-8 pointer-events-none">
-                <header className="max-w-7xl mx-auto bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[28px] px-4 py-3 flex items-center justify-between pointer-events-auto">
+          {/* --- CABECERA FLOTANTE (ESTILO GLASS PREMIUM) --- */}
+            <div className="sticky top-4 z-[9999] px-4 md:px-8 pointer-events-none">
+                <header className="relative z-[9999] max-w-7xl mx-auto bg-white/70 backdrop-blur-2xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[28px] px-4 py-3 flex items-center justify-between pointer-events-auto">
                     
                     {/* IZQUIERDA: Back + Logo */}
                     <div className="flex items-center gap-4">
@@ -210,41 +227,97 @@ export default function AmbassadorDashboard() {
                         </div>
                     </div>
                     
-                    {/* DERECHA: Controles y Rango */}
+                {/* DERECHA: Controles y Rango */}
                     <div className="flex items-center gap-4">
-                        {/* 🛡️ Centro de Control Unificado */}
-                        <div className="flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
+                        
+                        {/* 🛡️ Centro de Control Unificado (SOLO BUZÓN B2B) */}
+                        <div className="flex items-center bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
                             <button 
                                 onClick={() => { setProfileStartTab("INBOX"); setView("PROFILE"); }} 
-                                className="relative p-2.5 rounded-xl hover:bg-white hover:shadow-sm transition-all text-slate-500 hover:text-indigo-600 group"
-                                title="Buzón de Mensajes"
+                                className="relative flex items-center gap-2.5 px-4 py-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-slate-700 font-black text-[10px] uppercase tracking-widest group"
+                                title="Buzón B2B"
                             >
-                                <Inbox size={18} className="group-hover:scale-110 transition-transform" />
-                                {hasUnread && (
-                                    <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span>
-                                    </span>
-                                )}
-                            </button>
-                            
-                            <div className="w-px h-5 bg-slate-200 mx-1"></div>
-                            
-                            <button 
-                                onClick={() => { setProfileStartTab("PROFILE"); setView("PROFILE"); }} 
-                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white hover:shadow-sm transition-all text-slate-700 font-black text-[10px] uppercase tracking-widest group"
-                            >
-                                <User size={16} className="text-slate-400 group-hover:text-slate-900 transition-colors" />
-                                <span className="hidden sm:inline">Mi Ficha</span>
+                                <div className="relative">
+                                    <Inbox size={16} className="text-slate-500 group-hover:text-blue-600 transition-colors" />
+                                    {hasUnread && (
+                                        <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span>
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="hidden sm:inline">Buzón B2B</span>
                             </button>
                         </div>
 
-                        {/* 🏅 Rango Táctico */}
-                        <div className="hidden sm:flex items-center gap-3 bg-slate-900 text-white pl-4 pr-2 py-1.5 rounded-full shadow-lg shadow-slate-300/50">
-                            <span className="text-[10px] font-black tracking-widest uppercase text-emerald-400">{stats.rank}</span>
-                            <div className="bg-white/20 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider flex items-center gap-1">
-                                <Star size={10} className="text-amber-400 fill-amber-400"/>
-                                {stats.score}/10
+                      {/* 🏅 Pegatina Dinámica de Estatus con Tabla de Valor */}
+                        <div className="hidden sm:flex items-center gap-3 bg-slate-900 text-white pl-4 pr-2 py-1.5 rounded-full shadow-lg shadow-slate-300/50 relative group cursor-help transition-transform hover:scale-105 z-50 border border-slate-800">
+                            
+                            {/* 🔥 EL RADAR QUE DETECTA SU ESTATUS REAL 🔥 */}
+                            {(() => {
+                                const rank = String(stats.rank || "FREE TRIAL").toUpperCase();
+                                
+                                if (rank.includes("VANGUARD") || rank.includes("VIP")) {
+                                    return <span className="text-[10px] font-black tracking-widest uppercase text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]">Vanguard VIP</span>;
+                                }
+                                if (rank.includes("PRO") || rank.includes("CERTIFICADO") || rank.includes("PARTNER")) {
+                                    return <span className="text-[10px] font-black tracking-widest uppercase text-blue-400">Pro Certificado</span>;
+                                }
+                                // Por defecto
+                                return <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">Free Trial</span>;
+                            })()}
+
+                            <div className="bg-white/10 px-2.5 py-1 rounded-full text-[10px] font-black tracking-wider flex items-center gap-1">
+                                <ShieldCheck size={12} className="text-slate-300"/>
+                                B2B
+                            </div>
+
+                            {/* 🔻 LA TABLA CORPORATIVA DE MEMBRESÍAS 🔻 */}
+                            <div className="absolute top-full right-0 mt-3 w-80 bg-slate-900 border border-slate-700 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.6)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-right scale-95 group-hover:scale-100 p-5 overflow-hidden">
+                                {/* Efecto de luz de fondo corporativo */}
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/10 blur-3xl rounded-full pointer-events-none"></div>
+                                
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-700 pb-3 mb-4 flex items-center gap-2 relative z-10">
+                                    <ShieldCheck size={14} className="text-blue-400"/> Membresías Stratosfere
+                                </h4>
+                                
+                                <div className="space-y-5 relative z-10">
+                                    
+                                    {/* ETIQUETA 1: FREE TRIAL */}
+                                    <div className="flex items-start gap-3">
+                                        <div className="bg-slate-800 text-slate-400 px-2 py-1.5 rounded-lg text-[9px] font-black w-16 text-center border border-slate-700 shadow-inner shrink-0">BÁSICO</div>
+                                        <div>
+                                            <p className="text-xs font-black text-slate-300 uppercase tracking-wider mb-0.5">Free Trial</p>
+                                            <p className="text-[10px] text-slate-500 leading-tight">Acceso de prueba limitado. Funciones B2B restringidas a visualización.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* ETIQUETA 2: PRO CERTIFICADO */}
+                                    <div className="flex items-start gap-3">
+                                        <div className="bg-blue-900/30 text-blue-400 px-2 py-1.5 rounded-lg text-[9px] font-black w-16 text-center border border-blue-800 shadow-inner shrink-0">OFICIAL</div>
+                                        <div>
+                                            <p className="text-xs font-black text-blue-400 uppercase tracking-wider mb-0.5 flex items-center gap-1">Pro Certificado <BadgeCheck size={12}/></p>
+                                            <p className="text-[10px] text-slate-400 leading-tight">Agente verificado. Colaboración total, enlaces marca blanca y demandas ilimitadas.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* ETIQUETA 3: VANGUARD VIP AGENCY */}
+                                    <div className="flex items-start gap-3">
+                                        <div className="bg-gradient-to-br from-amber-400 to-amber-600 text-amber-950 px-2 py-1.5 rounded-lg text-[9px] font-black w-16 text-center border border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.3)] shrink-0">EL 1%</div>
+                                        <div>
+                                            <p className="text-xs font-black text-amber-400 uppercase tracking-wider mb-0.5 flex items-center gap-1">Vanguard VIP <Star size={10} className="fill-amber-400"/></p>
+                                            <p className="text-[10px] text-slate-400 leading-tight">El máximo estatus. Operaciones Off-Market, prioridad en algoritmos y soporte 24/7.</p>
+                                        </div>
+                                    </div>
+
+                                </div>
+                                
+                                {/* Call to action sutil */}
+                                <div className="mt-5 pt-3 border-t border-slate-700 bg-slate-800/30 -mx-5 -mb-5 p-4 text-center backdrop-blur-sm">
+                                    <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest flex items-center justify-center gap-1.5">
+                                        <Zap size={10}/> Desbloquea todo el potencial
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -263,8 +336,7 @@ export default function AmbassadorDashboard() {
                         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px] pointer-events-none"></div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 relative z-10">
-                            
-                            {/* 💰 ZONA CARTERA (Izquierda) */}
+                        {/* 💰 ZONA CARTERA (Izquierda) */}
                             <div className="lg:col-span-2 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[28px] p-8 flex flex-col justify-between min-h-[240px]">
                                 <div className="flex justify-between items-start mb-8">
                                     <div className="flex items-center gap-3 text-white/60">
@@ -273,78 +345,70 @@ export default function AmbassadorDashboard() {
                                         </div>
                                         <div>
                                             <span className="text-[10px] font-black uppercase tracking-widest block text-white">Bóveda B2B</span>
-                                            <span className="text-xs font-medium">Balance Operativo</span>
+                                            <span className="text-xs font-medium">Radar de Honorarios</span>
                                         </div>
                                     </div>
-                                    <button className="bg-white/10 hover:bg-white text-white hover:text-black border border-white/20 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 group">
-                                        Retirar Fondos <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"/>
-                                    </button>
+                                    {/* ❌ Botón Retirar Fondos Eliminado */}
                                 </div>
                                 
-                              <div className="flex flex-col sm:flex-row gap-6 sm:gap-10 items-start sm:items-end">
-                                    {/* 1. EL GRAN MARCADOR: VOLUMEN COMPARTIDO A LA RED */}
+                                <div className="flex flex-col sm:flex-row gap-6 sm:gap-10 items-start sm:items-end">
+                                    {/* 1. VOLUMEN EN RED (TODA LA COMISIÓN COMPARTIDA DE TODOS) */}
                                     <div>
                                         <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                            <Handshake size={12} className="text-amber-400"/> Volumen en Red
+                                            <ShieldCheck size={12} className="text-white/40"/> Volumen en Red
                                         </p>
                                         <p className="text-4xl md:text-5xl font-black tracking-tighter text-white drop-shadow-md leading-none">
-                                            {formatMoney(totalBolsaB2B)}
+                                            {formatMoney(stats.volumenEnRed)}
                                         </p>
                                     </div>
                                     
-                                    {/* 2. TUS INGRESOS DISPONIBLES */}
+                                    {/* 2. MIS HONORARIOS (LA SUMA DE TU CARTERA PRIVADA) */}
                                     <div className="sm:border-l sm:border-white/10 sm:pl-6">
-                                        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2">
-                                            Tus Ingresos
+                                        <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <Briefcase size={12} className="text-blue-400"/> Mis Honorarios
                                         </p>
                                         <p className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">
-                                            {formatMoney(stats.availablePayout)}
+                                            {formatMoney(stats.totalMisHonorarios)}
                                         </p>
                                     </div>
 
-                                    {/* 3. DINERO EN PROCESO */}
+                                    {/* 3. BOLSA COMPARTIDA (LO QUE TÚ OFRECES AL RESTO) */}
                                     <div className="sm:border-l sm:border-white/10 sm:pl-6">
                                         <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                            En Proceso <Loader2 size={10} className="animate-spin text-emerald-400"/>
+                                            <Handshake size={12} className="text-amber-400"/> Bolsa Compartida
                                         </p>
-                                        <p className="text-2xl md:text-3xl font-black text-emerald-400 tracking-tight leading-none">
-                                            {formatMoney(stats.pendingPayout)}
+                                        <p className="text-2xl md:text-3xl font-black text-amber-400 tracking-tight leading-none">
+                                            {formatMoney(stats.bolsaCompartida)}
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* 📊 ZONA ESTADÍSTICAS (Derecha) */}
-                            <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[28px] p-6 flex flex-col gap-3">
-                                <div className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 transition-colors rounded-2xl border border-white/5 group cursor-default">
+                          {/* 📊 ZONA ESTADÍSTICAS (Derecha) */}
+                            <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[28px] p-6 flex flex-col gap-4">
+                                
+                                {/* 🖱️ TRÁFICO */}
+                                <div className="flex-1 flex items-center justify-between p-5 bg-white/5 hover:bg-white/10 transition-colors rounded-2xl border border-white/5 group cursor-default">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-slate-700 transition-colors">
-                                            <MousePointerClick size={18} className="text-slate-400 group-hover:text-white transition-colors"/>
+                                        <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-slate-700 transition-colors">
+                                            <MousePointerClick size={20} className="text-slate-400 group-hover:text-white transition-colors"/>
                                         </div>
-                                        <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">Tráfico</span>
+                                        <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Tráfico</span>
                                     </div>
-                                    <span className="font-black text-2xl text-white">{stats.totalClicks}</span>
+                                    <span className="font-black text-3xl text-white">{stats.totalClicks}</span>
                                 </div>
                                 
-                                <div className="flex items-center justify-between p-4 bg-blue-500/10 hover:bg-blue-500/20 transition-colors rounded-2xl border border-blue-500/20 group cursor-default">
+                                {/* 👥 LEADS */}
+                                <div className="flex-1 flex items-center justify-between p-5 bg-blue-500/10 hover:bg-blue-500/20 transition-colors rounded-2xl border border-blue-500/20 group cursor-default">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-blue-900/50 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-blue-800 transition-colors">
-                                            <Users size={18} className="text-blue-400 group-hover:text-blue-300 transition-colors"/>
+                                        <div className="w-12 h-12 bg-blue-900/50 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-blue-800 transition-colors">
+                                            <Users size={20} className="text-blue-400 group-hover:text-blue-300 transition-colors"/>
                                         </div>
-                                        <span className="text-[11px] font-black text-blue-200 uppercase tracking-widest">Leads</span>
+                                        <span className="text-xs font-black text-blue-200 uppercase tracking-widest">Leads</span>
                                     </div>
-                                    <span className="font-black text-2xl text-blue-400">{stats.totalLeads}</span>
+                                    <span className="font-black text-3xl text-blue-400">{stats.totalLeads}</span>
                                 </div>
-                                
-                                <div className="flex items-center justify-between p-4 bg-amber-500/10 hover:bg-amber-500/20 transition-colors rounded-2xl border border-amber-500/20 group cursor-default flex-1">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-amber-900/50 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-amber-800 transition-colors">
-                                            <Zap size={18} className="text-amber-400 group-hover:text-amber-300 transition-colors"/>
-                                        </div>
-                                        <span className="text-[11px] font-black text-amber-200 uppercase tracking-widest">Conversiones</span>
-                                    </div>
-                                    <span className="font-black text-2xl text-amber-400">{stats.totalSales}</span>
-                                </div>
+
                             </div>
                         </div>
                     </div>

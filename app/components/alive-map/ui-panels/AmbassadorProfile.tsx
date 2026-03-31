@@ -57,7 +57,7 @@ export default function AmbassadorProfile({ onBack, initialTab = "PROFILE" }: { 
     return (
         <div className="h-screen bg-[#F5F5F7] flex flex-col font-sans text-slate-900 overflow-hidden">
             
-            {/* CABECERA */}
+          {/* CABECERA TÁCTICA DEL BUZÓN */}
             <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex-shrink-0 z-20">
                 <div className="max-w-4xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -65,11 +65,11 @@ export default function AmbassadorProfile({ onBack, initialTab = "PROFILE" }: { 
                             <ArrowLeft size={18} className="text-slate-700 group-hover:-translate-x-0.5 transition-transform"/>
                         </button>
                         <div>
-                            <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase">
-                                Torre de Control
+                            <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase flex items-center gap-2">
+                                <Inbox size={22} className="text-blue-600" /> Buzón B2B
                             </h1>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                Perfil & Operaciones
+                                Centro de Operaciones
                             </p>
                         </div>
                     </div>
@@ -79,23 +79,8 @@ export default function AmbassadorProfile({ onBack, initialTab = "PROFILE" }: { 
             {/* CONTENIDO PRINCIPAL */}
             <main className="flex-grow overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="max-w-3xl mx-auto space-y-6 pb-20">
-
-                    {/* INTERRUPTOR TÁCTICO */}
-                    <div className="bg-slate-200/70 p-1.5 rounded-2xl inline-flex shadow-inner w-full md:w-auto">
-                        <button 
-                            onClick={() => setActiveTab("PROFILE")}
-                            className={`flex-1 md:px-8 py-2.5 rounded-xl text-sm font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2 ${activeTab === "PROFILE" ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <User size={16}/> Mi Ficha
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab("INBOX")}
-                            className={`flex-1 md:px-8 py-2.5 rounded-xl text-sm font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2 relative ${activeTab === "INBOX" ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <Inbox size={16}/> Buzón B2B
-                            {proposals.length > 0 && <span className="absolute top-2 right-2 md:relative md:top-auto md:right-auto w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>}
-                        </button>
-                    </div>
+                    
+                    {/* ❌ EL INTERRUPTOR TÁCTICO HA SIDO ELIMINADO PARA IR DIRECTO AL GRANO ❌ */}
 
                     {/* ========================================================= */}
                     {/* VISTA 1: MI FICHA (FORMULARIO OFICIAL RECUPERADO) */}
