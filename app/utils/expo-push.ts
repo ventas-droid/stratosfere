@@ -19,14 +19,14 @@ export async function sendExpoPushToUserId(
       method: "POST",
       headers: {
         Accept: "application/json",
-        "Accept-encoding": "application/json",
+        // 🧹 Eliminado el Accept-encoding raro por orden del recluta
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         to: user.expoPushToken,
-        sound: "default",             // 🔊 HABILITA EL "CLIN CLIN"
-        priority: "high",             // 🔥 HABILITA LA VIBRACIÓN Y BAJA LA VENTANA
-        channelId: "canal-tactico-1", // 🎯 APUNTA AL CANAL NUEVO QUE CREAMOS EN EL MÓVIL
+        sound: "default",
+        priority: "high",
+        channelId: "canal-tactico-2", // 👈 APUNTANDO AL NUEVO CANAL CON SONIDO
         title: payload.title,
         body: payload.body,
         data: payload.data || {},
