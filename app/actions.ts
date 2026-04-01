@@ -1,5 +1,5 @@
 "use server";
-
+import { sendExpoPushToUserId } from "@/app/utils/expo-push";
 import { revalidatePath } from 'next/cache';
 import { prisma } from './lib/prisma'; 
 import { cookies, headers } from "next/headers";
@@ -1889,36 +1889,13 @@ export async function sendMessageAction(a: any, b?: any) {
           await pusherServer.trigger(`user-${receiverParticipant.userId}`, 'new-message', payload);
           console.log(`🌍 [PUSHER] ¡Busca disparado al usuario: ${receiverParticipant.userId}!`);
 
-          // 🔥 3. MISIL BALÍSTICO EXPO PUSH (App cerrada / Background) 🔥
-          try {
-            const receiverUser = await prisma.user.findUnique({
-              where: { id: receiverParticipant.userId },
-              select: { expoPushToken: true }
-            });
-
-            if (receiverUser?.expoPushToken) {
-              const senderName = me.companyName || me.name || 'Stratosfere';
-              
-              await fetch('https://exp.host/--/api/v2/push/send', {
-                method: 'POST',
-                headers: {
-                  Accept: 'application/json',
-                  'Accept-encoding': 'application/json',
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  to: receiverUser.expoPushToken,
-                  sound: 'default',
-                  title: senderName,
-                  body: text,
-                  data: { conversationId: conversationId }, 
-                }),
-              });
-              console.log(`🚀 [EXPO PUSH] Impacto confirmado en el móvil de ${receiverParticipant.userId}`);
-            }
-          } catch (expoError) {
-            console.error("⚠️ Error disparando misil Expo:", expoError);
-          }
+       // 🔥 3. MISIL BALÍSTICO EXPO PUSH (App cerrada / Background) 🔥
+          const senderName = me.companyName || me.name || 'Stratosfere';
+          await sendExpoPushToUserId(receiverParticipant.userId, {
+              title: senderName,
+              body: text,
+              data: { conversationId: conversationId }
+          });
         }
       }
 
@@ -3912,88 +3889,99 @@ export async function submitLeadAction(data: {
             } 
         });
 
-     // 🔥🔥🔥 GATILLO PUSHER: ENRUTAMIENTO INTELIGENTE B2B 🔥🔥🔥
-       try {
-        // 1. Verificamos si el puente de la agencia está activo
-        const activeAssignment = newLead.property?.assignment;
-        const isAgencyActive = activeAssignment?.status === 'ACTIVE';
-        
-        // 2. DECISIÓN DE MANDO: Si hay agencia activa, el lead va a la agencia. Si no, al dueño.
-        const targetUserId = isAgencyActive 
-            ? activeAssignment?.agencyId 
-            : newLead.property?.userId;
+     // 🔥🔥🔥 GATILLO PUSHER, EXPO PUSH Y EMAIL: ENRUTAMIENTO INTELIGENTE B2B 🔥🔥🔥
+        try {
+            // 1. Verificamos si el puente de la agencia está activo
+            const activeAssignment = newLead.property?.assignment;
+            const isAgencyActive = activeAssignment?.status === 'ACTIVE';
             
-        const ownerId = String(targetUserId || "");
+            // 2. DECISIÓN DE MANDO: Target unificado
+            const targetUserId = isAgencyActive 
+                ? activeAssignment?.agencyId 
+                : newLead.property?.userId;
+                
+            const targetEmail = isAgencyActive 
+                ? activeAssignment?.agency?.email 
+                : newLead.property?.user?.email;
 
-        console.log("🧪 [LEAD] ownerId FINAL calculado =", ownerId, isAgencyActive ? "(AGENCIA)" : "(PARTICULAR)");
+            const ownerId = String(targetUserId || "");
 
-        if (ownerId) {
-            const paqueteLigero = {
-                id: newLead.id,
-                status: "NEW",
-                name: newLead.name,
-                email: newLead.email,
-                phone: newLead.phone,
-                message: newLead.message,
-                property: {
-                    refCode: newLead.property?.refCode || "REF",
-                    title: newLead.property?.title || "Propiedad",
-                },
-            };
+            console.log("🧪 [LEAD] ownerId FINAL calculado =", ownerId, isAgencyActive ? "(AGENCIA)" : "(PARTICULAR)");
 
-            console.log("🧪 [LEAD] enviando Pusher a canal =", `user-${ownerId}`);
-            await pusherServer.trigger(`user-${ownerId}`, "new-lead", paqueteLigero);
-            console.log("✅ [LEAD] Pusher new-lead disparado OK a", `user-${ownerId}`);
-        } else {
-            console.log("❌ [LEAD] NO hay ownerId, no se dispara Pusher");
-        }
-    } catch (pusherError) {
-        console.error("⚠️ Error disparando Pusher de Leads:", pusherError);
-    }
-       
-// 3. 🔥 ENVIAR EMAIL AL AGENTE (USANDO SU PATRÓN LOCAL)
-        const agentEmail = newLead.property.user?.email;
-        const resendApiKey = process.env.RESEND_API_KEY;
-        
-        if (agentEmail && resendApiKey) {
-            try {
-                // 🛡️ Carga Dinámica Segura (Igual que en Open House)
-                const { Resend } = require('resend');
-                const resend = new Resend(resendApiKey);
+            if (ownerId) {
+                const paqueteLigero = {
+                    id: newLead.id,
+                    status: "NEW",
+                    name: newLead.name,
+                    email: newLead.email,
+                    phone: newLead.phone,
+                    message: newLead.message,
+                    property: {
+                        refCode: newLead.property?.refCode || "REF",
+                        title: newLead.property?.title || "Propiedad",
+                    },
+                };
 
-                await resend.emails.send({
-                    from: 'Stratosfere <info@stratosfere.com>',
-                    to: [agentEmail],
-                    reply_to: data.email, // Para responder directo al cliente
-                    subject: `🔥 Nuevo Lead: ${newLead.property.title}`,
-                    html: `
-                        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-                            <h2 style="color: #111;">¡Tienes un nuevo interesado!</h2>
-                            <p style="color: #666;">Han contactado a través del formulario de Stratosfere.</p>
-                            
-                            <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                                <p style="margin: 5px 0;">🏠 <strong>Ref:</strong> ${newLead.property.refCode}</p>
-                                <p style="margin: 5px 0;">👤 <strong>Nombre:</strong> ${data.name}</p>
-                                <p style="margin: 5px 0;">📞 <strong>Teléfono:</strong> <a href="tel:${data.phone}">${data.phone}</a></p>
-                                <p style="margin: 5px 0;">✉️ <strong>Email:</strong> ${data.email}</p>
-                            </div>
+                // 📡 A. DISPARO PUSHER (App Abierta)
+                console.log("🧪 [LEAD] enviando Pusher a canal =", `user-${ownerId}`);
+                await pusherServer.trigger(`user-${ownerId}`, "new-lead", paqueteLigero);
+                console.log("✅ [LEAD] Pusher new-lead disparado OK a", `user-${ownerId}`);
 
-                            <p><strong>Mensaje:</strong></p>
-                            <blockquote style="border-left: 4px solid #000; padding-left: 15px; font-style: italic; color: #555;">
-                                "${data.message}"
-                            </blockquote>
-
-                            ${ambassadorId ? `<p style="color: blue; font-size: 12px; margin-top: 20px;">🎖️ Lead traído por Embajador ID: ${ambassadorId}</p>` : ''}
-                            
-                            <div style="margin-top: 30px;">
-                                <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Ir al Panel</a>
-                            </div>
-                        </div>
-                    `
+                // 🚀 B. DISPARO EXPO PUSH (App Cerrada / Background)
+                await sendExpoPushToUserId(ownerId, {
+                    title: "🔥 ¡Nuevo Lead Recibido!",
+                    body: `${newLead.name} está interesado en la propiedad ${paqueteLigero.property.refCode}.`,
+                    data: { type: 'new_lead', leadId: newLead.id, propertyId: newLead.propertyId }
                 });
-            } catch (mailError) {
-                console.error("⚠️ Error enviando email lead (pero se guardó en DB):", mailError);
+            } else {
+                console.log("❌ [LEAD] NO hay ownerId, no se dispara Pusher ni Expo Push");
             }
+            
+            // 📧 C. ENVIAR EMAIL AL TARGET CORRECTO (Agencia o Propietario)
+            const resendApiKey = process.env.RESEND_API_KEY;
+            
+            if (targetEmail && resendApiKey) {
+                try {
+                    const { Resend } = require('resend');
+                    const resend = new Resend(resendApiKey);
+
+                    await resend.emails.send({
+                        from: 'Stratosfere <info@stratosfere.com>',
+                        to: [targetEmail], // 🎯 AHORA VA AL OBJETIVO CORRECTO
+                        reply_to: data.email,
+                        subject: `🔥 Nuevo Lead: ${newLead.property?.title || 'Propiedad'}`,
+                        html: `
+                            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                                <h2 style="color: #111;">¡Tienes un nuevo interesado!</h2>
+                                <p style="color: #666;">Han contactado a través del formulario de Stratosfere.</p>
+                                
+                                <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                                    <p style="margin: 5px 0;">🏠 <strong>Ref:</strong> ${newLead.property?.refCode || 'N/A'}</p>
+                                    <p style="margin: 5px 0;">👤 <strong>Nombre:</strong> ${data.name}</p>
+                                    <p style="margin: 5px 0;">📞 <strong>Teléfono:</strong> <a href="tel:${data.phone}">${data.phone}</a></p>
+                                    <p style="margin: 5px 0;">✉️ <strong>Email:</strong> ${data.email}</p>
+                                </div>
+
+                                <p><strong>Mensaje:</strong></p>
+                                <blockquote style="border-left: 4px solid #000; padding-left: 15px; font-style: italic; color: #555;">
+                                    "${data.message}"
+                                </blockquote>
+
+                                ${ambassadorId ? `<p style="color: blue; font-size: 12px; margin-top: 20px;">🎖️ Lead traído por Embajador ID: ${ambassadorId}</p>` : ''}
+                                
+                                <div style="margin-top: 30px;">
+                                    <a href="https://stratosfere.com/dashboard" style="background: #000; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Ir al Panel</a>
+                                </div>
+                            </div>
+                        `
+                    });
+                    console.log(`✅ [EMAIL] Correo de lead enviado a: ${targetEmail}`);
+                } catch (mailError) {
+                    console.error("⚠️ Error enviando email lead (pero se guardó en DB):", mailError);
+                }
+            }
+        } catch (routingError) {
+            console.error("⚠️ Error general en el enrutamiento de notificaciones:", routingError);
         }
 
         // 4. PUNTOS AL EMBAJADOR
@@ -4594,3 +4582,4 @@ export async function getPropertiesBulkAction(ids: string[]) {
     return { success: false, error: "Error de carga masiva" };
   }
 }
+
