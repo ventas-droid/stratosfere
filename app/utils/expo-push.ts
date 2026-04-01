@@ -1,7 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 
 // =========================================================
-// 🚀 HELPER: CAÑÓN UNIVERSAL DE EXPO PUSH
+// 🚀 HELPER: CAÑÓN UNIVERSAL DE EXPO PUSH (ARMADO AL MÁXIMO)
 // =========================================================
 export async function sendExpoPushToUserId(
   userId: string,
@@ -24,7 +24,9 @@ export async function sendExpoPushToUserId(
       },
       body: JSON.stringify({
         to: user.expoPushToken,
-        sound: "default",
+        sound: "default",             // 🔊 HABILITA EL "CLIN CLIN"
+        priority: "high",             // 🔥 HABILITA LA VIBRACIÓN Y BAJA LA VENTANA
+        channelId: "canal-tactico-1", // 🎯 APUNTA AL CANAL NUEVO QUE CREAMOS EN EL MÓVIL
         title: payload.title,
         body: payload.body,
         data: payload.data || {},
