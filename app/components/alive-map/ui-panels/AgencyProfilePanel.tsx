@@ -333,10 +333,14 @@ const creditPercentage = Math.min(
 );
 
 
- // 🍏 MODO DE CARGA: ESTILO CUPERTINO (APPLE)
-  if (isLoading) {
-      return (
-          <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F5F5F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto overflow-hidden">
+ // 🍏 MODO DE CARGA: ESTILO CUPERTINO (AHORA COMO SUPERPOSICIÓN MÁGICA)
+  // Hemos eliminado el "if (isLoading) return..." bloqueante.
+  return (
+    <div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto overflow-hidden">      
+      
+      {/* 🔥 PANTALLA DE CARGA SUPERPUESTA (El telón que cae cuando terminan de llegar los datos) */}
+      {isLoading && (
+          <div className="absolute inset-0 z-[70000] bg-gradient-to-b from-white/95 via-[#F5F5F7]/95 to-[#E5E5EA]/95 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
               {/* Estilos inyectados para la animación de la barra sin tocar el CSS global */}
               <style>{`
                 @keyframes cupertino-load {
@@ -347,11 +351,8 @@ const creditPercentage = Math.min(
                   animation: cupertino-load 1.5s infinite cubic-bezier(0.65, 0, 0.35, 1);
                 }
               `}</style>
-
-              {/* Fondo sutil */}
-              <div className="absolute inset-0 bg-gradient-to-b from-white via-[#F5F5F7] to-[#E5E5EA] z-0 opacity-80" />
               
-              <div className="relative z-10 flex flex-col items-center justify-center h-full px-12 animate-fade-in">
+              <div className="relative z-10 flex flex-col items-center justify-center h-full px-12">
                   
                   {/* Icono central minimalista */}
                   <div className="w-20 h-20 bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-black/5 flex items-center justify-center mb-8 relative">
@@ -377,11 +378,8 @@ const creditPercentage = Math.min(
                   </p>
               </div>
           </div>
-      );
-  }
+      )}
 
-  return (
-<div className="absolute inset-y-0 right-0 w-[480px] max-w-full z-[60000] bg-[#F2F2F7] flex flex-col shadow-2xl animate-slide-in-right font-sans pointer-events-auto">      
      {/* CABECERA (COVER + LOGO AGENCIA SIMÉTRICA) */}
       <div className="relative h-[340px] shrink-0 group bg-black">
          <div className="absolute inset-0 overflow-hidden">
