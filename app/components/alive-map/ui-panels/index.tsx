@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 
 // 1. IMPORTACIÓN UNIFICADA DE ICONOS (CON BUILDING2 AÑADIDO)
 import { 
@@ -15,34 +16,38 @@ import {
 // --- 2. EL CEREBRO DE BÚSQUEDA ---
 import { CONTEXT_CONFIG } from "../smart-search";
 
-// --- 3. IMPORTACIONES DE SUS PANELES ---
-import ProfilePanel from "./ProfilePanel";
+// --- 3. IMPORTACIONES ESTÁTICAS (LA INFANTERÍA LIGERA) ---
 import DualGateway from "./DualGateway";
-import VaultPanel from "./VaultPanel";
-import HoloInspector from "./HoloInspector";
 import ExplorerHud from "./ExplorerHud";
 import ArchitectHud from "./ArchitectHud";
-import MarketPanel from "./MarketPanel";
 import DualSlider from "./DualSlider";
-import OwnerProposalsPanel from "./OwnerProposalsPanel";
-import StratosNotesWidget from "./StratosNotesWidget"; // O la ruta correcta
 import SmartSidebar from "./SmartSidebar";
-// --- 4. COMPONENTES LÓGICOS ---
-import DetailsPanel from "./DetailsPanel";
-import { playSynthSound } from "./audio";
 import StratosConsole from "./StratosConsole";
 import LandingWaitlist from "./LandingWaitlist";
-import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
-import AgencyProfilePanel from "./AgencyProfilePanel";
-import AgencyMarketPanel from "./AgencyMarketPanel";
-import AgencyDetailsPanel from "./AgencyDetailsPanel"; // <--- AÑADIR ESTO
-import AgencyAmbassadorPanel from "./AgencyAmbassadorPanel";
-import PremiumUpgradePanel from "./PremiumUpgradePanel";
-import PlanOverlay from "@/app/components/billing/PlanOverlay";
-import GuestInviteOverlay from "./GuestInviteOverlay";
-import { useMyPlan } from "@/app/components/billing/useMyPlan";
-import StratosAIConsole from "./StratosAIConsole";
+import StratosWelcomeGate from "./StratosWelcomeGate";
+import { playSynthSound } from "./audio";
 import { handleRealDeployment } from './deploymentService';
+import { useMyPlan } from "@/app/components/billing/useMyPlan";
+
+// --- 4. CARGA DINÁMICA DE PANELES (ARTILLERÍA PESADA OPTIMIZADA) ---
+const ProfilePanel = dynamic(() => import('./ProfilePanel'), { ssr: false });
+const VaultPanel = dynamic(() => import('./VaultPanel'), { ssr: false });
+const HoloInspector = dynamic(() => import('./HoloInspector'), { ssr: false });
+const MarketPanel = dynamic(() => import('./MarketPanel'), { ssr: false });
+const OwnerProposalsPanel = dynamic(() => import('./OwnerProposalsPanel'), { ssr: false });
+const StratosNotesWidget = dynamic(() => import('./StratosNotesWidget'), { ssr: false });
+const DetailsPanel = dynamic(() => import('./DetailsPanel'), { ssr: false });
+const AgencyPortfolioPanel = dynamic(() => import('./AgencyPortfolioPanel'), { ssr: false });
+const AgencyProfilePanel = dynamic(() => import('./AgencyProfilePanel'), { ssr: false });
+const AgencyMarketPanel = dynamic(() => import('./AgencyMarketPanel'), { ssr: false });
+const AgencyDetailsPanel = dynamic(() => import('./AgencyDetailsPanel'), { ssr: false });
+const AgencyAmbassadorPanel = dynamic(() => import('./AgencyAmbassadorPanel'), { ssr: false });
+const PremiumUpgradePanel = dynamic(() => import('./PremiumUpgradePanel'), { ssr: false });
+const PlanOverlay = dynamic(() => import('@/app/components/billing/PlanOverlay'), { ssr: false });
+const GuestInviteOverlay = dynamic(() => import('./GuestInviteOverlay'), { ssr: false });
+const StratosAIConsole = dynamic(() => import('./StratosAIConsole'), { ssr: false });
+const StratosChatWindow = dynamic(() => import('./StratosChatWindow'), { ssr: false });
+
 // 🔥 IMPORTS ACTIONS (chat + favoritos + agency)
 import {
   getFavoritesAction,
@@ -60,7 +65,7 @@ import {
   sendMessageAction,
   getOrCreateConversationAction,
   deleteConversationAction,
-getPropertyByIdAction,
+  getPropertyByIdAction,
 
   // ✅ OWNER proposals
   getOwnerProposalsAction,
@@ -75,15 +80,15 @@ import {
 } from "../../../utils/propertyCore";
 
 import { useOwnerProposals } from "./useOwnerProposals";
-import { useStratosFavorites } from "./useStratosFavorites"; // 👈 NUEVO
+import { useStratosFavorites } from "./useStratosFavorites";
 import { useStratosAI } from "./useStratosAI";
 import { useStratosChat } from "./useStratosChat";
-import StratosChatWindow from "./StratosChatWindow";
-import StratosWelcomeGate from "./StratosWelcomeGate";
 import { useStratosVipLink } from "./useStratosVipLink";
+
 // 🔥 EL RADAR DE ZONAS VIP
 import { getZoneCampaignAction } from '@/app/actions-zones';
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
+
 export default function UIPanels({ 
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
@@ -96,6 +101,8 @@ export default function UIPanels({
           if (saved) try { setHomeBase(JSON.parse(saved)); } catch (e) {}
       }
   }, []);
+
+// (EL RESTO DE SU CÓDIGO CONTINÚA EXACTAMENTE IGUAL A PARTIR DE AQUÍ...)
 // ========================================================
   // 🎰 MOTOR "LAS VEGAS": SONAR ACTIVO DE ZONAS VIP (BLINDADO)
   // ========================================================
