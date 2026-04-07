@@ -54,11 +54,11 @@ const [billingInfo, setBillingInfo] = useState<any>(null);
     );
   };
 
- const [profile, setProfile] = useState({
-      name: "",            // 🔥 Ya no pone "Nueva Agencia"
+const [profile, setProfile] = useState({
+      name: "",            
       legalName: "",            
-      tagline: "",         // 🔥 Ya no pone "Slogan..."
-      zone: "",            // 🔥 Ya no pone "Zona Operativa"
+      tagline: "",         
+      zone: "",            
       address: "", 
       postalCode: "", 
       cif: "",
@@ -69,23 +69,41 @@ const [billingInfo, setBillingInfo] = useState<any>(null);
       avatar: "",
       cover: "",
       licenseType: null,
-      licenseNumber: "" 
+      licenseNumber: "",
+      isVanguardVip: false 
   });
 
-  // --- CARGA INTELIGENTE (PRIORIZA DATOS DE AGENCIA) ---
-  useEffect(() => {
-      if (isOpen) loadRealData();
-  }, [isOpen]);
+  // 🔥 NUEVO: MEMORIA RAM TÁCTICA (CACHÉ)
+  const [hasLoaded, setHasLoaded] = useState(false);
 
-const loadRealData = async () => {
-      setIsLoading(true); // 🔥 Empezamos a cargar
+  // --- CARGA INTELIGENTE (CACHÉ + RETRASO DE ANIMACIÓN) ---
+  useEffect(() => {
+      if (isOpen) {
+          if (!hasLoaded) {
+              setIsLoading(true);
+              // ⏱️ RETRASO TÁCTICO: Dejamos que la columna se deslice suavemente (350ms) antes de atacar al servidor.
+              const timer = setTimeout(() => {
+                  loadRealData(false);
+              }, 350); 
+              return () => clearTimeout(timer);
+          } else {
+              // 🥷 RECARGA SILENCIOSA: Como ya tenemos los datos en memoria, la columna se abre al instante.
+              // Lanzamos la actualización de fondo sin mostrar la pantalla de carga de Apple.
+              loadRealData(true);
+          }
+      }
+  }, [isOpen, hasLoaded]);
+
+  const loadRealData = async (isSilent = false) => {
+      if (!isSilent) setIsLoading(true); // Solo baja el telón la primera vez
       try {
-          // 1. Cargar Perfil de Usuario (Esto es lo principal)
+          // 1. Cargar Perfil de Usuario 
           const userRes = await getUserMeAction();
           
-          if (userRes.success && userRes.data) {
+          if (userRes?.success && userRes?.data) {
               const d = userRes.data;
-              setUserId(d?.id ? String(d.id) : null);
+              const fetchedUserId = d?.id ? String(d.id) : null;
+              setUserId(fetchedUserId);
 
               setProfile(prev => ({
                   ...prev,
@@ -106,12 +124,12 @@ const loadRealData = async () => {
                   licenseNumber: d.licenseNumber || "", 
               }));
 
-              // 🔥 2. CARGAMOS BILLING Y VIP EN PARALELO PARA IR MÁS RÁPIDO 🔥
+              // 🔥 2. CARGAMOS BILLING Y VIP EN PARALELO (SIN CUELLOS DE BOTELLA)
               try {
-                  const [billingRes, vipRes] = await Promise.all([
-                      getBillingGateAction(),
-                      checkVanguardVipStatusAction(String(d.id))
-                  ]);
+                  const promises = [getBillingGateAction()];
+                  if (fetchedUserId) promises.push(checkVanguardVipStatusAction(fetchedUserId));
+
+                  const [billingRes, vipRes] = await Promise.all(promises);
 
                   if (billingRes?.success && billingRes?.data) {
                       setBillingInfo(billingRes.data);
@@ -123,14 +141,16 @@ const loadRealData = async () => {
               } catch(e) {
                   console.error("Error en las cargas secundarias:", e);
               }
+
+              setHasLoaded(true); // ✅ GUARDAMOS EN MEMORIA PARA QUE LA PRÓXIMA VEZ SEA INSTANTÁNEO
           }
       } catch (e) { 
           console.error("Error cargando perfil agencia:", e); 
       } finally {
-          setIsLoading(false); // 🔥 Terminamos de cargar, pase lo que pase
+          if (!isSilent) setIsLoading(false); // Levantamos el telón solo si lo habíamos bajado
       }
   };
-
+  
 // 📡 RADAR VIP: Escucha si alguien pide una zona desde el Diamante del Mapa (MarketPanel)
   useEffect(() => {
       const handleVipRequest = (e: any) => {
