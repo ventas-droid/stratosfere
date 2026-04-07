@@ -29,24 +29,26 @@ import { playSynthSound } from "./audio";
 import { handleRealDeployment } from './deploymentService';
 import { useMyPlan } from "@/app/components/billing/useMyPlan";
 
-// --- 4. CARGA DINÁMICA DE PANELES (ARTILLERÍA PESADA OPTIMIZADA) ---
-const ProfilePanel = dynamic(() => import('./ProfilePanel'), { ssr: false });
+// 🔥 RETORNAMOS A ESTÁTICO LOS PANELES CON ANIMACIÓN "isOpen" (Repara el atasco)
+import ProfilePanel from "./ProfilePanel";
+import HoloInspector from "./HoloInspector";
+import StratosNotesWidget from "./StratosNotesWidget";
+import AgencyPortfolioPanel from "./AgencyPortfolioPanel";
+import AgencyProfilePanel from "./AgencyProfilePanel";
+import AgencyMarketPanel from "./AgencyMarketPanel";
+import PlanOverlay from "@/app/components/billing/PlanOverlay";
+import GuestInviteOverlay from "./GuestInviteOverlay";
+import StratosAIConsole from "./StratosAIConsole";
+import StratosChatWindow from "./StratosChatWindow";
+
+// --- 4. CARGA DINÁMICA (SOLO PARA PANELES DE APERTURA BAJO DEMANDA) ---
 const VaultPanel = dynamic(() => import('./VaultPanel'), { ssr: false });
-const HoloInspector = dynamic(() => import('./HoloInspector'), { ssr: false });
 const MarketPanel = dynamic(() => import('./MarketPanel'), { ssr: false });
 const OwnerProposalsPanel = dynamic(() => import('./OwnerProposalsPanel'), { ssr: false });
-const StratosNotesWidget = dynamic(() => import('./StratosNotesWidget'), { ssr: false });
 const DetailsPanel = dynamic(() => import('./DetailsPanel'), { ssr: false });
-const AgencyPortfolioPanel = dynamic(() => import('./AgencyPortfolioPanel'), { ssr: false });
-const AgencyProfilePanel = dynamic(() => import('./AgencyProfilePanel'), { ssr: false });
-const AgencyMarketPanel = dynamic(() => import('./AgencyMarketPanel'), { ssr: false });
 const AgencyDetailsPanel = dynamic(() => import('./AgencyDetailsPanel'), { ssr: false });
 const AgencyAmbassadorPanel = dynamic(() => import('./AgencyAmbassadorPanel'), { ssr: false });
 const PremiumUpgradePanel = dynamic(() => import('./PremiumUpgradePanel'), { ssr: false });
-const PlanOverlay = dynamic(() => import('@/app/components/billing/PlanOverlay'), { ssr: false });
-const GuestInviteOverlay = dynamic(() => import('./GuestInviteOverlay'), { ssr: false });
-const StratosAIConsole = dynamic(() => import('./StratosAIConsole'), { ssr: false });
-const StratosChatWindow = dynamic(() => import('./StratosChatWindow'), { ssr: false });
 
 // 🔥 IMPORTS ACTIONS (chat + favoritos + agency)
 import {
