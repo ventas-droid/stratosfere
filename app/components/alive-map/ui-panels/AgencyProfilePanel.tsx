@@ -150,7 +150,7 @@ const [profile, setProfile] = useState({
           if (!isSilent) setIsLoading(false); // Levantamos el telón solo si lo habíamos bajado
       }
   };
-  
+
 // 📡 RADAR VIP: Escucha si alguien pide una zona desde el Diamante del Mapa (MarketPanel)
   useEffect(() => {
       const handleVipRequest = (e: any) => {
@@ -876,9 +876,14 @@ const creditPercentage = Math.min(
       {/* FOOTER: BOTONES DE GUARDAR Y SALIR */}
       <div className="p-6 bg-white border-t border-black/5 shrink-0 flex flex-col gap-3">
           {isEditing ? (
-               <button onClick={handleSave} disabled={isSaving} className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-xs tracking-[0.2em] shadow-lg shadow-emerald-200 hover:bg-emerald-500 hover:scale-[1.02] active:scale-95 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50">
-                  {isSaving ? "GUARDANDO..." : <><Save size={16} /> GUARDAR CAMBIOS</>}
-               </button>
+              <button 
+    onClick={handleSave} 
+    // 🔥 EL BLINDAJE: Si está guardando O si está subiendo alguna foto, el botón se bloquea.
+    disabled={isSaving || isUploading.avatar || isUploading.cover} 
+    className="w-full py-4 rounded-2xl bg-emerald-600 text-white font-bold text-xs tracking-[0.2em] shadow-lg shadow-emerald-200 hover:bg-emerald-500 hover:scale-[1.02] active:scale-95 transition-all uppercase flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+>
+    {isSaving ? "GUARDANDO..." : (isUploading.avatar || isUploading.cover) ? "SUBIENDO FOTO..." : <><Save size={16} /> GUARDAR CAMBIOS</>}
+</button>
           ) : (
                <button onClick={() => { if(soundEnabled) playSynthSound('click'); setIsEditing(true); }} className="w-full py-4 rounded-2xl bg-[#1c1c1e] text-white font-bold text-xs tracking-[0.2em] hover:bg-black hover:scale-[1.02] active:scale-95 transition-all uppercase flex items-center justify-center gap-2 shadow-md">
                   <Edit2 size={16} /> EDITAR PERFIL

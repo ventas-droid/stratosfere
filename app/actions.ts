@@ -1556,31 +1556,46 @@ export async function getMyConversationsAction() {
   },
 });
 
-// ✅ cálculo real de unreadCount por conversación
-const unreadCountEntries = await Promise.all(
-  (items || []).map(async (c: any) => {
-    const myPart = Array.isArray(c?.participants)
-      ? c.participants.find((p: any) => String(p?.userId) === String(me.id))
-      : null;
+// ✅ cálculo real de unreadCount por conversación (OPTIMIZADO - FRANCOTIRADOR)
 
-    const lastReadDate = myPart?.lastReadAt
-      ? new Date(myPart.lastReadAt)
-      : new Date(0);
+// 1. Encontrar la fecha más antigua de lectura para acotar la búsqueda
+const minReadTime = (items || []).reduce((min: number, c: any) => {
+  const myPart = Array.isArray(c?.participants)
+    ? c.participants.find((p: any) => String(p?.userId) === String(me.id))
+    : null;
+  const t = myPart?.lastReadAt ? new Date(myPart.lastReadAt).getTime() : 0;
+  return t < min ? t : min;
+}, Date.now());
 
-    const count = await prisma.message.count({
-      where: {
-        conversationId: String(c.id),
-        senderId: { not: String(me.id) },
-        createdAt: { gt: lastReadDate },
-      },
-    });
+// 2. Traer solo los mensajes no leídos en UNA SOLA consulta (0 estrés a BD)
+const potentialUnreadMsgs = items.length > 0 ? await prisma.message.findMany({
+  where: {
+    conversationId: { in: items.map((c: any) => String(c.id)) },
+    senderId: { not: String(me.id) },
+    createdAt: { gt: new Date(minReadTime) }
+  },
+  select: { conversationId: true, createdAt: true }
+}) : [];
 
-    return [String(c.id), count] as const;
-  })
-);
+// 3. Crear el mapa de conteo en la memoria RAM
+const unreadCountMap = new Map<string, number>();
 
-const unreadCountMap = new Map<string, number>(unreadCountEntries);
+(items || []).forEach((c: any) => {
+  const myPart = Array.isArray(c?.participants)
+    ? c.participants.find((p: any) => String(p?.userId) === String(me.id))
+    : null;
+  
+  const lastReadMs = myPart?.lastReadAt ? new Date(myPart.lastReadAt).getTime() : 0;
 
+  const count = potentialUnreadMsgs.filter((m: any) => 
+    String(m.conversationId) === String(c.id) && 
+    new Date(m.createdAt).getTime() > lastReadMs
+  ).length;
+
+  unreadCountMap.set(String(c.id), count);
+});
+
+// 👇 EL ENGANCHE INTACTO (Lo que le daba rojo si se borraba) 👇
 const propIds = Array.from(
   new Set(
     (items || [])
