@@ -362,7 +362,10 @@ const vipLink = p.refCode
         if (l === 'F') return 'bg-orange-500';
         return 'bg-red-500'; 
     };
-
+const pdfIdentity =
+  ownerRole === "PARTICULAR"
+    ? (selectedProp?.ownerSnapshot || initialProp?.ownerSnapshot || activeOwner || null)
+    : (activeOwner || selectedProp?.user || null);
     return (
         <div className="fixed inset-y-0 left-0 w-full md:w-[480px] z-[50000] h-[100dvh] flex flex-col pointer-events-auto animate-slide-in-left">
             
@@ -698,11 +701,27 @@ const vipLink = p.refCode
                   </button>
 
                   {/* Botón PDF */}
-                  {currentUser && (
-                        <PDFDownloadLink document={<PropertyFlyer property={selectedProp} agent={(currentUser?.role === 'AGENCIA' || currentUser?.role === 'AGENCY') ? currentUser : (selectedProp?.user || currentUser)} />} fileName={`Ficha_${selectedProp.refCode || 'Stratos'}.pdf`} className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50 active:scale-90" title="Descargar Ficha PDF">
-                            {({ loading }) => ( loading ? ( <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div> ) : ( <FileDown size={22} /> ) )}
-                        </PDFDownloadLink>
-                    )}
+                 {currentUser && (
+  <PDFDownloadLink
+    document={
+      <PropertyFlyer
+        property={selectedProp}
+        agent={pdfIdentity}
+      />
+    }
+    fileName={`Ficha_${selectedProp.refCode || 'Stratos'}.pdf`}
+    className="w-14 h-14 bg-white rounded-[20px] border border-slate-200 flex items-center justify-center shadow-sm transition-colors text-slate-400 hover:text-blue-600 hover:bg-blue-50 active:scale-90"
+    title="Descargar Ficha PDF"
+  >
+    {({ loading }) =>
+      loading ? (
+        <div className="w-5 h-5 border-2 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+      ) : (
+        <FileDown size={22} />
+      )
+    }
+  </PDFDownloadLink>
+)}
 
                     {/* Botón CHAT */}
                     <button onClick={(e) => { 

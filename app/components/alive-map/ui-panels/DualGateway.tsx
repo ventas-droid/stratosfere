@@ -16,11 +16,16 @@ const IMG_COMMAND = "https://images.unsplash.com/photo-1497215728101-856f4ea4217
 export default function DualGateway({ onSelectMode, userRole }: any) {
 
   // 🛡️ SISTEMA DE PERMISOS
-  const isAgent = userRole === 'AGENCIA' || userRole === 'AGENT';
-  
-  // En la nueva estrategia, "Particular" es el Rey del Ambassador.
-  // Si no es Agente, es Particular (y por tanto, Embajador potencial).
-  const isParticular = !isAgent; 
+  const normalizedRole = String(userRole || '').toUpperCase();
+
+const isAgent =
+  normalizedRole === 'AGENCIA' ||
+  normalizedRole === 'AGENT' ||
+  normalizedRole === 'ADMIN' ||
+  normalizedRole === 'PRO';
+
+const isParticular = !isAgent;
+const canAccessB2B = isAgent;
 
   return (
     // CONTENEDOR PRINCIPAL
@@ -60,22 +65,21 @@ export default function DualGateway({ onSelectMode, userRole }: any) {
         />
 
         {/* 2. 🔥 SF AMBASSADOR (LA NUEVA PUERTA) */}
-        <CardOption 
-            img={IMG_AMBASSADOR}
-            icon={Award} // Icono de Premio/Medalla
-            color="amber" // Color Dorado/Ámbar
-            badge="Programa Abierto" // Badge de éxito
-            title="B2B Realty."
-            desc="Tu red es tu activo. Monetiza tus contactos y gestiona comisiones."
-            action="Acceso Dashboard" // Texto de acción claro
-            
-            // 🔓 ESTA ES LA CLAVE: SIEMPRE DESBLOQUEADO
-            // Redirige a la nueva página /ambassador
-            onClick={() => {
-                window.location.href = '/ambassador';
-            }}
-            locked={false} 
-        />
+       <CardOption 
+    img={IMG_AMBASSADOR}
+    icon={canAccessB2B ? Award : Lock}
+    color={canAccessB2B ? "amber" : "gray"}
+    badge={canAccessB2B ? "Programa Abierto" : "Pro Only"}
+    title="B2B Realty."
+    desc="Tu red es tu activo. Monetiza tus contactos y gestiona comisiones."
+    action="Acceso Dashboard"
+    onClick={() => {
+        if (canAccessB2B) {
+            window.location.href = '/ambassador';
+        }
+    }}
+    locked={!canAccessB2B} 
+/>
 
         {/* 3. OPERAR (AGENCY OS) */}
         <CardOption 
