@@ -1,7 +1,8 @@
 "use server";
 
-import { prisma } from './lib/prisma'; 
+import { prisma } from './lib/prisma';
 import { cookies } from "next/headers"; // 🌬️ EL VENTILADOR TÉRMICO (Rompe la Caché)
+import type { Prisma } from "@prisma/client";
 
 // Búsqueda del destinatario (Dueño o Agencia Gestora)
 export async function findOwnerByRefAction(reference: string) {
@@ -11,23 +12,24 @@ export async function findOwnerByRefAction(reference: string) {
 
     const prop = await prisma.property.findUnique({
       where: { refCode: cleanRef },
-      include: { 
+      include: {
         // 🎯 INFILTRACIÓN: Traemos el contrato de gestión si existe
-        assignment: true 
+        assignment: true
       }
     });
 
     if (!prop) {
-        console.log(`❌ RADAR FALLÓ: No se encontró la propiedad ${cleanRef}`);
-        return { success: false, error: "Propiedad no encontrada" };
+      console.log(`❌ RADAR FALLÓ: No se encontró la propiedad ${cleanRef}`);
+      return { success: false, error: "Propiedad no encontrada" };
     }
 
     // ⚖️ LA REGLA DE ORO DE LA JERARQUÍA:
     // 1. Si hay una agencia asignada y activa, ELLA es la dueña del buzón.
     // 2. Si es una casa creada por la propia agencia, el userId ya es el de la agencia.
     // 3. Si es un particular sin agencia, va al particular.
-    const targetOwnerId = (prop.assignment && prop.assignment.status === "ACTIVE") 
-        ? prop.assignment.agencyId 
+    const targetOwnerId =
+      prop.assignment && prop.assignment.status === "ACTIVE"
+        ? prop.assignment.agencyId
         : prop.userId;
 
     return { success: true, ownerId: targetOwnerId };
@@ -60,9 +62,12 @@ export async function createStratosDocumentAction(data: {
         ownerId: data.ownerId,
         senderName: data.senderName,
         // 🛡️ BLINDAJE ABSOLUTO: Guardamos el email siempre en minúsculas y sin espacios
-        senderEmail: data.senderEmail ? String(data.senderEmail).trim().toLowerCase() : undefined,
+        senderEmail: data.senderEmail
+          ? String(data.senderEmail).trim().toLowerCase()
+          : undefined,
       }
     });
+
     return { success: true, data: doc };
   } catch (error) {
     console.error("🚨 Error archivando documento:", error);
@@ -77,41 +82,50 @@ export async function getInboxDocumentsAction(userId: string, userEmail?: string
     // 🛡️ BLINDAJE ABSOLUTO: Limpiamos el email antes de buscar para que coincida al 1000%
     const cleanEmail = userEmail ? String(userEmail).trim().toLowerCase() : undefined;
 
-    const whereClause = cleanEmail 
+    const whereClause: Prisma.StratosDocumentWhereInput = cleanEmail
       ? { OR: [{ ownerId: userId }, { senderEmail: cleanEmail }] }
       : { ownerId: userId };
 
     const docs = await prisma.stratosDocument.findMany({
       where: whereClause,
-      orderBy: { createdAt: 'desc' } 
+      orderBy: { createdAt: 'desc' }
     });
 
     // 🎯 MANIOBRA DE RASTREO: Buscamos quién es el dueño real de cada archivo
-    const enrichedDocs = await Promise.all(docs.map(async (doc) => {
-        let receiverName = "Usuario Desconocido";
-        let receiverEmail = "";
+    // ✅ CORRECCIÓN: Evitamos una query por documento. Antes esto podía saturar el pool de Prisma.
+    const ownerIds = Array.from(
+      new Set(
+        docs
+          .map((doc) => doc.ownerId)
+          .filter((ownerId): ownerId is string => Boolean(ownerId))
+      )
+    );
 
-        try {
-            // Buscamos el perfil del destinatario en la base de usuarios
-            const owner = await prisma.user.findUnique({
-                where: { id: doc.ownerId },
-                select: { name: true, companyName: true, email: true }
-            });
+    const owners = ownerIds.length
+      ? await prisma.user.findMany({
+          where: {
+            id: { in: ownerIds },
+          },
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+            email: true,
+          },
+        })
+      : [];
 
-            if (owner) {
-                receiverName = owner.companyName || owner.name || "Agente Stratosfere";
-                receiverEmail = owner.email || "Sin email";
-            }
-        } catch (e) {
-            console.error("Interferencia buscando destinatario:", e);
-        }
+    const ownersById = new Map(owners.map((owner) => [owner.id, owner]));
 
-        return {
-            ...doc,
-            receiverName,
-            receiverEmail
-        };
-    }));
+    const enrichedDocs = docs.map((doc) => {
+      const owner = ownersById.get(doc.ownerId);
+
+      return {
+        ...doc,
+        receiverName: owner?.companyName || owner?.name || "Agente Stratosfere",
+        receiverEmail: owner?.email || "Sin email",
+      };
+    });
 
     return { success: true, data: enrichedDocs };
   } catch (error) {
@@ -127,6 +141,7 @@ export async function markDocumentsAsReadAction(userId: string) {
       where: { ownerId: userId, isRead: false },
       data: { isRead: true }
     });
+
     return { success: true };
   } catch (error) {
     console.error("Error actualizando estado de lectura:", error);

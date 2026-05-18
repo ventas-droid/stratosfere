@@ -23,6 +23,104 @@ import { getPusherClient } from '@/app/utils/pusher';
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 const MAPBOX_PIN_FONT = ['Arial Unicode MS Bold'];
 const MAPBOX_CLUSTER_FONT = ['Arial Unicode MS Bold'];
+const isChromiumBrowser = () => {
+  if (typeof navigator === "undefined") return false;
+
+  const ua = navigator.userAgent.toLowerCase();
+
+  const isSafari =
+    ua.includes("safari") &&
+    !ua.includes("chrome") &&
+    !ua.includes("chromium") &&
+    !ua.includes("crios") &&
+    !ua.includes("edg") &&
+    !ua.includes("opr");
+
+  const isFirefox = ua.includes("firefox");
+
+  const isChromium =
+    ua.includes("chrome") ||
+    ua.includes("chromium") ||
+    ua.includes("crios") ||
+    ua.includes("edg") ||
+    ua.includes("opr");
+
+  return isChromium && !isSafari && !isFirefox;
+};
+
+const applyStratosChromeAtmosphereFix = (mapInstance: any) => {
+  if (!mapInstance) return;
+
+  try {
+    if (!isChromiumBrowser()) return;
+
+    mapInstance.setFog({
+      range: [1.5, 10],
+      color: "rgba(7, 17, 31, 0.08)",
+      "high-color": "rgba(7, 17, 31, 0.04)",
+      "space-color": "#07111f",
+      "horizon-blend": 0.005,
+
+      // Chrome está deformando las estrellas nativas de Mapbox Standard.
+      // En Safari no tocamos nada.
+      "star-intensity": 0,
+    });
+  } catch (error) {
+    console.warn("No se pudo aplicar Stratos Chrome atmosphere fix:", error);
+  }
+};
+
+const mountStratosChromeStarsOverlay = (container: any, mapInstance: any) => {
+  if (!container || !mapInstance) return;
+  if (!isChromiumBrowser()) return;
+
+  try {
+    const host = container as HTMLElement;
+
+    if (getComputedStyle(host).position === "static") {
+      host.style.position = "relative";
+    }
+
+    let stars = host.querySelector(".stratos-chrome-stars-overlay") as HTMLElement | null;
+
+    if (!stars) {
+      stars = document.createElement("div");
+      stars.className = "stratos-chrome-stars-overlay";
+      host.appendChild(stars);
+    }
+
+   const updateStars = () => {
+  const zoom = typeof mapInstance.getZoom === "function" ? mapInstance.getZoom() : 0;
+
+  let opacity = 0;
+
+  // Solo mostramos estrellas en vista globo/espacio.
+  // En cuanto entras a continente/país, desaparecen para que no parezcan pegadas al mapa.
+  if (zoom <= 2.7) {
+    opacity = 0.85;
+  } else if (zoom <= 3.4) {
+    opacity = 0.45;
+  } else if (zoom <= 3.9) {
+    opacity = 0.18;
+  } else {
+    opacity = 0;
+  }
+
+  stars!.style.opacity = String(opacity);
+};
+
+    updateStars();
+
+    if (!(mapInstance as any).__stratosChromeStarsMounted) {
+      (mapInstance as any).__stratosChromeStarsMounted = true;
+      mapInstance.on("move", updateStars);
+      mapInstance.on("zoom", updateStars);
+    }
+  } catch (error) {
+    console.warn("No se pudo montar el overlay de estrellas Stratos:", error);
+  }
+};
+
 // ✅ Helper universal: true / "true" / 1 / "1" / "sí" / "si" / "yes" / "on"
 const isYes = (val: any) => {
   if (val === true || val === 1) return true;
@@ -73,6 +171,7 @@ export const useMapLogic = () => {
       antialias: true,
       projection: 'globe'
     });
+mountStratosChromeStarsOverlay(mapContainer.current, map.current);
 
    // 🚀 CONFIGURACIÓN DE ALTO NIVEL (FUERZA BRUTA 3D)
     map.current.on('style.import.load', () => {
@@ -90,19 +189,25 @@ export const useMapLogic = () => {
             currentLighting = 'dawn'; 
         }
         
-        map.current.setConfigProperty('basemap', 'lightPreset', currentLighting); 
-        map.current.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
-        map.current.setConfigProperty('basemap', 'showTransitLabels', false);
-    });
+      map.current.setConfigProperty('basemap', 'lightPreset', currentLighting); 
+map.current.setConfigProperty('basemap', 'showPointOfInterestLabels', false);
+map.current.setConfigProperty('basemap', 'showTransitLabels', false);
+
+applyStratosChromeAtmosphereFix(map.current);   
+
+});
 
     map.current.addControl(
       new mapboxgl.NavigationControl({ showCompass: true, showZoom: true, visualizePitch: true }),
       'bottom-left'
     );
 
-    map.current.on('load', () => {
-      console.log("🟢 SISTEMA CARGADO");
-      setIsLoaded(true);
+  map.current.on('load', () => {
+  console.log("🟢 SISTEMA CARGADO");
+  setIsLoaded(true);
+
+  applyStratosChromeAtmosphereFix(map.current);
+  mountStratosChromeStarsOverlay(mapContainer.current, map.current);
 
      // 1. FUENTE DE DATOS (INICIALIZACIÓN ESTRUCTURAL)
       if (map.current.getSource('properties')) {

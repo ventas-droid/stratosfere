@@ -1,5 +1,5 @@
 "use client";
-
+import { pt } from "@/app/i18n/profileText";
 import React, { useState, useEffect } from 'react';
 import { 
     // 🛠️ Iconos de Interfaz
@@ -117,13 +117,15 @@ const getServiceIds = (propOrCampaign: any): string[] => {
     return Array.from(new Set(filtered));
 };
 
-export default function ProfilePanel({ 
-  rightPanel, 
-  toggleRightPanel, 
-  toggleMainPanel, 
-  onEdit,          
-  soundEnabled, 
-  playSynthSound 
+export default function ProfilePanel({
+  lang = "ES",
+  rightPanel,
+  toggleRightPanel,
+  toggleMainPanel,
+  onEdit,
+  selectedReqs,
+  soundEnabled,
+  playSynthSound,
 }: any) {
   
   const router = useRouter();
@@ -555,21 +557,24 @@ const handleFlyTo = async (e: any, property: any) => {
             <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="bg-white p-5 rounded-[24px] shadow-sm text-center border border-slate-100">
                     <div className="text-3xl font-black text-slate-900">{myProperties.length}</div>
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Activos</div>
-                </div>
+<div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{pt(lang, "assets")}</div>                </div>
                 <div className="bg-white p-5 rounded-[24px] shadow-sm text-center border border-slate-100">
                      <div className="text-3xl font-black text-indigo-600">{myTickets.length}</div>
-                     <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Eventos</div>
-                </div>
+<div className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">
+  {pt(lang, "events")}
+</div>                </div>
             </div>
 
             <div className="space-y-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4 mb-1">Tu Espacio</p>
-                {user?.role === 'PARTICULAR' && (
+<p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4 mb-1">
+  {pt(lang, "yourSpace")}
+</p>                {user?.role === 'PARTICULAR' && (
                   <button onClick={() => { if (soundEnabled) playSynthSound('click'); toggleRightPanel('OWNER_PROPOSALS'); }} className="w-full bg-[#1d1d1f] text-white p-4 rounded-[24px] flex items-center justify-between group hover:scale-[1.02] transition-all shadow-xl cursor-pointer relative overflow-hidden">
                     <div className="flex items-center gap-4 relative z-10">
                       <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400 backdrop-blur-sm"><Briefcase size={18} /></div>
-                      <div className="text-left"><span className="block font-black text-sm tracking-wide">AGENCY HUD</span><span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Gestión Profesional</span></div>
+                      <div className="text-left"><span className="block font-black text-sm tracking-wide">AGENCY HUD</span><span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+  {pt(lang, "professionalManagement")}
+</span></div>
                     </div>
                     <ChevronRight size={16} className="text-white/30 group-hover:text-white relative z-10 transition-colors"/>
                   </button>
@@ -587,7 +592,9 @@ const handleFlyTo = async (e: any, property: any) => {
                             )}
                         </div>
                         <div className="text-left">
-                            <span className="font-bold text-slate-900 text-sm block">Buzón de Entrada</span>
+                            <span className="font-bold text-slate-900 text-sm block">
+  {pt(lang, "inbox")}
+</span>
                             {/* 🔥 TEXTO QUE CAMBIA DE COLOR */}
                             <span className={`text-[9px] font-bold uppercase tracking-wider transition-colors ${unreadCount > 0 ? 'text-rose-500' : 'text-slate-400 group-hover:text-indigo-500'}`}>
                                 {unreadCount > 0 ? `${unreadCount} MENSAJES NUEVOS` : "Buzón al día"}

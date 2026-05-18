@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 
+import { tx, nextLanguage, isRTL, getDocumentLang, getDocumentDir } from "@/app/i18n/uiText";
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -91,20 +92,42 @@ import { useStratosVipLink } from "./useStratosVipLink";
 import { getZoneCampaignAction } from '@/app/actions-zones';
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiaXNpZHJvMTAxLSIsImEiOiJjbWowdDljc3MwMWd2M2VzYTdkb3plZzZlIn0.w5sxTH21idzGFBxLSMkRIw';
 
+
 export default function UIPanels({ 
   map, searchCity, lang, setLang, soundEnabled, toggleSound, systemMode, setSystemMode 
 }: any) {
- 
- // --- 1. MEMORIA DE UBICACIÓN ---
-  const [homeBase, setHomeBase] = useState<any>(null);
-  useEffect(() => {
-      if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('stratos_home_base');
-          if (saved) try { setHomeBase(JSON.parse(saved)); } catch (e) {}
-      }
-  }, []);
 
-// (EL RESTO DE SU CÓDIGO CONTINÚA EXACTAMENTE IGUAL A PARTIR DE AQUÍ...)
+ // --- 1. MEMORIA DE UBICACIÓN + IDIOMA ---
+const [homeBase, setHomeBase] = useState<any>(null);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  // Recupera ubicación guardada
+  const savedHomeBase = localStorage.getItem("stratos_home_base");
+  if (savedHomeBase) {
+    try {
+      setHomeBase(JSON.parse(savedHomeBase));
+    } catch (e) {}
+  }
+
+  // Recupera idioma guardado
+  const savedLang = localStorage.getItem("stratos_lang");
+  if (savedLang && ["ES", "EN", "FR", "AR"].includes(savedLang)) {
+    setLang(savedLang);
+  }
+}, []);
+
+useEffect(() => {
+  if (typeof window === "undefined") return;
+
+  // Guarda idioma elegido
+  localStorage.setItem("stratos_lang", lang);
+
+  // Ajusta idioma y dirección global del documento
+ document.documentElement.lang = getDocumentLang(lang);
+document.documentElement.dir = getDocumentDir(lang);
+}, [lang]);
 // ========================================================
   // 🎰 MOTOR "LAS VEGAS": SONAR ACTIVO DE ZONAS VIP (BLINDADO)
   // ========================================================
@@ -1205,9 +1228,10 @@ useEffect(() => {
 
       {/* MODO ARQUITECTO (CON MEMORIA + VUELO CINEMÁTICO) */}
        {systemMode === 'ARCHITECT' && (
-           <ArchitectHud 
-               soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
-               initialData={editingProp} 
+         <ArchitectHud 
+  lang={lang}
+  soundFunc={typeof playSynthSound !== 'undefined' ? playSynthSound : undefined} 
+  initialData={editingProp} 
                onCloseMode={(success: boolean, payload: any) => { 
                    setEditingProp(null); 
                    
@@ -1263,30 +1287,82 @@ useEffect(() => {
                {/* 1. LOGO */}
                <div className="absolute top-8 left-8 pointer-events-auto animate-fade-in-up z-[50]">
                     <h1 className="text-6xl font-extrabold tracking-tighter text-black leading-none cursor-default">Stratosfere OS.</h1>
-                    {systemMode === 'AGENCY' && <div className="mt-2 inline-block bg-black text-white text-[10px] font-bold px-2 py-1 tracking-widest uppercase rounded shadow-lg">Agency Command</div>}
-               </div>
-               
-               {/* 2. PANEL SISTEMA */}
-<div className="absolute top-32 left-4 right-4 md:top-8 md:right-8 md:left-auto pointer-events-auto flex flex-col gap-3 items-center md:items-end w-auto md:w-[280px] animate-fade-in-up delay-100 z-[50]">                    <div className="glass-panel p-5 rounded-[1.5rem] w-full shadow-2xl bg-[#050505]/90 border border-white/10 hover:border-blue-500/30 transition-all">
-                        <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5 text-white">
-                            <span className="text-[10px] font-extrabold tracking-tighter flex items-center gap-2">SYSTEM</span>
-                            <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_10px_blue]"></div><span className="text-[9px] font-mono text-blue-400">ONLINE</span></div>
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{if(typeof playSynthSound==='function') playSynthSound('click'); setLang(lang==='ES'?'EN':'ES')}}><span className="tracking-widest">IDIOMA</span> <span className="text-white font-mono">{lang}</span></div>
-                            <div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={()=>{if(typeof playSynthSound==='function') playSynthSound('click'); toggleSound();}}><span className="tracking-widest">SONIDO</span> <span className={soundEnabled ? "text-emerald-400" : "text-zinc-500"}>{soundEnabled ? 'ON' : 'MUTED'}</span></div>
-<div className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white" onClick={handleDayNight}>
-  <span className="tracking-widest">VISIÓN</span> 
-  <div className={`flex items-center gap-1 ${isNightMode ? 'text-indigo-400' : 'text-amber-400'}`}>
-    {isNightMode ? <Moon size={10}/> : <Sun size={10}/>} 
-    <span className="text-white">{isNightMode ? 'NOCHE' : 'DÍA'}</span>
+{systemMode === 'AGENCY' && (
+  <div className="mt-2 inline-block bg-black text-white text-[10px] font-bold px-2 py-1 tracking-widest uppercase rounded shadow-lg">
+    {tx(lang, "agencyCommand")}
   </div>
-</div>                        </div>
-                        <div className="mt-4 pt-2 border-t border-white/5 space-y-1">
-                            {notifications.map((n,i)=>(<div key={i} className="bg-blue-900/20 border-l-2 border-blue-500 p-2 rounded flex items-center gap-2 animate-slide-in-right"><Bell size={10} className="text-blue-400"/><span className="text-[9px] text-blue-100">{n.title}</span></div>))}
-                        </div>
-                    </div>
-               </div>
+)}               
+</div>
+               
+              {/* 2. PANEL SISTEMA */}
+<div className="absolute top-32 left-4 right-4 md:top-8 md:right-8 md:left-auto pointer-events-auto flex flex-col gap-3 items-center md:items-end w-auto md:w-[280px] animate-fade-in-up delay-100 z-[50]">
+  <div className="glass-panel p-5 rounded-[1.5rem] w-full shadow-2xl bg-[#050505]/90 border border-white/10 hover:border-blue-500/30 transition-all">
+    <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5 text-white">
+      <span className="text-[10px] font-extrabold tracking-tighter flex items-center gap-2">
+        {tx(lang, "system")}
+      </span>
+
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_10px_blue]"></div>
+        <span className="text-[9px] font-mono text-blue-400">
+          {tx(lang, "online")}
+        </span>
+      </div>
+    </div>
+
+    <div className="space-y-3">
+      <div
+        className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white"
+        onClick={() => {
+          if (typeof playSynthSound === "function") playSynthSound("click");
+          setLang(nextLanguage(lang));
+        }}
+      >
+        <span className="tracking-widest">{tx(lang, "language")}</span>
+        <span className="text-white font-mono">{lang}</span>
+      </div>
+
+      <div
+        className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white"
+        onClick={() => {
+          if (typeof playSynthSound === "function") playSynthSound("click");
+          toggleSound();
+        }}
+      >
+        <span className="tracking-widest">{tx(lang, "sound")}</span>
+        <span className={soundEnabled ? "text-emerald-400" : "text-zinc-500"}>
+          {soundEnabled ? tx(lang, "on") : tx(lang, "muted")}
+        </span>
+      </div>
+
+      <div
+        className="flex justify-between text-[10px] text-white/60 cursor-pointer hover:text-white"
+        onClick={handleDayNight}
+      >
+        <span className="tracking-widest">{tx(lang, "vision")}</span>
+
+        <div className={`flex items-center gap-1 ${isNightMode ? "text-indigo-400" : "text-amber-400"}`}>
+          {isNightMode ? <Moon size={10} /> : <Sun size={10} />}
+          <span className="text-white">
+            {isNightMode ? tx(lang, "night") : tx(lang, "day")}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-4 pt-2 border-t border-white/5 space-y-1">
+      {notifications.map((n, i) => (
+        <div
+          key={i}
+          className="bg-blue-900/20 border-l-2 border-blue-500 p-2 rounded flex items-center gap-2 animate-slide-in-right"
+        >
+          <Bell size={10} className="text-blue-400" />
+          <span className="text-[9px] text-blue-100">{n.title}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
 
                {/* 3. CONTROLES 3D */}
                <div className="absolute top-1/2 -translate-y-1/2 right-8 pointer-events-auto flex flex-col gap-2 animate-fade-in-right z-[50]">
@@ -1362,7 +1438,7 @@ useEffect(() => {
                            {/* CENTRO: BUSCADOR */}
                            <div className="flex-grow flex items-center gap-4 bg-white/[0.05] px-5 py-3 rounded-full border border-white/5 focus-within:border-emerald-500/50 focus-within:bg-emerald-500/5 transition-all group">
                                <Search size={16} className="text-white/40 group-focus-within:text-white transition-colors"/>
-                               <input value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleAICommand(e); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); (e.target as HTMLInputElement).blur(); } }} className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text" placeholder="COMANDO DE AGENCIA..." />
+                               <input value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleAICommand(e); } if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); (e.target as HTMLInputElement).blur(); } }} className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text" placeholder={tx(lang, "agencySearchPlaceholder")} />
                                <Mic size={16} className="text-white/30"/>
                            </div>
 
@@ -1558,7 +1634,7 @@ useEffect(() => {
                                   } 
                               }} 
                               className="bg-transparent text-white w-full outline-none text-xs font-bold tracking-widest uppercase placeholder-white/20 cursor-text" 
-                              placeholder="LOCALIZACIÓN..." 
+                             placeholder={tx(lang, "explorerSearchPlaceholder")}
                           />
                           <Mic size={16} className="text-white/30"/>
                         </div>
@@ -1702,8 +1778,9 @@ useEffect(() => {
        <div className="absolute inset-0 z-[80] pointer-events-none"> {/* 🔥 CAMBIO: absolute inset-0 */}
           
            {/* 1. PERFIL DE USUARIO */}
-           <ProfilePanel 
-               rightPanel={rightPanel} 
+         <ProfilePanel 
+  lang={lang}
+  rightPanel={rightPanel} 
                toggleRightPanel={toggleRightPanel} 
                toggleMainPanel={toggleMainPanel} 
                onEdit={handleEditAsset} 
@@ -1715,14 +1792,14 @@ useEffect(() => {
            {/* 2. MERCADO DE USUARIO (Izquierda) */}
            {activePanel === 'MARKETPLACE' && (
                 <div className="absolute inset-y-0 left-0 w-[420px] shadow-2xl animate-slide-in-left bg-white pointer-events-auto">
-                    <MarketPanel onClose={() => setActivePanel('NONE')} activeProperty={marketProp} />
-                </div>
+<MarketPanel lang={lang} onClose={() => setActivePanel('NONE')} activeProperty={marketProp} />                </div>
            )}
            
            {/* 3. BÓVEDA / FAVORITOS (Derecha - Solo en modo Explorer) */}
            {rightPanel === 'VAULT' && (
-               <VaultPanel 
-                   rightPanel={rightPanel} 
+             <VaultPanel 
+  lang={lang}
+  rightPanel={rightPanel} 
                    toggleRightPanel={(p: any) => setRightPanel('NONE')} 
                    favorites={uiFavs}
                    onToggleFavorite={handleToggleFavorite} 
@@ -1760,8 +1837,9 @@ useEffect(() => {
            <AgencyMarketPanel isOpen={activePanel === 'AGENCY_MARKET'} onClose={() => setActivePanel('NONE')} />
            
        {/* 4. PORTFOLIO DE AGENCIA (STOCK) */}
-           <AgencyPortfolioPanel 
-               isOpen={rightPanel === 'AGENCY_PORTFOLIO'} 
+          <AgencyPortfolioPanel 
+  lang={lang}
+  isOpen={rightPanel === 'AGENCY_PORTFOLIO'} 
                onClose={() => setRightPanel('NONE')} 
                properties={agencyFavs}
                onCreateNew={() => handleEditAsset(null)} 
@@ -1867,8 +1945,9 @@ useEffect(() => {
                    // 4. ABRIMOS LA PUERTA
                    return usarPanelPro ? (
                         <AgencyDetailsPanel 
-                            key={`agency-panel-${selectedProp?.id}`} 
-                            selectedProp={selectedProp} 
+  lang={lang}
+  key={`agency-panel-${selectedProp?.id}`} 
+  selectedProp={selectedProp} 
                             onClose={handleCloseDetails} // 👈 SUSTITUIDO
                             onToggleFavorite={handleToggleFavorite} 
                             favorites={uiFavs}
@@ -1877,9 +1956,10 @@ useEffect(() => {
                             currentUser={agencyProfileData} 
                         />
                     ) : (
-                       <DetailsPanel 
-                           key={`civil-panel-${selectedProp?.id}`}
-                           selectedProp={selectedProp} 
+                    <DetailsPanel 
+  lang={lang}
+  key={`civil-panel-${selectedProp?.id}`}
+  selectedProp={selectedProp} 
                            onClose={handleCloseDetails} // 👈 SUSTITUIDO
                            onToggleFavorite={handleToggleFavorite} 
                            favorites={uiFavs}
