@@ -3862,15 +3862,22 @@ export async function submitLeadAction(data: {
         const ip = headersList.get("x-forwarded-for") || "unknown_ip";
         const rateLimitKey = `ratelimit:lead:${ip}`;
 
-        const requestsCount = await redis.incr(rateLimitKey);
-        if (requestsCount === 1) {
-            await redis.expire(rateLimitKey, 60); // La ventana de castigo dura 60 segundos
-        }
+       let requestsCount = 1;
 
-        if (requestsCount > 3) {
-            console.warn(`🛡️ [CÚPULA DE HIERRO] Bloqueado ataque de SPAM en leads desde IP: ${ip}`);
-            return { success: false, error: "Demasiadas peticiones. Por favor, espera 1 minuto." };
-        }
+try {
+  requestsCount = await redis.incr(rateLimitKey);
+
+  if (requestsCount === 1) {
+    await redis.expire(rateLimitKey, 60);
+  }
+
+  if (requestsCount > 3) {
+    console.warn(`🛡️ [CÚPULA DE HIERRO] Bloqueado ataque de SPAM en leads desde IP: ${ip}`);
+    return { success: false, error: "Demasiadas peticiones. Por favor, espera 1 minuto." };
+  }
+} catch (rateLimitError) {
+  console.error("⚠️ [LEAD] Redis/rate limit falló, pero NO bloqueamos el lead:", rateLimitError);
+}
 
         // 1. RASTREO TÁCTICO
         const cookieStore = await cookies();
@@ -3880,29 +3887,56 @@ export async function submitLeadAction(data: {
         console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO", "| ORIGEN:", data.source || "ORGÁNICO");
         
      // 2. GUARDAR EN LA BASE DE DATOS (CON DETECCIÓN DE AGENCIA CORREGIDA)
-        const newLead = await prisma.lead.create({
-            data: {
-                name: data.name,
-                email: data.email,
-                phone: data.phone,
-                message: data.message,
-                propertyId: data.propertyId,
-                status: "NEW",
-                ambassadorId: ambassadorId ? ambassadorId : undefined,
-                source: data.source || "ORGANIC"
-            },
-            include: { 
-                property: { 
-                    include: { 
-                        user: true,
-                        // 🔥 EL PUESTO DE CONTROL CORREGIDO AL SCHEMA REAL
-                        assignment: {
-                            include: { agency: true }
-                        }
-                    } 
-                } 
-            } 
-        });
+       // 2. RESOLVER PROPIEDAD + AGENCIA/USUARIO RECEPTOR
+const propertyForLead = await prisma.property.findUnique({
+  where: { id: data.propertyId },
+  include: {
+    user: true,
+    assignment: {
+      include: { agency: true }
+    }
+  }
+});
+
+if (!propertyForLead) {
+  return { success: false, error: "Propiedad no encontrada." };
+}
+
+const activeAssignment = propertyForLead.assignment;
+const isAgencyActive = activeAssignment?.status === "ACTIVE";
+
+const targetUserId = isAgencyActive
+  ? activeAssignment?.agencyId
+  : propertyForLead.userId;
+
+if (!targetUserId) {
+  return { success: false, error: "No se ha podido resolver el receptor del lead." };
+}
+
+// 3. GUARDAR LEAD DIRIGIDO AL RECEPTOR REAL
+const newLead = await prisma.lead.create({
+  data: {
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    message: data.message,
+    propertyId: data.propertyId,
+    managerId: targetUserId,
+    status: "NEW",
+    ambassadorId: ambassadorId ? ambassadorId : undefined,
+    source: data.source || "B2B_PARTNER_LEAD"
+  },
+  include: {
+    property: {
+      include: {
+        user: true,
+        assignment: {
+          include: { agency: true }
+        }
+      }
+    }
+  }
+});
 
      // 🔥🔥🔥 GATILLO PUSHER, EXPO PUSH Y EMAIL: ENRUTAMIENTO INTELIGENTE B2B 🔥🔥🔥
         try {
