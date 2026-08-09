@@ -285,13 +285,27 @@ export async function GET(
 
         leadAgency: safeAgency || null,
         property: {
-          id: l.property?.id || null,
-          refCode: l.property?.refCode || "Sin Ref",
-          title: l.property?.title || "Sin título",
-          user: l.property?.user || null,
-          assignment: l.property?.assignment || null,
-          campaigns: safeCampaigns,
-        },
+  id: l.property?.id || null,
+  refCode: l.property?.refCode || "Sin Ref",
+  title: l.property?.title || "Sin título",
+
+  // COMPATIBILIDAD CON LA APP ACTUAL:
+  // La app instalada todavía lee lead.property.user.avatar.
+  // Por eso inyectamos aquí el avatar/logo real de quien contacta.
+  user: l.property?.user
+    ? {
+        ...l.property.user,
+        avatar: senderAvatar || l.property.user.avatar || null,
+        companyLogo:
+          senderProfile?.companyLogo ||
+          l.property.user.companyLogo ||
+          null,
+      }
+    : null,
+
+  assignment: l.property?.assignment || null,
+  campaigns: safeCampaigns,
+},
       };
     });
 
