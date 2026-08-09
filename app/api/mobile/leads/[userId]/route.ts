@@ -7,6 +7,7 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
+
     if (!userId) {
       return NextResponse.json({ error: "Falta ID" }, { status: 400 });
     }
@@ -136,6 +137,46 @@ export async function GET(
     );
 
     // =========================================================
+    // 3.1 PERFIL REAL DEL REMITENTE DEL LEAD
+    // Si el email del lead pertenece a una agencia/usuario registrado,
+    // usamos su companyLogo/avatar para que en la app salga quién envió el lead.
+    // =========================================================
+    const leadEmails = Array.from(
+      new Set(
+        myRealLeads
+          .map((l: any) => String(l.email || "").toLowerCase().trim())
+          .filter(Boolean)
+      )
+    );
+
+    const senderUsers = leadEmails.length
+      ? await prisma.user.findMany({
+          where: {
+            email: { in: leadEmails },
+          },
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+            email: true,
+            avatar: true,
+            companyName: true,
+            companyLogo: true,
+            role: true,
+            phone: true,
+            mobile: true,
+          },
+        })
+      : [];
+
+    const senderByEmail = new Map(
+      (senderUsers || []).map((u: any) => [
+        String(u.email || "").toLowerCase().trim(),
+        u,
+      ])
+    );
+
+    // =========================================================
     // 4. CAMPAÑA EXACTA POR PAREJA propertyId + agencyId
     // Esto evita que el móvil use la campaña equivocada
     // =========================================================
@@ -175,11 +216,26 @@ export async function GET(
     // =========================================================
     // 5. FORMATEO FINAL COMPATIBLE CON TU APP ACTUAL
     // - seguimos devolviendo property.campaigns[]
-    // - pero ahora con la campaña correcta del lead
+    // - añadimos avatar/senderProfile del usuario o agencia que envía el lead
     // =========================================================
     const formattedLeads = myRealLeads.map((l: any) => {
       const propertyId = String(l.property?.id || "");
       const managerId = String(l.managerId || "");
+
+      // Perfil real de quien ha enviado/contactado.
+      // Se resuelve por email, no por nombre fijo.
+      const senderProfile =
+        senderByEmail.get(String(l.email || "").toLowerCase().trim()) || null;
+
+      const senderAvatar =
+        senderProfile?.companyLogo ||
+        senderProfile?.avatar ||
+        null;
+
+      const senderDisplayName =
+        senderProfile?.companyName ||
+        senderProfile?.name ||
+        l.name;
 
       const exactAgency =
         managerId && managerById.has(managerId)
@@ -194,7 +250,11 @@ export async function GET(
       const fallbackAgency =
         l.property?.assignment?.agency || null;
 
-      const safeAgency = exactAgency || exactCampaign?.agency || fallbackAgency || null;
+      const safeAgency =
+        exactAgency ||
+        exactCampaign?.agency ||
+        fallbackAgency ||
+        null;
 
       const safeCampaigns = safeAgency
         ? [
@@ -210,7 +270,7 @@ export async function GET(
       return {
         id: l.id,
         status: l.status,
-        name: l.name,
+        name: senderDisplayName,
         email: l.email,
         phone: l.phone,
         message: l.message,
@@ -218,6 +278,11 @@ export async function GET(
         date: l.createdAt,
         propertyId: l.property?.id || null,
         managerId: l.managerId || null,
+
+        // NUEVO: estos campos los usará la app móvil para pintar la foto/logo correcto
+        avatar: senderAvatar,
+        senderProfile: senderProfile,
+
         leadAgency: safeAgency || null,
         property: {
           id: l.property?.id || null,
