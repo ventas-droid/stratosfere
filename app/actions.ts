@@ -3885,7 +3885,43 @@ try {
         const currentUser = await getCurrentUser(); 
 
         console.log("📨 LEAD ENTRANTE:", data.email, "| REF:", ambassadorId || "ORGÁNICO", "| ORIGEN:", data.source || "ORGÁNICO");
-        
+       // =========================================================
+// IDENTIDAD REAL DEL REMITENTE
+// Si el usuario está logueado, usamos su perfil real.
+// Así el lead queda asociado al avatar/logo de la agencia/persona que contacta.
+// Si no está logueado, usamos los datos escritos en el formulario.
+// =========================================================
+const senderProfile = currentUser?.id
+  ? await prisma.user.findUnique({
+      where: { id: currentUser.id },
+      select: {
+        id: true,
+        name: true,
+        surname: true,
+        email: true,
+        phone: true,
+        mobile: true,
+        companyName: true,
+        companyLogo: true,
+        avatar: true,
+        role: true,
+      },
+    })
+  : null;
+
+const senderName =
+  senderProfile?.companyName ||
+  senderProfile?.name ||
+  data.name;
+
+const senderEmail =
+  senderProfile?.email ||
+  data.email;
+
+const senderPhone =
+  senderProfile?.phone ||
+  senderProfile?.mobile ||
+  data.phone; 
      // 2. GUARDAR EN LA BASE DE DATOS (CON DETECCIÓN DE AGENCIA CORREGIDA)
        // 2. RESOLVER PROPIEDAD + AGENCIA/USUARIO RECEPTOR
 const propertyForLead = await prisma.property.findUnique({
@@ -3916,10 +3952,10 @@ if (!targetUserId) {
 // 3. GUARDAR LEAD DIRIGIDO AL RECEPTOR REAL
 const newLead = await prisma.lead.create({
   data: {
-    name: data.name,
-    email: data.email,
-    phone: data.phone,
-    message: data.message,
+  name: senderName,
+  email: senderEmail,
+  phone: senderPhone,
+  message: data.message,
     propertyId: data.propertyId,
     managerId: targetUserId,
     status: "NEW",
